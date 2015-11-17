@@ -11,6 +11,7 @@ lib/dispatcher/src/frontend/templates/events.html
 lib/dispatcher/src/frontend/templates/rpc.html
 lib/dispatcher/src/frontend/templates/term.html
 lib/dispatcher/src/frontend/templates/stats.html
+lib/dispatcher/src/frontend/templates/syslog.html
 lib/dispatcher/src/frontend/templates/apidoc/index.html
 lib/dispatcher/src/frontend/templates/apidoc/nav.html
 lib/dispatcher/src/frontend/templates/apidoc/rpc.html
