@@ -52,7 +52,7 @@ class SyslogEventSource(EventSource):
                     'ids': [i['id']]
                 })
 
-        time.sleep(1)
+            time.sleep(1)
 
 
 def _init(dispatcher, plugin):
