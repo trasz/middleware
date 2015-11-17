@@ -25,6 +25,7 @@
 #
 #####################################################################
 
+import time
 from datetime import datetime
 from event import EventSource
 from task import Provider
@@ -50,6 +51,8 @@ class SyslogEventSource(EventSource):
                     'operation': 'create',
                     'ids': [i['id']]
                 })
+
+        time.sleep(1)
 
 
 def _init(dispatcher, plugin):
