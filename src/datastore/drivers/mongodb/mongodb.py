@@ -143,10 +143,7 @@ class MongodbDatastore(object):
             db.create_collection(name)
 
         if cap:
-            db.command({
-                'convertToCapped': name,
-                'size': cap
-            })
+            db.command('convertToCapped', name, size=cap)
 
         if ttl_index:
             self.db[name].create_index(ttl_index, expireAfterSeconds=0)
