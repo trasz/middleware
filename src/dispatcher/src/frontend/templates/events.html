@@ -27,9 +27,17 @@
         sock.connect();
 
         sock.onConnect = function() {
-            var username = prompt("Username:");
-            var password = prompt("Password:");
-            sock.login(username, password);
+            if (!sessionStorage.getItem("freenas:username")) {
+                var username = prompt("Username:");
+                var password = prompt("Password:");
+                sessionStorage.setItem("freenas:username", username);
+                sessionStorage.setItem("freenas:password", password);
+            }
+
+            sock.login(
+                sessionStorage.getItem("freenas:username"),
+                sessionStorage.getItem("freenas:password")
+            );
         };
 
         sock.onLogin = function() {
