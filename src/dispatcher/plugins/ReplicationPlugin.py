@@ -504,4 +504,10 @@ def _init(dispatcher, plugin):
         dispatcher.configstore.set('replication.key.private', buffer.getvalue())
         dispatcher.configstore.set('replication.key.public', key.get_base64())
 
-    dispatcher.call_sync('etcd.generation.generate_group', 'replication')
+    def on_etcd_resume(args):
+        if args.get('name') != 'etcd.generation':
+            return
+
+        dispatcher.call_sync('etcd.generation.generate_group', 'replication')
+
+    plugin.register_event_handler('plugin.service_resume', on_etcd_resume)

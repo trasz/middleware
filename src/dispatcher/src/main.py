@@ -1543,6 +1543,8 @@ def run(d, args):
     )
 
     d.ws_servers = [s4, s6, su]
+    serv_threads = [gevent.spawn(i.serve_forever) for i in d.ws_servers]
+
     d.port = args.p
     d.init()
 
@@ -1559,8 +1561,6 @@ def run(d, args):
             gevent.spawn(i.serve_forever)
 
         logging.info('Frontend server listening on port %d', args.s)
-
-    serv_threads = [gevent.spawn(s4.serve_forever), gevent.spawn(s6.serve_forever), gevent.spawn(su.serve_forever)]
 
     d.discover_plugins()
     d.load_plugins()
