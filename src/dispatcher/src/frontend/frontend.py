@@ -68,6 +68,11 @@ def stats():
     return render_template('stats.html')
 
 
+@app.route('/syslog')
+def syslog():
+    return render_template('syslog.html')
+
+
 @app.route('/apidoc')
 def apidoc():
     version = dispatcher.call_sync('system.info.version')

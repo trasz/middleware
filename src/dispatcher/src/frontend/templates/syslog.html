@@ -1,0 +1,89 @@
+{% extends "bootstrap/base.html" %}
+{% import "nav.html" as nav %}
+{% block title %}System events{% endblock %}
+{% block styles %}
+    {{ super() }}
+    <style type="text/css">
+        body { margin: 20px; padding-top: 50px; }
+    </style>
+{% endblock %}
+{% block scripts %}
+    <script src="/static/middleware.js"></script>
+    <script src="//code.jquery.com/jquery-1.11.1.js"></script>
+    <script src="//cdnjs.cloudflare.com/ajax/libs/handlebars.js/2.0.0/handlebars.min.js"></script>
+    <script id="syslog-template" type="text/x-handlebars-template">
+    {% raw %}
+        <td>{{ date }}</td>
+        <td>
+            <span class="label label-primary">{{ program }}</span>
+            <span class="label label-primary">{{ pid }}</span>
+            </td>
+        <td><span class="label label-primary">{{ facility }}</span></td>
+        <td><span class="label label-primary">{{ priority }}</span></td>
+
+        <td><code>{{ message }}</code></td>
+    {% endraw %}
+    </script>
+    <script type="text/javascript">
+        var template = Handlebars.compile($("#syslog-template").text());
+        var sock = new middleware.DispatcherClient(document.domain);
+        sock.connect();
+
+        sock.onConnect = function() {
+            if (!sessionStorage.getItem("freenas:username")) {
+                var username = prompt("Username:");
+                var password = prompt("Password:");
+                sessionStorage.setItem("freenas:username", username);
+                sessionStorage.setItem("freenas:password", password);
+            }
+
+            sock.login(
+                sessionStorage.getItem("freenas:username"),
+                sessionStorage.getItem("freenas:password")
+            );
+        };
+
+        sock.onLogin = function(result) {
+            sock.call("syslog.query", [[], {"sort": ["-id"], "limit": 50}], function(result) {
+                $.each(result, function(idx, i) {
+                    var tr = $("<tr/>", {
+                        'data-id': i.id,
+                        'html': template(i)
+                    });
+
+                    tr.appendTo("#syslog tbody");
+                    tr[0].scrollIntoView();
+                });
+
+                sock.registerEventHandler("entity-subscriber.syslog.changed", function(args) {
+                    $.each(args.entities, function(idx, i) {
+                        var tr = $("<tr/>", {
+                            'data-id': i.id,
+                            'html': template(i)
+                        });
+
+                        tr.appendTo("#syslog tbody");
+                        tr[0].scrollIntoView();
+                    });
+                });
+            });
+        };
+    </script>
+{% endblock %}
+{% block content %}
+    {{ nav.nav() }}
+    <h1>Syslog live stream</h1>
+    <table class="table" id="syslog">
+        <thead>
+            <tr>
+                <td>Date</td>
+                <td>Process</td>
+                <td>Facitily</td>
+                <td>Prioruty</td>
+                <td>Messages</td>
+            </tr>
+        </thead>
+        <tbody>
+        </tbody>
+    </table>
+{% endblock %}
