@@ -73,6 +73,11 @@ def syslog():
     return render_template('syslog.html')
 
 
+@app.route('/vm')
+def vm():
+    return render_template('vm.html')
+
+
 @app.route('/apidoc')
 def apidoc():
     version = dispatcher.call_sync('system.info.version')
