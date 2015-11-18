@@ -35,7 +35,7 @@ from pymongo import MongoClient
 import pymongo
 import pymongo.errors
 from six import string_types
-from datastore import DuplicateKeyException
+from datastore import DatastoreException, DuplicateKeyException
 from freenas.utils.query import wrap
 
 
@@ -112,6 +112,9 @@ class MongodbDatastore(object):
 
     def _get_db(self, collection):
         c = self.db['collections'].find_one({"_id": collection})
+        if not c:
+            raise DatastoreException('Collection {0} not found'.format(collection))
+
         typ = c['attributes'].get('type', 'config')
 
         if typ == 'log':
