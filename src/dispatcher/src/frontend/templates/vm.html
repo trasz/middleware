@@ -1,0 +1,141 @@
+{% extends "bootstrap/base.html" %}
+{% import "nav.html" as nav %}
+{% block title %}Terminal{% endblock %}
+{% block styles %}
+    {{ super() }}
+    <style type="text/css">
+        body {
+            margin: 20px;
+            padding-top: 50px;
+        }
+
+        .terminal {
+            float: left;
+            border: #000 solid 5px;
+            font-family: "DejaVu Sans Mono", "Liberation Mono", monospace;
+            font-size: 12px;
+            color: #f0f0f0;
+            background: #000;
+            margin-top: 15px;
+        }
+
+        .terminal-cursor {
+            color: #000;
+            background: #f0f0f0;
+        }
+    </style>
+{% endblock %}
+{% block scripts %}
+    {{super()}}
+    <script src="//code.jquery.com/jquery-1.11.1.js"></script>
+    <script src="//cdnjs.cloudflare.com/ajax/libs/handlebars.js/2.0.0/handlebars.min.js"></script>
+    <script src="/static/emitter.js"></script>
+    <script src="/static/middleware.js"></script>
+    <script src="/static/term.js"></script>
+    <script type="text/javascript">
+        var sock = new middleware.DispatcherClient(document.domain);
+        var term;
+        var currentId = null;
+        sock.connect();
+
+        function connect_term(client, vm)
+        {
+            var conn = new middleware.ContainerConsoleClient(client);
+            conn.connect(vm);
+            conn.onOpen = function() {
+                term = new Terminal({
+                    cols: 80,
+                    rows: 24,
+                    screenKeys: true
+                });
+
+                term.on('data', function (data) {
+                    conn.send(data);
+                });
+
+                conn.onData = function (data) {
+                    term.write(data);
+                };
+
+                term.open($("#terminal")[0])
+            }
+        }
+
+        $(document).ready(function (){
+            sock.onError = function(err) {
+                alert("Error: " + err.message);
+            };
+
+            sock.onConnect = function() {
+                if (!sessionStorage.getItem("freenas:username")) {
+                    var username = prompt("Username:");
+                    var password = prompt("Password:");
+                    sessionStorage.setItem("freenas:username", username);
+                    sessionStorage.setItem("freenas:password", password);
+                }
+
+                sock.login(
+                    sessionStorage.getItem("freenas:username"),
+                    sessionStorage.getItem("freenas:password")
+                );
+            };
+
+            sock.onLogin = function() {
+                sock.call("container.query", null, function(response) {
+                    $.each(response, function(idx, i) {
+                        var li = $("<li/>")
+                            .appendTo($("#containers"));
+                        var a = $("<a/>")
+                            .addClass("container-entry")
+                            .attr("role", "menuitem")
+                            .attr("href", "#")
+                            .attr("data-id", i.id)
+                            .text(i.name)
+                            .appendTo(li);
+                    });
+                });
+
+                sock.registerEventHandler('entity-subscriber.container.changed', function(args) {
+                    $.each(args.entities, function(idx, i) {
+                        if (i.id === currentId) {
+                            $("#state").text("State: " + i.status.state);
+                        }
+                    });
+                });
+            };
+
+            $("#containers").on("click", "a.container-entry", function() {
+                sock.call("containerd.management.get_status", [$(this).attr("data-id")], function (response) {
+                    $("#state").text("State: " + response.state);
+                });
+
+                currentId = $(this).attr("data-id");
+                connect_term(sock, currentId);
+            });
+
+        });
+    </script>
+{% endblock %}
+{% block content %}
+    {{ nav.nav() }}
+    <h1>Container console</h1>
+    <div class="dropdown">
+      <button class="btn btn-default dropdown-toggle" type="button" data-toggle="dropdown">
+        Container
+        <span class="caret"></span>
+      </button>
+      <button class="btn btn-success" id="start-container">
+        Start
+      </button>
+      <button class="btn btn-danger" id="stop-container">
+        Stop
+      </button>
+      <span id="state" class="label label-default">
+        State: UNKNOWN
+      </span>
+      <ul id="containers" class="dropdown-menu" role="menu">
+      </ul>
+    </div>
+    <div id="terminal">
+    </div>
+{% endblock %}
