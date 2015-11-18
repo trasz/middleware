@@ -194,8 +194,11 @@ class VirtualMachine(object):
 
     def console_write(self, data):
         self.logger.debug('Write: {0}'.format(data))
-        self.console_fd.write(data)
-        self.console_fd.flush()
+        try:
+            self.console_fd.write(data)
+            self.console_fd.flush()
+        except ValueError:
+            pass
 
 
 class Jail(object):
@@ -218,7 +221,10 @@ class ManagementService(RpcService):
 
     @private
     def get_status(self, id):
-        vm = self.context.containers[id]
+        vm = self.context.containers.get(id)
+        if not vm:
+            return None
+
         return {
             'state': vm.state.name
         }

@@ -35,7 +35,11 @@ from freenas.utils import first_or_default, normalize
 @query('container')
 class ContainerProvider(Provider):
     def query(self, filter=None, params=None):
-        return self.datastore.query('containers', *(filter or []), **(params or {}))
+        def extend(obj):
+            obj['status'] = self.dispatcher.call_sync('containerd.management.get_status', obj['id'])
+            return obj
+
+        return self.datastore.query('containers', *(filter or []), callback=extend, **(params or {}))
 
     def get_disk_path(self, container_id, disk_id):
         container = self.datastore.get_by_id('containers', container_id)
