@@ -73,12 +73,38 @@ class VirtualMachine(object):
         self.nmdm = None
         self.state = VirtualMachineState.STOPPED
         self.config = None
+        self.devices = []
         self.bhyve_process = None
         self.scrollback = io.BytesIO()
         self.console_fd = None
         self.console_channel = Channel()
         self.console_thread = None
         self.logger = logging.getLogger('VM:{0}'.format(self.name))
+
+    def build_args(self):
+        args = [
+            '/usr/sbin/bhyve', '-A', '-H', '-P', '-c', str(self.config['ncpus']), '-m', str(self.config['memsize']),
+            '-s', '0:0,hostbridge'
+        ]
+
+        index = 1
+
+        if self.config['cdimage']:
+            args += ['-s', '{0}:0,ahci-cd,{1}'.format(index, self.config['cdimage'])]
+            index += 1
+
+        for i in self.devices:
+            if i['type'] == 'DISK':
+                path = self.context.client.call_sync('container.get_disk_path', self.id, i['id'])
+                args += ['-s', '{0}:0,ahci-hd,{1}'.format(index, path)]
+                index += 1
+
+        args += [
+            '-s', '31,lpc', '-l', 'com1,{0}'.format(self.nmdm[0]),
+            self.name
+        ]
+
+        return args
 
     def get_nmdm(self):
         #for i in range(0, 255):
@@ -104,7 +130,7 @@ class VirtualMachine(object):
 
         gevent.kill(self.console_thread)
         self.bhyve_process.terminate()
-        subprocess.call('/usr/sbin/bhyvectl --destroy --vm={0}'.format(self.name))
+        subprocess.call(['/usr/sbin/bhyvectl', '--destroy', '--vm={0}'.format(self.name)])
         self.set_state(VirtualMachineState.STOPPED)
 
     def set_state(self, state):
@@ -116,6 +142,7 @@ class VirtualMachine(object):
 
     def run(self):
         self.set_state(VirtualMachineState.BOOTLOADER)
+        self.logger.debug('Starting bootloader...')
 
         if self.config['bootloader'] == 'GRUB':
             self.bhyve_process = subprocess.Popen(
@@ -125,8 +152,8 @@ class VirtualMachine(object):
         if self.config['bootloader'] == 'BHYVELOAD':
             self.bhyve_process = subprocess.Popen(
                 [
-                    '/usr/sbin/bhyveload', '-c', self.nmdm[0], '-m', self.config['memsize'],
-                    '-d', self.config['bootdisk'], self.name,
+                    '/usr/sbin/bhyveload', '-c', self.nmdm[0], '-m', str(self.config['memsize']),
+                    '-d', self.config['cdimage'], self.name,
                 ],
                 stdout=subprocess.PIPE,
                 stderr=subprocess.STDOUT,
@@ -136,18 +163,13 @@ class VirtualMachine(object):
         out, err = self.bhyve_process.communicate()
         self.logger.debug('bhyveload: {0}'.format(out))
 
-        args = [
-            '/usr/sbin/bhyve', '-A', '-H', '-P', '-c', str(self.config['cpus']), '-m', self.config['memsize'],
-            '-s', '0:0,hostbridge',
-            '-s', '2:0,ahci-cd,{0}'.format(self.config['bootdisk']),
-            '-s', '31,lpc', '-l', 'com1,{0}'.format(self.nmdm[0]),
-            self.name
-        ]
-
+        self.logger.debug('Starting bhyve...')
+        args = self.build_args()
         self.set_state(VirtualMachineState.RUNNING)
         self.bhyve_process = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, close_fds=True)
         out, err = self.bhyve_process.communicate()
         self.logger.debug('bhyve: {0}'.format(out))
+        self.set_state(VirtualMachineState.STOPPED)
 
     def console_worker(self):
         BUFSIZE = 1024
@@ -204,18 +226,21 @@ class ManagementService(RpcService):
     @private
     def start_container(self, id):
         container = self.context.datastore.get_by_id('containers', id)
+        self.context.logger.info('Starting container {0} ({1})'.format(container['name'], id))
 
         if container['type'] == 'VM':
             vm = VirtualMachine(self.context)
             vm.id = container['id']
             vm.name = container['name']
             vm.config = container['config']
+            vm.devices = container['devices']
             vm.start()
             self.context.containers[id] = vm
 
     @private
     def stop_container(self, id):
         container = self.context.datastore.get_by_id('containers', id)
+        self.context.logger.info('Stopping container {0} ({1})'.format(container['name'], id))
 
         if container['type'] == 'VM':
             vm = self.context.containers[id]
@@ -362,7 +387,7 @@ class Main(object):
                 self.client.resume_service('containerd.debug')
 
                 return
-            except socket.error as err:
+            except OSError as err:
                 self.logger.warning('Cannot connect to dispatcher: {0}, retrying in 1 second'.format(str(err)))
                 time.sleep(1)
 
