@@ -9,7 +9,7 @@ CATEGORIES=	freenas
 VALID_CATEGORIES+= freenas
 
 MAINTAINER=	dev@ixsystems.com
-COMMENT=	FreeNAS Command Line Iterface
+COMMENT=	FreeNAS Command Line Interface
 
 BUILD_DEPENDS=	${PYTHON_PKGNAMEPREFIX}freenas.utils>0:${PORTSDIR}/freenas/py-freenas.utils
 RUN_DEPENDS=	${PYTHON_PKGNAMEPREFIX}columnize>0:${PORTSDIR}/devel/py-columnize \
