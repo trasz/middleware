@@ -125,27 +125,6 @@ class ReplicationAction(object):
 
 
 #
-# Return a pair of compression and decompress pipe commands
-#
-map_compression = {
-    'pigz': ('/usr/local/bin/pigz', '/usr/local/bin/pigz -d'),
-    'plzip': ('/usr/local/bin/plzip', '/usr/local/bin/plzip -d'),
-    'lz4': ('/usr/local/bin/lz4c', '/usr/local/bin/lz4c -d'),
-    'xz': ('/usr/bin/xz', '/usr/bin/xzdec'),
-}
-
-def compress_pipecmds(compression):
-    if compression in map_compression:
-        compress, decompress = map_compression[compression]
-        compress = compress + ' | '
-        decompress = decompress + ' | '
-    else:
-        compress = ''
-        decompress = ''
-    return (compress, decompress)
-
-
-#
 # Attempt to send a snapshot or increamental stream to remote.
 #
 def send_dataset(remote, hostkey, fromsnap, tosnap, dataset, remotefs, compression, throttle):
