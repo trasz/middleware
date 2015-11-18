@@ -29,7 +29,6 @@
     {{super()}}
     <script src="//code.jquery.com/jquery-1.11.1.js"></script>
     <script src="//cdnjs.cloudflare.com/ajax/libs/handlebars.js/2.0.0/handlebars.min.js"></script>
-    <script src="/static/emitter.js"></script>
     <script src="/static/middleware.js"></script>
     <script src="/static/term.js"></script>
     <script type="text/javascript">
@@ -117,6 +116,13 @@
                 connect_term(sock, currentId);
             });
 
+            $("#start-container").on("click", function() {
+                sock.call("task.submit", ["container.start", [currentId]]);
+            });
+
+            $("#stop-container").on("click", function() {
+                sock.call("task.submit", ["container.stop", [currentId]]);
+            });
         });
     </script>
 {% endblock %}
