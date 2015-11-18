@@ -109,6 +109,10 @@
                     $("#state").text("State: " + response.state);
                 });
 
+                if (term) {
+                    term.destroy();
+                }
+
                 currentId = $(this).attr("data-id");
                 connect_term(sock, currentId);
             });

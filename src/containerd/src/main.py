@@ -197,7 +197,7 @@ class VirtualMachine(object):
         try:
             self.console_fd.write(data)
             self.console_fd.flush()
-        except ValueError:
+        except (ValueError, OSError):
             pass
 
 
