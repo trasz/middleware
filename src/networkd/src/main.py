@@ -528,9 +528,27 @@ class ConfigurationService(RpcService):
             lagg = entity.get('lagg')
             if lagg:
                 iface.protocol = getattr(netif.AggregationProtocol, lagg.get('protocol', 'FAILOVER'))
+                old_ports = set(iface.ports)
+                new_ports = set(lagg['ports'])
 
-                for i in lagg['ports']:
-                    iface.add_port(i)
+                for port in old_ports - new_ports:
+                    iface.delete_port(port)
+
+                for port in new_ports - old_ports:
+                    iface.add_port(port)
+
+        # Configure member interfaces for a bridge
+        if entity.get('type') == 'BRIDGE':
+            bridge = entity.get('bridge')
+            if bridge:
+                old_members = set(iface.members)
+                new_members = set(bridge['members'])
+
+                for port in old_members - new_members:
+                    iface.delete_member(port)
+
+                for port in new_members - old_members:
+                    iface.add_member(port)
 
         if entity.get('dhcp'):
             self.logger.info('Trying to acquire DHCP lease on interface {0}...'.format(name))
