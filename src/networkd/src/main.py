@@ -671,11 +671,12 @@ class Main:
 
         # Add newly plugged NICs to DB
         for i in list(netif.list_interfaces().values()):
+            existing.append(i.name)
+
             # We want only physical NICs
             if i.cloned:
                 continue
 
-            existing.append(i.name)
             if not self.datastore.exists('network.interfaces', ('id', '=', i.name)):
                 self.logger.info('Found new interface {0} ({1})'.format(i.name, i.type.name))
                 self.datastore.insert('network.interfaces', {
