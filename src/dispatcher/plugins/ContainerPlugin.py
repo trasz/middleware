@@ -41,12 +41,12 @@ class ContainerProvider(Provider):
 
         return self.datastore.query('containers', *(filter or []), callback=extend, **(params or {}))
 
-    def get_disk_path(self, container_id, disk_id):
+    def get_disk_path(self, container_id, disk_name):
         container = self.datastore.get_by_id('containers', container_id)
         if not container:
             return None
 
-        return os.path.join('/dev/zvol', container['target'], 'vm', container['name'], disk_id)
+        return os.path.join('/dev/zvol', container['target'], 'vm', container['name'], disk_name)
 
 
 class ContainerBaseTask(Task):
@@ -64,7 +64,7 @@ class ContainerBaseTask(Task):
     def create_device(self, container, res):
         if res['type'] == 'DISK':
             container_ds = os.path.join(container['target'], 'vm', container['name'])
-            ds_name = os.path.join(container_ds, res['id'])
+            ds_name = os.path.join(container_ds, res['name'])
             self.join_subtasks(self.run_subtask(
                 'volume.dataset.create',
                 container['target'],

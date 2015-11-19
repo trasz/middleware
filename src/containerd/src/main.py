@@ -95,8 +95,13 @@ class VirtualMachine(object):
 
         for i in self.devices:
             if i['type'] == 'DISK':
-                path = self.context.client.call_sync('container.get_disk_path', self.id, i['id'])
+                path = self.context.client.call_sync('container.get_disk_path', self.id, i['name'])
                 args += ['-s', '{0}:0,ahci-hd,{1}'.format(index, path)]
+                index += 1
+
+            if i['type'] == 'NIC':
+                iface = self.init_tap()
+                args += ['-s', '{0}:0,virtio-net,{1}'.format(index, iface)]
                 index += 1
 
         args += [
