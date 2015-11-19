@@ -449,6 +449,16 @@ def _init(dispatcher, plugin):
                     }
                 }
             },
+            'bridge': {
+                'type': 'object',
+                'additionalProperties': False,
+                'properties': {
+                    'members': {
+                        'type': 'array',
+                        'items': {'type': 'string'}
+                    }
+                }
+            },
             'status': {'$ref': 'network-interface-status'}
         }
     })
