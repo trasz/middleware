@@ -1026,7 +1026,8 @@
             "network.netwait.enabled": false,
             "network.netwait.addresses": [],
             "replication.key.public": null,
-            "replication.key.private": null
+            "replication.key.private": null,
+            "container.bridge": null
         },
         "metadata": {
             "attributes": {
