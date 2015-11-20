@@ -46,7 +46,15 @@ class ContainerProvider(Provider):
         if not container:
             return None
 
-        return os.path.join('/dev/zvol', container['target'], 'vm', container['name'], disk_name)
+        disk = first_or_default(lambda d: d['name'] == disk_name, container['devices'])
+        if not disk:
+            return None
+
+        if disk['type'] == 'DISK':
+            return os.path.join('/dev/zvol', container['target'], 'vm', container['name'], disk_name)
+
+        if disk['type'] == 'CDROM':
+            return disk['properties']['path']
 
     def get_default_interface(self):
         return self.configstore.get('container.default_nic')
@@ -183,7 +191,7 @@ def _init(dispatcher, plugin):
                         'type': 'string',
                         'enum': ['BHYVELOAD', 'GRUB']
                     },
-                    'cdimage': {'type': ['string', 'null']}
+                    'boot_device': {'type': ['string', 'null']}
                 }
             },
             'devices': {
@@ -201,7 +209,7 @@ def _init(dispatcher, plugin):
             'name': {'type': 'string'},
             'type': {
                 'type': 'string',
-                'enum': ['DISK', 'NIC']
+                'enum': ['DISK', 'CDROM', 'NIC']
             },
             'properties': {'type': 'object'}
         },

@@ -44,6 +44,7 @@ import gevent.monkey
 import subprocess
 import serial
 import netif
+import signal
 from gevent.queue import Queue, Channel
 from geventwebsocket import WebSocketServer, WebSocketApplication, Resource
 from geventwebsocket.exceptions import WebSocketError
@@ -93,7 +94,7 @@ class VirtualMachine(object):
         self.bhyve_process = None
         self.scrollback = BinaryRingBuffer(SCROLLBACK_SIZE)
         self.console_fd = None
-        self.console_channel = Channel()
+        self.console_queues = []
         self.console_thread = None
         self.tap_interfaces = []
         self.logger = logging.getLogger('VM:{0}'.format(self.name))
@@ -106,14 +107,15 @@ class VirtualMachine(object):
 
         index = 1
 
-        if self.config['cdimage']:
-            args += ['-s', '{0}:0,ahci-cd,{1}'.format(index, self.config['cdimage'])]
-            index += 1
-
         for i in self.devices:
             if i['type'] == 'DISK':
                 path = self.context.client.call_sync('container.get_disk_path', self.id, i['name'])
                 args += ['-s', '{0}:0,ahci-hd,{1}'.format(index, path)]
+                index += 1
+
+            if i['type'] == 'CDROM':
+                path = self.context.client.call_sync('container.get_disk_path', self.id, i['name'])
+                args += ['-s', '{0}:0,ahci-cd,{1}'.format(index, path)]
                 index += 1
 
             if i['type'] == 'NIC':
@@ -130,23 +132,30 @@ class VirtualMachine(object):
         return args
 
     def init_tap(self):
-        iface = netif.create_interface('tap')
-        self.context.bridge_interface.add_member(iface)
+        iface = netif.get_interface(netif.create_interface('tap'))
+        iface.up()
+        self.context.bridge_interface.add_member(iface.name)
         self.tap_interfaces.append(iface)
-        return iface
+        return iface.name
 
     def get_nmdm(self):
         index = self.context.allocate_nmdm()
         return '/dev/nmdm{0}A'.format(index), '/dev/nmdm{0}B'.format(index)
 
     def start(self):
+        self.context.logger.info('Starting container {0} ({1})'.format(self.name, self.id))
         self.nmdm = self.get_nmdm()
         gevent.spawn(self.run)
         self.console_thread = gevent.spawn(self.console_worker)
 
     def stop(self):
+        self.logger.info('Stopping container {0} ({1}}'.format(self.name, self.id))
         if self.state == VirtualMachineState.STOPPED:
             raise RuntimeError()
+
+        for i in self.tap_interfaces:
+            i.down()
+            netif.destroy_interface(i.name)
 
         self.bhyve_process.terminate()
         subprocess.call(['/usr/sbin/bhyvectl', '--destroy', '--vm={0}'.format(self.name)])
@@ -154,7 +163,8 @@ class VirtualMachine(object):
 
         # Clear console
         gevent.kill(self.console_thread)
-        self.console_channel.put(b'\033[2J')
+        for i in self.console_queues:
+            i.put(b'\033[2J')
 
     def set_state(self, state):
         self.state = state
@@ -173,10 +183,11 @@ class VirtualMachine(object):
             )
 
         if self.config['bootloader'] == 'BHYVELOAD':
+            path = self.context.client.call_sync('container.get_disk_path', self.id, self.config['boot_device'])
             self.bhyve_process = subprocess.Popen(
                 [
                     '/usr/sbin/bhyveload', '-c', self.nmdm[0], '-m', str(self.config['memsize']),
-                    '-d', self.config['cdimage'], self.name,
+                    '-d', path, self.name,
                 ],
                 stdout=subprocess.PIPE,
                 stderr=subprocess.STDOUT,
@@ -198,21 +209,30 @@ class VirtualMachine(object):
 
     def console_worker(self):
         self.logger.debug('Opening console at {0}'.format(self.nmdm[1]))
-        self.console_fd = serial.Serial(self.nmdm[1], 115200)
+        self.console_fd = serial.Serial(self.nmdm[1])
         while True:
             try:
                 ch = self.console_fd.read()
             except serial.SerialException as e:
                 print('Cannot read from serial port: {0}'.format(str(e)))
                 gevent.sleep(1)
-                self.console_fd = serial.Serial(self.nmdm[1], 115200)
+                self.console_fd = serial.Serial(self.nmdm[1])
                 continue
 
             self.scrollback.push(ch)
             try:
-                self.console_channel.put(ch, block=False)
+                for i in self.console_queues:
+                    i.put(ch, block=False)
             except:
                 pass
+
+    def console_register(self):
+        queue = gevent.queue.Queue(128)
+        self.console_queues.append(queue)
+        return queue
+
+    def console_unregister(self, queue):
+        self.console_queues.remove(queue)
 
     def console_write(self, data):
         self.logger.debug('Write: {0}'.format(data))
@@ -254,7 +274,6 @@ class ManagementService(RpcService):
     @private
     def start_container(self, id):
         container = self.context.datastore.get_by_id('containers', id)
-        self.context.logger.info('Starting container {0} ({1})'.format(container['name'], id))
 
         if container['type'] == 'VM':
             vm = VirtualMachine(self.context)
@@ -317,6 +336,7 @@ class ConsoleConnection(WebSocketApplication, EventEmitter):
         self.context = context
         self.logger = logging.getLogger('ConsoleConnection')
         self.authenticated = False
+        self.console_queue = None
         self.vm = None
         self.rd = None
         self.wr = None
@@ -327,7 +347,7 @@ class ConsoleConnection(WebSocketApplication, EventEmitter):
 
         def read_worker():
             while True:
-                data = self.vm.console_channel.get()
+                data = self.console_queue.get()
                 if data is None:
                     return
 
@@ -351,6 +371,7 @@ class ConsoleConnection(WebSocketApplication, EventEmitter):
     def on_close(self, *args, **kwargs):
         gevent.kill(self.rd)
         gevent.kill(self.wr)
+        self.vm.console_unregister(self.console_queue)
 
     def on_message(self, message, *args, **kwargs):
         if message is None:
@@ -372,6 +393,7 @@ class ConsoleConnection(WebSocketApplication, EventEmitter):
 
             self.authenticated = True
             self.vm = self.context.containers[token]
+            self.console_queue = self.vm.console_register()
             self.ws.send(json.dumps({'status': 'ok'}))
             self.ws.send(self.vm.scrollback.read())
             gevent.spawn(self.worker)
@@ -458,6 +480,9 @@ class Main(object):
 
     def die(self):
         self.logger.warning('Exiting')
+        for i in self.containers:
+            i.stop()
+
         self.client.disconnect()
         sys.exit(0)
 
@@ -475,9 +500,13 @@ class Main(object):
         configure_logging('/var/log/containerd.log', 'DEBUG')
         setproctitle.setproctitle('containerd')
 
+        gevent.signal(signal.SIGTERM, self.die)
+        gevent.signal(signal.SIGQUIT, self.die)
+
         self.parse_config(args.c)
         self.init_datastore()
         self.init_dispatcher()
+        self.init_bridge()
         self.logger.info('Started')
 
         # WebSockets server
