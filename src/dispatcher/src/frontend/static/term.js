@@ -658,7 +658,7 @@ Terminal.insertStyle = function(document, bg, fg) {
     + '  font-size: 11px;\n'
     + '  color: ' + fg + ';\n'
     + '  background: ' + bg + ';\n'
-    + '  line-height: 1.0;'
+    + '  line-height: 1.0;\n'
     + '}\n'
     + '\n'
     + '.terminal-cursor {\n'
