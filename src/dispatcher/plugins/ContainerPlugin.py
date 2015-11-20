@@ -48,6 +48,9 @@ class ContainerProvider(Provider):
 
         return os.path.join('/dev/zvol', container['target'], 'vm', container['name'], disk_name)
 
+    def get_default_interface(self):
+        return self.configstore.get('container.default_nic')
+
 
 class ContainerBaseTask(Task):
     def init_dataset(self, container):
