@@ -43,6 +43,7 @@ import gevent.os
 import gevent.monkey
 import subprocess
 import tty
+import serial
 from gevent.queue import Queue, Channel
 from geventwebsocket import WebSocketServer, WebSocketApplication, Resource
 from pyee import EventEmitter
@@ -177,23 +178,19 @@ class VirtualMachine(object):
         self.set_state(VirtualMachineState.STOPPED)
 
     def console_worker(self):
-        BUFSIZE = 1024
-        self.console_fd = open(self.nmdm[1], 'r+b')
-        tty.setraw(self.console_fd.fileno())
+        self.logger.debug('Opening console at {0}'.format(self.nmdm[1]))
+        self.console_fd = serial.Serial(self.nmdm[1], 115200)
         while True:
-            data = gevent.os.tp_read(self.console_fd.fileno(), BUFSIZE)
-            self.logger.debug('Read: {0}'.format(data))
-            if not data:
-                self.logger.info('Reopening {0} device'.format(self.nmdm[1]))
-                self.console_fd.close()
+            try:
+                ch = self.console_fd.read()
+            except serial.SerialException as e:
+                print('Cannot read from serial port: {0}'.format(str(e)))
                 gevent.sleep(1)
-                self.console_fd = open(self.nmdm[1], 'r+b')
-                tty.setraw(self.console_fd.fileno())
+                self.console_fd = serial.Serial(self.nmdm[1], 115200)
                 continue
 
-            self.scrollback.write(data)
             try:
-                self.console_channel.put(data, block=False)
+                self.console_channel.put(ch, block=False)
             except:
                 pass
 
