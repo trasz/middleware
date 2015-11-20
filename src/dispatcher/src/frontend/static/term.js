@@ -658,15 +658,12 @@ Terminal.insertStyle = function(document, bg, fg) {
     + '  font-size: 11px;\n'
     + '  color: ' + fg + ';\n'
     + '  background: ' + bg + ';\n'
+    + '  line-height: 1.0;'
     + '}\n'
     + '\n'
     + '.terminal-cursor {\n'
     + '  color: ' + bg + ';\n'
     + '  background: ' + fg + ';\n'
-    + '}\n'
-    + '\n'
-    + '.terminal-line {'
-    + '  line-height: 1.0;'
     + '}\n';
 
   // var out = '';
@@ -728,7 +725,6 @@ Terminal.prototype.open = function(parent) {
   this.children = [];
   for (; i < this.rows; i++) {
     div = this.document.createElement('div');
-    div.className = 'terminal-line';
     this.element.appendChild(div);
     this.children.push(div);
   }
