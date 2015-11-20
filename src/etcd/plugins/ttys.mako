@@ -335,5 +335,3 @@ ttySs	none			network
 ttySt	none			network
 ttySu	none			network
 ttySv	none			network
-
-zfsd	"/sbin/zfsd -d"		unknown	on	secure
