@@ -58,12 +58,25 @@ gevent.monkey.patch_all(thread=False)
 
 
 DEFAULT_CONFIGFILE = '/usr/local/etc/middleware.conf'
+SCROLLBACK_SIZE = 65536
 
 
 class VirtualMachineState(enum.Enum):
     STOPPED = 1
     BOOTLOADER = 2
     RUNNING = 3
+
+
+class BinaryRingBuffer(object):
+    def __init__(self, size):
+        self.data = bytearray(size)
+
+    def push(self, data):
+        del self.data[0:len(data)]
+        self.data += data
+
+    def read(self):
+        return self.data
 
 
 class VirtualMachine(object):
@@ -76,7 +89,7 @@ class VirtualMachine(object):
         self.config = None
         self.devices = []
         self.bhyve_process = None
-        self.scrollback = io.BytesIO()
+        self.scrollback = BinaryRingBuffer(SCROLLBACK_SIZE)
         self.console_fd = None
         self.console_channel = Channel()
         self.console_thread = None
@@ -189,6 +202,7 @@ class VirtualMachine(object):
                 self.console_fd = serial.Serial(self.nmdm[1], 115200)
                 continue
 
+            self.scrollback.push(ch)
             try:
                 self.console_channel.put(ch, block=False)
             except:
@@ -346,6 +360,7 @@ class ConsoleConnection(WebSocketApplication, EventEmitter):
             self.vm = self.context.containers[token]
             gevent.spawn(self.worker)
             self.ws.send(json.dumps({'status': 'ok'}))
+            self.ws.send(self.vm.scrollback.read())
             return
 
         for i in message:
