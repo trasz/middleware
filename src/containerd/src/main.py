@@ -42,14 +42,16 @@ import gevent
 import gevent.os
 import gevent.monkey
 import subprocess
-import tty
 import serial
+import netif
 from gevent.queue import Queue, Channel
 from geventwebsocket import WebSocketServer, WebSocketApplication, Resource
+from geventwebsocket.exceptions import WebSocketError
 from pyee import EventEmitter
+from datastore import DatastoreException, get_datastore
+from datastore.config import ConfigStore
 from freenas.dispatcher.client import Client, ClientError
 from freenas.dispatcher.rpc import RpcService, RpcException, private
-from datastore import DatastoreException, get_datastore
 from freenas.utils.debug import DebugService
 from freenas.utils import configure_logging, to_timedelta
 
@@ -72,7 +74,7 @@ class BinaryRingBuffer(object):
         self.data = bytearray(size)
 
     def push(self, data):
-        del self.data[0:len(data)]
+        #del self.data[0:len(data)]
         self.data += data
 
     def read(self):
@@ -93,6 +95,7 @@ class VirtualMachine(object):
         self.console_fd = None
         self.console_channel = Channel()
         self.console_thread = None
+        self.tap_interfaces = []
         self.logger = logging.getLogger('VM:{0}'.format(self.name))
 
     def build_args(self):
@@ -123,23 +126,21 @@ class VirtualMachine(object):
             self.name
         ]
 
+        self.logger.debug('bhyve args: {0}'.format(args))
         return args
 
-    def get_nmdm(self):
-        #for i in range(0, 255):
-        #    if os.path.exists('/dev/nmdm{0}A'.format(i)):
-        #        continue
-        #
-        #    a = '/dev/nmdm{0}A'.format(i)
-        #    b = '/dev/nmdm{0}B'.format(i)
-        #    self.logger.info('Assigned nmdm device pair: {0}, {1}'.format(a, b))
-        #    return a, b
+    def init_tap(self):
+        iface = netif.create_interface('tap')
+        self.context.bridge_interface.add_member(iface)
+        self.tap_interfaces.append(iface)
+        return iface
 
-        return '/dev/nmdm1A', '/dev/nmdm1B'
+    def get_nmdm(self):
+        index = self.context.allocate_nmdm()
+        return '/dev/nmdm{0}A'.format(index), '/dev/nmdm{0}B'.format(index)
 
     def start(self):
         self.nmdm = self.get_nmdm()
-
         gevent.spawn(self.run)
         self.console_thread = gevent.spawn(self.console_worker)
 
@@ -147,10 +148,13 @@ class VirtualMachine(object):
         if self.state == VirtualMachineState.STOPPED:
             raise RuntimeError()
 
-        gevent.kill(self.console_thread)
         self.bhyve_process.terminate()
         subprocess.call(['/usr/sbin/bhyvectl', '--destroy', '--vm={0}'.format(self.name)])
         self.set_state(VirtualMachineState.STOPPED)
+
+        # Clear console
+        gevent.kill(self.console_thread)
+        self.console_channel.put(b'\033[2J')
 
     def set_state(self, state):
         self.state = state
@@ -180,6 +184,7 @@ class VirtualMachine(object):
             )
 
         out, err = self.bhyve_process.communicate()
+        self.bhyve_process.wait()
         self.logger.debug('bhyveload: {0}'.format(out))
 
         self.logger.debug('Starting bhyve...')
@@ -187,6 +192,7 @@ class VirtualMachine(object):
         self.set_state(VirtualMachineState.RUNNING)
         self.bhyve_process = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, close_fds=True)
         out, err = self.bhyve_process.communicate()
+        self.bhyve_process.wait()
         self.logger.debug('bhyve: {0}'.format(out))
         self.set_state(VirtualMachineState.STOPPED)
 
@@ -239,7 +245,7 @@ class ManagementService(RpcService):
     def get_status(self, id):
         vm = self.context.containers.get(id)
         if not vm:
-            return None
+            return {'state': 'STOPPED'}
 
         return {
             'state': vm.state.name
@@ -267,6 +273,7 @@ class ManagementService(RpcService):
         if container['type'] == 'VM':
             vm = self.context.containers[id]
             vm.stop()
+            del self.context.containers[id]
 
     @private
     def request_console(self, id):
@@ -311,6 +318,8 @@ class ConsoleConnection(WebSocketApplication, EventEmitter):
         self.logger = logging.getLogger('ConsoleConnection')
         self.authenticated = False
         self.vm = None
+        self.rd = None
+        self.wr = None
         self.inq = Queue()
 
     def worker(self):
@@ -322,21 +331,26 @@ class ConsoleConnection(WebSocketApplication, EventEmitter):
                 if data is None:
                     return
 
-                self.ws.send(data.replace(b'\n\n', b'\r\n'))
+                try:
+                    self.ws.send(data.replace(b'\n\n', b'\r\n'))
+                except WebSocketError as err:
+                    self.logger.info('WebSocket connection terminated: {0}'.format(str(err)))
+                    return
 
         def write_worker():
             for i in self.inq:
                 self.vm.console_write(i)
 
-        wr = gevent.spawn(write_worker)
-        rd = gevent.spawn(read_worker)
-        gevent.joinall([rd, wr])
+        self.wr = gevent.spawn(write_worker)
+        self.rd = gevent.spawn(read_worker)
+        gevent.joinall([self.rd, self.wr])
 
     def on_open(self, *args, **kwargs):
         pass
 
     def on_close(self, *args, **kwargs):
-        self.inq.put(StopIteration)
+        gevent.kill(self.rd)
+        gevent.kill(self.wr)
 
     def on_message(self, message, *args, **kwargs):
         if message is None:
@@ -358,9 +372,9 @@ class ConsoleConnection(WebSocketApplication, EventEmitter):
 
             self.authenticated = True
             self.vm = self.context.containers[token]
-            gevent.spawn(self.worker)
             self.ws.send(json.dumps({'status': 'ok'}))
             self.ws.send(self.vm.scrollback.read())
+            gevent.spawn(self.worker)
             return
 
         for i in message:
@@ -374,10 +388,13 @@ class Main(object):
     def __init__(self):
         self.client = None
         self.datastore = None
+        self.configstore = None
         self.config = None
         self.containers = {}
         self.tokens = {}
         self.logger = logging.getLogger('containerd')
+        self.bridge_interface = None
+        self.used_nmdms = []
 
     def parse_config(self, filename):
         try:
@@ -397,6 +414,20 @@ class Main(object):
         except DatastoreException as err:
             self.logger.error('Cannot initialize datastore: %s', str(err))
             sys.exit(1)
+
+        self.configstore = ConfigStore(self.datastore)
+
+    def init_bridge(self):
+        self.bridge_interface = netif.get_interface(self.configstore.get('container.bridge'))
+
+    def allocate_nmdm(self):
+        for i in range(0, 255):
+            if i not in self.used_nmdms:
+                self.used_nmdms.append(i)
+                return i
+
+    def release_nmdm(self, index):
+        self.used_nmdms.remove(index)
 
     def connect(self):
         while True:
