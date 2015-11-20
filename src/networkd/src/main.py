@@ -552,6 +552,10 @@ class ConfigurationService(RpcService):
                     iface.add_member(port)
 
         if entity.get('dhcp'):
+            # Remove all existing aliases
+            for i in iface.addresses:
+                iface.remove_address(i)
+
             self.logger.info('Trying to acquire DHCP lease on interface {0}...'.format(name))
             if not self.context.configure_dhcp(name):
                 self.logger.warn('Failed to configure interface {0} using DHCP'.format(name))

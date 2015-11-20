@@ -162,6 +162,7 @@ class ConfigureInterfaceTask(Task):
 
     def run(self, name, updated_fields):
         task = 'networkd.configuration.configure_interface'
+        entity = self.datastore.get_by_id('network.interfaces', name)
 
         if updated_fields.get('dhcp'):
             # Check for DHCP inconsistencies
@@ -174,7 +175,14 @@ class ConfigureInterfaceTask(Task):
             if dhcp_used and dhcp_global:
                 raise TaskException(errno.ENXIO, 'DHCP is already configured on another interface')
 
+            # Clear all aliases
+            entity['aliases'] = []
+
         if updated_fields.get('aliases'):
+            # Forbid setting any aliases on interface with DHCP
+            if updated_fields.get('dhcp') and len(updated_fields['aliases']) > 0:
+                raise TaskException(errno.EINVAL, 'Cannot set aliases when using DHCP')
+
             # Check for aliases inconsistencies
             ips = [x['address'] for x in updated_fields['aliases']]
             if any(ips.count(x) > 1 for x in ips):
@@ -185,8 +193,6 @@ class ConfigureInterfaceTask(Task):
                 i['type'] = i.get('type', 'INET')
                 if not i.get('broadcast'):
                     i['broadcast'] = str(calculate_broadcast(i['address'], i['netmask']))
-
-        entity = self.datastore.get_by_id('network.interfaces', name)
 
         if 'enabled' in updated_fields:
             if entity['enabled'] and not updated_fields['enabled']:
