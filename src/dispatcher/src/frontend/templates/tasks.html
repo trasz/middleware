@@ -85,24 +85,24 @@
                 alert("Error: " + err.message);
             };
 
-            sock.onEvent = function(args) {
-                if (args.name == "task.created") {
+            sock.onEvent = function(name, args) {
+                if (name == "task.created") {
                     $("<tr/>", {
-                        'data-id': args.args.id,
-                        'html': template_task(args.args)
+                        'data-id': args.id,
+                        'html': template_task(args)
                     }).appendTo("#tasklist tbody");
                 }
 
-                if (args.name == "task.updated") {
-                    var tr = $("#tasklist").find("tr[data-id='" + args.args.id + "']");
-                    tr.find(".status").text(args.args.state);
+                if (name == "task.updated") {
+                    var tr = $("#tasklist").find("tr[data-id='" + args.id + "']");
+                    tr.find(".status").text(args.state);
                 }
 
-                if (args.name == "task.progress") {
-                    var tr = $("#tasklist").find("tr[data-id='" + args.args.id + "']");
-                    tr.find(".progress .progress-bar").css("width", args.args.percentage.toFixed(2) + "%");
-                    tr.find(".progress .progress-bar").text(args.args.percentage.toFixed() + "%");
-                    tr.find(".message").text(args.args.message);
+                if (name == "task.progress") {
+                    var tr = $("#tasklist").find("tr[data-id='" + args.id + "']");
+                    tr.find(".progress .progress-bar").css("width", args.percentage.toFixed(2) + "%");
+                    tr.find(".progress .progress-bar").text(args.percentage.toFixed() + "%");
+                    tr.find(".message").text(args.message);
                 }
             };
 
@@ -121,7 +121,7 @@
             };
 
             sock.onLogin = function() {
-                sock.subscribe(["task.*"]);
+                sock.subscribe("task.*");
                 refresh_tasks();
                 sock.call("discovery.get_tasks", null, function (tasks) {
                     $.each(tasks, function(key, value) {
