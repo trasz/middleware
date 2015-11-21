@@ -34,12 +34,13 @@
     <script type="text/javascript">
         var sock = new middleware.DispatcherClient(document.domain);
         var term;
+        var conn;
         var currentId = null;
         sock.connect();
 
         function connect_term(client, vm)
         {
-            var conn = new middleware.ContainerConsoleClient(client);
+            conn = new middleware.ContainerConsoleClient(client);
             conn.connect(vm);
             conn.onOpen = function() {
                 term = new Terminal({
@@ -110,6 +111,7 @@
 
                 if (term) {
                     term.destroy();
+                    conn.disconnect();
                 }
 
                 currentId = $(this).attr("data-id");
