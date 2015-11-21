@@ -480,7 +480,7 @@ class Main(object):
 
     def die(self):
         self.logger.warning('Exiting')
-        for i in self.containers:
+        for i in self.containers.values():
             i.stop()
 
         self.client.disconnect()
