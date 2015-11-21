@@ -149,7 +149,7 @@ class VirtualMachine(object):
         self.console_thread = gevent.spawn(self.console_worker)
 
     def stop(self):
-        self.logger.info('Stopping container {0} ({1}}'.format(self.name, self.id))
+        self.logger.info('Stopping container {0} ({1})'.format(self.name, self.id))
         if self.state == VirtualMachineState.STOPPED:
             raise RuntimeError()
 
