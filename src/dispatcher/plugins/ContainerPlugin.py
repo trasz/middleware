@@ -191,7 +191,8 @@ def _init(dispatcher, plugin):
                         'type': 'string',
                         'enum': ['BHYVELOAD', 'GRUB']
                     },
-                    'boot_device': {'type': ['string', 'null']}
+                    'boot_device': {'type': ['string', 'null']},
+                    'boot_partition': {'type': ['string', 'null']},
                 }
             },
             'devices': {
