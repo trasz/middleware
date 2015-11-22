@@ -27,7 +27,8 @@ import errno
 import logging
 import os
 import shutil
-
+import ipfsApi
+from requests.exceptions import ConnectionError
 from datastore.config import ConfigNode
 from freenas.dispatcher.rpc import RpcException, SchemaHelper as h, description, accepts, returns
 from task import Task, Provider, TaskException, ValidationException
@@ -35,17 +36,72 @@ from task import Task, Provider, TaskException, ValidationException
 logger = logging.getLogger('IPFSPlugin')
 
 
+# Defining this decorator and keeping (might be useful sometime later)
+# Not using it currently as it slows down the RPC call
+def ipfs_enabled_check():
+    def wrapped(fn):
+        def wrap(self, *args, **kwargs):
+            ipfs_state = self.dispatcher.call_sync(
+                'services.query',
+                [('name', '=', 'ipfs')],
+                {'single': True}
+            )['state']
+            if ipfs_state != 'RUNNING':
+                raise RpcException(
+                    errno.EIO,
+                    'IPFS service is not running. Please start it before performing this call'
+                )
+            return fn(self, *args, **kwargs)
+
+        return wrap
+
+    return wrapped
+
+
+# This is faster as it first tries to execute the ipfsApi call and catches the expection if any
+def ipfs_enabled_error():
+    def wrapped(fn):
+        def wrap(self, *args, **kwargs):
+            try:
+                return fn(self, *args, **kwargs)
+            except ConnectionError:
+                raise RpcException(
+                    errno.EIO,
+                    'IPFS service is not running. Please start it before performing this call'
+                )
+        return wrap
+    return wrapped
+
+
 @description('Provides info about IPFS service configuration')
 class IPFSProvider(Provider):
+
+    def initialize(self, context):
+        super(IPFSProvider, self).initialize(context)
+        self.ipfs_api = ipfsApi.Client('127.0.0.1', 5001)
+
     @accepts()
     @returns(h.ref('service-ipfs'))
     def get_config(self):
         return ConfigNode('service.ipfs', self.configstore)
 
+    @ipfs_enabled_error()
+    @accepts()
+    @returns(h.ref('ipfs_info'))
+    def info(self):
+        return self.ipfs_api.id()
+
+    @ipfs_enabled_error()
+    @accepts()
+    @returns(h.array(str))
+    def swarm_peers(self):
+        return self.ipfs_api.swarm_peers()["Strings"]
+
 
 @description('Configure IPFS service')
 @accepts(h.ref('service-ipfs'))
 class IPFSConfigureTask(Task):
+
     def describe(self, share):
         return 'Configuring IPFS service'
 
@@ -115,6 +171,21 @@ def _init(dispatcher, plugin):
         'type': 'object',
         'properties': {
             'path': {'type': 'string'},
+        },
+        'additionalProperties': False,
+    })
+
+    plugin.register_schema_definition('ipfs_info', {
+        'type': 'object',
+        'properties': {
+            'Addresses': {
+                'type': 'array',
+                'items': {'type': 'string'},
+            },
+            'AgentVersion': {'type': 'string'},
+            'ID': {'type': 'string'},
+            'ProtocolVersion': {'type': 'string'},
+            'PublicKey': {'type': 'string'}
         },
         'additionalProperties': False,
     })
