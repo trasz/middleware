@@ -26,7 +26,6 @@
 #####################################################################
 
 import enum
-import os
 import sys
 import argparse
 import json
@@ -43,6 +42,7 @@ import subprocess
 import serial
 import netif
 import signal
+import select
 import tempfile
 from gevent.queue import Queue, Channel
 from geventwebsocket import WebSocketServer, WebSocketApplication, Resource
@@ -196,6 +196,9 @@ class VirtualMachine(object):
                     if i['name'] == self.config['boot_device']:
                         bootname = name
 
+                if self.config.get('boot_partition'):
+                    bootname += ',{0}'.format(self.config['boot_partition'])
+
                 devmap.flush()
                 self.bhyve_process = subprocess.Popen(
                     [
@@ -237,7 +240,12 @@ class VirtualMachine(object):
         self.console_fd = serial.Serial(self.nmdm[1], 115200)
         while True:
             try:
-                ch = self.console_fd.read()
+                fd = self.console_fd.fileno()
+                r, w, x = select.select([fd], [], [])
+                if fd not in r:
+                    continue
+
+                ch = self.console_fd.read(self.console_fd.inWaiting())
             except serial.SerialException as e:
                 print('Cannot read from serial port: {0}'.format(str(e)))
                 gevent.sleep(1)
