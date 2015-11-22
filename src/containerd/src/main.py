@@ -234,14 +234,14 @@ class VirtualMachine(object):
 
     def console_worker(self):
         self.logger.debug('Opening console at {0}'.format(self.nmdm[1]))
-        self.console_fd = serial.Serial(self.nmdm[1])
+        self.console_fd = serial.Serial(self.nmdm[1], 115200)
         while True:
             try:
                 ch = self.console_fd.read()
             except serial.SerialException as e:
                 print('Cannot read from serial port: {0}'.format(str(e)))
                 gevent.sleep(1)
-                self.console_fd = serial.Serial(self.nmdm[1])
+                self.console_fd = serial.Serial(self.nmdm[1], 115200)
                 continue
 
             self.scrollback.push(ch)
@@ -252,7 +252,7 @@ class VirtualMachine(object):
                 pass
 
     def console_register(self):
-        queue = gevent.queue.Queue(128)
+        queue = gevent.queue.Queue(4096)
         self.console_queues.append(queue)
         return queue
 
