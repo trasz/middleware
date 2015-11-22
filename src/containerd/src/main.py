@@ -33,8 +33,6 @@ import json
 import logging
 import setproctitle
 import errno
-import io
-import socket
 import time
 import string
 import random
@@ -45,6 +43,7 @@ import subprocess
 import serial
 import netif
 import signal
+import tempfile
 from gevent.queue import Queue, Channel
 from geventwebsocket import WebSocketServer, WebSocketApplication, Resource
 from geventwebsocket.exceptions import WebSocketError
@@ -178,9 +177,35 @@ class VirtualMachine(object):
         self.logger.debug('Starting bootloader...')
 
         if self.config['bootloader'] == 'GRUB':
-            self.bhyve_process = subprocess.Popen(
-                ['/usr/local/lib/grub-bhyve']
-            )
+            with tempfile.NamedTemporaryFile('w+', delete=False) as devmap:
+                hdcounter = 0
+                cdcounter = 0
+                bootname = None
+                for i in filter(lambda i: i['type'] in ('DISK', 'CDROM'), self.devices):
+                    path = self.context.client.call_sync('container.get_disk_path', self.id, i['name'])
+
+                    if i['type'] == 'DISK':
+                        name = 'hd{0}'.format(hdcounter)
+                        hdcounter += 1
+
+                    elif i['type'] == 'CDROM':
+                        name = 'cd{0}'.format(cdcounter)
+                        cdcounter += 1
+
+                    print('({0}) {1}'.format(name, path), file=devmap)
+                    if i['name'] == self.config['boot_device']:
+                        bootname = name
+
+                devmap.flush()
+                self.bhyve_process = subprocess.Popen(
+                    [
+                        '/usr/local/sbin/grub-bhyve', '-M', str(self.config['memsize']),
+                        '-r', bootname, '-m', devmap.name, '-c', self.nmdm[0], self.name
+                    ],
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.STDOUT,
+                    close_fds=True
+                )
 
         if self.config['bootloader'] == 'BHYVELOAD':
             path = self.context.client.call_sync('container.get_disk_path', self.id, self.config['boot_device'])
