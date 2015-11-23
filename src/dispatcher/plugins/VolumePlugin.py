@@ -420,16 +420,14 @@ class VolumeCreateTask(ProgressTask):
             self.join_subtasks(self.run_subtask(
                 'zfs.configure',
                 name, name,
-                {
-                    'org.freenas:permissions_type': {'value': 'PERM'}
-                }
+                {'org.freenas:permissions_type': {'value': 'PERM'}}
             ))
 
             self.set_progress(60)
             self.join_subtasks(self.run_subtask('zfs.mount', name))
             self.set_progress(80)
 
-            pool = self.dispatcher.call_sync('zfs.pool.query', [('name', '=', name)]).pop()
+            pool = self.dispatcher.call_sync('zfs.pool.query', [('name', '=', name)], {'single': True})
             id = self.datastore.insert('volumes', {
                 'id': str(pool['guid']),
                 'name': name,
