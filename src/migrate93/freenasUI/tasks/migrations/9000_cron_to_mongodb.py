@@ -35,7 +35,7 @@ class Migration(DataMigration):
             ds.insert('schedulerd.runs', {
                 'id': 'cronjob_{0}_{1}'.format(cron.cron_user, cron.id),
                 'description': cron.cron_description,
-                'name': 'calendar_tasks.command',
+                'name': 'calendar_task.command',
                 'args': [cron.cron_user, cron.cron_command],
                 'enabled': cron.cron_enabled,
                 'schedule': {

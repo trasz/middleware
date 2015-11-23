@@ -55,7 +55,7 @@ class CreateCalendarTask(Task):
         except RpcException:
             raise
 
-        self.dispatcher.dispatch_event('calendar_tasks.changed', {
+        self.dispatcher.dispatch_event('calendar_task.changed', {
             'operation': 'create',
             'ids': [tid]
         })
@@ -78,7 +78,7 @@ class UpdateCalendarTask(Task):
         except RpcException:
             raise
 
-        self.dispatcher.dispatch_event('calendar_tasks.changed', {
+        self.dispatcher.dispatch_event('calendar_task.changed', {
             'operation': 'update',
             'ids': [id]
         })
@@ -95,7 +95,7 @@ class DeleteCalendarTask(Task):
         except RpcException:
             raise
 
-        self.dispatcher.dispatch_event('calendar_tasks.changed', {
+        self.dispatcher.dispatch_event('calendar_task.changed', {
             'operation': 'delete',
             'ids': [id]
         })
@@ -128,10 +128,10 @@ class CommandTask(Task):
 
 
 def _init(dispatcher, plugin):
-    plugin.register_provider('calendar_tasks', CalendarTasksProvider)
-    plugin.register_task_handler('calendar_tasks.create', CreateCalendarTask)
-    plugin.register_task_handler('calendar_tasks.update', UpdateCalendarTask)
-    plugin.register_task_handler('calendar_tasks.delete', DeleteCalendarTask)
-    plugin.register_task_handler('calendar_tasks.run', RunCalendarTask)
-    plugin.register_task_handler('calendar_tasks.command', CommandTask)
-    plugin.register_event_type('calendar_tasks.changed')
+    plugin.register_provider('calendar_task', CalendarTasksProvider)
+    plugin.register_task_handler('calendar_task.create', CreateCalendarTask)
+    plugin.register_task_handler('calendar_task.update', UpdateCalendarTask)
+    plugin.register_task_handler('calendar_task.delete', DeleteCalendarTask)
+    plugin.register_task_handler('calendar_task.run', RunCalendarTask)
+    plugin.register_task_handler('calendar_task.command', CommandTask)
+    plugin.register_event_type('calendar_task.changed')
