@@ -145,4 +145,4 @@ def _init(dispatcher, plugin):
         }
     })
 
-    plugin.register_provider('ui.transactions', UITransactionProvider)
+    plugin.register_provider('ui.transaction', UITransactionProvider)
