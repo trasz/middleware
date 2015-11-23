@@ -57,7 +57,7 @@ class Migration(DataMigration):
             ds.insert('schedulerd.runs', {
                 'id': 'smarttest_{0}'.format(smart.id),
                 'description': 'SMART Test {0}'.format(testtype),
-                'name': 'disks.parallel_test',
+                'name': 'disk.parallel_test',
                 'args': [disk_ids, testtype],
                 'enabled': True,
                 'schedule': {

@@ -94,7 +94,7 @@ class VolumeProvider(Provider):
                 for vdev, _ in iterate_vdevs(topology):
                     try:
                         vdev['path'] = self.dispatcher.call_sync(
-                            'disks.partition_to_disk',
+                            'disk.partition_to_disk',
                             vdev['path']
                         )
                     except RpcException as err:
@@ -142,7 +142,7 @@ class VolumeProvider(Provider):
             for vdev, _ in iterate_vdevs(topology):
                 try:
                     vdev['path'] = self.dispatcher.call_sync(
-                        'disks.partition_to_disk',
+                        'disk.partition_to_disk',
                         vdev['path']
                     )
                 except RpcException:
@@ -164,7 +164,7 @@ class VolumeProvider(Provider):
     def find_media(self):
         result = []
 
-        for disk in wrap(self.dispatcher.call_sync('disks.query', [('path', 'in', self.get_available_disks())])):
+        for disk in wrap(self.dispatcher.call_sync('disk.query', [('path', 'in', self.get_available_disks())])):
             # Try whole disk first
             typ, label = fstyp(disk['path'])
             if typ:
@@ -237,7 +237,7 @@ class VolumeProvider(Provider):
         result = []
         for dev in self.dispatcher.call_sync('zfs.pool.get_disks', name):
             try:
-                result.append(self.dispatcher.call_sync('disks.partition_to_disk', dev))
+                result.append(self.dispatcher.call_sync('disk.partition_to_disk', dev))
             except RpcException:
                 pass
 
@@ -261,11 +261,11 @@ class VolumeProvider(Provider):
     @accepts()
     @returns(h.array(str))
     def get_available_disks(self):
-        disks = set([d['path'] for d in self.dispatcher.call_sync('disks.query')])
+        disks = set([d['path'] for d in self.dispatcher.call_sync('disk.query')])
         for pool in self.dispatcher.call_sync('zfs.pool.query'):
             for dev in self.dispatcher.call_sync('zfs.pool.get_disks', pool['name']):
                 try:
-                    disk = self.dispatcher.call_sync('disks.partition_to_disk', dev)
+                    disk = self.dispatcher.call_sync('disk.partition_to_disk', dev)
                 except RpcException:
                     continue
 
@@ -282,7 +282,7 @@ class VolumeProvider(Provider):
         boot_devs = self.dispatcher.call_sync('zfs.pool.get_disks', boot_pool_name)
 
         for dev in boot_devs:
-            boot_disk = self.dispatcher.call_sync('disks.partition_to_disk', dev)
+            boot_disk = self.dispatcher.call_sync('disk.partition_to_disk', dev)
             if boot_disk in disks:
                 ret[boot_disk] = {'type': 'BOOT'}
 
@@ -312,7 +312,7 @@ class VolumeProvider(Provider):
     def vdev_by_guid(self, volume, guid):
         vdev = self.dispatcher.call_sync('zfs.pool.vdev_by_guid', volume, guid)
         vdev['path'] = self.dispatcher.call_sync(
-            'disks.partition_to_disk',
+            'disk.partition_to_disk',
             vdev['path']
         )
 
@@ -391,7 +391,7 @@ class VolumeCreateTask(ProgressTask):
         if self.configstore.get("middleware.parallel_disk_format"):
             subtasks = []
             for dname, dgroup in get_disks(volume['topology']):
-                subtasks.append(self.run_subtask('disks.format.gpt', dname, 'freebsd-zfs', {
+                subtasks.append(self.run_subtask('disk.format.gpt', dname, 'freebsd-zfs', {
                     'blocksize': params.get('blocksize', 4096),
                     'swapsize': params.get('swapsize', 2048) if dgroup == 'data' else 0
                 }))
@@ -399,7 +399,7 @@ class VolumeCreateTask(ProgressTask):
             self.join_subtasks(*subtasks)
         else:
             for dname, dgroup in get_disks(volume['topology']):
-                self.join_subtasks(self.run_subtask('disks.format.gpt', dname, 'freebsd-zfs', {
+                self.join_subtasks(self.run_subtask('disk.format.gpt', dname, 'freebsd-zfs', {
                     'blocksize': params.get('blocksize', 4096),
                     'swapsize': params.get('swapsize', 2048) if dgroup == 'data' else 0
                 }))
@@ -607,13 +607,13 @@ class VolumeUpdateTask(Task):
 
             for vdev, group in iterate_vdevs(new_vdevs):
                 if vdev['type'] == 'disk':
-                    subtasks.append(self.run_subtask('disks.format.gpt', vdev['path'], 'freebsd-zfs', {
+                    subtasks.append(self.run_subtask('disk.format.gpt', vdev['path'], 'freebsd-zfs', {
                         'blocksize': params.get('blocksize', 4096),
                         'swapsize': params.get('swapsize', 2048) if group == 'data' else 0
                     }))
 
             for vdev in updated_vdevs:
-                subtasks.append(self.run_subtask('disks.format.gpt', vdev['vdev']['path'], 'freebsd-zfs', {
+                subtasks.append(self.run_subtask('disk.format.gpt', vdev['vdev']['path'], 'freebsd-zfs', {
                     'blocksize': params.get('blocksize', 4096),
                     'swapsize': params.get('swapsize', 2048)
                 }))
@@ -680,7 +680,7 @@ class VolumeImportTask(Task):
 @accepts(str, str, str)
 class VolumeDiskImportTask(ProgressTask):
     def verify(self, src, dest_path, fstype=None):
-        disk = self.dispatcher.call_sync('disks.partition_to_disk', src)
+        disk = self.dispatcher.call_sync('disk.partition_to_disk', src)
         if not disk:
             raise VerifyException(errno.ENOENT, "Partition {0} not found".format(src))
 
@@ -949,7 +949,7 @@ def get_disks(topology):
 
 
 def get_disk_gptid(dispatcher, disk):
-    config = dispatcher.call_sync('disks.get_disk_config', disk)
+    config = dispatcher.call_sync('disk.get_disk_config', disk)
     return config.get('data_partition_path', disk)
 
 

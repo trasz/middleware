@@ -125,7 +125,7 @@ def _init(dispatcher, plugin):
 
     dispatcher.call_sync('system_dataset.request_directory', 'simulator')
 
-    plugin.register_provider('simulator.disks', FakeDisksProvider)
-    plugin.register_task_handler('simulator.disks.create', CreateFakeDisk)
-    plugin.register_task_handler('simulator.disks.update', ConfigureFakeDisk)
-    plugin.register_task_handler('simulator.disks.delete', DeleteFakeDisk)
+    plugin.register_provider('simulator.disk', FakeDisksProvider)
+    plugin.register_task_handler('simulator.disk.create', CreateFakeDisk)
+    plugin.register_task_handler('simulator.disk.update', ConfigureFakeDisk)
+    plugin.register_task_handler('simulator.disk.delete', DeleteFakeDisk)

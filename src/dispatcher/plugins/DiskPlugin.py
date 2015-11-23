@@ -204,7 +204,7 @@ class DiskGPTFormatTask(Task):
 
                 system('/sbin/gpart', 'bootcode', '-b', bootcode, disk)
 
-            self.dispatcher.call_sync('disks.update_disk_cache', disk, timeout=120)
+            self.dispatcher.call_sync('disk.update_disk_cache', disk, timeout=120)
         except SubprocessException as err:
             raise TaskException(errno.EFAULT, 'Cannot format disk: {0}'.format(err.err))
 
@@ -268,7 +268,7 @@ class DiskEraseTask(Task):
         return ['disk:{0}'.format(disk)]
 
     def run(self, disk, erase_method=None):
-        diskinfo = self.dispatcher.call_sync("disks.get_disk_config", disk)
+        diskinfo = self.dispatcher.call_sync('disk.get_disk_config', disk)
         try:
             system('/sbin/zpool', 'labelclear', '-f', disk)
             if diskinfo.get('partitions'):
@@ -323,7 +323,7 @@ class DiskConfigureTask(Task):
         if not disk:
             raise VerifyException(errno.ENOENT, 'Disk {0} not found'.format(id))
 
-        if not self.dispatcher.call_sync('disks.is_online', disk['path']):
+        if not self.dispatcher.call_sync('disk.is_online', disk['path']):
             raise VerifyException(errno.EINVAL, 'Cannot configure offline disk')
 
         if not disk['status']['smart_capable']:
@@ -342,11 +342,11 @@ class DiskConfigureTask(Task):
         self.datastore.update('disks', disk['id'], disk)
 
         if {'standby_mode', 'apm_mode', 'acoustic_level'} & set(updated_fields):
-            self.dispatcher.call_sync('disks.configure_disk', id)
+            self.dispatcher.call_sync('disk.configure_disk', id)
 
         if 'smart' in updated_fields or 'smart_options' in updated_fields:
             self.dispatcher.call_sync('services.reload', 'smartd')
-            self.dispatcher.call_sync('disks.update_disk_cache', disk['path'], timeout=120)
+            self.dispatcher.call_sync('disk.update_disk_cache', disk['path'], timeout=120)
 
 
 @description("Deletes offline disk configuration from database")
@@ -358,7 +358,7 @@ class DiskDeleteTask(Task):
         if not disk:
             raise VerifyException(errno.ENOENT, 'Disk {0} not found'.format(id))
 
-        if self.dispatcher.call_sync('disks.is_online', disk['path']):
+        if self.dispatcher.call_sync('disk.is_online', disk['path']):
             raise VerifyException(errno.EINVAL, 'Cannot delete online disk')
 
         return ['disk:{0}'.format(os.path.basename(disk['path']))]
@@ -391,7 +391,7 @@ class DiskTestTask(ProgressTask):
             getattr(SelfTestType, test_type).value,
             progress_handler=self.handle_progress
         )
-        self.dispatcher.call_sync('disks.update_disk_cache', diskinfo['path'], timeout=120)
+        self.dispatcher.call_sync('disk.update_disk_cache', diskinfo['path'], timeout=120)
 
 
 class DiskParallelTestTask(ProgressTask):
@@ -408,7 +408,7 @@ class DiskParallelTestTask(ProgressTask):
 
     def run(self, ids, test_type):
         subtasks = []
-        disks = self.dispatcher.call_sync('disks.query', [('id', 'in', ids)])
+        disks = self.dispatcher.call_sync('disk.query', [('id', 'in', ids)])
         for d in disks:
             subtasks.append(self.run_subtask('disk.test', d['id'], test_type))
 
@@ -743,7 +743,7 @@ def generate_disk_cache(dispatcher, path):
 
     diskinfo_cache.put(identifier, disk)
     update_disk_cache(dispatcher, path)
-    dispatcher.call_sync('disks.configure_disk', identifier)
+    dispatcher.call_sync('disk.configure_disk', identifier)
 
     logger.info('Added <%s> (%s) to disk cache', identifier, disk['description'])
     diskinfo_cache_lock.release()
@@ -781,7 +781,7 @@ def purge_disk_cache(dispatcher, path):
         ds_disk['delete_at'] = datetime.now() + EXPIRE_TIMEOUT
         dispatcher.datastore.update('disks', ds_disk['id'], ds_disk)
 
-    dispatcher.dispatch_event('disks.changed', {
+    dispatcher.dispatch_event('disk.changed', {
         'operation': 'update',
         'ids': [disk['id']]
     })
@@ -806,7 +806,7 @@ def persist_disk(dispatcher, disk):
         ds_disk.update({'smart_options': None})
 
     dispatcher.datastore.upsert('disks', disk['id'], ds_disk)
-    dispatcher.dispatch_event('disks.changed', {
+    dispatcher.dispatch_event('disk.changed', {
         'operation': 'create' if not ds_disk else 'update',
         'ids': [disk['id']]
     })
@@ -938,16 +938,16 @@ def _init(dispatcher, plugin):
     plugin.register_event_handler('system.device.attached', on_device_attached)
     plugin.register_event_handler('system.device.detached', on_device_detached)
     plugin.register_event_handler('system.device.mediachange', on_device_mediachange)
-    plugin.register_task_handler('disks.erase', DiskEraseTask)
-    plugin.register_task_handler('disks.format.gpt', DiskGPTFormatTask)
-    plugin.register_task_handler('disks.format.boot', DiskBootFormatTask)
-    plugin.register_task_handler('disks.install_bootloader', DiskInstallBootloaderTask)
-    plugin.register_task_handler('disks.configure', DiskConfigureTask)
-    plugin.register_task_handler('disks.delete', DiskDeleteTask)
-    plugin.register_task_handler('disks.test', DiskTestTask)
-    plugin.register_task_handler('disks.parallel_test', DiskParallelTestTask)
+    plugin.register_task_handler('disk.erase', DiskEraseTask)
+    plugin.register_task_handler('disk.format.gpt', DiskGPTFormatTask)
+    plugin.register_task_handler('disk.format.boot', DiskBootFormatTask)
+    plugin.register_task_handler('disk.install_bootloader', DiskInstallBootloaderTask)
+    plugin.register_task_handler('disk.configure', DiskConfigureTask)
+    plugin.register_task_handler('disk.delete', DiskDeleteTask)
+    plugin.register_task_handler('disk.test', DiskTestTask)
+    plugin.register_task_handler('disk.parallel_test', DiskParallelTestTask)
 
-    plugin.register_event_type('disks.changed')
+    plugin.register_event_type('disk.changed')
 
     # Start with marking all disks as unavailable
     for i in dispatcher.datastore.query('disks'):

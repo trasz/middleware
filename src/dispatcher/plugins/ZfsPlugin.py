@@ -303,7 +303,7 @@ class ZpoolScrubTask(Task):
 @accepts(str, h.ref('zfs-topology'), h.object())
 class ZpoolCreateTask(Task):
     def __partition_to_disk(self, part):
-        result = self.dispatcher.call_sync('disks.get_partition_config', part)
+        result = self.dispatcher.call_sync('disk.get_partition_config', part)
         return os.path.basename(result['disk'])
 
     def __get_disks(self, topology):
@@ -770,7 +770,7 @@ def get_disk_names(dispatcher, pool):
     ret = []
     for x in pool.disks:
         try:
-            d = dispatcher.call_sync('disks.partition_to_disk', x)
+            d = dispatcher.call_sync('disk.partition_to_disk', x)
         except RpcException:
             continue
 

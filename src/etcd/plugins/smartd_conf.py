@@ -39,7 +39,7 @@ def run(context):
     )
     # Get all SMART capable disk's info
     all_disks_info = context.client.call_sync(
-        'disks.query',
+        'disk.query',
         [('status.smart_capable', '=', True)]
     )
     for single_disk in all_disks_info:

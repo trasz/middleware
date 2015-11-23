@@ -55,7 +55,7 @@ class QueryTest(BaseTestCase):
     
         
     def test_disks_query(self):
-        disks = self.conn.call_sync('disks.query')
+        disks = self.conn.call_sync('disk.query')
         self.pretty_print(disks)
         self.assertIsInstance(disks, list)
 
