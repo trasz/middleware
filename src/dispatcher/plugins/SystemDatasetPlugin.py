@@ -243,9 +243,9 @@ def _init(dispatcher, plugin):
         dispatcher.configstore.set('system.dataset.id', dsid)
         logger.info('New system dataset ID: {0}'.format(dsid))
 
-    plugin.register_event_handler('volumes.changed', on_volumes_changed)
-    plugin.attach_hook('volumes.pre_destroy', volume_pre_destroy)
-    plugin.attach_hook('volumes.pre_detach', volume_pre_destroy)
+    plugin.register_event_handler('volume.changed', on_volumes_changed)
+    plugin.attach_hook('volume.pre_destroy', volume_pre_destroy)
+    plugin.attach_hook('volume.pre_detach', volume_pre_destroy)
     plugin.register_provider('system_dataset', SystemDatasetProvider)
     plugin.register_task_handler('system_dataset.configure', SystemDatasetConfigure)
 

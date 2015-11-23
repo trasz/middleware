@@ -48,8 +48,8 @@ class SwapProvider(Provider):
 
 def get_available_disks(dispatcher):
     disks = []
-    for i in dispatcher.call_sync('volumes.query'):
-        disks += dispatcher.call_sync('volumes.get_volume_disks', i['name'])
+    for i in dispatcher.call_sync('volume.query'):
+        disks += dispatcher.call_sync('volume.get_volume_disks', i['name'])
 
     return disks
 
@@ -143,7 +143,7 @@ def _depends():
 
 def _init(dispatcher, plugin):
     def volumes_pre_detach(args):
-        disks = dispatcher.call_sync('volumes.get_volume_disks', args['name'])
+        disks = dispatcher.call_sync('volume.get_volume_disks', args['name'])
         remove_swap(dispatcher, disks)
         return True
 
@@ -163,9 +163,9 @@ def _init(dispatcher, plugin):
     })
 
     plugin.register_provider('swap', SwapProvider)
-    plugin.register_event_handler('volumes.changed', on_volumes_change)
-    plugin.attach_hook('volumes.pre_destroy', volumes_pre_detach)
-    plugin.attach_hook('volumes.pre_detach', volumes_pre_detach)
+    plugin.register_event_handler('volume.changed', on_volumes_change)
+    plugin.attach_hook('volume.pre_destroy', volumes_pre_detach)
+    plugin.attach_hook('volume.pre_detach', volumes_pre_detach)
 
     clear_swap(dispatcher)
     rearrange_swap(dispatcher)

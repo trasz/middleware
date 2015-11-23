@@ -203,7 +203,7 @@ class SetPermissionsTask(Task):
             raise VerifyException(errno.EINVAL, 'Recursive specified, but {0} is not directory'.format(path))
 
         try:
-            pool, ds, rest = self.dispatcher.call_sync('volumes.decode_path', path)
+            pool, ds, rest = self.dispatcher.call_sync('volume.decode_path', path)
             return ['zfs:{0}'.format(ds)]
         except RpcException:
             return []

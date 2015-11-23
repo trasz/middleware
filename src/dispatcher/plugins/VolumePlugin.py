@@ -286,8 +286,8 @@ class VolumeProvider(Provider):
             if boot_disk in disks:
                 ret[boot_disk] = {'type': 'BOOT'}
 
-        for vol in self.dispatcher.call_sync('volumes.query'):
-            for dev in self.dispatcher.call_sync('volumes.get_volume_disks', vol['name']):
+        for vol in self.dispatcher.call_sync('volume.query'):
+            for dev in self.dispatcher.call_sync('volume.get_volume_disks', vol['name']):
                 if dev in disks:
                     ret[dev] = {
                         'type': 'VOLUME',
@@ -438,7 +438,7 @@ class VolumeCreateTask(ProgressTask):
             })
 
         self.set_progress(90)
-        self.dispatcher.dispatch_event('volumes.changed', {
+        self.dispatcher.dispatch_event('volume.changed', {
             'operation': 'create',
             'ids': [id]
         })
@@ -487,16 +487,16 @@ class VolumeDestroyTask(Task):
             raise VerifyException(errno.ENOENT, 'Volume {0} not found'.format(id))
 
         try:
-            disks = self.dispatcher.call_sync('volumes.get_volume_disks', name)
+            disks = self.dispatcher.call_sync('volume.get_volume_disks', name)
             return ['disk:{0}'.format(d) for d in disks]
         except RpcException:
             return []
 
     def run(self, name):
         vol = self.datastore.get_one('volumes', ('name', '=', name))
-        config = self.dispatcher.call_sync('volumes.get_config', name)
+        config = self.dispatcher.call_sync('volume.get_config', name)
 
-        self.dispatcher.run_hook('volumes.pre_destroy', {'name': name})
+        self.dispatcher.run_hook('volume.pre_destroy', {'name': name})
 
         if config:
             self.join_subtasks(self.run_subtask('zfs.umount', name))
@@ -504,7 +504,7 @@ class VolumeDestroyTask(Task):
 
         self.datastore.delete('volumes', vol['id'])
 
-        self.dispatcher.dispatch_event('volumes.changed', {
+        self.dispatcher.dispatch_event('volume.changed', {
             'operation': 'delete',
             'ids': [vol['id']]
         })
@@ -519,7 +519,7 @@ class VolumeUpdateTask(Task):
 
         topology = updated_params.get('topology')
         if not topology:
-            disks = self.dispatcher.call_sync('volumes.get_volume_disks', name)
+            disks = self.dispatcher.call_sync('volume.get_volume_disks', name)
             return ['disk:{0}'.format(d) for d in disks]
 
         return ['disk:{0}'.format(i) for i, _ in get_disks(topology)]
@@ -549,7 +549,7 @@ class VolumeUpdateTask(Task):
             params = {}
             subtasks = []
             old_topology = self.dispatcher.call_sync(
-                'volumes.query',
+                'volume.query',
                 [('name', '=', name)],
                 {'single': True, 'select': 'topology'}
             )
@@ -670,7 +670,7 @@ class VolumeImportTask(Task):
                 'mountpoint': mountpoint
             })
 
-            self.dispatcher.dispatch_event('volumes.changed', {
+            self.dispatcher.dispatch_event('volume.changed', {
                 'operation': 'create',
                 'ids': [new_id]
             })
@@ -736,7 +736,7 @@ class VolumeDetachTask(Task):
         if not self.datastore.exists('volumes', ('name', '=', name)):
             raise VerifyException(errno.ENOENT, 'Volume {0} not found'.format(name))
 
-        return ['disk:{0}'.format(d) for d in self.dispatcher.call_sync('volumes.get_volume_disks', name)]
+        return ['disk:{0}'.format(d) for d in self.dispatcher.call_sync('volume.get_volume_disks', name)]
 
     def run(self, name):
         vol = self.datastore.get_one('volumes', ('name', '=', name))
@@ -744,7 +744,7 @@ class VolumeDetachTask(Task):
         self.join_subtasks(self.run_subtask('zfs.pool.export', name))
         self.datastore.delete('volumes', vol['id'])
 
-        self.dispatcher.dispatch_event('volumes.changed', {
+        self.dispatcher.dispatch_event('volume.changed', {
             'operation': 'delete',
             'ids': [vol['id']]
         })
@@ -757,12 +757,12 @@ class VolumeUpgradeTask(Task):
         if not self.datastore.exists('volumes', ('name', '=', name)):
             raise VerifyException(errno.ENOENT, 'Volume {0} not found'.format(name))
 
-        return ['disk:{0}'.format(d) for d in self.dispatcher.call_sync('volumes.get_volume_disks', name)]
+        return ['disk:{0}'.format(d) for d in self.dispatcher.call_sync('volume.get_volume_disks', name)]
 
     def run(self, name):
         vol = self.datastore.get_one('volumes', ('name', '=', name))
         self.join_subtasks(self.run_subtask('zfs.pool.upgrade', name))
-        self.dispatcher.dispatch_event('volumes.changed', {
+        self.dispatcher.dispatch_event('volume.changed', {
             'operation': 'update',
             'ids': [vol['id']]
         })
@@ -808,13 +808,20 @@ class DatasetCreateTask(Task):
 @description("Deletes an existing Dataset from a Volume")
 @accepts(str, str)
 class DatasetDeleteTask(Task):
-    def verify(self, pool_name, path):
+    def verify(self, pool_name, path, recursive=False):
         if not self.datastore.exists('volumes', ('name', '=', pool_name)):
             raise VerifyException(errno.ENOENT, 'Volume {0} not found'.format(pool_name))
 
         return ['zpool:{0}'.format(pool_name)]
 
-    def run(self, pool_name, path):
+    def run(self, pool_name, path, recursive=False):
+        #if recursive:
+        #    subtask = []
+        #    deps = self.dispatcher.call_sync('zfs.dataset.get_dependencies', path)
+        #
+        #    for i in deps:
+        #        if i
+
         self.join_subtasks(self.run_subtask('zfs.umount', path))
         self.join_subtasks(self.run_subtask('zfs.destroy', path))
 
@@ -829,7 +836,7 @@ class DatasetConfigureTask(Task):
         return ['zpool:{0}'.format(pool_name)]
 
     def switch_to_acl(self, pool_name, path):
-        fs_path = self.dispatcher.call_sync('volumes.get_dataset_path', pool_name, path)
+        fs_path = self.dispatcher.call_sync('volume.get_dataset_path', pool_name, path)
         self.join_subtasks(
             self.run_subtask('zfs.configure', pool_name, path, {
                 'aclmode': {'value': 'restricted'},
@@ -1012,13 +1019,13 @@ def _init(dispatcher, plugin):
                         dispatcher.call_task_sync('zfs.pool.export', pool['name'])
                         dispatcher.call_task_sync('zfs.pool.import', pool['guid'], pool['name'])
 
-                    dispatcher.dispatch_event('volumes.changed', {
+                    dispatcher.dispatch_event('volume.changed', {
                         'operation': 'create',
                         'ids': [i]
                     })
 
     def on_dataset_change(args):
-        dispatcher.dispatch_event('volumes.changed', {
+        dispatcher.dispatch_event('volume.changed', {
             'operation': 'update',
             'ids': [args['guid']]
         })
@@ -1083,8 +1090,8 @@ def _init(dispatcher, plugin):
         }
     })
 
-    plugin.register_provider('volumes', VolumeProvider)
-    plugin.register_provider('volumes.snapshots', SnapshotProvider)
+    plugin.register_provider('volume', VolumeProvider)
+    plugin.register_provider('volume.snapshots', SnapshotProvider)
     plugin.register_task_handler('volume.create', VolumeCreateTask)
     plugin.register_task_handler('volume.create_auto', VolumeAutoCreateTask)
     plugin.register_task_handler('volume.destroy', VolumeDestroyTask)
@@ -1099,16 +1106,16 @@ def _init(dispatcher, plugin):
     plugin.register_task_handler('volume.snapshot.create', SnapshotCreateTask)
     plugin.register_task_handler('volume.snapshot.delete', SnapshotDeleteTask)
 
-    plugin.register_hook('volumes.pre_destroy')
-    plugin.register_hook('volumes.pre_detach')
-    plugin.register_hook('volumes.pre_create')
-    plugin.register_hook('volumes.pre_attach')
+    plugin.register_hook('volume.pre_destroy')
+    plugin.register_hook('volume.pre_detach')
+    plugin.register_hook('volume.pre_create')
+    plugin.register_hook('volume.pre_attach')
 
     plugin.register_event_handler('zfs.pool.changed', on_pool_change)
     plugin.register_event_handler('fs.zfs.dataset.created', on_dataset_change)
     plugin.register_event_handler('fs.zfs.dataset.deleted', on_dataset_change)
     plugin.register_event_handler('fs.zfs.dataset.renamed', on_dataset_change)
-    plugin.register_event_type('volumes.changed')
+    plugin.register_event_type('volume.changed')
 
     for vol in dispatcher.datastore.query('volumes'):
         try:

@@ -44,11 +44,11 @@ def _init(dispatcher, plugin):
         else:
             qargs = []
 
-        for volume in dispatcher.rpc.call_sync('volumes.query', qargs):
+        for volume in dispatcher.rpc.call_sync('volume.query', qargs):
             if volume['status'] == 'ONLINE':
                 continue
             dispatcher.rpc.call_sync('alerts.emit', {
-                'name': 'volumes.status',
+                'name': 'volume.status',
                 'description': 'The volume {0} state is {1}'.format(
                     volume['name'],
                     volume['status'],
@@ -57,7 +57,7 @@ def _init(dispatcher, plugin):
             })
 
     def volume_upgraded():
-        for volume in dispatcher.rpc.call_sync('volumes.query'):
+        for volume in dispatcher.rpc.call_sync('volume.query'):
             if volume['status'] == 'UNAVAIL':
                 continue
 
@@ -65,13 +65,13 @@ def _init(dispatcher, plugin):
                 continue
 
             dispatcher.rpc.call_sync('alerts.emit', {
-                'name': 'volumes.version',
+                'name': 'volume.version',
                 'description': 'New feature flags are available for volume {0}'.format(volume['name']),
                 'severity': 'WARNING',
             })
 
-    dispatcher.rpc.call_sync('alerts.register_alert', 'volumes.status', 'Volume Status')
-    dispatcher.rpc.call_sync('alerts.register_alert', 'volumes.version', 'Volume Version')
+    dispatcher.rpc.call_sync('alerts.register_alert', 'volume.status', 'Volume Status')
+    dispatcher.rpc.call_sync('alerts.register_alert', 'volume.version', 'Volume Version')
 
     plugin.register_event_handler('fs.zfs.pool.changed', volumes_status)
 

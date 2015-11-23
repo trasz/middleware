@@ -50,7 +50,7 @@ class SharesProvider(Provider):
 
     @private
     def translate_path(self, type, target, name):
-        root = self.dispatcher.call_sync('volumes.get_volumes_root')
+        root = self.dispatcher.call_sync('volume.get_volumes_root')
         return os.path.join(root, target, type, name)
 
     @private
@@ -104,7 +104,7 @@ class CreateShareTask(Task):
         if not self.dispatcher.call_sync('shares.supported_types').get(share['type']):
             raise VerifyException(errno.ENXIO, 'Unknown sharing type {0}'.format(share['type']))
 
-        if not self.dispatcher.call_sync('volumes.query', [('name', '=', share['target'])], {'single': True}):
+        if not self.dispatcher.call_sync('volume.query', [('name', '=', share['target'])], {'single': True}):
             raise VerifyException(errno.ENXIO, 'Volume {0} doesn\'t exist'.format(share['target']))
 
         if self.datastore.exists(
@@ -192,7 +192,7 @@ class UpdateShareTask(Task):
                 newtype['subtype']
             ))
 
-        if not self.dispatcher.call_sync('volumes.query', [('name', '=', share['target'])], {'single': True}):
+        if not self.dispatcher.call_sync('volume.query', [('name', '=', share['target'])], {'single': True}):
             raise VerifyException(errno.ENXIO, 'Volume {0} doesn\'t exist'.format(share['target']))
 
         return ['system']
@@ -276,7 +276,7 @@ class DeleteShareTask(Task):
 @accepts(str)
 class DeleteDependentShares(Task):
     def verify(self, volume):
-        if not self.dispatcher.call_sync('volumes.query', [('name', '=', volume)], {'single': True}):
+        if not self.dispatcher.call_sync('volume.query', [('name', '=', volume)], {'single': True}):
             raise VerifyException(errno.ENXIO, 'Volume {0} doesn\'t exist'.format(volume))
 
         return ['system']
@@ -403,5 +403,5 @@ def _init(dispatcher, plugin):
     plugin.register_event_handler('fs.zfs.dataset.created', on_dataset_create)
     plugin.register_event_handler('fs.zfs.dataset.deleted', on_dataset_delete)
     plugin.register_event_handler('fs.zfs.dataset.renamed', on_dataset_rename)
-    plugin.attach_hook('volumes.pre_destroy', volume_pre_destroy)
-    plugin.attach_hook('volumes.pre_detach', volume_pre_destroy)
+    plugin.attach_hook('volume.pre_destroy', volume_pre_destroy)
+    plugin.attach_hook('volume.pre_detach', volume_pre_destroy)

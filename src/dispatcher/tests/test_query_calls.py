@@ -46,7 +46,7 @@ class QueryTest(BaseTestCase):
         super(QueryTest, self).tearDown()
 
     def test_query_volumes(self):
-        volumes = self.conn.call_sync('volumes.query')
+        volumes = self.conn.call_sync('volume.query')
         self.pretty_print(volumes)
 
     def test_query_sessions(self):
@@ -72,9 +72,9 @@ class QueryTest(BaseTestCase):
         self.assertIsInstance(res, list)    
 
     def atest_get_disks_allocation(self, disk):
-        disks = self.conn.call_sync('volumes.get_disks_allocation', )
+        disks = self.conn.call_sync('volume.get_disks_allocation', )
         self.pretty_print(disks)  
-        disks = self.conn.call_sync('volumes.find_media')
+        disks = self.conn.call_sync('volume.find_media')
         self.pretty_print(disks) 
 
     def test_scheduler_management_query(self):

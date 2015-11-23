@@ -66,7 +66,7 @@ class Updater(BaseTestCase):
         msg = re.compile('Connection refused')
         try:
             print 'Calling a query'
-            res = self.conn.call_sync('volumes.query')
+            res = self.conn.call_sync('volume.query')
         except Exception, data:
             print data
             return False

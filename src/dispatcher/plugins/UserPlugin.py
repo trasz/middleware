@@ -245,11 +245,11 @@ class UserCreateTask(Task):
                 errno.ENXIO,
                 'Cannot regenerate users file, maybe etcd service is offline. Actual Error: {0}'.format(e)
                 )
-        volumes_root = self.dispatcher.call_sync('volumes.get_volumes_root')
+        volumes_root = self.dispatcher.call_sync('volume.get_volumes_root')
         if user['home'].startswith(volumes_root):
             if not os.path.exists(user['home']):
                 try:
-                    self.dispatcher.call_sync('volumes.decode_path', user['home'])
+                    self.dispatcher.call_sync('volume.decode_path', user['home'])
                 except RpcException as err:
                     raise TaskException(err.code, err.message)
                 os.makedirs(user['home'])
@@ -381,11 +381,11 @@ class UserUpdateTask(Task):
         except RpcException as e:
             raise TaskException(errno.ENXIO, 'Cannot regenerate users file, etcd service is offline')
 
-        volumes_root = self.dispatcher.call_sync('volumes.get_volumes_root')
+        volumes_root = self.dispatcher.call_sync('volume.get_volumes_root')
         if user['home'].startswith(volumes_root):
             if not os.path.exists(user['home']):
                 try:
-                    self.dispatcher.call_sync('volumes.decode_path', user['home'])
+                    self.dispatcher.call_sync('volume.decode_path', user['home'])
                 except RpcException as err:
                     raise TaskException(err.code, err.message)
                 if (home_before != '/nonexistent' and home_before != user['home']
