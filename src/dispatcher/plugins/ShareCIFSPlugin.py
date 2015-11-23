@@ -81,7 +81,7 @@ class CreateCIFSShareTask(Task):
 
         id = self.datastore.insert('shares', share)
         path = self.dispatcher.call_sync(
-            'shares.translate_path',
+            'share.translate_path',
             share['type'],
             share['target'],
             share['name']
@@ -95,7 +95,7 @@ class CreateCIFSShareTask(Task):
         except smbconf.SambaConfigException:
             raise TaskException(errno.EFAULT, 'Cannot access samba registry')
 
-        self.dispatcher.dispatch_event('shares.cifs.changed', {
+        self.dispatcher.dispatch_event('share.cifs.changed', {
             'operation': 'create',
             'ids': [id]
         })
@@ -117,7 +117,7 @@ class UpdateCIFSShareTask(Task):
         share.update(updated_fields)
         self.datastore.update('shares', id, share)
         path = self.dispatcher.call_sync(
-            'shares.translate_path',
+            'share.translate_path',
             share['type'],
             share['target'],
             share['name']
@@ -131,7 +131,7 @@ class UpdateCIFSShareTask(Task):
         except smbconf.SambaConfigException:
             raise TaskException(errno.EFAULT, 'Cannot access samba registry')
 
-        self.dispatcher.dispatch_event('shares.cifs.changed', {
+        self.dispatcher.dispatch_event('share.cifs.changed', {
             'operation': 'update',
             'ids': [id]
         })
@@ -156,7 +156,7 @@ class DeleteCIFSShareTask(Task):
         except smbconf.SambaConfigException:
             raise TaskException(errno.EFAULT, 'Cannot access samba registry')
 
-        self.dispatcher.dispatch_event('shares.cifs.changed', {
+        self.dispatcher.dispatch_event('share.cifs.changed', {
             'operation': 'delete',
             'ids': [id]
         })
@@ -240,14 +240,14 @@ def _init(dispatcher, plugin):
     plugin.register_task_handler("share.cifs.create", CreateCIFSShareTask)
     plugin.register_task_handler("share.cifs.update", UpdateCIFSShareTask)
     plugin.register_task_handler("share.cifs.delete", DeleteCIFSShareTask)
-    plugin.register_provider("shares.cifs", CIFSSharesProvider)
-    plugin.register_event_type('shares.cifs.changed')
+    plugin.register_provider("share.cifs", CIFSSharesProvider)
+    plugin.register_event_type('share.cifs.changed')
 
     # Sync samba registry with our database
     smb_conf = smbconf.SambaConfig('registry')
-    smb_conf.shares.clear()
+    smb_conf.share.clear()
 
-    for s in dispatcher.call_sync('shares.query', [('type', '=', 'cifs')]):
+    for s in dispatcher.call_sync('share.query', [('type', '=', 'cifs')]):
         smb_share = smbconf.SambaShare()
         convert_share(smb_share, s['filesystem_path'], s.get('properties', {}))
         smb_conf.shares[s['name']] = smb_share

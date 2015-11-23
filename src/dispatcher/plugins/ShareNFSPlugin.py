@@ -76,7 +76,7 @@ class CreateNFSShareTask(Task):
             'sharenfs': {'value': opts(share)}
         }))
 
-        self.dispatcher.dispatch_event('shares.nfs.changed', {
+        self.dispatcher.dispatch_event('share.nfs.changed', {
             'operation': 'create',
             'ids': [id]
         })
@@ -104,7 +104,7 @@ class UpdateNFSShareTask(Task):
             'sharenfs': {'value': opts(share)}
         }))
 
-        self.dispatcher.dispatch_event('shares.nfs.changed', {
+        self.dispatcher.dispatch_event('share.nfs.changed', {
             'operation': 'update',
             'ids': [name]
         })
@@ -131,7 +131,7 @@ class DeleteNFSShareTask(Task):
                 dataset['name'], {'sharenfs': {'value': 'off'}
             }))
 
-        self.dispatcher.dispatch_event('shares.nfs.changed', {
+        self.dispatcher.dispatch_event('share.nfs.changed', {
             'operation': 'delete',
             'ids': [name]
         })
@@ -139,7 +139,7 @@ class DeleteNFSShareTask(Task):
 
 def dataset_for_share(dispatcher, share):
     return dispatcher.call_sync(
-        'shares.translate_dataset',
+        'share.translate_dataset',
         'nfs',
         share['target'],
         share['name']
@@ -228,8 +228,8 @@ def _init(dispatcher, plugin):
     plugin.register_task_handler("share.nfs.create", CreateNFSShareTask)
     plugin.register_task_handler("share.nfs.update", UpdateNFSShareTask)
     plugin.register_task_handler("share.nfs.delete", DeleteNFSShareTask)
-    plugin.register_provider("shares.nfs", NFSSharesProvider)
-    plugin.register_event_type('shares.nfs.changed')
+    plugin.register_provider("share.nfs", NFSSharesProvider)
+    plugin.register_event_type('share.nfs.changed')
 
     for share in dispatcher.datastore.query('shares', ('type', '=', 'nfs')):
         dataset = dataset_for_share(dispatcher, share)

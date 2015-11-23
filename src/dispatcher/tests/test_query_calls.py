@@ -128,12 +128,12 @@ class QueryTest(BaseTestCase):
         self.assertNotEqual(res, [])             
 
     def test_shares_iscsi_target_query(self):
-        res = self.conn.call_sync('shares.iscsi.target.query')
+        res = self.conn.call_sync('share.iscsi.target.query')
         self.pretty_print(res)
         self.assertIsInstance(res, list)
 
     def test_shares_query(self):
-        res = self.conn.call_sync('shares.query')
+        res = self.conn.call_sync('share.query')
         self.pretty_print(res)
         self.assertIsInstance(res, list)
         if len(res):
@@ -159,7 +159,7 @@ class QueryTest(BaseTestCase):
     def test_shares_query(self):
         '''
         '''
-        res = self.conn.call_sync('shares.query')
+        res = self.conn.call_sync('share.query')
         self.pretty_print(res)
         self.assertIsInstance(res, list)    
 

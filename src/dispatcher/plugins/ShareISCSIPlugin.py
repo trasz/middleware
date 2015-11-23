@@ -114,7 +114,7 @@ class CreateISCSIShareTask(Task):
     def run(self, share):
         props = share['properties']
         normalize(props, {
-            'serial': self.dispatcher.call_sync('shares.iscsi.generate_serial'),
+            'serial': self.dispatcher.call_sync('share.iscsi.generate_serial'),
             'block_size': 512,
             'physical_block_size': True,
             'tpc': False,
@@ -123,12 +123,12 @@ class CreateISCSIShareTask(Task):
             'rpm': 'SSD'
         })
 
-        props['naa'] = self.dispatcher.call_sync('shares.iscsi.generate_naa')
+        props['naa'] = self.dispatcher.call_sync('share.iscsi.generate_naa')
         id = self.datastore.insert('shares', share)
         self.dispatcher.call_sync('etcd.generation.generate_group', 'ctl')
         self.dispatcher.call_sync('services.reload', 'ctl')
 
-        self.dispatcher.dispatch_event('shares.iscsi.changed', {
+        self.dispatcher.dispatch_event('share.iscsi.changed', {
             'operation': 'create',
             'ids': [id]
         })
@@ -149,7 +149,7 @@ class UpdateISCSIShareTask(Task):
         self.datastore.update('shares', id, share)
         self.dispatcher.call_sync('etcd.generation.generate_group', 'ctl')
 
-        self.dispatcher.dispatch_event('shares.iscsi.changed', {
+        self.dispatcher.dispatch_event('share.iscsi.changed', {
             'operation': 'update',
             'ids': [id]
         })
@@ -180,7 +180,7 @@ class DeleteiSCSIShareTask(Task):
         self.dispatcher.call_sync('etcd.generation.generate_group', 'ctl')
         self.dispatcher.call_sync('services.reload', 'ctl')
 
-        self.dispatcher.dispatch_event('shares.iscsi.changed', {
+        self.dispatcher.dispatch_event('share.iscsi.changed', {
             'operation': 'delete',
             'ids': [id]
         })
@@ -522,8 +522,8 @@ def _init(dispatcher, plugin):
     plugin.register_task_handler("share.iscsi.portal.update", UpdateISCSIPortalTask)
     plugin.register_task_handler("share.iscsi.portal.delete", DeleteISCSIPortalTask)
 
-    plugin.register_provider("shares.iscsi", ISCSISharesProvider)
-    plugin.register_provider("shares.iscsi.target", ISCSITargetsProvider)
-    plugin.register_provider("shares.iscsi.auth", ISCSIAuthProvider)
-    plugin.register_provider("shares.iscsi.portal", ISCSIPortalProvider)
-    plugin.register_event_type('shares.iscsi.changed')
+    plugin.register_provider("share.iscsi", ISCSISharesProvider)
+    plugin.register_provider("share.iscsi.target", ISCSITargetsProvider)
+    plugin.register_provider("share.iscsi.auth", ISCSIAuthProvider)
+    plugin.register_provider("share.iscsi.portal", ISCSIPortalProvider)
+    plugin.register_event_type('share.iscsi.changed')

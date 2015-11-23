@@ -82,7 +82,7 @@ class SharesProvider(Provider):
         if not share:
             raise RpcException(errno.ENOENT, 'Share not found')
 
-        return self.dispatcher.call_sync('shares.{0}.get_connected_clients'.format(share['type']), share_name)
+        return self.dispatcher.call_sync('share.{0}.get_connected_clients'.format(share['type']), share_name)
 
     @description("Get shares dependent on provided volume")
     @accepts(str)
@@ -101,7 +101,7 @@ class SharesProvider(Provider):
 ))
 class CreateShareTask(Task):
     def verify(self, share, skip_dataset=False):
-        if not self.dispatcher.call_sync('shares.supported_types').get(share['type']):
+        if not self.dispatcher.call_sync('share.supported_types').get(share['type']):
             raise VerifyException(errno.ENXIO, 'Unknown sharing type {0}'.format(share['type']))
 
         if not self.dispatcher.call_sync('volume.query', [('name', '=', share['target'])], {'single': True}):
@@ -124,7 +124,7 @@ class CreateShareTask(Task):
             pool = share['target']
             root_ds = os.path.join(pool, share['type'])
             ds_name = os.path.join(root_ds, share['name'])
-            share_type = self.dispatcher.call_sync('shares.supported_types').get(share['type'])
+            share_type = self.dispatcher.call_sync('share.supported_types').get(share['type'])
 
             normalize(share, {
                 'enabled': True,
@@ -157,7 +157,7 @@ class CreateShareTask(Task):
                     }))
 
             ids = self.join_subtasks(self.run_subtask('share.{0}.create'.format(share['type']), share))
-            self.dispatcher.dispatch_event('shares.changed', {
+            self.dispatcher.dispatch_event('share.changed', {
                 'operation': 'create',
                 'ids': ids
             })
@@ -178,7 +178,7 @@ class UpdateShareTask(Task):
         if not share:
             raise VerifyException(errno.ENOENT, 'Share not found')
 
-        share_types = self.dispatcher.call_sync('shares.supported_types')
+        share_types = self.dispatcher.call_sync('share.supported_types')
         oldtype = share_types.get(share['type'])
         newtype = share_types.get(updated_fields.get('type', share['type']))
         share.update(updated_fields)
@@ -222,7 +222,7 @@ class UpdateShareTask(Task):
                 # Rename dataset and convert share type
                 new_root_ds = root_ds = os.path.join(pool, share['type'])
                 new_ds_name = os.path.join(new_root_ds, share['name'])
-                new_share_type = self.dispatcher.call_sync('shares.supported_types').get(updated_fields['type'])
+                new_share_type = self.dispatcher.call_sync('share.supported_types').get(updated_fields['type'])
 
                 # Ensure that parent dataset for new type exists
                 if not self.dispatcher.call_sync('zfs.dataset.query', [('name', '=', root_ds)], {'single': True}):
@@ -241,7 +241,7 @@ class UpdateShareTask(Task):
             else:
                 self.join_subtasks(self.run_subtask('share.{0}.update'.format(share['type']), id, updated_fields))
 
-            self.dispatcher.dispatch_event('shares.changed', {
+            self.dispatcher.dispatch_event('share.changed', {
                 'operation': 'update',
                 'ids': [share['id']]
             })
@@ -266,7 +266,7 @@ class DeleteShareTask(Task):
         if not skip_dataset:
             self.join_subtasks(self.run_subtask('volume.dataset.delete', share['target'], ds_name))
 
-        self.dispatcher.dispatch_event('shares.changed', {
+        self.dispatcher.dispatch_event('share.changed', {
             'operation': 'delete',
             'ids': [id]
         })
@@ -284,12 +284,12 @@ class DeleteDependentShares(Task):
     def run(self, volume):
         subtasks = []
         ids = []
-        for i in self.dispatcher.call_sync('shares.get_dependencies', volume):
+        for i in self.dispatcher.call_sync('share.get_dependencies', volume):
             subtasks.append(self.run_subtask('share.delete', i['id'], True))
             ids.append(i['id'])
 
         self.join_subtasks(*subtasks)
-        self.dispatcher.dispatch_event('shares.changed', {
+        self.dispatcher.dispatch_event('share.changed', {
             'operation': 'delete',
             'ids': ids
         })
@@ -308,7 +308,7 @@ def _init(dispatcher, plugin):
                 # neither about direct children of root datasets
                 return
 
-            types = list(dispatcher.call_sync('shares.supported_types').keys())
+            types = list(dispatcher.call_sync('share.supported_types').keys())
             pool, share_type, rest = tokens
 
             if share_type not in types:
@@ -336,7 +336,7 @@ def _init(dispatcher, plugin):
                 # neither about direct children of root datasets
                 return
 
-            types = list(dispatcher.call_sync('shares.supported_types').keys())
+            types = list(dispatcher.call_sync('share.supported_types').keys())
             pool, share_type, rest = tokens
 
             if share_type not in types:
@@ -398,7 +398,7 @@ def _init(dispatcher, plugin):
     plugin.register_task_handler('share.update', UpdateShareTask)
     plugin.register_task_handler('share.delete', DeleteShareTask)
     plugin.register_task_handler('share.delete_dependent', DeleteDependentShares)
-    plugin.register_event_type('shares.changed')
+    plugin.register_event_type('share.changed')
 
     plugin.register_event_handler('fs.zfs.dataset.created', on_dataset_create)
     plugin.register_event_handler('fs.zfs.dataset.deleted', on_dataset_delete)

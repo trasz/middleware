@@ -54,13 +54,13 @@ class CreateFakeDisk(Task):
             'vendor': 'FreeNAS',
             'path': defpath,
             'model': 'Virtual Disk',
-            'serial': self.dispatcher.call_sync('shares.iscsi.generate_serial'),
+            'serial': self.dispatcher.call_sync('share.iscsi.generate_serial'),
             'block_size': 512,
             'rpm': '7200',
             'online': True
         })
 
-        disk['naa'] = self.dispatcher.call_sync('shares.iscsi.generate_naa')
+        disk['naa'] = self.dispatcher.call_sync('share.iscsi.generate_naa')
 
         if not os.path.exists(disk['path']):
             with open(disk['path'], 'w') as f:

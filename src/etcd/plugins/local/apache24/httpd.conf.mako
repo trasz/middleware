@@ -224,7 +224,7 @@ Listen ${cfg[field]}
     Options Indexes FollowSymLinks
   </Directory>
 
-% for share in dispatcher.call_sync('shares.query', [('type', '=', 'webdav')]):
+% for share in dispatcher.call_sync('share.query', [('type', '=', 'webdav')]):
   Alias /${share['name']} "${share['filesystem_path']}"
   <Directory "${share['filesystem_path']}">
   </Directory>
