@@ -60,7 +60,7 @@ class ISCSIConfigureTask(Task):
             node = ConfigNode('service.iscsi', self.configstore)
             self.dispatcher.call_sync('etcd.generation.generate_group', 'services')
             self.dispatcher.call_sync('etcd.generation.generate_group', 'ctl')
-            self.dispatcher.call_sync('services.apply_state', 'iscsi')
+            self.dispatcher.call_sync('service.apply_state', 'iscsi')
 
             self.dispatcher.dispatch_event('service.iscsi.changed', {
                 'operation': 'updated',

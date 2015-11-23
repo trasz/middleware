@@ -92,7 +92,7 @@ class CreateWebDAVShareTask(Task):
         })
         id = self.datastore.insert('shares', share)
         self.dispatcher.call_sync('etcd.generation.generate_group', 'webdav')
-        self.dispatcher.call_sync('services.reload', 'webdav')
+        self.dispatcher.call_sync('service.reload', 'webdav')
         self.dispatcher.dispatch_event('share.webdav.changed', {
             'operation': 'create',
             'ids': [id]
@@ -115,7 +115,7 @@ class UpdateWebDAVShareTask(Task):
         share.update(updated_fields)
         self.datastore.update('shares', name, share)
         self.dispatcher.call_sync('etcd.generation.generate_group', 'webdav')
-        self.dispatcher.call_sync('services.reload', 'webdav')
+        self.dispatcher.call_sync('service.reload', 'webdav')
         self.dispatcher.dispatch_event('share.webdav.changed', {
             'operation': 'update',
             'ids': [name]
@@ -135,7 +135,7 @@ class DeleteWebDAVShareTask(Task):
         share = self.datastore.get_by_id('shares', name)
         self.datastore.delete('shares', name)
         self.dispatcher.call_sync('etcd.generation.generate_group', 'webdav')
-        self.dispatcher.call_sync('services.reload', 'webdav')
+        self.dispatcher.call_sync('service.reload', 'webdav')
         self.dispatcher.dispatch_event('share.webdav.changed', {
             'operation': 'delete',
             'ids': [name]

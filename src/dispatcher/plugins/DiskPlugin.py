@@ -345,7 +345,7 @@ class DiskConfigureTask(Task):
             self.dispatcher.call_sync('disk.configure_disk', id)
 
         if 'smart' in updated_fields or 'smart_options' in updated_fields:
-            self.dispatcher.call_sync('services.reload', 'smartd')
+            self.dispatcher.call_sync('service.reload', 'smartd')
             self.dispatcher.call_sync('disk.update_disk_cache', disk['path'], timeout=120)
 
 

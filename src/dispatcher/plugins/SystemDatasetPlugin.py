@@ -143,7 +143,7 @@ def move_system_dataset(dispatcher, dsid, services, src_pool, dst_pool):
     mount_system_dataset(dispatcher, dsid, dst_pool, tmpath)
 
     for s in services:
-        dispatcher.call_sync('services.ensure_stopped', s)
+        dispatcher.call_sync('service.ensure_stopped', s)
 
     try:
         copytree(SYSTEM_DIR, tmpath)
@@ -158,7 +158,7 @@ def move_system_dataset(dispatcher, dsid, services, src_pool, dst_pool):
     remove_system_dataset(dispatcher, dsid, src_pool)
 
     for s in services:
-        dispatcher.call_sync('services.ensure_started', s, timeout=20)
+        dispatcher.call_sync('service.ensure_started', s, timeout=20)
 
 
 class SystemDatasetProvider(Provider):

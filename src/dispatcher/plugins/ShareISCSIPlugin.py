@@ -126,7 +126,7 @@ class CreateISCSIShareTask(Task):
         props['naa'] = self.dispatcher.call_sync('share.iscsi.generate_naa')
         id = self.datastore.insert('shares', share)
         self.dispatcher.call_sync('etcd.generation.generate_group', 'ctl')
-        self.dispatcher.call_sync('services.reload', 'ctl')
+        self.dispatcher.call_sync('service.reload', 'ctl')
 
         self.dispatcher.dispatch_event('share.iscsi.changed', {
             'operation': 'create',
@@ -178,7 +178,7 @@ class DeleteiSCSIShareTask(Task):
 
         self.datastore.delete('shares', id)
         self.dispatcher.call_sync('etcd.generation.generate_group', 'ctl')
-        self.dispatcher.call_sync('services.reload', 'ctl')
+        self.dispatcher.call_sync('service.reload', 'ctl')
 
         self.dispatcher.dispatch_event('share.iscsi.changed', {
             'operation': 'delete',
@@ -236,7 +236,7 @@ class UpdateISCSITargetTask(Task):
         target.update(updated_params)
         self.datastore.update('iscsi.targets', id, target)
         self.dispatcher.call_sync('etcd.generation.generate_group', 'ctl')
-        self.dispatcher.call_sync('services.reload', 'ctl')
+        self.dispatcher.call_sync('service.reload', 'ctl')
         self.dispatcher.dispatch_event('iscsi.target.changed', {
             'operation': 'update',
             'ids': [id]
@@ -254,7 +254,7 @@ class DeleteISCSITargetTask(Task):
     def run(self, id):
         self.datastore.delete('iscsi.targets', id)
         self.dispatcher.call_sync('etcd.generation.generate_group', 'ctl')
-        self.dispatcher.call_sync('services.reload', 'ctl')
+        self.dispatcher.call_sync('service.reload', 'ctl')
         self.dispatcher.dispatch_event('iscsi.target.changed', {
             'operation': 'delete',
             'ids': [id]
@@ -281,7 +281,7 @@ class CreateISCSIAuthGroupTask(Task):
 
         id = self.datastore.insert('iscsi.auth', auth_group)
         self.dispatcher.call_sync('etcd.generation.generate_group', 'ctl')
-        self.dispatcher.call_sync('services.reload', 'ctl')
+        self.dispatcher.call_sync('service.reload', 'ctl')
         self.dispatcher.dispatch_event('iscsi.auth.changed', {
             'operation': 'create',
             'ids': [id]
@@ -302,7 +302,7 @@ class UpdateISCSIAuthGroupTask(Task):
         ag.update(updated_params)
         self.datastore.update('iscsi.auth', id, ag)
         self.dispatcher.call_sync('etcd.generation.generate_group', 'ctl')
-        self.dispatcher.call_sync('services.reload', 'ctl')
+        self.dispatcher.call_sync('service.reload', 'ctl')
         self.dispatcher.dispatch_event('iscsi.auth.changed', {
             'operation': 'update',
             'ids': [id]
@@ -320,7 +320,7 @@ class DeleteISCSIAuthGroupTask(Task):
     def run(self, id):
         self.datastore.delete('iscsi.auth', id)
         self.dispatcher.call_sync('etcd.generation.generate_group', 'ctl')
-        self.dispatcher.call_sync('services.reload', 'ctl')
+        self.dispatcher.call_sync('service.reload', 'ctl')
         self.dispatcher.dispatch_event('iscsi.auth.changed', {
             'operation': 'delete',
             'ids': [id]
@@ -342,7 +342,7 @@ class CreateISCSIPortalTask(Task):
 
         id = self.datastore.insert('iscsi.portals', portal)
         self.dispatcher.call_sync('etcd.generation.generate_group', 'ctl')
-        self.dispatcher.call_sync('services.reload', 'ctl')
+        self.dispatcher.call_sync('service.reload', 'ctl')
         self.dispatcher.dispatch_event('iscsi.portal.changed', {
             'operation': 'create',
             'ids': [id]
@@ -363,7 +363,7 @@ class UpdateISCSIPortalTask(Task):
         ag.update(updated_params)
         self.datastore.update('iscsi.portals', id, ag)
         self.dispatcher.call_sync('etcd.generation.generate_group', 'ctl')
-        self.dispatcher.call_sync('services.reload', 'ctl')
+        self.dispatcher.call_sync('service.reload', 'ctl')
         self.dispatcher.dispatch_event('iscsi.portal.changed', {
             'operation': 'update',
             'ids': [id]
@@ -381,7 +381,7 @@ class DeleteISCSIPortalTask(Task):
     def run(self, id):
         self.datastore.delete('iscsi.portals', id)
         self.dispatcher.call_sync('etcd.generation.generate_group', 'ctl')
-        self.dispatcher.call_sync('services.reload', 'ctl')
+        self.dispatcher.call_sync('service.reload', 'ctl')
         self.dispatcher.dispatch_event('iscsi.portal.changed', {
             'operation': 'delete',
             'ids': [id]

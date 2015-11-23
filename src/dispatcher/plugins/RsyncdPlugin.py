@@ -80,7 +80,7 @@ class RsyncdConfigureTask(Task):
             node = ConfigNode('service.rsyncd', self.configstore)
             node.update(rsyncd)
             self.dispatcher.call_sync('etcd.generation.generate_group', 'rsyncd')
-            self.dispatcher.call_sync('services.apply_state', 'rsyncd', True)
+            self.dispatcher.call_sync('service.apply_state', 'rsyncd', True)
             self.dispatcher.dispatch_event('service.rsyncd.changed', {
                 'operation': 'updated',
                 'ids': None,
@@ -116,7 +116,7 @@ class RsyncdModuleCreateTask(Task):
         try:
             uuid = self.datastore.insert('rsyncd-module', rsyncmod)
             self.dispatcher.call_sync('etcd.generation.generate_group', 'rsyncd')
-            self.dispatcher.call_sync('services.restart', 'rsyncd')
+            self.dispatcher.call_sync('service.restart', 'rsyncd')
         except DatastoreException as e:
             raise TaskException(errno.EBADMSG, 'Cannot add rsync module: {0}'.format(str(e)))
         except RpcException as e:
@@ -160,7 +160,7 @@ class RsyncdModuleUpdateTask(Task):
             rsyncmod.update(updated_fields)
             self.datastore.update('rsyncd-module', uuid, rsyncmod)
             self.dispatcher.call_sync('etcd.generation.generate_group', 'rsyncd')
-            self.dispatcher.call_sync('services.restart', 'rsyncd')
+            self.dispatcher.call_sync('service.restart', 'rsyncd')
         except DatastoreException as e:
             raise TaskException(errno.EBADMSG, 'Cannot update rsync module: {0}'.format(str(e)))
         except RpcException as e:
@@ -191,7 +191,7 @@ class RsyncdModuleDeleteTask(Task):
         try:
             self.datastore.delete('rsyncd-module', uuid)
             self.dispatcher.call_sync('etcd.generation.generate_group', 'rsyncd')
-            self.dispatcher.call_sync('services.restart', 'rsyncd')
+            self.dispatcher.call_sync('service.restart', 'rsyncd')
         except DatastoreException as e:
             raise TaskException(errno.EBADMSG, 'Cannot delete rsync module: {0}'.format(str(e)))
         except RpcException as e:

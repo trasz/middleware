@@ -221,19 +221,19 @@ class ServiceInfoProvider(Provider):
 
         if node['enable'].value and state != 'RUNNING':
             logger.info('Starting service {0}'.format(service))
-            self.dispatcher.call_sync('services.ensure_started', service)
+            self.dispatcher.call_sync('service.ensure_started', service)
 
         elif not node['enable'].value and state != 'STOPPED':
             logger.info('Stopping service {0}'.format(service))
-            self.dispatcher.call_sync('services.ensure_stopped', service)
+            self.dispatcher.call_sync('service.ensure_stopped', service)
 
         else:
             if restart:
                 logger.info('Restarting service {0}'.format(service))
-                self.dispatcher.call_sync('services.restart', service)
+                self.dispatcher.call_sync('service.restart', service)
             elif reload:
                 logger.info('Reloading service {0}'.format(service))
-                self.dispatcher.call_sync('services.reload', service)
+                self.dispatcher.call_sync('service.reload', service)
 
 
 @description("Provides functionality to start, stop, restart or reload service")
@@ -279,7 +279,7 @@ class ServiceManageTask(Task):
         except SubprocessException as e:
             raise TaskException(errno.EBUSY, e.err)
 
-        self.dispatcher.dispatch_event('services.changed', {
+        self.dispatcher.dispatch_event('service.changed', {
             'operation': 'update',
             'ids': [service['id']]
         })
@@ -341,8 +341,8 @@ class UpdateServiceConfigTask(Task):
                             break
 
         self.dispatcher.call_sync('etcd.generation.generate_group', 'services')
-        self.dispatcher.call_sync('services.apply_state', service, restart, reload, timeout=30)
-        self.dispatcher.dispatch_event('services.changed', {
+        self.dispatcher.call_sync('service.apply_state', service, restart, reload, timeout=30)
+        self.dispatcher.dispatch_event('service.changed', {
             'operation': 'update',
             'ids': [service_def['id']]
         })
@@ -455,7 +455,7 @@ def _init(dispatcher, plugin):
     plugin.register_task_handler("service.manage", ServiceManageTask)
     plugin.register_task_handler("service.configure", UpdateServiceConfigTask)
     plugin.register_provider("services", ServiceInfoProvider)
-    plugin.register_event_type("services.changed")
+    plugin.register_event_type("service.changed")
 
     for svc in dispatcher.datastore.query('service_definitions'):
         plugin.register_resource(Resource('service:{0}'.format(svc['name'])), parents=['system'])

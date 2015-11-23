@@ -82,7 +82,7 @@ class CreateAFPShareTask(Task):
 
         id = self.datastore.insert('shares', share)
         self.dispatcher.call_sync('etcd.generation.generate_group', 'afp')
-        self.dispatcher.call_sync('services.reload', 'afp')
+        self.dispatcher.call_sync('service.reload', 'afp')
         self.dispatcher.dispatch_event('share.afp.changed', {
             'operation': 'create',
             'ids': [id]
@@ -105,7 +105,7 @@ class UpdateAFPShareTask(Task):
         share.update(updated_fields)
         self.datastore.update('shares', id, share)
         self.dispatcher.call_sync('etcd.generation.generate_group', 'afp')
-        self.dispatcher.call_sync('services.reload', 'afp')
+        self.dispatcher.call_sync('service.reload', 'afp')
         self.dispatcher.dispatch_event('share.afp.changed', {
             'operation': 'update',
             'ids': [id]
@@ -124,7 +124,7 @@ class DeleteAFPShareTask(Task):
     def run(self, id):
         self.datastore.delete('shares', id)
         self.dispatcher.call_sync('etcd.generation.generate_group', 'afp')
-        self.dispatcher.call_sync('services.reload', 'afp')
+        self.dispatcher.call_sync('service.reload', 'afp')
         self.dispatcher.dispatch_event('share.afp.changed', {
             'operation': 'delete',
             'ids': [id]

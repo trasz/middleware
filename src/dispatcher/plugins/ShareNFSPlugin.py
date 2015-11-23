@@ -69,7 +69,7 @@ class CreateNFSShareTask(Task):
     def run(self, share):
         id = self.datastore.insert('shares', share)
         self.dispatcher.call_sync('etcd.generation.generate_group', 'nfs')
-        self.dispatcher.call_sync('services.reload', 'nfs')
+        self.dispatcher.call_sync('service.reload', 'nfs')
 
         dataset = dataset_for_share(self.dispatcher, share)
         self.join_subtasks(self.run_subtask('zfs.configure', dataset['pool'], dataset['name'], {
@@ -123,7 +123,7 @@ class DeleteNFSShareTask(Task):
         share = self.datastore.get_by_id('shares', name)
         self.datastore.delete('shares', name)
         self.dispatcher.call_sync('etcd.generation.generate_group', 'nfs')
-        self.dispatcher.call_sync('services.reload', 'nfs')
+        self.dispatcher.call_sync('service.reload', 'nfs')
 
         dataset = dataset_for_share(self.dispatcher, share)
         if dataset:

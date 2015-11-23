@@ -458,7 +458,7 @@ class DSDConfigurationService(RpcService):
 
     def restart_samba(self, id, enable=True):
         self.logger.debug('restart_samba()')
-        return self.client.call_sync("services.restart", "cifs")
+        return self.client.call_sync("service.restart", "cifs")
 
     def join_activedirectory(self, id, enable=True):
         self.logger.debug('join_activedirectory()')

@@ -164,7 +164,7 @@ class ServicesTest(BaseTestCase):
         Can start from stopped state
         '''
         sname = inspect.stack()[0][3].split('_')[-1]
-        #service = self.conn.call_sync('services.query', [('name', '=', sname)], {'single': True})
+        #service = self.conn.call_sync('service.query', [('name', '=', sname)], {'single': True})
         if self.isRunning(sname):
     	    self.assertTaskCompletion(self.submitTask('service.manage', sname, 'stop'))
         self.assertTaskCompletion(self.submitTask('service.manage', sname, 'start'))
@@ -183,7 +183,7 @@ class ServicesTest(BaseTestCase):
         NOT WORKING
     	'''
     	sname = inspect.stack()[0][3].split('_')[-1]
-    	#service = self.conn.call_sync('services.query', [('name', '=', 'cifs')], {'single': True})
+    	#service = self.conn.call_sync('service.query', [('name', '=', 'cifs')], {'single': True})
     	if not self.isRunning(sname):
     		self.assertTaskCompletion(self.submitTask('service.manage', 'cifs', 'start'))
     	self.assertTaskCompletion(self.submitTask('service.manage', 'cifs', 'reload'))
@@ -200,7 +200,7 @@ class ServicesTest(BaseTestCase):
 
     def test_restart_riak_cs(self):
     	#sname = inspect.stack()[0][3].split('_')[-1]
-    	service = self.conn.call_sync('services.query', [('name', '=', 'riak_cs')], {'single': True})
+    	service = self.conn.call_sync('service.query', [('name', '=', 'riak_cs')], {'single': True})
     	if not self.isRunning('riak_cs'):
            self.assertTaskCompletion(self.submitTask('service.manage', 'riak_cs', 'start')) 
         self.assertTaskCompletion(self.submitTask('service.manage', 'riak_cs', 'restart'))    
@@ -390,17 +390,17 @@ class ServicesTest(BaseTestCase):
     
 ######## HELPERS
     def isRunning(self, sname):
-        service = self.conn.call_sync('services.query', [('name', '=', str(sname))], {'single': True})
+        service = self.conn.call_sync('service.query', [('name', '=', str(sname))], {'single': True})
         if service['state'] == 'RUNNING':
             return True
         return False		
 
     ######################### QUERY
     def test_query_all_services(self):
-        services = self.conn.call_sync('services.query')
+        services = self.conn.call_sync('service.query')
         self.pretty_print(services)
         self.assertIsInstance(services, list)
-        buildtin = self.conn.call_sync('services.query', [('builtin', '=', 'True')])
+        buildtin = self.conn.call_sync('service.query', [('builtin', '=', 'True')])
 
 
 

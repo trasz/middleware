@@ -42,7 +42,7 @@ def ipfs_enabled_check():
     def wrapped(fn):
         def wrap(self, *args, **kwargs):
             ipfs_state = self.dispatcher.call_sync(
-                'services.query',
+                'service.query',
                 [('name', '=', 'ipfs')],
                 {'single': True}
             )['state']

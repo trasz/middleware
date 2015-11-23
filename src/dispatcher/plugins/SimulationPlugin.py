@@ -68,7 +68,7 @@ class CreateFakeDisk(Task):
 
         self.datastore.insert('simulator.disks', disk)
         self.dispatcher.call_sync('etcd.generation.generate_group', 'ctl')
-        self.dispatcher.call_sync('services.reload', 'ctl')
+        self.dispatcher.call_sync('service.reload', 'ctl')
 
 
 class ConfigureFakeDisk(Task):
@@ -83,7 +83,7 @@ class ConfigureFakeDisk(Task):
         disk.update(updated_params)
         self.datastore.update('simulator.disks', id, disk)
         self.dispatcher.call_sync('etcd.generation.generate_group', 'ctl')
-        self.dispatcher.call_sync('services.reload', 'ctl')
+        self.dispatcher.call_sync('service.reload', 'ctl')
 
 
 class DeleteFakeDisk(Task):
@@ -96,7 +96,7 @@ class DeleteFakeDisk(Task):
     def run(self, id):
         self.datastore.delete('simulator.disks', id)
         self.dispatcher.call_sync('etcd.generation.generate_group', 'ctl')
-        self.dispatcher.call_sync('services.reload', 'ctl')
+        self.dispatcher.call_sync('service.reload', 'ctl')
 
 
 def _depends():

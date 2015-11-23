@@ -268,7 +268,7 @@ class SystemGeneralConfigureTask(Task):
             self.dispatcher.call_sync('etcd.generation.generate_group', 'localtime')
             if syslog_changed:
                 self.dispatcher.call_sync('etcd.generation.generate_group', 'syslog')
-                self.dispatcher.call_sync('services.reload', 'syslog')
+                self.dispatcher.call_sync('service.reload', 'syslog')
         except RpcException as e:
             raise TaskException(
                 errno.ENXIO,
@@ -332,7 +332,7 @@ class SystemAdvancedConfigureTask(Task):
 
             if 'powerd' in props:
                 cs.set('service.powerd.enable', props['powerd'])
-                self.dispatcher.call_sync('services.apply_state', 'powerd')
+                self.dispatcher.call_sync('service.apply_state', 'powerd')
                 rc = True
 
             if 'swapondrive' in props:
@@ -403,7 +403,7 @@ class SystemUIConfigureTask(Task):
             self.dispatcher.call_sync(
                 'etcd.generation.generate_group', 'nginx'
             )
-            self.dispatcher.call_sync('services.reload', 'nginx')
+            self.dispatcher.call_sync('service.reload', 'nginx')
         except RpcException as e:
             raise TaskException(
                 errno.ENXIO,
@@ -481,7 +481,7 @@ def _init(dispatcher, plugin):
             return
 
         dispatcher.configstore.set('system.hostname', args['hostname'])
-        dispatcher.call_sync('services.restart', 'mdns')
+        dispatcher.call_sync('service.restart', 'mdns')
         dispatcher.dispatch_event('system.general.changed', {
             'operation': 'update',
         })
