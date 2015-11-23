@@ -60,7 +60,7 @@ class QueryTest(BaseTestCase):
         self.assertIsInstance(disks, list)
 
     def test_boot_envoronments_query(self):
-        res = self.conn.call_sync('boot.environments.query')
+        res = self.conn.call_sync('boot.environment.query')
         self.pretty_print(res)
         self.assertTrue(len(res))
         self.assertIsInstance(res, list)

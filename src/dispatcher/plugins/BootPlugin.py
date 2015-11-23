@@ -152,11 +152,11 @@ def _init(dispatcher, plugin):
         }
     })
 
-    plugin.register_provider('boot.environments', BootEnvironmentsProvider)
-    plugin.register_task_handler('boot.environments.create', BootEnvironmentCreate)
-    plugin.register_task_handler('boot.environments.activate', BootEnvironmentActivate)
-    plugin.register_task_handler('boot.environments.rename', BootEnvironmentRename)
-    plugin.register_task_handler('boot.environments.delete', BootEnvironmentsDelete)
+    plugin.register_provider('boot.environment', BootEnvironmentsProvider)
+    plugin.register_task_handler('boot.environment.create', BootEnvironmentCreate)
+    plugin.register_task_handler('boot.environment.activate', BootEnvironmentActivate)
+    plugin.register_task_handler('boot.environment.rename', BootEnvironmentRename)
+    plugin.register_task_handler('boot.environment.delete', BootEnvironmentsDelete)
 
     plugin.register_task_handler('boot.attach_disk', BootAttachDisk)
     plugin.register_task_handler('boot.detach_disk', BootDetachDisk)
