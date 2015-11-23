@@ -14,12 +14,18 @@ case ${cmd} in
         ;;
 
     start)
-        ${mongod} --config ${driverdir}/mongod.conf \
+        rm -f ${dbdir}/mongod.lock
+
+        ${mongod} \
+            --config ${driverdir}/mongod.conf \
             --fork \
             --logpath ${dbdir}/mongod.log \
             --quiet \
             --dbpath ${dbdir} \
             --port ${3:-27017}
+
+        # Compact database and repair after unclean shutdown
+        echo 'db.runCommand({repairDatabase: 1})' | /usr/local/bin/mongo freenas > /var/tmp/mongorepair.log
         ;;
 
     stop)
