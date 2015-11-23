@@ -256,7 +256,7 @@ def _init(dispatcher, plugin):
     plugin.register_event_type('tunable.changed')
 
     # Register provider
-    plugin.register_provider('tunables', TunablesProvider)
+    plugin.register_provider('tunable', TunablesProvider)
 
     # Register tasks
     plugin.register_task_handler('tunable.create', TunableCreateTask)
