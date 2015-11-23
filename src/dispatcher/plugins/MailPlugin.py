@@ -69,7 +69,7 @@ class MailProvider(Provider):
 
         if not to:
             to = self.dispatcher.call_sync(
-                'users.query', [('username', '=', 'root')], {'single': True})
+                'user.query', [('username', '=', 'root')], {'single': True})
             if to and to.get('email'):
                 to = [to['email']]
 

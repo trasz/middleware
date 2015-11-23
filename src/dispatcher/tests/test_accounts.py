@@ -33,13 +33,13 @@ from shared import BaseTestCase
 class UsersTest(BaseTestCase):
     def tearDown(self):
         # try to delete all users created during tests
-        for u in self.conn.call_sync('users.query', [('username', '~', 'testUser.*')]):
-            self.assertTaskCompletion(self.submitTask('users.delete', u['id']))
+        for u in self.conn.call_sync('user.query', [('username', '~', 'testUser.*')]):
+            self.assertTaskCompletion(self.submitTask('user.delete', u['id']))
 
         super(UsersTest, self).tearDown()
 
     def test_create_user_uid(self):
-        tid = self.submitTask('users.create', {
+        tid = self.submitTask('user.create', {
             'id': 1234,
             'username': 'testUser',
             'group': 0,
@@ -49,12 +49,12 @@ class UsersTest(BaseTestCase):
         })
         
         self.assertTaskCompletion(tid)
-        user = self.conn.call_sync('users.query', [('id', '=', 1234)], {'single': True})
+        user = self.conn.call_sync('user.query', [('id', '=', 1234)], {'single': True})
         self.assertIsInstance(user, dict)
         self.assertEqual(user['username'], 'testUser')
 
     def test_create_user_nouid(self):
-        tid = self.submitTask('users.create', {
+        tid = self.submitTask('user.create', {
             'username': 'testUserNoUid',
             'group': 0,
             'shell': '/bin/csh',
@@ -63,21 +63,21 @@ class UsersTest(BaseTestCase):
         })
 
         self.assertTaskCompletion(tid)
-        user = self.conn.call_sync('users.query', [('id', '=', self.getTaskResult(tid))], {'single': True})
+        user = self.conn.call_sync('user.query', [('id', '=', self.getTaskResult(tid))], {'single': True})
         self.assertIsInstance(user, dict)
         self.assertEqual(user['username'], 'testUserNoUid')
 
     
     def test_create_user_invalid(self):
         with self.assertRaises(RpcException):
-            self.submitTask('users.create', {
+            self.submitTask('user.create', {
                 'blargh': 'foo',
                 'group': 1234,
                 'username': False
             })
 
     def test_modify_user(self):
-        tid = self.submitTask('users.create', {
+        tid = self.submitTask('user.create', {
             'id': 1234,
             'username': 'testUser',
             'group': 0,
@@ -87,22 +87,22 @@ class UsersTest(BaseTestCase):
         })
 
         self.assertTaskCompletion(tid)
-        self.assertTaskCompletion(self.submitTask('users.update', 1234, {'full_name': 'Hello', 'password': 'null', 'home': '/nonexistent'}))
-        user = self.conn.call_sync('users.query', [('id', '=', 1234)], {'single': True})
+        self.assertTaskCompletion(self.submitTask('user.update', 1234, {'full_name': 'Hello', 'password': 'null', 'home': '/nonexistent'}))
+        user = self.conn.call_sync('user.query', [('id', '=', 1234)], {'single': True})
         self.assertIsInstance(user, dict)
         self.assertEqual(user['full_name'], 'Hello')
 
     def test_remove_builtin_user(self):
-        self.assertTaskFailure(self.submitTask('users.delete', 0))
+        self.assertTaskFailure(self.submitTask('user.delete', 0))
 
     def test_query_users(self):
-        users = self.conn.call_sync('users.query')
+        users = self.conn.call_sync('user.query')
         self.assertIsInstance(users, list)
         self.assertGreater(len(users), 0)
         self.assertIsInstance(users[0], dict)
     
     def test_query_next_uid(self):
-        uid = self.conn.call_sync('users.next_uid')
+        uid = self.conn.call_sync('user.next_uid')
         self.assertIsInstance(uid, int)
         
 
@@ -110,14 +110,14 @@ class UsersTest(BaseTestCase):
 class GroupsTest(BaseTestCase):
     def tearDown(self):
         # try to delete all groups created during tests
-        for u in self.conn.call_sync('groups.query', [('name', '~', 'testGroup.*')]):
-            self.assertTaskCompletion(self.submitTask('groups.delete', u['id']))
+        for u in self.conn.call_sync('group.query', [('name', '~', 'testGroup.*')]):
+            self.assertTaskCompletion(self.submitTask('group.delete', u['id']))
 
         super(GroupsTest, self).tearDown()
  
 
     def test_create_group_gid(self):
-        tid = self.submitTask('groups.create', {
+        tid = self.submitTask('group.create', {
             'name': 'testGroup',
             'sudo': False,
             'id': 1234,
@@ -126,7 +126,7 @@ class GroupsTest(BaseTestCase):
         self.assertTaskCompletion(tid)
 
     def test_create_group_nogid(self):
-        tid = self.submitTask('groups.create', {
+        tid = self.submitTask('group.create', {
             'name': 'testGroupNoGid',
         })
 
@@ -134,7 +134,7 @@ class GroupsTest(BaseTestCase):
 
     def test_create_group_invalid(self):
         with self.assertRaises(RpcException):
-            self.submitTask('groups.create', {
+            self.submitTask('group.create', {
                 'blargh': 'foo',
                 'group': 1234,
             })
@@ -143,7 +143,7 @@ class GroupsTest(BaseTestCase):
         pass
 
     def test_list_groups(self):
-        groups = self.conn.call_sync('groups.query')
+        groups = self.conn.call_sync('group.query')
         self.assertIsInstance(groups, list)
         self.assertGreater(len(groups), 0)
         self.assertIsInstance(groups[0], dict)

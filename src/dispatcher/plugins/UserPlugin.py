@@ -196,7 +196,7 @@ class UserCreateTask(Task):
     def run(self, user):
         if 'id' not in user:
             # Need to get next free UID
-            uid = self.dispatcher.call_sync('users.next_uid')
+            uid = self.dispatcher.call_sync('user.next_uid')
         else:
             uid = user.pop('id')
 
@@ -215,7 +215,7 @@ class UserCreateTask(Task):
 
             if user.get('group') is None:
                 try:
-                    result = self.join_subtasks(self.run_subtask('groups.create', {
+                    result = self.join_subtasks(self.run_subtask('group.create', {
                         'id': uid,
                         'name': user['username']
                     }))
@@ -262,7 +262,7 @@ class UserCreateTask(Task):
                 " Use '{0}' instead as the mountpoint".format(volumes_root)
                 )
 
-        self.dispatcher.dispatch_event('users.changed', {
+        self.dispatcher.dispatch_event('user.changed', {
             'operation': 'create',
             'ids': [uid]
         })
@@ -295,7 +295,7 @@ class UserDeleteTask(Task):
         except DatastoreException as e:
             raise TaskException(errno.EBADMSG, 'Cannot delete user: {0}'.format(str(e)))
 
-        self.dispatcher.dispatch_event('users.changed', {
+        self.dispatcher.dispatch_event('user.changed', {
             'operation': 'delete',
             'ids': [uid]
         })
@@ -405,7 +405,7 @@ class UserUpdateTask(Task):
                 " Use '{0}' instead as the mountpoint".format(volumes_root)
                 )
 
-        self.dispatcher.dispatch_event('users.changed', {
+        self.dispatcher.dispatch_event('user.changed', {
             'operation': 'update',
             'ids': [uid]
         })
@@ -444,7 +444,7 @@ class GroupCreateTask(Task):
     def run(self, group):
         if 'id' not in group:
             # Need to get next free GID
-            gid = self.dispatcher.call_sync('groups.next_gid')
+            gid = self.dispatcher.call_sync('group.next_gid')
         else:
             gid = group.pop('id')
 
@@ -458,7 +458,7 @@ class GroupCreateTask(Task):
         except RpcException as e:
             raise TaskException(errno.ENXIO, 'Cannot regenerate groups file, etcd service is offline')
 
-        self.dispatcher.dispatch_event('groups.changed', {
+        self.dispatcher.dispatch_event('group.changed', {
             'operation': 'create',
             'ids': [gid]
         })
@@ -505,7 +505,7 @@ class GroupUpdateTask(Task):
         except RpcException as e:
             raise TaskException(errno.ENXIO, 'Cannot regenerate groups file, etcd service is offline')
 
-        self.dispatcher.dispatch_event('groups.changed', {
+        self.dispatcher.dispatch_event('group.changed', {
             'operation': 'update',
             'ids': [gid]
         })
@@ -543,7 +543,7 @@ class GroupDeleteTask(Task):
         except RpcException as e:
             raise TaskException(errno.ENXIO, 'Cannot regenerate config files')
 
-        self.dispatcher.dispatch_event('groups.changed', {
+        self.dispatcher.dispatch_event('group.changed', {
             'operation': 'delete',
             'ids': [gid]
         })
@@ -597,17 +597,17 @@ def _init(dispatcher, plugin):
     })
 
     # Register provider for querying accounts and groups data
-    plugin.register_provider('users', UserProvider)
-    plugin.register_provider('groups', GroupProvider)
+    plugin.register_provider('user', UserProvider)
+    plugin.register_provider('group', GroupProvider)
 
     # Register task handlers
-    plugin.register_task_handler('users.create', UserCreateTask)
-    plugin.register_task_handler('users.update', UserUpdateTask)
-    plugin.register_task_handler('users.delete', UserDeleteTask)
-    plugin.register_task_handler('groups.create', GroupCreateTask)
-    plugin.register_task_handler('groups.update', GroupUpdateTask)
-    plugin.register_task_handler('groups.delete', GroupDeleteTask)
+    plugin.register_task_handler('user.create', UserCreateTask)
+    plugin.register_task_handler('user.update', UserUpdateTask)
+    plugin.register_task_handler('user.delete', UserDeleteTask)
+    plugin.register_task_handler('group.create', GroupCreateTask)
+    plugin.register_task_handler('group.update', GroupUpdateTask)
+    plugin.register_task_handler('group.delete', GroupDeleteTask)
 
     # Register event types
-    plugin.register_event_type('users.changed')
-    plugin.register_event_type('groups.changed')
+    plugin.register_event_type('user.changed')
+    plugin.register_event_type('group.changed')

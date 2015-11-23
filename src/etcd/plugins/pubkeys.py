@@ -30,7 +30,7 @@ import os
 
 
 def run(context):
-    for user in context.client.call_sync('users.query'):
+    for user in context.client.call_sync('user.query'):
         home = user['home']
         uid = user['id']
         gid = user['group']
