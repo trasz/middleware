@@ -112,5 +112,5 @@ def _init(dispatcher, plugin):
         }
     })
 
-    plugin.register_provider('sessions', SessionProvider)
+    plugin.register_provider('session', SessionProvider)
     plugin.register_event_handler('system.pam.event', pam_event)

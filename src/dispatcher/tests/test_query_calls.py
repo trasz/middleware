@@ -50,7 +50,7 @@ class QueryTest(BaseTestCase):
         self.pretty_print(volumes)
 
     def test_query_sessions(self):
-        sessions = self.conn.call_sync('sessions.query')
+        sessions = self.conn.call_sync('session.query')
         self.pretty_print(sessions)
     
         
