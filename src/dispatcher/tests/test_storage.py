@@ -197,7 +197,7 @@ class VolumeTest(BaseTestCase):
                     
 
     def test_create_manual_snapshot(self):
-        snapshots = self.conn.call_sync('volume.snapshots.query')
+        snapshots = self.conn.call_sync('volume.snapshot.query')
         self.pretty_print(snapshots)
         self.assertIsInstance(snapshots, list)
            
