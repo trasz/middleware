@@ -41,7 +41,7 @@ def generate_file(context, path, content):
 
 def run(context):
 
-    for cert in context.client.call_sync('crypto.certificates.query'):
+    for cert in context.client.call_sync('crypto.certificate.query'):
 
         certificate = cert.get('certificate')
         if certificate:

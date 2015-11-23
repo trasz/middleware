@@ -80,7 +80,7 @@ class FTPConfigureTask(Task):
             errors.append(('tls_ssl_certificate', errno.EINVAL, 'TLS specified without certificate.'))
 
         if node['tls_ssl_certificate']:
-            cert = self.dispatcher.call_sync('crypto.certificates.query', [('id', '=', node['tls_ssl_certificate'])])
+            cert = self.dispatcher.call_sync('crypto.certificate.query', [('id', '=', node['tls_ssl_certificate'])])
             if not cert:
                 errors.append(('tls_ssl_certificate', errno.EINVAL, 'SSL Certificate not found.'))
 

@@ -29,7 +29,7 @@ http {
 
     cert_id = config.get('service.nginx.https.certificate')
     certificate = dispatcher.call_sync(
-        'crypto.certificates.query', [('id', '=', cert_id)], {'single': True})
+        'crypto.certificate.query', [('id', '=', cert_id)], {'single': True})
 
 %>\
 % if config.get("service.nginx.https.enable") and certificate:

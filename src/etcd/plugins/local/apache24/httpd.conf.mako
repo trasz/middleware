@@ -7,7 +7,7 @@
 
     certificate = None
     if cfg['certificate']:
-        certificate = dispatcher.call_sync('crypto.certificates.query', [('id', '=', cfg['certificate'])], {'single': True})
+        certificate = dispatcher.call_sync('crypto.certificate.query', [('id', '=', cfg['certificate'])], {'single': True})
 
     auth_file = '/usr/local/etc/apache24/webdavauth'
 

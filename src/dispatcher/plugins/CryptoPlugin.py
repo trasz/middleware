@@ -219,7 +219,7 @@ class CertificateInternalCreateTask(Task):
         except RpcException as e:
             raise TaskException(errno.ENXIO, 'Cannot generate certificate: {0}'.format(str(e)))
 
-        self.dispatcher.dispatch_event('crypto.certificates.changed', {
+        self.dispatcher.dispatch_event('crypto.certificate.changed', {
             'operation': 'create',
             'ids': [pkey]
         })
@@ -268,7 +268,7 @@ class CertificateImportTask(Task):
         except RpcException as e:
             raise TaskException(errno.ENXIO, 'Cannot generate certificate: {0}'.format(str(e)))
 
-        self.dispatcher.dispatch_event('crypto.certificates.changed', {
+        self.dispatcher.dispatch_event('crypto.certificate.changed', {
             'operation': 'create',
             'ids': [pkey]
         })
@@ -318,7 +318,7 @@ class CSRCreateTask(Task):
         except RpcException as e:
             raise TaskException(errno.ENXIO, 'Cannot generate certificate: {0}'.format(str(e)))
 
-        self.dispatcher.dispatch_event('crypto.certificates.changed', {
+        self.dispatcher.dispatch_event('crypto.certificate.changed', {
             'operation': 'create',
             'ids': [pkey]
         })
@@ -357,7 +357,7 @@ class CSRUpdateTask(Task):
         except RpcException as e:
             raise TaskException(errno.ENXIO, 'Cannot generate certificate: {0}'.format(str(e)))
 
-        self.dispatcher.dispatch_event('crypto.certificates.changed', {
+        self.dispatcher.dispatch_event('crypto.certificate.changed', {
             'operation': 'update',
             'ids': [id]
         })
@@ -407,7 +407,7 @@ class CAInternalCreateTask(Task):
         except RpcException as e:
             raise TaskException(errno.ENXIO, 'Cannot generate certificate: {0}'.format(str(e)))
 
-        self.dispatcher.dispatch_event('crypto.certificates.changed', {
+        self.dispatcher.dispatch_event('crypto.certificate.changed', {
             'operation': 'create',
             'ids': [pkey]
         })
@@ -466,7 +466,7 @@ class CAIntermediateCreateTask(Task):
         except RpcException as e:
             raise TaskException(errno.ENXIO, 'Cannot generate certificate: {0}'.format(str(e)))
 
-        self.dispatcher.dispatch_event('crypto.certificates.changed', {
+        self.dispatcher.dispatch_event('crypto.certificate.changed', {
             'operation': 'create',
             'ids': [pkey]
         })
@@ -517,7 +517,7 @@ class CAImportTask(Task):
         except RpcException as e:
             raise TaskException(errno.ENXIO, 'Cannot generate certificate: {0}'.format(str(e)))
 
-        self.dispatcher.dispatch_event('crypto.certificates.changed', {
+        self.dispatcher.dispatch_event('crypto.certificate.changed', {
             'operation': 'create',
             'ids': [pkey]
         })
@@ -566,7 +566,7 @@ class CAUpdateTask(Task):
         except RpcException as e:
             raise TaskException(errno.ENXIO, 'Cannot generate certificate: {0}'.format(str(e)))
 
-        self.dispatcher.dispatch_event('crypto.certificates.changed', {
+        self.dispatcher.dispatch_event('crypto.certificate.changed', {
             'operation': 'update',
             'ids': [id]
         })
@@ -593,7 +593,7 @@ class CertificateDeleteTask(Task):
         except RpcException as e:
             raise TaskException(errno.ENXIO, 'Cannot generate certificate: {0}'.format(str(e)))
 
-        self.dispatcher.dispatch_event('crypto.certificates.changed', {
+        self.dispatcher.dispatch_event('crypto.certificate.changed', {
             'operation': 'delete',
             'ids': [id]
         })
@@ -645,15 +645,15 @@ def _init(dispatcher, plugin):
 
     plugin.register_provider('crypto.certificates', CertificateProvider)
 
-    plugin.register_task_handler('crypto.certificates.ca_internal_create', CAInternalCreateTask)
-    plugin.register_task_handler('crypto.certificates.ca_intermediate_create', CAIntermediateCreateTask)
-    plugin.register_task_handler('crypto.certificates.ca_import', CAImportTask)
-    plugin.register_task_handler('crypto.certificates.ca_update', CAUpdateTask)
-    plugin.register_task_handler('crypto.certificates.cert_internal_create', CertificateInternalCreateTask)
-    plugin.register_task_handler('crypto.certificates.cert_import', CertificateImportTask)
-    plugin.register_task_handler('crypto.certificates.csr_create', CSRCreateTask)
-    plugin.register_task_handler('crypto.certificates.csr_update', CSRUpdateTask)
-    plugin.register_task_handler('crypto.certificates.delete', CertificateDeleteTask)
+    plugin.register_task_handler('crypto.certificate.ca_internal_create', CAInternalCreateTask)
+    plugin.register_task_handler('crypto.certificate.ca_intermediate_create', CAIntermediateCreateTask)
+    plugin.register_task_handler('crypto.certificate.ca_import', CAImportTask)
+    plugin.register_task_handler('crypto.certificate.ca_update', CAUpdateTask)
+    plugin.register_task_handler('crypto.certificate.cert_internal_create', CertificateInternalCreateTask)
+    plugin.register_task_handler('crypto.certificate.cert_import', CertificateImportTask)
+    plugin.register_task_handler('crypto.certificate.csr_create', CSRCreateTask)
+    plugin.register_task_handler('crypto.certificate.csr_update', CSRUpdateTask)
+    plugin.register_task_handler('crypto.certificate.delete', CertificateDeleteTask)
 
     # Register event types
-    plugin.register_event_type('crypto.certificates.changed')
+    plugin.register_event_type('crypto.certificate.changed')
