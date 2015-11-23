@@ -113,7 +113,7 @@ class TunableCreateTask(Task):
                 sysctl_set(tunable['var'], tunable['value'])
 
             pkey = self.datastore.insert('tunables', tunable)
-            self.dispatcher.dispatch_event('tunables.changed', {
+            self.dispatcher.dispatch_event('tunable.changed', {
                 'operation': 'create',
                 'ids': [pkey]
             })
@@ -176,7 +176,7 @@ class TunableUpdateTask(Task):
                 sysctl_set(tunable['var'], tunable['value'])
 
             self.datastore.update('tunables', id, tunable)
-            self.dispatcher.dispatch_event('tunables.changed', {
+            self.dispatcher.dispatch_event('tunable.changed', {
                 'operation': 'update',
                 'ids': [id]
             })
@@ -210,7 +210,7 @@ class TunableDeleteTask(Task):
 
         try:
             self.datastore.delete('tunables', id)
-            self.dispatcher.dispatch_event('tunables.changed', {
+            self.dispatcher.dispatch_event('tunable.changed', {
                 'operation': 'delete',
                 'ids': [id]
             })
@@ -226,7 +226,7 @@ class TunableDeleteTask(Task):
 
 def _init_sysctls(dispatcher):
 
-    for ctl in dispatcher.call_sync('tunables.query', [('type', '=', 'SYSCTL')]):
+    for ctl in dispatcher.call_sync('tunable.query', [('type', '=', 'SYSCTL')]):
         if ctl.get('enabled') is False:
             continue
         try:
@@ -253,15 +253,15 @@ def _init(dispatcher, plugin):
     })
 
     # Register events
-    plugin.register_event_type('tunables.changed')
+    plugin.register_event_type('tunable.changed')
 
     # Register provider
     plugin.register_provider('tunables', TunablesProvider)
 
     # Register tasks
-    plugin.register_task_handler('tunables.create', TunableCreateTask)
-    plugin.register_task_handler('tunables.update', TunableUpdateTask)
-    plugin.register_task_handler('tunables.delete', TunableDeleteTask)
+    plugin.register_task_handler('tunable.create', TunableCreateTask)
+    plugin.register_task_handler('tunable.update', TunableUpdateTask)
+    plugin.register_task_handler('tunable.delete', TunableDeleteTask)
 
     # Set all configured sysctls
     _init_sysctls(dispatcher)

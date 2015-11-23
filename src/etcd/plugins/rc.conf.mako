@@ -208,7 +208,7 @@ nut_upsmon_enable="YES"
 keymap="${gen_config['console_keymap']}"
 % endif
 
-% for ctl in dispatcher.call_sync('tunables.query', [('type', '=', 'RC')]):
+% for ctl in dispatcher.call_sync('tunable.query', [('type', '=', 'RC')]):
 % if ctl.get('enabled', True):
 ${ctl['var']}="${ctl['value']}"
 % endif

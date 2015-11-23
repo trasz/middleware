@@ -54,7 +54,7 @@ def generate_loader_conf(context):
             'module_path="/boot/kernel;/boot/modules;/usr/local/modules"',
         ])
 
-    for tun in context.client.call_sync('tunables.query', [('type', '=', 'LOADER')]):
+    for tun in context.client.call_sync('tunable.query', [('type', '=', 'LOADER')]):
         if tun.get('enabled') is False:
             continue
         output.append('{0}="{1}"'.format(tun['var'], tun['value']))
