@@ -1017,7 +1017,7 @@ def _init(dispatcher, plugin):
                     'status': {'type': 'string'},
                     'node': {'type': 'string'},
                     'members': {
-                        'type': 'aray',
+                        'type': 'array',
                         'items': 'string'
                     },
                 }
