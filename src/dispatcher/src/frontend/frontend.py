@@ -78,6 +78,11 @@ def vm():
     return render_template('vm.html')
 
 
+@app.route('/filebrowser')
+def filebrowser():
+    return render_template('filebrowser.html')
+
+
 @app.route('/apidoc')
 def apidoc():
     version = dispatcher.call_sync('system.info.version')

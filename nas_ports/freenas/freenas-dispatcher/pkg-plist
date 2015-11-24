@@ -13,6 +13,7 @@ lib/dispatcher/src/frontend/templates/term.html
 lib/dispatcher/src/frontend/templates/stats.html
 lib/dispatcher/src/frontend/templates/syslog.html
 lib/dispatcher/src/frontend/templates/vm.html
+lib/dispatcher/src/frontend/templates/filebrowser.html
 lib/dispatcher/src/frontend/templates/apidoc/index.html
 lib/dispatcher/src/frontend/templates/apidoc/nav.html
 lib/dispatcher/src/frontend/templates/apidoc/rpc.html

@@ -1,0 +1,143 @@
+{% extends "bootstrap/base.html" %}
+{% import "nav.html" as nav %}
+{% block title %}File Browser{% endblock %}
+{% block styles %}
+    {{ super() }}
+    <style type="text/css">
+        body {
+            margin: 20px;
+            padding-top: 50px;
+        }
+        #fileIcon {
+          position:relative;
+          left: -10px;
+        }
+    </style>
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/font-awesome/4.5.0/css/font-awesome.min.css">
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.5/css/bootstrap.min.css" integrity="sha512-dTfge/zgoMYpP7QbHy4gWMEGsbsdZeCXz7irItjcC3sPUFtf0kuFbDz/ixG7ArTxmDjLXDmezHubeNikyKGVyQ==" crossorigin="anonymous">
+
+{% endblock %}
+{% block scripts %}
+    {{super()}}
+    <script src="//code.jquery.com/jquery-1.11.1.js"></script>
+    <script src="//cdnjs.cloudflare.com/ajax/libs/handlebars.js/2.0.0/handlebars.min.js"></script>
+    <script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.5/js/bootstrap.min.js" integrity="sha512-K1qjQ+NcF2TYO/eI3M6v8EiNYZfA95pQumfvcVrTHtwQVDG+aHRqLi/ETn2uB+1JqwYqVG3LIvdm9lj6imS/pQ==" crossorigin="anonymous"></script>
+    <script src="/static/middleware.js"></script>
+
+    <script id="directoryTemplate" type="text/x-handlebars-template">
+      {% raw %}
+        <td onclick="listDir('{{~args.name}}', true)">
+          <i id="glass" class="fa fa-folder"/>
+          {{args.name}}
+        </td>
+        <td>{{args.size}}</td>
+        <td>{{args.modified}}</td>
+      {% endraw %}
+    </script>
+
+    <script id="fileTemplate" type="text/x-handlebars-template">
+      {% raw %}
+        <td><i id="glass" class="fa fa-file-text"/>{{args.name}}</td>
+        <td>{{ args.size }}</td>
+        <td>{{ args.modified }}</td>
+      {% endraw %}
+    </script>
+
+    <script type="text/javascript">
+      Handlebars.registerHelper( "json", function ( context ) {
+        return JSON.stringify( context, null, 4 );
+      });
+      var fileTemplate = Handlebars.compile( $( "#fileTemplate" ).html() );
+      var directoryTemplate = Handlebars.compile(
+        $( "#directoryTemplate" ).html()
+      );
+      var sock = new middleware.DispatcherClient( document.domain );
+
+      function pathJoin ( parts, sep ) {
+        var separator = sep || "/";
+        var replace   = new RegExp( separator + "{1,}", "g" );
+        return parts.join( separator ).replace( replace, separator );
+      }
+
+      var listDir = function ( path, relative ) {
+        if ( relative === true ) {
+          path = pathJoin( [ sessionStorage.getItem( "filebrowser:cwd" ), path ] );
+        }
+        if ( path === "" ) { path = "/"; }
+        sock.call( "filesystem.list_dir", [ path ], function ( dirs ) {
+          $( "#dirlist tbody" ).empty();
+          $( "#cwd" ).html( "Current Path: " + path );
+          $( "#cdup" ).on( "click", function ( e ) {
+            if ( path !== "/" ) {
+              listDir( path.substring( 0, path.lastIndexOf( "/" ) ));
+            };
+          });
+          sessionStorage.setItem( "filebrowser:cwd", path );
+          $.each( dirs, function ( key, value ) {
+            var resultingHtml;
+            if ( value.type === "DIRECTORY" ) {
+              resultingHtml = directoryTemplate({args: value});
+            } else {
+              resultingHtml = fileTemplate({args: value});
+            }
+
+            $( "<tr/>"
+             , { "data-id": key, "html": resultingHtml }
+            ).prependTo( "#dirlist tbody" );
+          });
+        });
+      };
+
+      sock.connect();
+      $( document ).ready( function () {
+        sock.onError = function (  err ) {
+          alert( "Error: " + err.message );
+        };
+
+        sock.onConnect = function ( ) {
+          if ( !sessionStorage.getItem( "freenas:username" ) ) {
+            var username = prompt( "Username:" );
+            var password = prompt( "Password:" );
+            sessionStorage.setItem( "freenas:username", username );
+            sessionStorage.setItem( "freenas:password", password );
+          }
+
+          sock.login
+          ( sessionStorage.getItem( "freenas:username" )
+          , sessionStorage.getItem( "freenas:password" )
+          );
+        };
+
+        sock.onLogin = function ( ) {
+          listDir( "/root" );
+        };
+
+      });
+    </script>
+{% endblock %}
+{% block content %}
+{{ nav.nav() }}
+  <h1>File Browser</h1>
+  <div class="panel panel-info">
+    <div class="panel-heading">
+      <h3 class="panel-title" id="cwd"></h3>
+    </div>
+    <div class="panel-body">
+     <button type="button" class="btn btn-primary" id="cdup">Up (..)</button>
+    </div>
+ 
+    <table class="table" id="dirlist">
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Size</th>
+          <th>Modified</th>
+        </tr>
+      </thead>
+      <tbody>
+      </tbody>
+    </table>
+
+  </div>
+    
+{% endblock %}
