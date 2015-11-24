@@ -137,7 +137,9 @@ class DevdEventSource(EventSource):
         self.register_event_type("fs.zfs.pool.created")
         self.register_event_type("fs.zfs.pool.destroyed")
         self.register_event_type("fs.zfs.pool.updated")
-        self.register_event_type("fs.zfs.pool.changed")
+        self.register_event_type("fs.zfs.vdev.created")
+        self.register_event_type("fs.zfs.vdev.updated")
+        self.register_event_type("fs.zfs.vdev.removed")
         self.register_event_type("fs.zfs.dataset.created")
         self.register_event_type("fs.zfs.dataset.deleted")
         self.register_event_type("fs.zfs.dataset.renamed")
@@ -198,7 +200,10 @@ class DevdEventSource(EventSource):
             "misc.fs.zfs.dataset_delete": ("fs.zfs.dataset.deleted", "Dataset on pool {0} deleted"),
             "misc.fs.zfs.dataset_rename": ("fs.zfs.dataset.renamed", "Dataset on pool {0} renamed"),
             "misc.fs.zfs.config_sync": ("fs.zfs.pool.updated", "Pool {0} configuration updated"),
-            "misc.fs.zfs.vdev_statechange": ("fs.zfs.pool.changed", "Pool {0} status changed"),
+            "misc.fs.zfs.vdev.add": ("fs.zfs.vdev.created", "Vdev on pool {0} created"),
+            "misc.fs.zfs.vdev.attach": ("fs.zfs.vdev.updated", "Vdev on pool {0} updated"),
+            "misc.fs.zfs.vdev_statechange": ("fs.zfs.vdev.updated", "Vdev on pool {0} status changed"),
+            "resource.fs.zfs.removed": ("fs.zfs.vdev.removed", "Vdev on pool {0} removed"),
         }
 
         if args["type"] not in event_mapping:
