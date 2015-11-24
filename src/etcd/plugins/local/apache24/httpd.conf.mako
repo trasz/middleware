@@ -22,7 +22,7 @@
         with open(auth_file, 'w') as f:
             f.write('webdav:webdav:{0}\n'.format(hexdigest))
 
-    user = dispatcher.call_sync('users.query', [('username', '=', 'webdav')], {'single': True})
+    user = dispatcher.call_sync('user.query', [('username', '=', 'webdav')], {'single': True})
     if user:
         os.chown(auth_file, user['id'], user['group'])
         os.chmod(auth_file, 0o640)

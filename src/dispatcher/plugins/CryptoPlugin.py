@@ -643,7 +643,7 @@ def _init(dispatcher, plugin):
         'additionalProperties': False,
     })
 
-    plugin.register_provider('crypto.certificates', CertificateProvider)
+    plugin.register_provider('crypto.certificate', CertificateProvider)
 
     plugin.register_task_handler('crypto.certificate.ca_internal_create', CAInternalCreateTask)
     plugin.register_task_handler('crypto.certificate.ca_intermediate_create', CAIntermediateCreateTask)
