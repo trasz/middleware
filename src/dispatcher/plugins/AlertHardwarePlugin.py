@@ -62,7 +62,7 @@ def _init(dispatcher, plugin):
             firmware_ver = mibs.get('firmware_version')
             driver_ver = mibs.get('driver_version')
             if int(firmware_ver) != int(driver_ver):
-                dispatcher.rpc.call_sync('alerts.emit', {
+                dispatcher.rpc.call_sync('alert.emit', {
                     'name': 'hardware.controller.firmware_mismatch',
                     'description': 'Firmware version {0} does not match driver version {1} for {2}'.format(
                         firmware_ver,
@@ -73,7 +73,7 @@ def _init(dispatcher, plugin):
                 })
 
     dispatcher.rpc.call_sync(
-        'alerts.register_alert', 'hardware.controller.firmware_mismatch', 'Controller Firmware Version Mismatch'
+        'alert.register_alert', 'hardware.controller.firmware_mismatch', 'Controller Firmware Version Mismatch'
     )
 
     avago_firmware('mps')

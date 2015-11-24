@@ -45,7 +45,6 @@ registered_alerts = {}
 
 @description('Provides access to the alert system')
 class AlertsProvider(Provider):
-
     @query('alert')
     def query(self, filter=None, params=None):
         return self.datastore.query(
@@ -137,7 +136,6 @@ class AlertsFiltersProvider(Provider):
 
 @accepts(h.ref('alert-filter'))
 class AlertFilterCreateTask(Task):
-
     def describe(self, alertfilter):
         return 'Creating alert filter {0}'.format(alertfilter['name'])
 
@@ -147,7 +145,7 @@ class AlertFilterCreateTask(Task):
     def run(self, alertfilter):
         id = self.datastore.insert('alerts-filters', alertfilter)
 
-        self.dispatcher.dispatch_event('alerts.filters.changed', {
+        self.dispatcher.dispatch_event('alert.filter.changed', {
             'operation': 'create',
             'ids': [id]
         })
@@ -155,7 +153,6 @@ class AlertFilterCreateTask(Task):
 
 @accepts(str)
 class AlertFilterDeleteTask(Task):
-
     def describe(self, id):
         alertfilter = self.datastore.get_by_id('alerts-filters', id)
         return 'Deleting alert filter {0}'.format(alertfilter['name'])
@@ -180,7 +177,7 @@ class AlertFilterDeleteTask(Task):
                 'Cannot delete alert filter: {0}'.format(str(e))
             )
 
-        self.dispatcher.dispatch_event('alerts.filters.changed', {
+        self.dispatcher.dispatch_event('alert.filter.changed', {
             'operation': 'delete',
             'ids': [id]
         })
@@ -188,7 +185,6 @@ class AlertFilterDeleteTask(Task):
 
 @accepts(str, h.ref('alert-filter'))
 class AlertFilterUpdateTask(Task):
-
     def describe(self, id, alertfilter):
         alertfilter = self.datastore.get_by_id('alerts-filters', id)
         return 'Updating alert filter {0}'.format(alertfilter['name'])
@@ -207,7 +203,7 @@ class AlertFilterUpdateTask(Task):
                 'Cannot update alert filter: {0}'.format(str(e))
             )
 
-        self.dispatcher.dispatch_event('alerts.filters.changed', {
+        self.dispatcher.dispatch_event('alert.filter.changed', {
             'operation': 'update',
             'ids': [id],
         })
@@ -256,19 +252,14 @@ def _init(dispatcher, plugin):
     })
 
     # Register providers
-    plugin.register_provider('alerts', AlertsProvider)
-    plugin.register_provider('alerts.filters', AlertsFiltersProvider)
+    plugin.register_provider('alert', AlertsProvider)
+    plugin.register_provider('alert.filter', AlertsFiltersProvider)
 
     # Register task handlers
-    plugin.register_task_handler(
-        'alerts.filters.create', AlertFilterCreateTask
-    )
-    plugin.register_task_handler(
-        'alerts.filters.delete', AlertFilterDeleteTask
-    )
-    plugin.register_task_handler(
-        'alerts.filters.update', AlertFilterUpdateTask
-    )
+    plugin.register_task_handler('alert.filter.create', AlertFilterCreateTask)
+    plugin.register_task_handler('alert.filter.delete', AlertFilterDeleteTask)
+    plugin.register_task_handler('alert.filter.update', AlertFilterUpdateTask)
 
     # Register event types
-    plugin.register_event_type('alerts.filters.changed')
+    plugin.register_event_type('alert.changed')
+    plugin.register_event_type('alert.filter.changed')
