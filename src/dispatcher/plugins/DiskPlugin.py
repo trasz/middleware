@@ -1075,7 +1075,7 @@ def _init(dispatcher, plugin):
     plugin.register_event_type('disk.changed')
 
     # Start with marking all disks as unavailable
-    for i in dispatcher.datastore.query('disks'):
+    for i in dispatcher.datastore.query('disk'):
         if not i.get('delete_at'):
             i['delete_at'] = datetime.now() + EXPIRE_TIMEOUT
 
