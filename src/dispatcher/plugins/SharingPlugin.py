@@ -393,7 +393,7 @@ def _init(dispatcher, plugin):
         }
     })
 
-    plugin.register_provider('shares', SharesProvider)
+    plugin.register_provider('share', SharesProvider)
     plugin.register_task_handler('share.create', CreateShareTask)
     plugin.register_task_handler('share.update', UpdateShareTask)
     plugin.register_task_handler('share.delete', DeleteShareTask)
