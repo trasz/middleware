@@ -1055,7 +1055,7 @@ def _init(dispatcher, plugin):
         'enum': list(SelfTestType.__members__.keys())
     })
 
-    plugin.register_provider('disks', DiskProvider)
+    plugin.register_provider('disk', DiskProvider)
     plugin.register_event_handler('system.device.attached', on_device_attached)
     plugin.register_event_handler('system.device.detached', on_device_detached)
     plugin.register_event_handler('system.device.mediachange', on_device_mediachange)
