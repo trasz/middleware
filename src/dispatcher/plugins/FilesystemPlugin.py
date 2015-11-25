@@ -160,7 +160,7 @@ class FilesystemProvider(Provider):
 @accepts(str)
 @private
 class DownloadFileTask(Task):
-    def verify(self, name, connection):
+    def verify(self, connection):
         return []
 
     def run(self, connection):
@@ -178,7 +178,7 @@ class DownloadFileTask(Task):
 @accepts(str, int)
 @private
 class UploadFileTask(Task):
-    def verify(self, name, connection):
+    def verify(self, connection):
         return []
 
     def run(self, connection):
