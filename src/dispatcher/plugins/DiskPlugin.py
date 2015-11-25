@@ -128,6 +128,9 @@ class DiskProvider(Provider):
     @accepts(str)
     def get_partition_config(self, part_name):
         for name, disk in diskinfo_cache.itervalid():
+            if 'partitions' not in disk:
+                continue
+
             for part in disk['partitions']:
                 if part_name in part['paths']:
                     result = part.copy()
