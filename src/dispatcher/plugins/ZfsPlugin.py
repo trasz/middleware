@@ -935,6 +935,27 @@ def _init(dispatcher, plugin):
             logger.info('Dataset {0} renamed to: {1}'.format(args['ds'], args['new_ds']))
             sync_dataset_cache(dispatcher, args['new_ds'])
 
+    def on_dataset_setprop(args):
+        if args['action'] == 'set':
+            logger.info('{0} {1} property {2} set to: {3}'.format(
+                'Snapshot' if '@' in args['ds'] else 'Dataset',
+                args['ds'],
+                args['prop_name'],
+                args['prop_value']
+            ))
+
+        if args['action'] == 'inherit':
+            logger.info('{0} {1} property {2} inherited from parent'.format(
+                'Snapshot' if '@' in args['ds'] else 'Dataset',
+                args['ds'],
+                args['prop_name'],
+            ))
+
+        if '@' in args['ds']:
+            sync_snapshot_cache(dispatcher, args['ds'])
+        else:
+            sync_dataset_cache(dispatcher, args['ds'])
+
     plugin.register_schema_definition('zfs-vdev', {
         'type': 'object',
         'additionalProperties': False,
@@ -1201,10 +1222,14 @@ def _init(dispatcher, plugin):
 
     plugin.register_event_handler('fs.zfs.pool.created', on_pool_create)
     plugin.register_event_handler('fs.zfs.pool.destroyed', on_pool_destroy)
-    plugin.register_event_handler('fs.zfs.pool.changed', on_pool_changed)
+    plugin.register_event_handler('fs.zfs.pool.setprop', on_pool_changed)
+    plugin.register_event_handler('fs.zfs.vdev.created', on_pool_changed)
+    plugin.register_event_handler('fs.zfs.vdev.updated', on_pool_changed)
+    plugin.register_event_handler('fs.zfs.vdev.removed', on_pool_changed)
     plugin.register_event_handler('fs.zfs.dataset.created', on_dataset_create)
     plugin.register_event_handler('fs.zfs.dataset.deleted', on_dataset_delete)
     plugin.register_event_handler('fs.zfs.dataset.renamed', on_dataset_rename)
+    plugin.register_event_handler('fs.zfs.dataset.setprop', on_dataset_setprop)
 
     # Register Providers
     plugin.register_provider('zfs.pool', ZpoolProvider)
