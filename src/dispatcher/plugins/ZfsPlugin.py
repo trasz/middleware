@@ -824,7 +824,7 @@ def sync_snapshot_cache(dispatcher, snapshot, old_snapshot=None):
     zfs = libzfs.ZFS()
     try:
         if old_snapshot:
-            del snapshot[old_snapshot]
+            del snapshots[old_snapshot]
 
         snapshots[snapshot] = wrap(zfs.get_snapshot(snapshot).__getstate__())
     except libzfs.ZFSException as e:
@@ -908,7 +908,6 @@ def _init(dispatcher, plugin):
         sync_zpool_cache(dispatcher, args['pool'])
 
     def on_pool_changed(args):
-        logger.info('Pool {0} <{1}> configuration changed'.format(args['pool'], args['guid']))
         sync_zpool_cache(dispatcher, args['pool'])
 
     def on_dataset_create(args):
