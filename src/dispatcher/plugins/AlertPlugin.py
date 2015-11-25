@@ -82,7 +82,7 @@ class AlertsProvider(Provider):
         for i in range(len(dot), 0, -1):
             namespace = '.'.join(dot[0:i])
             afilter = self.datastore.get_one(
-                'alerts-filters', ('name', '=', namespace),
+                'alert-filters', ('name', '=', namespace),
                 ('severity', '=', alert['severity']),
             )
             if afilter:
@@ -95,12 +95,12 @@ class AlertsProvider(Provider):
             else:
                 emitters = ['UI']
 
-        if 'UI' in emitters:
-            id = self.datastore.insert('alerts', alert)
-            self.dispatcher.dispatch_event('alert.change', {
-                'operation': 'create',
-                'ids': [id]
-            })
+        alert['dismissed'] = False
+        id = self.datastore.insert('alerts', alert)
+        self.dispatcher.dispatch_event('alert.change', {
+            'operation': 'create',
+            'ids': [id]
+        })
 
         if 'EMAIL' in emitters:
             try:
@@ -130,7 +130,7 @@ class AlertsFiltersProvider(Provider):
     @query('alert-filter')
     def query(self, filter=None, params=None):
         return self.datastore.query(
-            'alerts-filters', *(filter or []), **(params or {})
+            'alert-filters', *(filter or []), **(params or {})
         )
 
 
@@ -143,7 +143,7 @@ class AlertFilterCreateTask(Task):
         return []
 
     def run(self, alertfilter):
-        id = self.datastore.insert('alerts-filters', alertfilter)
+        id = self.datastore.insert('alert-filters', alertfilter)
 
         self.dispatcher.dispatch_event('alert.filter.changed', {
             'operation': 'create',
@@ -154,12 +154,12 @@ class AlertFilterCreateTask(Task):
 @accepts(str)
 class AlertFilterDeleteTask(Task):
     def describe(self, id):
-        alertfilter = self.datastore.get_by_id('alerts-filters', id)
+        alertfilter = self.datastore.get_by_id('alert-filters', id)
         return 'Deleting alert filter {0}'.format(alertfilter['name'])
 
     def verify(self, id):
 
-        alertfilter = self.datastore.get_by_id('alerts-filters', id)
+        alertfilter = self.datastore.get_by_id('alert-filters', id)
         if alertfilter is None:
             raise VerifyException(
                 errno.ENOENT,
@@ -170,7 +170,7 @@ class AlertFilterDeleteTask(Task):
 
     def run(self, id):
         try:
-            self.datastore.delete('alerts-filters', id)
+            self.datastore.delete('alert-filters', id)
         except DatastoreException as e:
             raise TaskException(
                 errno.EBADMSG,
@@ -186,7 +186,7 @@ class AlertFilterDeleteTask(Task):
 @accepts(str, h.ref('alert-filter'))
 class AlertFilterUpdateTask(Task):
     def describe(self, id, alertfilter):
-        alertfilter = self.datastore.get_by_id('alerts-filters', id)
+        alertfilter = self.datastore.get_by_id('alert-filters', id)
         return 'Updating alert filter {0}'.format(alertfilter['name'])
 
     def verify(self, id, updated_fields):
@@ -194,9 +194,9 @@ class AlertFilterUpdateTask(Task):
 
     def run(self, id, updated_fields):
         try:
-            alertfilter = self.datastore.get_by_id('alerts-filters', id)
+            alertfilter = self.datastore.get_by_id('alert-filters', id)
             alertfilter.update(updated_fields)
-            self.datastore.update('alerts-filters', id, alertfilter)
+            self.datastore.update('alert-filters', id, alertfilter)
         except DatastoreException as e:
             raise TaskException(
                 errno.EBADMSG,
@@ -223,10 +223,12 @@ def _init(dispatcher, plugin):
     plugin.register_schema_definition('alert', {
         'type': 'object',
         'properties': {
+            'id': {'type': 'integer'},
             'name': {'type': 'string'},
             'description': {'type': 'string'},
             'severity': {'$ref': 'alert-severity'},
             'when': {'type': 'string'},
+            'dismissed': {'type': 'boolean'}
         },
         'additionalProperties': False,
         'required': ['name', 'severity'],
