@@ -245,7 +245,7 @@ def _init(dispatcher, plugin):
 
     # Sync samba registry with our database
     smb_conf = smbconf.SambaConfig('registry')
-    smb_conf.share.clear()
+    smb_conf.shares.clear()
 
     for s in dispatcher.call_sync('share.query', [('type', '=', 'cifs')]):
         smb_share = smbconf.SambaShare()
