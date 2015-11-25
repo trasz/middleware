@@ -1502,7 +1502,7 @@ class FileConnection(WebSocketApplication, EventEmitter):
             self.authenticated = True
 
             gevent.spawn(self.worker, self.token.file, self.token.direction, self.token.size)
-            self.dispatcher.balancer.submit('file.{0}'.format(self.token.direction), self.token.name, self)
+            self.dispatcher.balancer.submit('file.{0}'.format(self.token.direction), self)
             self.ws.send(dumps({'status': 'ok'}))
             return
 
