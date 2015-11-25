@@ -1528,12 +1528,14 @@ def run(d, args):
     s4 = Server(('', args.p), ServerResource({
         '/socket': ServerConnection,
         '/shell': ShellConnection,
+        '/file': FileConnection,
         '/api': ApiHandler(d)
     }, dispatcher=d), **kwargs)
 
     s6 = Server(('::', args.p), ServerResource({
         '/socket': ServerConnection,
         '/shell': ShellConnection,
+        '/file': FileConnection,
         '/api': ApiHandler(d)
     }, dispatcher=d), **kwargs)
 
