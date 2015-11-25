@@ -382,6 +382,9 @@ class VolumeCreateTask(ProgressTask):
             'mountpoint',
             os.path.join(VOLUMES_ROOT, volume['name'])
         )
+        encryption = params.pop('encryption', False)
+        if encryption:
+            key = os.urandom(64)
 
         if type != 'zfs':
             raise TaskException(errno.EINVAL, 'Invalid volume type')
@@ -402,6 +405,20 @@ class VolumeCreateTask(ProgressTask):
                 self.join_subtasks(self.run_subtask('disk.format.gpt', dname, 'freebsd-zfs', {
                     'blocksize': params.get('blocksize', 4096),
                     'swapsize': params.get('swapsize', 2048) if dgroup == 'data' else 0
+                }))
+
+        self.set_progress(20)
+
+        if encryption:
+            password = params.pop('password', None)
+            for dname, dgroup in get_disks(volume['topology']):
+                self.join_subtasks(self.run_subtask('disk.geli.init', dname, {
+                    'key': key,
+                    'password': password
+                }))
+                self.join_subtasks(self.run_subtask('disk.geli.attach', dname, {
+                    'key': key,
+                    'password': password
                 }))
 
         self.set_progress(40)
@@ -434,6 +451,7 @@ class VolumeCreateTask(ProgressTask):
                 'type': type,
                 'mountpoint': mountpoint,
                 'topology': volume['topology'],
+                'key': key if key else None,
                 'attributes': volume.get('attributes', {})
             })
 
@@ -501,6 +519,10 @@ class VolumeDestroyTask(Task):
         if config:
             self.join_subtasks(self.run_subtask('zfs.umount', name))
             self.join_subtasks(self.run_subtask('zfs.pool.destroy', name))
+
+        if vol['key'] is not None:
+            for dname, dgroup in get_disks(vol['topology']):
+                self.join_subtasks(self.run_subtask('disk.geli.kill', dname))
 
         self.datastore.delete('volumes', vol['id'])
 
