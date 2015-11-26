@@ -176,7 +176,7 @@ class Main(object):
                 self.client.resume_service('etcd.management')
                 self.client.resume_service('etcd.debug')
                 return
-            except socket.error as err:
+            except (OSError, RpcException) as err:
                 self.logger.warning('Cannot connect to dispatcher: {0}, retrying in 1 second'.format(str(err)))
                 time.sleep(1)
 
