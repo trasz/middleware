@@ -34,6 +34,7 @@ from lib.geom import confxml
 from freenas.dispatcher.rpc import accepts, returns, description
 from freenas.dispatcher.rpc import SchemaHelper as h
 
+
 logger = logging.getLogger('SwapPlugin')
 
 
@@ -60,6 +61,13 @@ def get_swap_partition(dispatcher, disk):
         return None
 
     return disk['status'].get('swap_partition_path')
+
+
+def get_swap_name():
+    for i in range(0, 100):
+        name = 'swap{0}'.format(i)
+        if not os.path.exists(os.path.join('/dev/mirror', name)):
+            return name
 
 
 def get_swap_info(dispatcher):
@@ -115,8 +123,8 @@ def remove_swap(dispatcher, disks):
 
 def create_swap(dispatcher, disks):
     disks = [x for x in [get_swap_partition(dispatcher, x) for x in disks] if x is not None]
-    for idx, pair in enumerate(zip(*[iter(disks)] * 2)):
-        name = 'swap{0}'.format(idx)
+    for pair in zip(*[iter(disks)] * 2):
+        name = get_swap_name()
         disk_a, disk_b = pair
         logger.info('Creating swap partition %s from disks: %s, %s', name, disk_a, disk_b)
         system('/sbin/gmirror', 'label', '-b', 'prefer', name, disk_a, disk_b)
