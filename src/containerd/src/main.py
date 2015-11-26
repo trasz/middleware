@@ -496,7 +496,7 @@ class Main(object):
                 self.client.resume_service('containerd.debug')
 
                 return
-            except OSError as err:
+            except (OSError, RpcException) as err:
                 self.logger.warning('Cannot connect to dispatcher: {0}, retrying in 1 second'.format(str(err)))
                 time.sleep(1)
 
