@@ -26,7 +26,7 @@
 #
 #####################################################################
 
-
+import copy
 import os
 import sys
 import fnmatch
@@ -554,10 +554,18 @@ class Dispatcher(object):
             self.event_handlers[name] = []
 
         self.event_handlers[name].append(handler)
+
+        for en, ev in self.event_types.items():
+            if en == name:
+                ev.incref()
+
         return handler
 
     def unregister_event_handler(self, name, handler):
         self.event_handlers[name].remove(handler)
+        for en, ev in self.event_types.items():
+            if en == name:
+                ev.decref()
 
     def register_event_source(self, name, clazz):
         self.logger.debug("New event source: %s", name)
@@ -736,7 +744,7 @@ class ServerRpcContext(RpcContext):
         if not hasattr(svc, method):
             raise RpcException(errno.ENOENT, 'Method {0} in service {1} not found'.format(method, svcname))
 
-        return getattr(svc, method)(*args)
+        return copy.deepcopy(getattr(svc, method)(*args))
 
 
 class ServerResource(Resource):
