@@ -31,6 +31,7 @@ import enum
 import errno
 import logging
 import tempfile
+import base64
 import gevent
 import gevent.monkey
 from bsd import geom
@@ -374,6 +375,9 @@ class DiskGELIInitTask(Task):
         return "Creating encrypted partition for {0}".format(os.path.basename(disk))
 
     def verify(self, disk, params=None):
+        if params is None:
+            params = {}
+
         if not get_disk_by_path(disk):
             raise VerifyException(errno.ENOENT, "Disk {0} not found".format(disk))
 
@@ -384,11 +388,21 @@ class DiskGELIInitTask(Task):
         return ['disk:{0}'.format(disk)]
 
     def run(self, disk, params=None):
-        key = params.get('key', None)
+        if params is None:
+            params = {}
+        key = base64.b64decode(params.get('key', None))
         password = params.get('password', None)
-        disk_info = self.dispatcher.call_sync('disk.query', [('path', 'in', disk)], {'single': True})
+        disk_info = self.dispatcher.call_sync('disk.query', [('path', 'in', disk),
+                                                             ('online', '=', True)], {'single': True})
         data_partition_path = disk_info.get('status').get('data_partition_path')
-        with tempfile.NamedTemporaryFile('w+b') as keyfile:
+
+        try:
+            system('/sbin/geli', 'kill', data_partition_path)
+        except SubprocessException:
+            # ignore
+            pass
+
+        with tempfile.NamedTemporaryFile('wb') as keyfile:
             keyfile.write(key)
             keyfile.flush()
             try:
@@ -396,10 +410,10 @@ class DiskGELIInitTask(Task):
                     with tempfile.NamedTemporaryFile('w') as passfile:
                         passfile.write(password)
                         passfile.flush()
-                        system('/sbin/geli', 'init', '-s', 4096, '-K', keyfile.name, '-J', passfile.name,
+                        system('/sbin/geli', 'init', '-s', str(4096), '-K', keyfile.name, '-J', passfile.name,
                                data_partition_path)
                 else:
-                    system('/sbin/geli', 'init', '-s', 4096, '-K', keyfile.name, '-P', data_partition_path)
+                    system('/sbin/geli', 'init', '-s', str(4096), '-K', keyfile.name, '-P', data_partition_path)
             except SubprocessException as err:
                 raise TaskException(errno.EFAULT, 'Cannot init encrypted partition: {0}'.format(err.err))
 
@@ -410,6 +424,8 @@ class DiskGELIAttachTask(Task):
         return "Attach encrypted partition of {0}".format(os.path.basename(disk))
 
     def verify(self, disk, params=None):
+        if params is None:
+            params = {}
         if not get_disk_by_path(disk):
             raise VerifyException(errno.ENOENT, "Disk {0} not found".format(disk))
 
@@ -420,11 +436,14 @@ class DiskGELIAttachTask(Task):
         return ['disk:{0}'.format(disk)]
 
     def run(self, disk, params=None):
-        key = params.get('key', None)
+        if params is None:
+            params = {}
+        key = base64.b64decode(params.get('key', None))
         password = params.get('password', None)
-        disk_info = self.dispatcher.call_sync('disk.query', [('path', 'in', disk)], {'single': True})
+        disk_info = self.dispatcher.call_sync('disk.query', [('path', 'in', disk),
+                                                             ('online', '=', True)], {'single': True})
         data_partition_path = disk_info.get('status').get('data_partition_path')
-        with tempfile.NamedTemporaryFile('w+b') as keyfile:
+        with tempfile.NamedTemporaryFile('wb') as keyfile:
             keyfile.write(key)
             keyfile.flush()
             try:
@@ -452,7 +471,8 @@ class DiskGELIDetachTask(Task):
         return ['disk:{0}'.format(disk)]
 
     def run(self, disk):
-        disk_info = self.dispatcher.call_sync('disk.query', [('path', 'in', disk)], {'single': True})
+        disk_info = self.dispatcher.call_sync('disk.query', [('path', 'in', disk),
+                                                             ('online', '=', True)], {'single': True})
         data_partition_path = disk_info.get('status').get('data_partition_path')
         try:
             system('/sbin/geli', 'detach', '-f', data_partition_path)
@@ -473,7 +493,8 @@ class DiskGELIKillTask(Task):
         return ['disk:{0}'.format(disk)]
 
     def run(self, disk):
-        disk_info = self.dispatcher.call_sync('disk.query', [('path', 'in', disk)], {'single': True})
+        disk_info = self.dispatcher.call_sync('disk.query', [('path', 'in', disk),
+                                                             ('online', '=', True)], {'single': True})
         data_partition_path = disk_info.get('status').get('data_partition_path')
         try:
             system('/sbin/geli', 'kill', data_partition_path)
@@ -724,7 +745,11 @@ def generate_partitions_list(gpart):
             paths.append(os.path.join("/dev/gpt", label))
 
         if uuid:
-            paths.append(os.path.join("/dev/gptid", uuid))
+            if eli:
+                elipath = uuid + '.eli'
+                paths.append(os.path.join("/dev/gptid", elipath))
+            else:
+                paths.append(os.path.join("/dev/gptid", uuid))
 
         yield {
             'name': p.name,
@@ -783,10 +808,11 @@ def update_disk_cache(dispatcher, path):
     identifier = device_to_identifier(gdisk.name, serial)
     data_part = first_or_default(lambda x: x['type'] == 'freebsd-zfs', partitions)
     data_uuid = data_part["uuid"] if data_part else None
-    if data_part["encrypted"]:
-        data_path = data_uuid + '.eli'
-    else:
-        data_path = data_uuid
+    if data_part:
+        if data_part["encrypted"]:
+            data_path = data_uuid + '.eli'
+        else:
+            data_path = data_uuid
     swap_part = first_or_default(lambda x: x['type'] == 'freebsd-swap', partitions)
     swap_uuid = swap_part["uuid"] if swap_part else None
 

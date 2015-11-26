@@ -31,6 +31,7 @@ import logging
 import tempfile
 import shutil
 import itertools
+import base64
 import bsd
 import bsd.kld
 from lib.system import system, SubprocessException
@@ -384,7 +385,9 @@ class VolumeCreateTask(ProgressTask):
         )
         encryption = params.pop('encryption', False)
         if encryption:
-            key = os.urandom(64)
+            key = base64.b64encode(os.urandom(64))
+        else:
+            key = None
 
         if type != 'zfs':
             raise TaskException(errno.EINVAL, 'Invalid volume type')
@@ -513,6 +516,7 @@ class VolumeDestroyTask(Task):
     def run(self, name):
         vol = self.datastore.get_one('volumes', ('name', '=', name))
         config = self.dispatcher.call_sync('volume.get_config', name)
+        disks = self.dispatcher.call_sync('volume.get_volume_disks', name)
 
         self.dispatcher.run_hook('volume.pre_destroy', {'name': name})
 
@@ -520,9 +524,8 @@ class VolumeDestroyTask(Task):
             self.join_subtasks(self.run_subtask('zfs.umount', name))
             self.join_subtasks(self.run_subtask('zfs.pool.destroy', name))
 
-        if vol['key'] is not None:
-            for dname, dgroup in get_disks(vol['topology']):
-                self.join_subtasks(self.run_subtask('disk.geli.kill', dname))
+        for dname in disks:
+            self.join_subtasks(self.run_subtask('disk.geli.kill', dname))
 
         self.datastore.delete('volumes', vol['id'])
 
