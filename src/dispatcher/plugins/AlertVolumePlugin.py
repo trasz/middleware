@@ -26,7 +26,9 @@
 #####################################################################
 import logging
 
+
 logger = logging.getLogger('AlertVolume')
+degraded_volumes = []
 
 
 def _depends():
@@ -34,20 +36,21 @@ def _depends():
 
 
 def _init(dispatcher, plugin):
+    def volume_status(volume):
+        if volume['status'] == 'ONLINE' and volume['name'] in degraded_volumes:
+            degraded_volumes.remove(volume['name'])
+            dispatcher.rpc.call_sync('alert.emit', {
+                'name': 'volume.status',
+                'description': 'The volume {0} state is {1}'.format(
+                    volume['name'],
+                    volume['status'],
+                ),
+                'severity': 'INFO',
+            })
 
-    def volumes_status(args):
-        if args:
-            # Make sure event is for root pool vdev
-            if args['guid'] != args['extra']['vdev_guid']:
-                return
-            qargs = [('name', '=', args.get('pool'))]
-        else:
-            qargs = []
-
-        for volume in dispatcher.rpc.call_sync('volume.query', qargs):
-            if volume['status'] == 'ONLINE':
-                continue
-            dispatcher.rpc.call_sync('alerts.emit', {
+        if volume['status'] != 'ONLINE' and volume['name'] not in degraded_volumes:
+            degraded_volumes.append(volume['name'])
+            dispatcher.rpc.call_sync('alert.emit', {
                 'name': 'volume.status',
                 'description': 'The volume {0} state is {1}'.format(
                     volume['name'],
@@ -56,7 +59,7 @@ def _init(dispatcher, plugin):
                 'severity': 'CRITICAL',
             })
 
-    def volume_upgraded():
+    def volumes_upgraded():
         for volume in dispatcher.rpc.call_sync('volume.query'):
             if volume['status'] == 'UNAVAIL':
                 continue
@@ -64,16 +67,24 @@ def _init(dispatcher, plugin):
             if volume.get('upgraded') is not False:
                 continue
 
-            dispatcher.rpc.call_sync('alerts.emit', {
+            dispatcher.rpc.call_sync('alert.emit', {
                 'name': 'volume.version',
                 'description': 'New feature flags are available for volume {0}'.format(volume['name']),
                 'severity': 'WARNING',
             })
 
-    dispatcher.rpc.call_sync('alerts.register_alert', 'volume.status', 'Volume Status')
-    dispatcher.rpc.call_sync('alerts.register_alert', 'volume.version', 'Volume Version')
+    dispatcher.call_sync('alert.register_alert', 'volume.status', 'Volume Status')
+    dispatcher.call_sync('alert.register_alert', 'volume.version', 'Volume Version')
 
-    plugin.register_event_handler('fs.zfs.pool.changed', volumes_status)
+    for i in dispatcher.call_sync('volume.query'):
+        volume_status(i)
 
-    volumes_status(None)
-    volume_upgraded()
+    def on_volume_change(args):
+        if args['operation'] not in ('create', 'update'):
+            return
+
+        for i in args['entities']:
+            volume_status(i)
+
+    plugin.register_event_handler('entity-subscriber.volume.changed', on_volume_change)
+    volumes_upgraded()
