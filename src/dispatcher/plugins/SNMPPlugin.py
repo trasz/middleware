@@ -40,7 +40,7 @@ class SNMPProvider(Provider):
     @accepts()
     @returns(h.ref('service-snmp'))
     def get_config(self):
-        return ConfigNode('service.snmp', self.configstore)
+        return ConfigNode('service.snmp', self.configstore).__getstate__()
 
 
 @description('Configure SNMP service')

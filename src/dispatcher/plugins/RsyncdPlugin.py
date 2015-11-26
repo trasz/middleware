@@ -47,7 +47,7 @@ class RsyncdProvider(Provider):
     @accepts()
     @returns(h.ref('service-rsyncd'))
     def get_config(self):
-        return ConfigNode('service.rsyncd', self.configstore)
+        return ConfigNode('service.rsyncd', self.configstore).__getstate__()
 
 
 @description("Provides access to rsyncd modules database")

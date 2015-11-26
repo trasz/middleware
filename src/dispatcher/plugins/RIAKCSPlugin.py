@@ -38,7 +38,7 @@ class RIAKCSProvider(Provider):
     @accepts()
     @returns(h.ref('service-riak_cs'))
     def get_config(self):
-        return ConfigNode('service.riak_cs', self.configstore)
+        return ConfigNode('service.riak_cs', self.configstore).__getstate__()
 
 
 @description('Configure RIAK CS service')

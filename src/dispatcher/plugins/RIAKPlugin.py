@@ -38,7 +38,7 @@ class RIAKProvider(Provider):
     @accepts()
     @returns(h.ref('service-riak'))
     def get_config(self):
-        return ConfigNode('service.riak', self.configstore)
+        return ConfigNode('service.riak', self.configstore).__getstate__()
 
 
 @description('Configure RIAK KV service')
