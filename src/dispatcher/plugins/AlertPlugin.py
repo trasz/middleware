@@ -97,7 +97,7 @@ class AlertsProvider(Provider):
 
         alert['dismissed'] = False
         id = self.datastore.insert('alerts', alert)
-        self.dispatcher.dispatch_event('alert.change', {
+        self.dispatcher.dispatch_event('alert.changed', {
             'operation': 'create',
             'ids': [id]
         })
