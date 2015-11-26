@@ -1974,7 +1974,7 @@
          "metadata": {
             "name": "alerts",
             "migration": "keep",
-            "pkey-type": "uuid",
+            "pkey-type": "integer",
             "attributes": {
                 "type": "config"
             }
