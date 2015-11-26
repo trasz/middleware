@@ -71,12 +71,7 @@ appcafe_enable="YES"
 
 ataidle_enable="YES"
 vboxnet_enable="YES"
-% if hwmodel.find('AMD') != -1:
-# Bug #7337 -- blacklist AMD systems for now
 watchdogd_enable="NO"
-% else:
-watchdogd_enable="YES"
-% endif
 
 collectd_enable="YES"
 ntpd_enable="YES"
