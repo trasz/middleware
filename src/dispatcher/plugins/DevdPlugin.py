@@ -198,14 +198,14 @@ class DevdEventSource(EventSource):
             "misc.fs.zfs.pool_import": ("fs.zfs.pool.imported", "Pool {0} imported"),
             "misc.fs.zfs.pool_destroy": ("fs.zfs.pool.destroyed", "Pool {0} destroyed"),
             "misc.fs.zfs.pool_setprop": ("fs.zfs.pool.setprop", "Property on pool {0} changed"),
+            "misc.fs.zfs.config_sync": ("fs.zfs.pool.config_sync", "Pool {0} config changed"),
             "misc.fs.zfs.dataset_create": ("fs.zfs.dataset.created", "Dataset on pool {0} created"),
             "misc.fs.zfs.dataset_delete": ("fs.zfs.dataset.deleted", "Dataset on pool {0} deleted"),
             "misc.fs.zfs.dataset_rename": ("fs.zfs.dataset.renamed", "Dataset on pool {0} renamed"),
             "misc.fs.zfs.dataset_setprop": ("fs.zfs.dataset.setprop", "Property of dataset on pool {0} changed"),
-            "misc.fs.zfs.config_sync": ("fs.zfs.pool.updated", "Pool {0} configuration updated"),
             "misc.fs.zfs.vdev.add": ("fs.zfs.vdev.created", "Vdev on pool {0} created"),
-            "misc.fs.zfs.vdev.attach": ("fs.zfs.vdev.updated", "Vdev on pool {0} updated"),
-            "misc.fs.zfs.vdev_statechange": ("fs.zfs.vdev.updated", "Vdev on pool {0} status changed"),
+            "misc.fs.zfs.vdev.attach": ("fs.zfs.vdev.attached", "Vdev on pool {0} attached"),
+            "misc.fs.zfs.vdev_statechange": ("fs.zfs.vdev.state_changed", "Vdev on pool {0} status changed"),
             "resource.fs.zfs.removed": ("fs.zfs.vdev.removed", "Vdev on pool {0} removed"),
         }
 
@@ -221,15 +221,7 @@ class DevdEventSource(EventSource):
             "description": event_mapping[ev_type][1].format(pool_name)
         }
 
-        if "ds" in args:
-            params["ds"] = args.pop("ds")
-
-        if "new_ds" in args:
-            params["new_ds"] = args.pop("new_ds")
-
-        if args:
-            params["extra"] = args
-
+        params.update(args)
         self.emit_event(event_mapping[ev_type][0], **params)
 
     def read_until_nul(self, sock):
