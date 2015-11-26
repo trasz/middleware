@@ -366,7 +366,7 @@ class Main(object):
                     self.client.call_sync('plugin.register_event_type', 'statd.output', 'statd.{0}.pulse'.format(i))
 
                 return
-            except socket.error as err:
+            except (OSError, RpcException) as err:
                 self.logger.warning('Cannot connect to dispatcher: {0}, retrying in 1 second'.format(str(err)))
                 time.sleep(1)
 
