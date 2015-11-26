@@ -69,12 +69,8 @@ class ZpoolProvider(Provider):
     @accepts(str)
     @returns(h.array(str))
     def get_disks(self, name):
-        try:
-            zfs = libzfs.ZFS()
-            pool = zfs.get(name)
-            return pool.disks
-        except libzfs.ZFSException as err:
-            raise RpcException(errno.EFAULT, str(err))
+        pool = pools.get(name)
+        return [v['path'] for v in iterate_vdevs(pool['groups'])]
 
     @returns(h.object())
     def get_capabilities(self):
@@ -115,27 +111,15 @@ class ZpoolProvider(Provider):
 
     @accepts(str, str)
     @returns(h.ref('zfs-vdev'))
-    def vdev_by_guid(self, pool, guid):
-        def search_vdev(vdev, g):
-            if vdev.guid == g:
-                return vdev
+    def vdev_by_guid(self, name, guid):
+        pool = pools.get(name)
+        return first_or_default(lambda v: v['guid'] == guid, iterate_vdevs(pool['groups']))
 
-            for i in vdev.children:
-                ret = search_vdev(i, g)
-                if ret:
-                    return ret
-
-            return None
-
-        p = pools[pool]
-        return search_vdev()
-
-        try:
-            zfs = libzfs.ZFS()
-            pool = zfs.get(pool)
-            return pool.vdev_by_guid(int(guid)).__getstate__()
-        except libzfs.ZFSException as err:
-            raise RpcException(errno.EFAULT, str(err))
+    @accepts(str, str)
+    @returns(h.ref('zfs-vdev'))
+    def vdev_by_path(self, name, path):
+        pool = pools.get(name)
+        return first_or_default(lambda v: v['path'] == path, iterate_vdevs(pool['groups']))
 
     @accepts(str)
     @returns()
@@ -771,6 +755,18 @@ def pool_exists(pool):
         return False
 
 
+def iterate_vdevs(topology):
+    for grp in topology.values():
+        for vdev in grp:
+            if vdev['type'] == 'disk':
+                yield vdev
+                continue
+
+            if 'children' in vdev:
+                for child in vdev['children']:
+                    yield child
+
+
 def get_disk_names(dispatcher, pool):
     ret = []
     for x in pool.disks:
@@ -784,13 +780,22 @@ def get_disk_names(dispatcher, pool):
     return ret
 
 
-def sync_zpool_cache(dispatcher, pool):
+def sync_zpool_cache(dispatcher, pool, guid=None):
     zfs = libzfs.ZFS()
     try:
         zpool_sync_resources(dispatcher, pool)
-        pools[pool] = wrap(zfs.get(pool).__getstate__())
+        zfspool = wrap(zfs.get(pool).__getstate__())
+        pools[pool] = zfspool
+        dispatcher.dispatch_event('zfs.pool.changed', {
+            'operation': 'create' if pool not in pools else 'update',
+            'ids': [str(zfspool['guid'])]
+        })
     except libzfs.ZFSException as e:
         if e == libzfs.Error.NOENT:
+            dispatcher.dispatch_event('zfs.pool.changed', {
+                'operation': 'delete',
+                'ids': [str(guid)]
+            })
             del pools[pool]
             return
 
@@ -802,6 +807,10 @@ def sync_dataset_cache(dispatcher, dataset, old_dataset=None):
     pool = dataset.split('/')[0]
     try:
         if old_dataset:
+            dispatcher.dispatch_event('zfs.dataset.changed', {
+                'operation': 'delete',
+                'ids': [old_dataset]
+            })
             del datasets[old_dataset]
 
         if dataset not in datasets:
@@ -809,11 +818,20 @@ def sync_dataset_cache(dispatcher, dataset, old_dataset=None):
                 Resource('zfs:{0}'.format(dataset)),
                 parents=['zpool:{0}'.format(pool)])
 
+        dispatcher.dispatch_event('zfs.dataset.changed', {
+            'operation': 'create' if dataset not in datasets else 'update',
+            'ids': [dataset]
+        })
+
         datasets[dataset] = wrap(zfs.get_dataset(dataset).__getstate__(recursive=False))
         sync_zpool_cache(dispatcher, pool)
     except libzfs.ZFSException as e:
         if e == libzfs.Error.NOENT:
             dispatcher.unregister_resource('zfs:{0}'.format(dataset))
+            dispatcher.dispatch_event('zfs.dataset.changed', {
+                'operation': 'delete',
+                'ids': [dataset]
+            })
             del datasets[dataset]
             return
 
@@ -824,11 +842,24 @@ def sync_snapshot_cache(dispatcher, snapshot, old_snapshot=None):
     zfs = libzfs.ZFS()
     try:
         if old_snapshot:
+            dispatcher.dispatch_event('zfs.snapshot.changed', {
+                'operation': 'delete',
+                'ids': [old_snapshot]
+            })
             del snapshots[old_snapshot]
+
+        dispatcher.dispatch_event('zfs.dataset.changed', {
+            'operation': 'create' if snapshot not in snapshots else 'update',
+            'ids': [snapshot]
+        })
 
         snapshots[snapshot] = wrap(zfs.get_snapshot(snapshot).__getstate__())
     except libzfs.ZFSException as e:
         if e == libzfs.Error.NOENT:
+            dispatcher.dispatch_event('zfs.snapshot.changed', {
+                'operation': 'delete',
+                'ids': [old_snapshot]
+            })
             del snapshots[snapshot]
             return
 
@@ -853,6 +884,16 @@ def zpool_sync_resources(dispatcher, name):
         dispatcher.register_resource(
             Resource(res_name),
             parents=get_disk_names(dispatcher, pool))
+
+
+def zpool_try_clear(name, vdev):
+    zfs = libzfs.ZFS()
+    pool = zfs.get(name)
+    if pool.clear():
+        logger.info('Device {0} reattached successfully to pool {1}'.format(vdev['path'], name))
+        return
+
+    logger.warning('Device {0} reattach to pool {1} failed'.format(vdev['path'], name))
 
 
 def _depends():
@@ -901,14 +942,14 @@ def zfsprop_schema_creator(**kwargs):
 def _init(dispatcher, plugin):
     def on_pool_create(args):
         logger.info('New pool created: {0} <{1}>'.format(args['pool'], args['guid']))
-        sync_zpool_cache(dispatcher, args['pool'])
+        sync_zpool_cache(dispatcher, args['pool'], args['guid'])
 
     def on_pool_destroy(args):
         logger.info('Pool{0} <{1}> destroyed'.format(args['pool'], args['guid']))
-        sync_zpool_cache(dispatcher, args['pool'])
+        sync_zpool_cache(dispatcher, args['pool'], args['guid'])
 
     def on_pool_changed(args):
-        sync_zpool_cache(dispatcher, args['pool'])
+        sync_zpool_cache(dispatcher, args['pool'], args['guid'])
 
     def on_dataset_create(args):
         if '@' in args['ds']:
@@ -954,6 +995,21 @@ def _init(dispatcher, plugin):
             sync_snapshot_cache(dispatcher, args['ds'])
         else:
             sync_dataset_cache(dispatcher, args['ds'])
+
+    def on_device_attached(args):
+        for p in pools.values():
+            if p['status'] not in ('DEGRADED', 'UNAVAIL'):
+                continue
+
+            for vd in iterate_vdevs(p['groups']):
+                if args['path'] == vd['path']:
+                    logger.info('Device {0} that was part of the pool {1} got reconnected'.format(
+                        args['path'],
+                        p['name'])
+                    )
+
+                    # Try to clear errors
+                    zpool_try_clear(p['name'], vd)
 
     plugin.register_schema_definition('zfs-vdev', {
         'type': 'object',
@@ -1216,22 +1272,26 @@ def _init(dispatcher, plugin):
         }
     })
 
-    # Register Event Types
-    plugin.register_event_type('zfs.pool.changed')
-
     plugin.register_event_handler('fs.zfs.pool.created', on_pool_create)
     plugin.register_event_handler('fs.zfs.pool.destroyed', on_pool_destroy)
     plugin.register_event_handler('fs.zfs.pool.setprop', on_pool_changed)
-    plugin.register_event_handler('fs.zfs.vdev.updated', on_pool_changed)
+    plugin.register_event_handler('fs.zfs.pool.config_sync', on_pool_changed)
+    plugin.register_event_handler('fs.zfs.vdev.state_changed', on_pool_changed)
     plugin.register_event_handler('fs.zfs.dataset.created', on_dataset_create)
     plugin.register_event_handler('fs.zfs.dataset.deleted', on_dataset_delete)
     plugin.register_event_handler('fs.zfs.dataset.renamed', on_dataset_rename)
     plugin.register_event_handler('fs.zfs.dataset.setprop', on_dataset_setprop)
+    plugin.register_event_handler('system.device.attached', on_device_attached)
 
     # Register Providers
     plugin.register_provider('zfs.pool', ZpoolProvider)
     plugin.register_provider('zfs.dataset', ZfsDatasetProvider)
     plugin.register_provider('zfs.snapshot', ZfsSnapshotProvider)
+
+    # Register Event Types
+    plugin.register_event_type('zfs.pool.changed')
+    plugin.register_event_type('zfs.dataset.changed')
+    plugin.register_event_type('zfs.snapshot.changed')
 
     # Register Task Handlers
     plugin.register_task_handler('zfs.pool.create', ZpoolCreateTask)
@@ -1265,12 +1325,15 @@ def _init(dispatcher, plugin):
     # Do initial caches sync
     try:
         zfs = libzfs.ZFS()
+        logger.info("Syncing ZFS pools...")
         for i in zfs.pools:
             sync_zpool_cache(dispatcher, i.name)
 
+        logger.info("Syncing ZFS datasets...")
         for i in zfs.datasets:
             sync_dataset_cache(dispatcher, i.name)
 
+        logger.info("Syncing ZFS snapshots...")
         for i in zfs.snapshots:
             sync_snapshot_cache(dispatcher, i.name)
     except libzfs.ZFSException as err:
