@@ -56,7 +56,7 @@ class CIFSProvider(Provider):
     @accepts()
     @returns(h.ref('service-cifs'))
     def get_config(self):
-        return ConfigNode('service.cifs', self.configstore)
+        return ConfigNode('service.cifs', self.configstore).__getstate__()
 
 
 @description('Configure CIFS service')

@@ -38,7 +38,7 @@ class StanchionProvider(Provider):
     @accepts()
     @returns(h.ref('service-stanchion'))
     def get_config(self):
-        return ConfigNode('service.stanchion', self.configstore)
+        return ConfigNode('service.stanchion', self.configstore).__getstate__()
 
 
 @description('Configure Stanchion KV service')
