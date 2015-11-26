@@ -969,38 +969,27 @@ def _init(dispatcher, plugin):
     boot_pool = dispatcher.call_sync('zfs.pool.get_boot_pool')
 
     def on_pool_change(args):
-        ids = [i for i in args['ids'] if i != boot_pool['guid']]
         if args['operation'] == 'delete':
-            for i in ids:
+            for i in args['ids']:
                 logger.info('Volume {0} is going away'.format(i))
                 dispatcher.datastore.delete('volumes', i)
 
         if args['operation'] in ('create', 'update'):
-            for i in ids:
-                if args['operation'] == 'update' and dispatcher.datastore.exists('volumes', ('id', '=', i)):
-                    # Disable for now to avoid confusing clients with multiple "changed" events
-                    #
-                    # dispatcher.dispatch_event('volumes.changed', {
-                    #     'operation': 'update',
-                    #     'ids': [i]
-                    # })
+            entities = filter(lambda i: i['id'] != boot_pool['guid'], args['entities'])
+            for i in entities:
+                if args['operation'] == 'update' and dispatcher.datastore.exists('volumes', ('id', '=', i['id'])):
+                    dispatcher.dispatch_event('volume.changed', {
+                        'operation': 'update',
+                        'ids': [i['id']]
+                    })
                     continue
 
-                pool = wrap(dispatcher.call_sync(
-                    'zfs.pool.query',
-                    [('guid', '=', i)],
-                    {'single': True}
-                ))
-
-                if not pool:
-                    continue
-
-                logger.info('New volume {0} <{1}>'.format(pool['name'], i))
+                logger.info('New volume {0} <{1}>'.format(i['name'], i['id']))
                 with dispatcher.get_lock('volumes'):
                     try:
                         dispatcher.datastore.insert('volumes', {
                             'id': i,
-                            'name': pool['name'],
+                            'name': i['name'],
                             'type': 'zfs',
                             'attributes': {}
                         })
@@ -1009,19 +998,19 @@ def _init(dispatcher, plugin):
                         continue
 
                     # Set correct mountpoint
-                    dispatcher.call_task_sync('zfs.configure', pool['name'], pool['name'], {
-                        'mountpoint': {'value': os.path.join(VOLUMES_ROOT, pool['name'])}
+                    dispatcher.call_task_sync('zfs.configure', i['name'], i['name'], {
+                        'mountpoint': {'value': os.path.join(VOLUMES_ROOT, i['name'])}
                     })
 
-                    if pool['properties.altroot.source'] != 'DEFAULT':
+                    if i['properties.altroot.source'] != 'DEFAULT':
                         # Ouch. That pool is created or imported with altroot.
                         # We need to export and reimport it to remove altroot property
-                        dispatcher.call_task_sync('zfs.pool.export', pool['name'])
-                        dispatcher.call_task_sync('zfs.pool.import', pool['guid'], pool['name'])
+                        dispatcher.call_task_sync('zfs.pool.export', i['name'])
+                        dispatcher.call_task_sync('zfs.pool.import', i['guid'], i['name'])
 
                     dispatcher.dispatch_event('volume.changed', {
                         'operation': 'create',
-                        'ids': [i]
+                        'ids': [i['id']]
                     })
 
     def on_dataset_change(args):
@@ -1091,7 +1080,7 @@ def _init(dispatcher, plugin):
     })
 
     plugin.register_provider('volume', VolumeProvider)
-    plugin.register_provider('volume.snapshot', SnapshotProvider)
+    plugin.register_provider('volume.snapshots', SnapshotProvider)
     plugin.register_task_handler('volume.create', VolumeCreateTask)
     plugin.register_task_handler('volume.create_auto', VolumeAutoCreateTask)
     plugin.register_task_handler('volume.destroy', VolumeDestroyTask)
@@ -1111,11 +1100,13 @@ def _init(dispatcher, plugin):
     plugin.register_hook('volume.pre_create')
     plugin.register_hook('volume.pre_attach')
 
-    plugin.register_event_handler('zfs.pool.changed', on_pool_change)
+    plugin.register_event_handler('entity-subscriber.zfs.pool.changed', on_pool_change)
     plugin.register_event_handler('fs.zfs.dataset.created', on_dataset_change)
     plugin.register_event_handler('fs.zfs.dataset.deleted', on_dataset_change)
     plugin.register_event_handler('fs.zfs.dataset.renamed', on_dataset_change)
     plugin.register_event_type('volume.changed')
+
+    dispatcher.rpc.call_sync('alert.register_alert', 'volume.disk_removed', 'Volume disk removed')
 
     for vol in dispatcher.datastore.query('volumes'):
         try:
