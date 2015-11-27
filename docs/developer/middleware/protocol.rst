@@ -248,7 +248,7 @@ RPC call response:
 
     {
         "namespace": "rpc",
-        "name": "error",
+        "name": "response",
         "id": "<uuid>",
         "args": "<object or array with returned values>"
     }
