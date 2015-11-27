@@ -96,6 +96,14 @@ def get_swap_info(dispatcher):
     return result
 
 
+def configure_dumpdev(path):
+    if os.path.exists('/dev/dumpdev'):
+        os.unlink('/dev/dumpdev')
+
+    os.symlink(path, '/dev/dumpdev')
+    system('/sbin/dumpon', path)
+
+
 def clear_swap(dispatcher):
     logger.info('Clearing all swap mirrors in system')
     for swap in list(get_swap_info(dispatcher).values()):
@@ -129,6 +137,7 @@ def create_swap(dispatcher, disks):
         logger.info('Creating swap partition %s from disks: %s, %s', name, disk_a, disk_b)
         system('/sbin/gmirror', 'label', '-b', 'prefer', name, disk_a, disk_b)
         system('/sbin/swapon', '/dev/mirror/{0}'.format(name))
+        configure_dumpdev('/dev/mirror/{0}'.format(name))
 
 
 def rearrange_swap(dispatcher):
