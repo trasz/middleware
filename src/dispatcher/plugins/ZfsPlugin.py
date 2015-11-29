@@ -70,6 +70,9 @@ class ZpoolProvider(Provider):
     @returns(h.array(str))
     def get_disks(self, name):
         pool = pools.get(name)
+        if not pool:
+            raise RpcException(errno.ENOENT, 'Pool {0} not found'.format(name))
+
         return [v['path'] for v in iterate_vdevs(pool['groups'])]
 
     @returns(h.object())
@@ -781,17 +784,23 @@ def get_disk_names(dispatcher, pool):
 
 
 def sync_zpool_cache(dispatcher, pool, guid=None):
+    if pool == '$import':
+        return
+
     zfs = libzfs.ZFS()
     try:
-        zpool_sync_resources(dispatcher, pool)
         zfspool = wrap(zfs.get(pool).__getstate__())
         pools[pool] = zfspool
+        zpool_sync_resources(dispatcher, pool)
         dispatcher.dispatch_event('zfs.pool.changed', {
             'operation': 'create' if pool not in pools else 'update',
             'ids': [str(zfspool['guid'])]
         })
     except libzfs.ZFSException as e:
-        if e == libzfs.Error.NOENT:
+        if e.code == libzfs.Error.NOENT:
+            if pool not in pools:
+                return
+
             dispatcher.dispatch_event('zfs.pool.changed', {
                 'operation': 'delete',
                 'ids': [str(guid)]
@@ -826,7 +835,10 @@ def sync_dataset_cache(dispatcher, dataset, old_dataset=None):
         datasets[dataset] = wrap(zfs.get_dataset(dataset).__getstate__(recursive=False))
         sync_zpool_cache(dispatcher, pool)
     except libzfs.ZFSException as e:
-        if e == libzfs.Error.NOENT:
+        if e.code == libzfs.Error.NOENT:
+            if dataset not in datasets:
+                return
+
             dispatcher.unregister_resource('zfs:{0}'.format(dataset))
             dispatcher.dispatch_event('zfs.dataset.changed', {
                 'operation': 'delete',
@@ -835,10 +847,13 @@ def sync_dataset_cache(dispatcher, dataset, old_dataset=None):
             del datasets[dataset]
             return
 
-        logger.warning("Cannot read dataset status from dataset {0}".format(datasets))
+        logger.warning("Cannot read dataset status from dataset {0}".format(dataset))
 
 
 def sync_snapshot_cache(dispatcher, snapshot, old_snapshot=None):
+    if '$ORIGIN' in snapshot:
+        return
+
     zfs = libzfs.ZFS()
     try:
         if old_snapshot:
@@ -855,10 +870,13 @@ def sync_snapshot_cache(dispatcher, snapshot, old_snapshot=None):
 
         snapshots[snapshot] = wrap(zfs.get_snapshot(snapshot).__getstate__())
     except libzfs.ZFSException as e:
-        if e == libzfs.Error.NOENT:
+        if e.code == libzfs.Error.NOENT:
+            if snapshot not in snapshots:
+                return
+
             dispatcher.dispatch_event('zfs.snapshot.changed', {
                 'operation': 'delete',
-                'ids': [old_snapshot]
+                'ids': [snapshot]
             })
             del snapshots[snapshot]
             return
@@ -942,59 +960,66 @@ def zfsprop_schema_creator(**kwargs):
 def _init(dispatcher, plugin):
     def on_pool_create(args):
         logger.info('New pool created: {0} <{1}>'.format(args['pool'], args['guid']))
-        sync_zpool_cache(dispatcher, args['pool'], args['guid'])
+        with dispatcher.get_lock('zfs-cache'):
+            sync_zpool_cache(dispatcher, args['pool'], args['guid'])
 
     def on_pool_destroy(args):
-        logger.info('Pool{0} <{1}> destroyed'.format(args['pool'], args['guid']))
-        sync_zpool_cache(dispatcher, args['pool'], args['guid'])
+        logger.info('Pool {0} <{1}> destroyed'.format(args['pool'], args['guid']))
+        with dispatcher.get_lock('zfs-cache'):
+            sync_zpool_cache(dispatcher, args['pool'], args['guid'])
 
     def on_pool_changed(args):
-        sync_zpool_cache(dispatcher, args['pool'], args['guid'])
+        with dispatcher.get_lock('zfs-cache'):
+            sync_zpool_cache(dispatcher, args['pool'], args['guid'])
 
     def on_dataset_create(args):
-        if '@' in args['ds']:
-            logger.info('New snapshot created: {0}'.format(args['ds']))
-            sync_snapshot_cache(dispatcher, args['ds'])
-        else:
-            logger.info('New dataset created: {0}'.format(args['ds']))
-            sync_dataset_cache(dispatcher, args['ds'])
+        with dispatcher.get_lock('zfs-cache'):
+            if '@' in args['ds']:
+                logger.info('New snapshot created: {0}'.format(args['ds']))
+                sync_snapshot_cache(dispatcher, args['ds'])
+            else:
+                logger.info('New dataset created: {0}'.format(args['ds']))
+                sync_dataset_cache(dispatcher, args['ds'])
 
     def on_dataset_delete(args):
-        if '@' in args['ds']:
-            logger.info('Snapshot removed: {0}'.format(args['ds']))
-            sync_snapshot_cache(dispatcher, args['ds'])
-        else:
-            logger.info('Dataset removed: {0}'.format(args['ds']))
-            sync_dataset_cache(dispatcher, args['ds'])
+        with dispatcher.get_lock('zfs-cache'):
+            if '@' in args['ds']:
+                logger.info('Snapshot removed: {0}'.format(args['ds']))
+                sync_snapshot_cache(dispatcher, args['ds'])
+            else:
+                logger.info('Dataset removed: {0}'.format(args['ds']))
+                sync_dataset_cache(dispatcher, args['ds'])
 
     def on_dataset_rename(args):
-        if '@' in args['ds']:
-            logger.info('Snapshot {0} renamed to: {1}'.format(args['ds'], args['new_ds']))
-            sync_snapshot_cache(dispatcher, args['new_ds'], args['old_ds'])
-        else:
-            logger.info('Dataset {0} renamed to: {1}'.format(args['ds'], args['new_ds']))
-            sync_dataset_cache(dispatcher, args['new_ds'])
+        with dispatcher.get_lock('zfs-cache'):
+            if '@' in args['ds']:
+                logger.info('Snapshot {0} renamed to: {1}'.format(args['ds'], args['new_ds']))
+                sync_snapshot_cache(dispatcher, args['new_ds'], args['old_ds'])
+            else:
+                logger.info('Dataset {0} renamed to: {1}'.format(args['ds'], args['new_ds']))
+                sync_dataset_cache(dispatcher, args['new_ds'])
 
     def on_dataset_setprop(args):
-        if args['action'] == 'set':
-            logger.info('{0} {1} property {2} set to: {3}'.format(
-                'Snapshot' if '@' in args['ds'] else 'Dataset',
-                args['ds'],
-                args['prop_name'],
-                args['prop_value']
-            ))
+        with dispatcher.get_lock('zfs-cache'):
+            if args['action'] == 'set':
+                logger.info('{0} {1} property {2} set to: {3}'.format(
+                    'Snapshot' if '@' in args['ds'] else 'Dataset',
+                    args['ds'],
+                    args['prop_name'],
+                    args['prop_value']
+                ))
 
-        if args['action'] == 'inherit':
-            logger.info('{0} {1} property {2} inherited from parent'.format(
-                'Snapshot' if '@' in args['ds'] else 'Dataset',
-                args['ds'],
-                args['prop_name'],
-            ))
+            if args['action'] == 'inherit':
+                logger.info('{0} {1} property {2} inherited from parent'.format(
+                    'Snapshot' if '@' in args['ds'] else 'Dataset',
+                    args['ds'],
+                    args['prop_name'],
+                ))
 
-        if '@' in args['ds']:
-            sync_snapshot_cache(dispatcher, args['ds'])
-        else:
-            sync_dataset_cache(dispatcher, args['ds'])
+            if '@' in args['ds']:
+                sync_snapshot_cache(dispatcher, args['ds'])
+            else:
+                sync_dataset_cache(dispatcher, args['ds'])
 
     def on_device_attached(args):
         for p in pools.values():

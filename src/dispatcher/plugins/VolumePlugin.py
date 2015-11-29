@@ -504,11 +504,6 @@ class VolumeDestroyTask(Task):
 
         self.datastore.delete('volumes', vol['id'])
 
-        self.dispatcher.dispatch_event('volume.changed', {
-            'operation': 'delete',
-            'ids': [vol['id']]
-        })
-
 
 @description("Updates configuration of existing volume")
 @accepts(str, h.ref('volume'))
@@ -744,11 +739,6 @@ class VolumeDetachTask(Task):
         self.join_subtasks(self.run_subtask('zfs.pool.export', name))
         self.datastore.delete('volumes', vol['id'])
 
-        self.dispatcher.dispatch_event('volume.changed', {
-            'operation': 'delete',
-            'ids': [vol['id']]
-        })
-
 
 @description("Upgrades volume to newest ZFS version")
 @accepts(str)
@@ -973,6 +963,10 @@ def _init(dispatcher, plugin):
             for i in args['ids']:
                 logger.info('Volume {0} is going away'.format(i))
                 dispatcher.datastore.delete('volumes', i)
+                dispatcher.dispatch_event('volume.changed', {
+                    'operation': 'delete',
+                    'ids': [i]
+                })
 
         if args['operation'] in ('create', 'update'):
             entities = filter(lambda i: i['id'] != boot_pool['guid'], args['entities'])
@@ -984,11 +978,10 @@ def _init(dispatcher, plugin):
                     })
                     continue
 
-                logger.info('New volume {0} <{1}>'.format(i['name'], i['id']))
                 with dispatcher.get_lock('volumes'):
                     try:
                         dispatcher.datastore.insert('volumes', {
-                            'id': i,
+                            'id': i['id'],
                             'name': i['name'],
                             'type': 'zfs',
                             'attributes': {}
@@ -996,6 +989,8 @@ def _init(dispatcher, plugin):
                     except DuplicateKeyException:
                         # already inserted by task
                         continue
+
+                    logger.info('New volume {0} <{1}>'.format(i['name'], i['id']))
 
                     # Set correct mountpoint
                     dispatcher.call_task_sync('zfs.configure', i['name'], i['name'], {
