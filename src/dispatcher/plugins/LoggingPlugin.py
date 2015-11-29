@@ -43,7 +43,7 @@ class SyslogEventSource(EventSource):
 
     def run(self):
         # Initial call to obtain cursor
-        cursor = self.datastore.listen('syslog', ('created_at', '>=', datetime.now()))
+        cursor = self.datastore.listen('syslog', ('created_at', '>=', datetime.utcnow()))
 
         while True:
             for i in self.datastore.tail(cursor):
