@@ -368,7 +368,8 @@ class UserUpdateTask(Task):
             if password:
                 system(
                     '/usr/local/bin/smbpasswd', '-D', '0', '-s', '-a', user['username'],
-                    stdin='{0}\n{1}\n'.format(password, password).encode('utf8'))
+                    stdin='{0}\n{1}\n'.format(password, password).encode('utf8')
+                )
                 user['smbhash'] = system('/usr/local/bin/pdbedit', '-d', '0', '-w', user['username'])[0]
                 self.datastore.update('users', uid, user)
 
@@ -401,13 +402,19 @@ class UserUpdateTask(Task):
         elif not user['builtin'] and user['home'] not in (None, '/nonexistent'):
             raise TaskException(
                 errno.ENOENT,
-                "Invalid mountpoint specified for home directory: {0}.".format(user['home']) +
-                " Use '{0}' instead as the mountpoint".format(volumes_root)
-                )
+                "Invalid mountpoint specified for home directory: {0}. ".format(user['home']) +
+                "Use '{0}' instead as the mountpoint".format(volumes_root)
+            )
+
+        if uid != user['id']:
+            self.dispatcher.dispatch_event('user.changed', {
+                'operation': 'rename',
+                'ids': [[uid, user['id']]]
+            })
 
         self.dispatcher.dispatch_event('user.changed', {
             'operation': 'update',
-            'ids': [uid]
+            'ids': [user['id']]
         })
 
 

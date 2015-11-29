@@ -60,7 +60,7 @@ class EntitySubscriberEventSource(EventSource):
         ids = event['ids']
         operation = event['operation']
 
-        if operation == 'delete':
+        if operation in ('delete', 'rename'):
             self.dispatcher.dispatch_event('entity-subscriber.{0}.changed'.format(service), {
                 'service': service,
                 'operation': operation,
