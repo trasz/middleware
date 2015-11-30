@@ -394,7 +394,11 @@ class DiskGELIInitTask(Task):
         password = params.get('password', None)
         disk_info = self.dispatcher.call_sync('disk.query', [('path', 'in', disk),
                                                              ('online', '=', True)], {'single': True})
-        data_partition_path = disk_info.get('status').get('data_partition_path')
+        disk_status = disk_info.get('status', None)
+        if disk_status is not None:
+            data_partition_path = disk_status.get('data_partition_path')
+        else:
+            raise TaskException(errno.EINVAL, 'Cannot get disk status for: {0}'.format(disk))
 
         try:
             system('/sbin/geli', 'kill', data_partition_path)
@@ -442,7 +446,12 @@ class DiskGELIAttachTask(Task):
         password = params.get('password', None)
         disk_info = self.dispatcher.call_sync('disk.query', [('path', 'in', disk),
                                                              ('online', '=', True)], {'single': True})
-        data_partition_path = disk_info.get('status').get('data_partition_path')
+        disk_status = disk_info.get('status', None)
+        if disk_status is not None:
+            data_partition_path = disk_status.get('data_partition_path')
+        else:
+            raise TaskException(errno.EINVAL, 'Cannot get disk status for: {0}'.format(disk))
+
         with tempfile.NamedTemporaryFile('wb') as keyfile:
             keyfile.write(key)
             keyfile.flush()
@@ -473,7 +482,12 @@ class DiskGELIDetachTask(Task):
     def run(self, disk):
         disk_info = self.dispatcher.call_sync('disk.query', [('path', 'in', disk),
                                                              ('online', '=', True)], {'single': True})
-        data_partition_path = disk_info.get('status').get('data_partition_path')
+        disk_status = disk_info.get('status', None)
+        if disk_status is not None:
+            data_partition_path = disk_status.get('data_partition_path')
+        else:
+            raise TaskException(errno.EINVAL, 'Cannot get disk status for: {0}'.format(disk))
+
         try:
             system('/sbin/geli', 'detach', '-f', data_partition_path)
             self.dispatcher.call_sync('disk.update_disk_cache', disk, timeout=120)
@@ -495,7 +509,12 @@ class DiskGELIKillTask(Task):
     def run(self, disk):
         disk_info = self.dispatcher.call_sync('disk.query', [('path', 'in', disk),
                                                              ('online', '=', True)], {'single': True})
-        data_partition_path = disk_info.get('status').get('data_partition_path')
+        disk_status = disk_info.get('status', None)
+        if disk_status is not None:
+            data_partition_path = disk_status.get('data_partition_path')
+        else:
+            raise TaskException(errno.EINVAL, 'Cannot get disk status for: {0}'.format(disk))
+
         try:
             system('/sbin/geli', 'kill', data_partition_path)
             self.dispatcher.call_sync('disk.update_disk_cache', disk, timeout=120)
