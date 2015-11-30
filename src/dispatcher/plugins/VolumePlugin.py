@@ -984,7 +984,7 @@ def _init(dispatcher, plugin):
                     if volume:
                         dispatcher.dispatch_event('volume.changed', {
                             'operation': 'update',
-                            'ids': [i['id']]
+                            'ids': [volume['id']]
                         })
                     continue
 
