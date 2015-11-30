@@ -415,9 +415,10 @@ class DiskGELIInitTask(Task):
                         passfile.write(password)
                         passfile.flush()
                         system('/sbin/geli', 'init', '-s', str(4096), '-K', keyfile.name, '-J', passfile.name,
-                               data_partition_path)
+                               '-B none', data_partition_path)
                 else:
-                    system('/sbin/geli', 'init', '-s', str(4096), '-K', keyfile.name, '-P', data_partition_path)
+                    system('/sbin/geli', 'init', '-s', str(4096), '-K', keyfile.name, '-P', '-B none',
+                           data_partition_path)
             except SubprocessException as err:
                 raise TaskException(errno.EFAULT, 'Cannot init encrypted partition: {0}'.format(err.err))
 
