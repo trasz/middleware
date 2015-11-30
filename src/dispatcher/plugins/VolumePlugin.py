@@ -386,8 +386,10 @@ class VolumeCreateTask(ProgressTask):
         encryption = params.pop('encryption', False)
         if encryption:
             key = base64.b64encode(os.urandom(64))
+            password = params.pop('password', None)
         else:
             key = None
+            password = None
 
         if type != 'zfs':
             raise TaskException(errno.EINVAL, 'Invalid volume type')
@@ -413,7 +415,6 @@ class VolumeCreateTask(ProgressTask):
         self.set_progress(20)
 
         if encryption:
-            password = params.pop('password', None)
             for dname, dgroup in get_disks(volume['topology']):
                 self.join_subtasks(self.run_subtask('disk.geli.init', dname, {
                     'key': key,
@@ -454,8 +455,10 @@ class VolumeCreateTask(ProgressTask):
                 'type': type,
                 'mountpoint': mountpoint,
                 'topology': volume['topology'],
-                'key': key if key else None,
-                'locked': False if key else None,
+                'encryption': {
+                    'key': key if key else None,
+                    'password_protected': True if password else False,
+                    'locked': False if key else None},
                 'attributes': volume.get('attributes', {})
             })
 
@@ -681,9 +684,12 @@ class VolumeImportTask(Task):
             key = params.get('key', None)
             if key is not None:
                 disks = params.get('disks', [])
+                password = params.get('password', None)
 
                 for dname in disks:
                     self.join_subtasks(self.run_subtask('disk.geli.attach', dname, params))
+            else:
+                password = None
 
             mountpoint = os.path.join(VOLUMES_ROOT, new_name)
             self.join_subtasks(self.run_subtask('zfs.pool.import', id, new_name, params))
@@ -700,8 +706,10 @@ class VolumeImportTask(Task):
                 'id': id,
                 'name': new_name,
                 'type': 'zfs',
-                'key': key if key else None,
-                'locked': False if key else None,
+                'encryption': {
+                    'key': key if key else None,
+                    'password_protected': True if password else False,
+                    'locked': False if key else None},
                 'mountpoint': mountpoint
             })
 
@@ -779,7 +787,9 @@ class VolumeDetachTask(Task):
         self.join_subtasks(self.run_subtask('zfs.umount', name))
         self.join_subtasks(self.run_subtask('zfs.pool.export', name))
 
-        if vol['key'] is not None:
+        encryption = vol.get('encryption')
+
+        if encryption['key'] is not None:
             for dname in disks:
                 self.join_subtasks(self.run_subtask('disk.geli.detach', dname))
 
@@ -818,10 +828,12 @@ class VolumeLockTask(Task):
 
         vol = self.datastore.get_one('volumes', ('name', '=', name))
 
-        if vol['key'] is None:
+        encryption = vol.get('encryption')
+
+        if encryption['key'] is not None:
             raise VerifyException(errno.EINVAL, 'Volume {0} is not encrypted'.format(name))
 
-        if not vol['locked'] is False:
+        if not encryption['locked'] is False:
             raise VerifyException(errno.EINVAL, 'Volume {0} is not unlocked'.format(name))
 
         return ['disk:{0}'.format(d) for d in self.dispatcher.call_sync('volume.get_volume_disks', name)]
@@ -836,7 +848,7 @@ class VolumeLockTask(Task):
             for dname in disks:
                 self.join_subtasks(self.run_subtask('disk.geli.detach', dname))
 
-            vol['locked'] = True
+            vol['encryption']['locked'] = True
             self.datastore.update('volumes', vol['id'], vol)
 
             self.dispatcher.dispatch_event('volume.changed', {
@@ -854,10 +866,12 @@ class VolumeUnlockTask(Task):
 
         vol = self.datastore.get_one('volumes', ('name', '=', name))
 
-        if vol['key'] is None:
+        encryption = vol.get('encryption')
+
+        if encryption['key'] is not None:
             raise VerifyException(errno.EINVAL, 'Volume {0} is not encrypted'.format(name))
 
-        if not vol['locked'] is True:
+        if not encryption['locked'] is True:
             raise VerifyException(errno.EINVAL, 'Volume {0} is not locked'.format(name))
 
         return ['disk:{0}'.format(d) for d in self.dispatcher.call_sync('volume.get_volume_disks', name)]
@@ -868,7 +882,10 @@ class VolumeUnlockTask(Task):
             disks = self.dispatcher.call_sync('volume.get_volume_disks', name)
 
             for dname in disks:
-                self.join_subtasks(self.run_subtask('disk.geli.attach', dname, params))
+                self.join_subtasks(self.run_subtask('disk.geli.attach', dname, {
+                    'key': vol['encryption']['key'],
+                    'password': params.get('password', None)
+                }))
 
             self.join_subtasks(self.run_subtask('zfs.pool.import', vol['id'], name, params))
             self.join_subtasks(self.run_subtask(
@@ -880,7 +897,7 @@ class VolumeUnlockTask(Task):
 
             self.join_subtasks(self.run_subtask('zfs.mount', name))
 
-            vol['locked'] = False
+            vol['encryption']['locked'] = False
             self.datastore.update('volumes', vol['id'], vol)
 
             self.dispatcher.dispatch_event('volume.changed', {
