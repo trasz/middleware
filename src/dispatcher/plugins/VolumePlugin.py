@@ -400,34 +400,34 @@ class VolumeCreateTask(ProgressTask):
 
         self.set_progress(10)
 
-        if self.configstore.get("middleware.parallel_disk_format"):
-            subtasks = []
-            for dname, dgroup in get_disks(volume['topology']):
-                subtasks.append(self.run_subtask('disk.format.gpt', dname, 'freebsd-zfs', {
-                    'blocksize': params.get('blocksize', 4096),
-                    'swapsize': params.get('swapsize', 2048) if dgroup == 'data' else 0
-                }))
+        subtasks = []
+        for dname, dgroup in get_disks(volume['topology']):
+            subtasks.append(self.run_subtask('disk.format.gpt', dname, 'freebsd-zfs', {
+                'blocksize': params.get('blocksize', 4096),
+                'swapsize': params.get('swapsize', 2048) if dgroup == 'data' else 0
+            }))
 
-            self.join_subtasks(*subtasks)
-        else:
-            for dname, dgroup in get_disks(volume['topology']):
-                self.join_subtasks(self.run_subtask('disk.format.gpt', dname, 'freebsd-zfs', {
-                    'blocksize': params.get('blocksize', 4096),
-                    'swapsize': params.get('swapsize', 2048) if dgroup == 'data' else 0
-                }))
+        self.join_subtasks(*subtasks)
 
         self.set_progress(20)
 
         if encryption:
+            subtasks = []
             for dname, dgroup in get_disks(volume['topology']):
-                self.join_subtasks(self.run_subtask('disk.geli.init', dname, {
+                subtasks.append(self.run_subtask('disk.geli.init', dname, {
                     'key': key,
                     'password': password
                 }))
-                self.join_subtasks(self.run_subtask('disk.geli.attach', dname, {
+            self.join_subtasks(*subtasks)
+            self.set_progress(30)
+
+            subtasks = []
+            for dname, dgroup in get_disks(volume['topology']):
+                subtasks.append(self.run_subtask('disk.geli.attach', dname, {
                     'key': key,
                     'password': password
                 }))
+            self.join_subtasks(*subtasks)
 
         self.set_progress(40)
 
@@ -524,6 +524,7 @@ class VolumeDestroyTask(Task):
 
     def run(self, name):
         vol = self.datastore.get_one('volumes', ('name', '=', name))
+        encryption = vol.get('encryption')
         config = self.dispatcher.call_sync('volume.get_config', name)
         disks = self.dispatcher.call_sync('volume.get_volume_disks', name)
 
@@ -533,8 +534,11 @@ class VolumeDestroyTask(Task):
             self.join_subtasks(self.run_subtask('zfs.umount', name))
             self.join_subtasks(self.run_subtask('zfs.pool.destroy', name))
 
-        for dname in disks:
-            self.join_subtasks(self.run_subtask('disk.geli.kill', dname))
+        if encryption['key'] is not None:
+            subtasks = []
+            for dname in disks:
+                subtasks.append(self.run_subtask('disk.geli.kill', dname))
+            self.join_subtasks(*subtasks)
 
         self.datastore.delete('volumes', vol['id'])
 
@@ -826,8 +830,10 @@ class VolumeDetachTask(Task):
         encryption = vol.get('encryption')
 
         if encryption['key'] is not None:
+            subtasks = []
             for dname in disks:
-                self.join_subtasks(self.run_subtask('disk.geli.detach', dname))
+                subtasks.append(self.run_subtask('disk.geli.detach', dname))
+            self.join_subtasks(*subtasks)
 
         self.datastore.delete('volumes', vol['id'])
 
@@ -881,8 +887,10 @@ class VolumeLockTask(Task):
             self.join_subtasks(self.run_subtask('zfs.umount', name))
             self.join_subtasks(self.run_subtask('zfs.pool.export', name))
 
+            subtasks = []
             for dname in disks:
-                self.join_subtasks(self.run_subtask('disk.geli.detach', dname))
+                subtasks.append(self.run_subtask('disk.geli.detach', dname))
+            self.join_subtasks(*subtasks)
 
             vol['encryption']['locked'] = True
             self.datastore.update('volumes', vol['id'], vol)
@@ -923,11 +931,13 @@ class VolumeUnlockTask(Task):
             vol = self.datastore.get_one('volumes', ('name', '=', name))
             disks = self.dispatcher.call_sync('volume.get_volume_disks', name)
 
+            subtasks = []
             for dname in disks:
-                self.join_subtasks(self.run_subtask('disk.geli.attach', dname, {
+                subtasks.append(self.run_subtask('disk.geli.attach', dname, {
                     'key': vol['encryption']['key'],
                     'password': params.get('password', None)
                 }))
+            self.join_subtasks(*subtasks)
 
             self.join_subtasks(self.run_subtask('zfs.pool.import', vol['id'], name, params))
             self.join_subtasks(self.run_subtask(
