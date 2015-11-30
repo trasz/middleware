@@ -1266,7 +1266,7 @@ def _init(dispatcher, plugin):
                         })
 
         if args['operation'] in ('create', 'update'):
-            entities = filter(lambda i: i['id'] != boot_pool['guid'], args['entities'])
+            entities = filter(lambda i: i['guid'] != boot_pool['guid'], args['entities'])
             for i in entities:
                 if args['operation'] == 'update':
                     volume = dispatcher.datastore.get_one('volumes', ('name', '=', i['name']))

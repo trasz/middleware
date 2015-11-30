@@ -147,7 +147,7 @@ class ZpoolProvider(Provider):
 class ZfsDatasetProvider(Provider):
     @query('zfs-dataset')
     def query(self, filter=None, params=None):
-        return wrap(list(datasets.values())).query(*(filter or []), **(params or {}))
+        return wrap(list(datasets.validvalues())).query(*(filter or []), **(params or {}))
 
     @accepts(str)
     @returns(h.array(
@@ -199,7 +199,7 @@ class ZfsDatasetProvider(Provider):
 class ZfsSnapshotProvider(Provider):
     @query('zfs-snapshot')
     def query(self, filter=None, params=None):
-        return wrap(list(snapshots.values())).query(*(filter or []), **(params or {}))
+        return wrap(list(snapshots.validvalues())).query(*(filter or []), **(params or {}))
 
 
 @description("Scrubs ZFS pool")
@@ -804,6 +804,7 @@ def sync_zpool_cache(dispatcher, pool, guid=None):
 def sync_dataset_cache(dispatcher, dataset, old_dataset=None):
     zfs = libzfs.ZFS()
     pool = dataset.split('/')[0]
+    sync_zpool_cache(dispatcher, pool)
     try:
         if old_dataset:
             datasets.rename(old_dataset, dataset)
@@ -815,7 +816,6 @@ def sync_dataset_cache(dispatcher, dataset, old_dataset=None):
                 parents=['zpool:{0}'.format(pool)])
 
         datasets.put(dataset, wrap(zfs.get_dataset(dataset).__getstate__(recursive=False)))
-        sync_zpool_cache(dispatcher, pool)
     except libzfs.ZFSException as e:
         if e.code == libzfs.Error.NOENT:
             if datasets.remove(dataset):
