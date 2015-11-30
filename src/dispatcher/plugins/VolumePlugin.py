@@ -956,6 +956,12 @@ def convert_topology_to_gptids(dispatcher, topology):
     return topology
 
 
+def split_snapshot_name(name):
+    ds, _, snap = name.partition('@')
+    pool = ds.split('/', 1)[0]
+    return pool, ds, snap
+
+
 def _depends():
     return ['DevdPlugin', 'ZfsPlugin']
 
@@ -1018,10 +1024,32 @@ def _init(dispatcher, plugin):
                         'ids': [i['guid']]
                     })
 
+    def on_snapshot_change(args):
+        def is_not_boot_pool(id):
+            return split_snapshot_name(id)[0] != boot_pool['name']
+
+        if args['operation'] in ('delete', 'rename'):
+            dispatcher.dispatch_event('volume.snapshot.changed', {
+                'operation': args['operation'],
+                'ids': list(filter(is_not_boot_pool, args['ids']))
+            })
+        else:
+            dispatcher.dispatch_event('volume.snapshot.changed', {
+                'operation': args['operation'],
+                'ids': list(filter(is_not_boot_pool, map(lambda i: i['id'], args['entities'])))
+            })
+
     def on_dataset_change(args):
         dispatcher.dispatch_event('volume.changed', {
             'operation': 'update',
             'ids': [args['guid']]
+        })
+
+    def on_vdev_remove(args):
+        dispatcher.call_sync('alert.emit', {
+            'name': 'volume.disk_removed',
+            'description': 'Some disk was removed from the system',
+            'severity': 'WARNING'
         })
 
     plugin.register_schema_definition('volume', {
@@ -1106,10 +1134,14 @@ def _init(dispatcher, plugin):
     plugin.register_hook('volume.pre_attach')
 
     plugin.register_event_handler('entity-subscriber.zfs.pool.changed', on_pool_change)
+    plugin.register_event_handler('entity-subscriber.zfs.snapshot.changed', on_snapshot_change)
+    plugin.register_event_handler('fs.zfs.vdev.removed', on_vdev_remove)
     plugin.register_event_handler('fs.zfs.dataset.created', on_dataset_change)
     plugin.register_event_handler('fs.zfs.dataset.deleted', on_dataset_change)
     plugin.register_event_handler('fs.zfs.dataset.renamed', on_dataset_change)
+
     plugin.register_event_type('volume.changed')
+    plugin.register_event_type('volume.snapshot.changed')
 
     dispatcher.rpc.call_sync('alert.register_alert', 'volume.disk_removed', 'Volume disk removed')
 
