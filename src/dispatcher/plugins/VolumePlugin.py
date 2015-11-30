@@ -545,9 +545,9 @@ class VolumeDestroyTask(Task):
 
 
 @description("Updates configuration of existing volume")
-@accepts(str, h.ref('volume'))
+@accepts(str, h.ref('volume'), str)
 class VolumeUpdateTask(Task):
-    def verify(self, name, updated_params):
+    def verify(self, name, updated_params, password=''):
         if not self.datastore.exists('volumes', ('name', '=', name)):
             raise VerifyException(errno.ENOENT, 'Volume {0} not found'.format(name))
 
@@ -558,8 +558,9 @@ class VolumeUpdateTask(Task):
 
         return ['disk:{0}'.format(i) for i, _ in get_disks(topology)]
 
-    def run(self, name, updated_params):
+    def run(self, name, updated_params, password=''):
         volume = self.datastore.get_one('volumes', ('name', '=', name))
+        encryption = volume.get('encryption')
         if not volume:
             raise TaskException(errno.ENOENT, 'Volume {0} not found'.format(name))
 
@@ -591,6 +592,13 @@ class VolumeUpdateTask(Task):
             for group, vdevs in list(updated_params['topology'].items()):
                 for vdev in vdevs:
                     if 'guid' not in vdev:
+                        if encryption['hashed_password'] is not None:
+                            if not is_password(password,
+                                               encryption.get('salt', ''),
+                                               encryption.get('hashed_password', '')):
+                                raise TaskException(errno.EINVAL,
+                                                    'Password provided for volume {0} configuration update is not valid'
+                                                    .format(name))
                         new_vdevs.setdefault(group, []).append(vdev)
                         continue
 
@@ -653,6 +661,25 @@ class VolumeUpdateTask(Task):
                 }))
 
             self.join_subtasks(*subtasks)
+
+            if encryption['key'] is not None:
+                subtasks = []
+                for vdev, group in iterate_vdevs(new_vdevs):
+                    subtasks.append(self.run_subtask('disk.geli.init', vdev['path'], {
+                        'key': encryption['key'],
+                        'password': password
+                    }))
+                self.join_subtasks(*subtasks)
+
+                if encryption['locked'] is False:
+                    subtasks = []
+                    for vdev, group in iterate_vdevs(new_vdevs):
+                        subtasks.append(self.run_subtask('disk.geli.attach', vdev['path'], {
+                            'key': encryption['key'],
+                            'password': password
+                        }))
+                    self.join_subtasks(*subtasks)
+
             new_vdevs = convert_topology_to_gptids(self.dispatcher, new_vdevs)
 
             for vdev in updated_vdevs:
@@ -884,7 +911,9 @@ class VolumeUnlockTask(Task):
             raise VerifyException(errno.EINVAL, 'Volume {0} is not locked'.format(name))
 
         if encryption['hashed_password'] is not None:
-            if not is_password(params.get('password', ''), encryption.get('salt', '')):
+            if not is_password(params.get('password', ''),
+                               encryption.get('salt', ''),
+                               encryption.get('hashed_password', '')):
                 raise VerifyException(errno.EINVAL, 'Password provided for volume {0} unlock is not valid'.format(name))
 
         return ['disk:{0}'.format(d) for d in self.dispatcher.call_sync('volume.get_volume_disks', name)]
