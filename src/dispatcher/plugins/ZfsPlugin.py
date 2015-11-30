@@ -1332,6 +1332,10 @@ def _init(dispatcher, plugin):
         snapshots = EventCacheStore(dispatcher, 'zfs.snapshot')
         for i in zfs.snapshots:
             sync_snapshot_cache(dispatcher, i.name)
+
+        pools.ready = True
+        datasets.ready = True
+        snapshots.ready = True
     except libzfs.ZFSException as err:
         logger.error("Cannot sync ZFS caches: {0}".format(str(err)))
 
