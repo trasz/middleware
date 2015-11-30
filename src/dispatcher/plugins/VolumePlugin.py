@@ -34,6 +34,7 @@ import itertools
 import base64
 import bsd
 import bsd.kld
+import hashlib
 from lib.system import system, SubprocessException
 from lib.freebsd import fstyp
 from task import Provider, Task, ProgressTask, TaskException, VerifyException, query
@@ -391,6 +392,9 @@ class VolumeCreateTask(ProgressTask):
             key = None
             password = None
 
+        if password is not None:
+            salt, digest = get_digest(password)
+
         if type != 'zfs':
             raise TaskException(errno.EINVAL, 'Invalid volume type')
 
@@ -457,7 +461,8 @@ class VolumeCreateTask(ProgressTask):
                 'topology': volume['topology'],
                 'encryption': {
                     'key': key if key else None,
-                    'password_protected': True if password else False,
+                    'hashed_password': digest if password else None,
+                    'salt': salt if password else None,
                     'locked': False if key else None},
                 'attributes': volume.get('attributes', {})
             })
@@ -691,6 +696,9 @@ class VolumeImportTask(Task):
             else:
                 password = None
 
+            if password is not None:
+                salt, digest = get_digest(password)
+
             mountpoint = os.path.join(VOLUMES_ROOT, new_name)
             self.join_subtasks(self.run_subtask('zfs.pool.import', id, new_name, params))
             self.join_subtasks(self.run_subtask(
@@ -708,7 +716,8 @@ class VolumeImportTask(Task):
                 'type': 'zfs',
                 'encryption': {
                     'key': key if key else None,
-                    'password_protected': True if password else False,
+                    'hashed_password': digest if password else None,
+                    'salt': salt if password else None,
                     'locked': False if key else None},
                 'mountpoint': mountpoint
             })
@@ -873,6 +882,10 @@ class VolumeUnlockTask(Task):
 
         if not encryption['locked'] is True:
             raise VerifyException(errno.EINVAL, 'Volume {0} is not locked'.format(name))
+
+        if encryption['hashed_password'] is not None:
+            if not is_password(params.get('password', ''), encryption.get('salt', '')):
+                raise VerifyException(errno.EINVAL, 'Password provided for volume {0} unlock is not valid'.format(name))
 
         return ['disk:{0}'.format(d) for d in self.dispatcher.call_sync('volume.get_volume_disks', name)]
 
@@ -1097,6 +1110,17 @@ def convert_topology_to_gptids(dispatcher, topology):
         vdev['path'] = get_disk_gptid(dispatcher, vdev['path'])
 
     return topology
+
+
+def get_digest(password, salt=None):
+    if not salt:
+        salt = base64.b64encode(os.urandom(64))
+    digest = base64.b64encode(hashlib.pbkdf2_hmac('sha256', bytes(password, 'utf-8'), salt, 200000))
+    return salt, digest
+
+
+def is_password(password, salt, digest):
+    return get_digest(password, salt)[1] == digest
 
 
 def _depends():
