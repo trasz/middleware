@@ -424,6 +424,84 @@ class DiskGELIInitTask(Task):
 
 
 @accepts(str, h.object())
+class DiskGELISetKeyTask(Task):
+    def describe(self, disk, params=None):
+        return "Set new key for encrypted partition on {0}".format(os.path.basename(disk))
+
+    def verify(self, disk, params=None):
+        if not get_disk_by_path(disk):
+            raise VerifyException(errno.ENOENT, "Disk {0} not found".format(disk))
+
+        if params.get('key', None) is None:
+            raise VerifyException(errno.EINVAL, "No key specified for operation")
+
+        if params.get('slot', None) not in [0,1]:
+            raise VerifyException(errno.EINVAL, "Chosen key slot value {0} is not in valid range [0-1]".
+                                  format(params.get('slot', None)))
+
+        return ['disk:{0}'.format(disk)]
+
+    def run(self, disk, params=None):
+        if params is None:
+            params = {}
+        key = base64.b64decode(params.get('key', None))
+        password = params.get('password', None)
+        slot = params.get('slot', None)
+        disk_info = self.dispatcher.call_sync('disk.query', [('path', 'in', disk),
+                                                             ('online', '=', True)], {'single': True})
+        disk_status = disk_info.get('status', None)
+        if disk_status is not None:
+            data_partition_path = disk_status.get('data_partition_path')
+        else:
+            raise TaskException(errno.EINVAL, 'Cannot get disk status for: {0}'.format(disk))
+
+        with tempfile.NamedTemporaryFile('wb') as keyfile:
+            keyfile.write(key)
+            keyfile.flush()
+            try:
+                if password is not None:
+                    with tempfile.NamedTemporaryFile('w') as passfile:
+                        passfile.write(password)
+                        passfile.flush()
+                        system('/sbin/geli', 'setkey', '-K', keyfile.name, '-J', passfile.name,
+                               '-n', str(slot), data_partition_path)
+                else:
+                    system('/sbin/geli', 'setkey', '-K', keyfile.name, '-P', '-n', str(slot),
+                           data_partition_path)
+            except SubprocessException as err:
+                raise TaskException(errno.EFAULT, 'Cannot set new key for encrypted partition: {0}'.format(err.err))
+
+
+@accepts(str, int)
+class DiskGELIDelKeyTask(Task):
+    def describe(self, disk, slot):
+        return "Delete key of encrypted partition on {0}".format(os.path.basename(disk))
+
+    def verify(self, disk, slot):
+        if not get_disk_by_path(disk):
+            raise VerifyException(errno.ENOENT, "Disk {0} not found".format(disk))
+
+        if slot not in [0,1]:
+            raise VerifyException(errno.EINVAL, "Chosen key slot value {0} is not in valid range [0-1]".format(slot))
+
+        return ['disk:{0}'.format(disk)]
+
+    def run(self, disk, slot):
+        disk_info = self.dispatcher.call_sync('disk.query', [('path', 'in', disk),
+                                                             ('online', '=', True)], {'single': True})
+        disk_status = disk_info.get('status', None)
+        if disk_status is not None:
+            data_partition_path = disk_status.get('data_partition_path')
+        else:
+            raise TaskException(errno.EINVAL, 'Cannot get disk status for: {0}'.format(disk))
+
+        try:
+            system('/sbin/geli', 'delkey', '-a', '-n', str(slot), data_partition_path)
+        except SubprocessException as err:
+            raise TaskException(errno.EFAULT, 'Cannot delete key of encrypted partition: {0}'.format(err.err))
+
+
+@accepts(str, h.object())
 class DiskGELIAttachTask(Task):
     def describe(self, disk, params=None):
         return "Attach encrypted partition of {0}".format(os.path.basename(disk))
@@ -1109,6 +1187,8 @@ def _init(dispatcher, plugin):
     plugin.register_task_handler('disk.format.gpt', DiskGPTFormatTask)
     plugin.register_task_handler('disk.format.boot', DiskBootFormatTask)
     plugin.register_task_handler('disk.geli.init', DiskGELIInitTask)
+    plugin.register_task_handler('disk.geli.key.set', DiskGELISetKeyTask)
+    plugin.register_task_handler('disk.geli.key.del', DiskGELISetKeyTask)
     plugin.register_task_handler('disk.geli.attach', DiskGELIAttachTask)
     plugin.register_task_handler('disk.geli.detach', DiskGELIDetachTask)
     plugin.register_task_handler('disk.geli.kill', DiskGELIKillTask)
