@@ -31,10 +31,17 @@ import networkx as nx
 import gevent
 from gevent.lock import RLock
 
+
 class Resource(object):
     def __init__(self, name):
         self.name = name
         self.busy = False
+
+    def __str__(self):
+        return "<Resource '{0}'>".format(self.name)
+
+    def __repr__(self):
+        return str(self)
 
 
 class ResourceError(RuntimeError):
@@ -106,8 +113,8 @@ class ResourceGraph(object):
             self.unlock()
             return
 
-        for i in nx.descendants(self.resources, resource):
-            self.resources.remove_node(i)
+        for i in self.resources.predecessors(resource):
+            self.resources.remove_edge(i, resource)
 
         for p in new_parents:
             node = self.get_resource(p)
