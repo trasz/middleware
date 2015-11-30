@@ -810,12 +810,11 @@ def sync_dataset_cache(dispatcher, dataset, old_dataset=None):
             datasets.rename(old_dataset, dataset)
             return
 
-        if not datasets.exists(dataset):
+        if datasets.put(dataset, wrap(zfs.get_dataset(dataset).__getstate__(recursive=False))):
             dispatcher.register_resource(
                 Resource('zfs:{0}'.format(dataset)),
                 parents=['zpool:{0}'.format(pool)])
 
-        datasets.put(dataset, wrap(zfs.get_dataset(dataset).__getstate__(recursive=False)))
     except libzfs.ZFSException as e:
         if e.code == libzfs.Error.NOENT:
             if datasets.remove(dataset):
