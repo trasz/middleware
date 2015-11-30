@@ -678,6 +678,13 @@ class VolumeImportTask(Task):
 
     def run(self, id, new_name, params=None):
         with self.dispatcher.get_lock('volumes'):
+            key = params.get('key', None)
+            if key is not None:
+                disks = params.get('disks', [])
+
+                for dname in disks:
+                    self.join_subtasks(self.run_subtask('disk.geli.attach', dname, params))
+
             mountpoint = os.path.join(VOLUMES_ROOT, new_name)
             self.join_subtasks(self.run_subtask('zfs.pool.import', id, new_name, params))
             self.join_subtasks(self.run_subtask(
@@ -693,6 +700,8 @@ class VolumeImportTask(Task):
                 'id': id,
                 'name': new_name,
                 'type': 'zfs',
+                'key': key if key else None,
+                'locked': False if key else None,
                 'mountpoint': mountpoint
             })
 
@@ -766,8 +775,14 @@ class VolumeDetachTask(Task):
 
     def run(self, name):
         vol = self.datastore.get_one('volumes', ('name', '=', name))
+        disks = self.dispatcher.call_sync('volume.get_volume_disks', name)
         self.join_subtasks(self.run_subtask('zfs.umount', name))
         self.join_subtasks(self.run_subtask('zfs.pool.export', name))
+
+        if vol['key'] is not None:
+            for dname in disks:
+                self.join_subtasks(self.run_subtask('disk.geli.detach', dname))
+
         self.datastore.delete('volumes', vol['id'])
 
         self.dispatcher.dispatch_event('volume.changed', {
