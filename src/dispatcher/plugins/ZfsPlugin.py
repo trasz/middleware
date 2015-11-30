@@ -785,9 +785,6 @@ def get_disk_names(dispatcher, pool):
 
 
 def sync_zpool_cache(dispatcher, pool, guid=None):
-    if pool == '$import':
-        return
-
     zfs = libzfs.ZFS()
     try:
         zfspool = wrap(zfs.get(pool).__getstate__())
@@ -826,9 +823,6 @@ def sync_dataset_cache(dispatcher, dataset, old_dataset=None):
 
 
 def sync_snapshot_cache(dispatcher, snapshot, old_snapshot=None):
-    if '$ORIGIN' in snapshot:
-        return
-
     zfs = libzfs.ZFS()
     try:
         if old_snapshot:
