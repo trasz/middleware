@@ -35,6 +35,7 @@ import base64
 import bsd
 import bsd.kld
 import hashlib
+from cache import EventCacheStore
 from lib.system import system, SubprocessException
 from lib.freebsd import fstyp
 from task import Provider, Task, ProgressTask, TaskException, VerifyException, query
@@ -55,6 +56,7 @@ DEFAULT_ACLS = [
     {'text': 'everyone@:rxaRc:fd:allow'}
 ]
 logger = logging.getLogger('VolumePlugin')
+snapshots = None
 
 
 @description("Provides access to volumes information")
@@ -339,32 +341,7 @@ class VolumeProvider(Provider):
 
 class SnapshotProvider(Provider):
     def query(self, filter=None, params=None):
-        boot_pool = self.configstore.get('system.boot_pool_name')
-
-        def extend(snapshot):
-            dataset, _, name = snapshot['name'].partition('@')
-            pool = dataset.partition('/')[0]
-
-            if pool == boot_pool:
-                return None
-
-            return {
-                'id': snapshot['name'],
-                'pool': pool,
-                'dataset': dataset,
-                'name': name,
-                'properties': include(
-                    snapshot['properties'],
-                    'used', 'referenced', 'compressratio', 'clones'
-                ),
-                'holds': snapshot['holds']
-            }
-
-        return wrap(self.dispatcher.call_sync('zfs.snapshot.query')).query(
-            *(filter or []),
-            callback=extend,
-            **(params or {})
-        )
+        return snapshots.query(*(filter or []), **(params or {}))
 
 
 @description("Creates new volume")
@@ -1258,6 +1235,25 @@ def _depends():
 def _init(dispatcher, plugin):
     boot_pool = dispatcher.call_sync('zfs.pool.get_boot_pool')
 
+    def convert_snapshot(snapshot):
+        dataset, _, name = snapshot['name'].partition('@')
+        pool = dataset.partition('/')[0]
+
+        if pool == boot_pool:
+            return None
+
+        return {
+            'id': snapshot['name'],
+            'pool': pool,
+            'dataset': dataset,
+            'name': name,
+            'properties': include(
+                snapshot['properties'],
+                'used', 'referenced', 'compressratio', 'clones'
+            ),
+            'holds': snapshot['holds']
+        }
+
     def on_pool_change(args):
         if args['operation'] == 'delete':
             for i in args['ids']:
@@ -1314,19 +1310,7 @@ def _init(dispatcher, plugin):
                     })
 
     def on_snapshot_change(args):
-        def is_not_boot_pool(id):
-            return split_snapshot_name(id)[0] != boot_pool['name']
-
-        if args['operation'] in ('delete', 'rename'):
-            dispatcher.dispatch_event('volume.snapshot.changed', {
-                'operation': args['operation'],
-                'ids': list(filter(is_not_boot_pool, args['ids']))
-            })
-        else:
-            dispatcher.dispatch_event('volume.snapshot.changed', {
-                'operation': args['operation'],
-                'ids': list(filter(is_not_boot_pool, map(lambda i: i['id'], args['entities'])))
-            })
+        snapshots.propagate(args, callback=convert_snapshot)
 
     def on_dataset_change(args):
         dispatcher.dispatch_event('volume.changed', {
@@ -1442,8 +1426,11 @@ def _init(dispatcher, plugin):
             dispatcher.call_task_sync('zfs.mount', vol['name'], True)
 
             # XXX: check mountpoint property and correct if needed
-
-
         except TaskException as err:
             if err.code != errno.EBUSY:
                 logger.warning('Cannot mount volume {0}: {1}'.format(vol['name'], str(err)))
+
+    global snapshots
+    snapshots = EventCacheStore(dispatcher, 'volume.snapshot')
+    snapshots.populate(dispatcher.call_sync('zfs.snapshot.query'), callback=convert_snapshot)
+    snapshots.ready = True
