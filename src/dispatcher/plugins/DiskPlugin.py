@@ -1188,7 +1188,7 @@ def _init(dispatcher, plugin):
     plugin.register_task_handler('disk.format.boot', DiskBootFormatTask)
     plugin.register_task_handler('disk.geli.init', DiskGELIInitTask)
     plugin.register_task_handler('disk.geli.key.set', DiskGELISetKeyTask)
-    plugin.register_task_handler('disk.geli.key.del', DiskGELISetKeyTask)
+    plugin.register_task_handler('disk.geli.key.del', DiskGELIDelKeyTask)
     plugin.register_task_handler('disk.geli.attach', DiskGELIAttachTask)
     plugin.register_task_handler('disk.geli.detach', DiskGELIDetachTask)
     plugin.register_task_handler('disk.geli.kill', DiskGELIKillTask)
