@@ -1085,7 +1085,7 @@ def _init(dispatcher, plugin):
     })
 
     plugin.register_provider('volume', VolumeProvider)
-    plugin.register_provider('volume.snapshots', SnapshotProvider)
+    plugin.register_provider('volume.snapshot', SnapshotProvider)
     plugin.register_task_handler('volume.create', VolumeCreateTask)
     plugin.register_task_handler('volume.create_auto', VolumeAutoCreateTask)
     plugin.register_task_handler('volume.destroy', VolumeDestroyTask)
