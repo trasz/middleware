@@ -455,6 +455,7 @@ class VolumeCreateTask(ProgressTask):
                 'mountpoint': mountpoint,
                 'topology': volume['topology'],
                 'key': key if key else None,
+                'locked': False if key else None,
                 'attributes': volume.get('attributes', {})
             })
 
@@ -793,6 +794,86 @@ class VolumeUpgradeTask(Task):
         })
 
 
+@description("Locks encrypted ZFS volume")
+@accepts(str)
+class VolumeLockTask(Task):
+    def verify(self, name):
+        if not self.datastore.exists('volumes', ('name', '=', name)):
+            raise VerifyException(errno.ENOENT, 'Volume {0} not found'.format(name))
+
+        vol = self.datastore.get_one('volumes', ('name', '=', name))
+
+        if vol['key'] is None:
+            raise VerifyException(errno.EINVAL, 'Volume {0} is not encrypted'.format(name))
+
+        if not vol['locked'] is False:
+            raise VerifyException(errno.EINVAL, 'Volume {0} is not unlocked'.format(name))
+
+        return ['disk:{0}'.format(d) for d in self.dispatcher.call_sync('volume.get_volume_disks', name)]
+
+    def run(self, name):
+        with self.dispatcher.get_lock('volumes'):
+            vol = self.datastore.get_one('volumes', ('name', '=', name))
+            disks = self.dispatcher.call_sync('volume.get_volume_disks', name)
+            self.join_subtasks(self.run_subtask('zfs.umount', name))
+            self.join_subtasks(self.run_subtask('zfs.pool.export', name))
+
+            for dname in disks:
+                self.join_subtasks(self.run_subtask('disk.geli.detach', dname))
+
+            vol['locked'] = True
+            self.datastore.update('volumes', vol['id'], vol)
+
+            self.dispatcher.dispatch_event('volume.changed', {
+                'operation': 'lock',
+                'ids': [vol['id']]
+            })
+
+
+@description("Unlocks encrypted ZFS volume")
+@accepts(str, h.object())
+class VolumeUnlockTask(Task):
+    def verify(self, name, params=None):
+        if not self.datastore.exists('volumes', ('name', '=', name)):
+            raise VerifyException(errno.ENOENT, 'Volume {0} not found'.format(name))
+
+        vol = self.datastore.get_one('volumes', ('name', '=', name))
+
+        if vol['key'] is None:
+            raise VerifyException(errno.EINVAL, 'Volume {0} is not encrypted'.format(name))
+
+        if not vol['locked'] is True:
+            raise VerifyException(errno.EINVAL, 'Volume {0} is not locked'.format(name))
+
+        return ['disk:{0}'.format(d) for d in self.dispatcher.call_sync('volume.get_volume_disks', name)]
+
+    def run(self, name, params=None):
+        with self.dispatcher.get_lock('volumes'):
+            vol = self.datastore.get_one('volumes', ('name', '=', name))
+            disks = self.dispatcher.call_sync('volume.get_volume_disks', name)
+
+            for dname in disks:
+                self.join_subtasks(self.run_subtask('disk.geli.attach', dname, params))
+
+            self.join_subtasks(self.run_subtask('zfs.pool.import', vol['id'], name, params))
+            self.join_subtasks(self.run_subtask(
+                'zfs.configure',
+                name,
+                name,
+                {'mountpoint': {'value': vol['mountpoint']}}
+            ))
+
+            self.join_subtasks(self.run_subtask('zfs.mount', name))
+
+            vol['locked'] = False
+            self.datastore.update('volumes', vol['id'], vol)
+
+            self.dispatcher.dispatch_event('volume.changed', {
+                'operation': 'unlock',
+                'ids': [vol['id']]
+            })
+
+
 @description("Creates a dataset in an existing volume")
 @accepts(str, str, h.ref('dataset-type'), h.object())
 class DatasetCreateTask(Task):
@@ -1125,6 +1206,8 @@ def _init(dispatcher, plugin):
     plugin.register_task_handler('volume.detach', VolumeDetachTask)
     plugin.register_task_handler('volume.update', VolumeUpdateTask)
     plugin.register_task_handler('volume.upgrade', VolumeUpgradeTask)
+    plugin.register_task_handler('volume.lock', VolumeLockTask)
+    plugin.register_task_handler('volume.unlock', VolumeUnlockTask)
     plugin.register_task_handler('volume.dataset.create', DatasetCreateTask)
     plugin.register_task_handler('volume.dataset.delete', DatasetDeleteTask)
     plugin.register_task_handler('volume.dataset.update', DatasetConfigureTask)
