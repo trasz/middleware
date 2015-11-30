@@ -41,7 +41,7 @@ class AFPProvider(Provider):
     @accepts()
     @returns(h.ref('service-afp'))
     def get_config(self):
-        return ConfigNode('service.afp', self.configstore)
+        return ConfigNode('service.afp', self.configstore).__getstate__()
 
 
 @description('Configure AFP service')
