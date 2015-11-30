@@ -26,6 +26,7 @@
 #####################################################################
 
 from gevent.event import Event
+from gevent.lock import RLock
 
 
 class CacheStore(object):
@@ -35,15 +36,23 @@ class CacheStore(object):
             self.data = None
 
     def __init__(self):
+        self.lock = RLock()
         self.store = {}
 
-    def put(self, key, data):
-        item = self.store[key] if key in self.store else self.CacheItem()
-        item.data = data
-        item.valid.set()
+    def __getitem__(self, item):
+        return self.get(item)
 
-        if key not in self.store:
-            self.store[key] = item
+    def put(self, key, data):
+        with self.lock:
+            item = self.store[key] if key in self.store else self.CacheItem()
+            item.data = data
+            item.valid.set()
+
+            if key not in self.store:
+                self.store[key] = item
+                return True
+
+            return False
 
     def get(self, key, default=None, timeout=None):
         item = self.store.get(key)
@@ -54,11 +63,21 @@ class CacheStore(object):
         return default
 
     def remove(self, key):
-        if key in self.store:
-            del self.store[key]
+        with self.lock:
+            if key in self.store:
+                del self.store[key]
+                return True
+
+            return False
 
     def exists(self, key):
         return key in self.store
+
+    def rename(self, oldkey, newkey):
+        with self.lock:
+            obj = self.get(oldkey)
+            self.put(newkey, obj)
+            self.remove(oldkey)
 
     def is_valid(self, key):
         item = self.store.get(key)
@@ -68,9 +87,10 @@ class CacheStore(object):
         return False
 
     def invalidate(self, key):
-        item = self.store.get(key)
-        if item:
-            item.valid.clear()
+        with self.lock:
+            item = self.store.get(key)
+            if item:
+                item.valid.clear()
 
     def itervalid(self):
         for key, value in list(self.store.items()):
@@ -82,3 +102,35 @@ class CacheStore(object):
             if value.valid.is_set():
                 yield value.data
 
+
+class EventCacheStore(CacheStore):
+    def __init__(self, dispatcher, name):
+        super(EventCacheStore, self).__init__()
+        self.dispatcher = dispatcher
+        self.name = name
+
+    def put(self, key, data):
+        ret = super(EventCacheStore, self).put(key, data)
+        self.dispatcher.emit_event('{0}.changed'.format(self.name), {
+            'operation': 'create' if ret else 'update',
+            'ids': [key]
+        })
+
+        return ret
+
+    def remove(self, key):
+        ret = super(EventCacheStore, self).remove(key)
+        if ret:
+            self.dispatcher.emit_event('{0}.changed'.format(self.name), {
+                'operation': 'delete',
+                'ids': [key]
+            })
+
+        return ret
+
+    def rename(self, oldkey, newkey):
+        super(EventCacheStore, self).rename(oldkey, newkey)
+        self.dispatcher.emit_event('{0}.changed'.format(self.name), {
+            'operation': 'rename',
+            'ids': [[oldkey, newkey]]
+        })
