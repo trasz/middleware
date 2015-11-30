@@ -533,18 +533,23 @@ class VolumeDestroyTask(Task):
 
         self.dispatcher.run_hook('volume.pre_destroy', {'name': name})
 
-        if config:
-            disks = self.dispatcher.call_sync('volume.get_volume_disks', name)
-            self.join_subtasks(self.run_subtask('zfs.umount', name))
-            self.join_subtasks(self.run_subtask('zfs.pool.destroy', name))
+        with self.dispatcher.get_lock('volumes'):
+            if config:
+                disks = self.dispatcher.call_sync('volume.get_volume_disks', name)
+                self.join_subtasks(self.run_subtask('zfs.umount', name))
+                self.join_subtasks(self.run_subtask('zfs.pool.destroy', name))
 
-            if encryption['key'] is not None:
-                subtasks = []
-                for dname in disks:
-                    subtasks.append(self.run_subtask('disk.geli.kill', dname))
-                self.join_subtasks(*subtasks)
+                if encryption['key'] is not None:
+                    subtasks = []
+                    for dname in disks:
+                        subtasks.append(self.run_subtask('disk.geli.kill', dname))
+                    self.join_subtasks(*subtasks)
 
-        self.datastore.delete('volumes', vol['id'])
+            self.datastore.delete('volumes', vol['id'])
+            self.dispatcher.dispatch_event('volume.changed', {
+                'operation': 'delete',
+                'ids': [vol['id']]
+            })
 
 
 @description("Updates configuration of existing volume")
@@ -1250,27 +1255,32 @@ def _init(dispatcher, plugin):
     def on_pool_change(args):
         if args['operation'] == 'delete':
             for i in args['ids']:
-                logger.info('Volume {0} is going away'.format(i))
-                dispatcher.datastore.delete('volumes', i)
-                dispatcher.dispatch_event('volume.changed', {
-                    'operation': 'delete',
-                    'ids': [i]
-                })
+                with dispatcher.get_lock('volumes'):
+                    volume = dispatcher.datastore.get_one('volumes', ('name', '=', i))
+                    if volume:
+                        logger.info('Volume {0} is going away'.format(volume['name']))
+                        dispatcher.datastore.delete('volumes', volume['id'])
+                        dispatcher.dispatch_event('volume.changed', {
+                            'operation': 'delete',
+                            'ids': [volume['id']]
+                        })
 
         if args['operation'] in ('create', 'update'):
             entities = filter(lambda i: i['id'] != boot_pool['guid'], args['entities'])
             for i in entities:
-                if args['operation'] == 'update' and dispatcher.datastore.exists('volumes', ('id', '=', i['id'])):
-                    dispatcher.dispatch_event('volume.changed', {
-                        'operation': 'update',
-                        'ids': [i['id']]
-                    })
+                if args['operation'] == 'update':
+                    volume = dispatcher.datastore.get_one('volumes', ('name', '=', i['name']))
+                    if volume:
+                        dispatcher.dispatch_event('volume.changed', {
+                            'operation': 'update',
+                            'ids': [i['id']]
+                        })
                     continue
 
                 with dispatcher.get_lock('volumes'):
                     try:
                         dispatcher.datastore.insert('volumes', {
-                            'id': i['id'],
+                            'id': i['guid'],
                             'name': i['name'],
                             'type': 'zfs',
                             'attributes': {}
@@ -1279,7 +1289,7 @@ def _init(dispatcher, plugin):
                         # already inserted by task
                         continue
 
-                    logger.info('New volume {0} <{1}>'.format(i['name'], i['id']))
+                    logger.info('New volume {0} <{1}>'.format(i['name'], i['guid']))
 
                     # Set correct mountpoint
                     dispatcher.call_task_sync('zfs.configure', i['name'], i['name'], {
@@ -1294,7 +1304,7 @@ def _init(dispatcher, plugin):
 
                     dispatcher.dispatch_event('volume.changed', {
                         'operation': 'create',
-                        'ids': [i['id']]
+                        'ids': [i['guid']]
                     })
 
     def on_dataset_change(args):

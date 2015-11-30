@@ -198,6 +198,7 @@ class DevdEventSource(EventSource):
             "misc.fs.zfs.pool_import": ("fs.zfs.pool.imported", "Pool {0} imported"),
             "misc.fs.zfs.pool_destroy": ("fs.zfs.pool.destroyed", "Pool {0} destroyed"),
             "misc.fs.zfs.pool_setprop": ("fs.zfs.pool.setprop", "Property on pool {0} changed"),
+            "misc.fs.zfs.pool_reguid": ("fs.zfs.pool.setprop", "Pool {0} GUID changed"),
             "misc.fs.zfs.config_sync": ("fs.zfs.pool.config_sync", "Pool {0} config changed"),
             "misc.fs.zfs.dataset_create": ("fs.zfs.dataset.created", "Dataset on pool {0} created"),
             "misc.fs.zfs.dataset_delete": ("fs.zfs.dataset.deleted", "Dataset on pool {0} deleted"),
@@ -217,7 +218,7 @@ class DevdEventSource(EventSource):
 
         params = {
             "pool": pool_name,
-            "guid": args.pop("pool_guid", None),
+            "guid": str(args.pop("pool_guid", None)),
             "description": event_mapping[ev_type][1].format(pool_name)
         }
 

@@ -31,6 +31,7 @@ import logging
 import libzfs
 from datetime import datetime
 from threading import Event
+from cache import EventCacheStore
 from task import (Provider, Task, TaskStatus, TaskException,
                   VerifyException, TaskAbortException, query)
 from freenas.dispatcher.rpc import RpcException, accepts, returns, description
@@ -42,9 +43,9 @@ from freenas.utils.query import QueryDict, wrap
 
 
 logger = logging.getLogger('ZfsPlugin')
-pools = {}
-datasets = {}
-snapshots = {}
+pools = None
+datasets = None
+snapshots = None
 
 
 @description("Provides information about ZFS pools")
@@ -52,7 +53,7 @@ class ZpoolProvider(Provider):
     @description("Lists ZFS pools")
     @query('zfs-pool')
     def query(self, filter=None, params=None):
-        return wrap(list(pools.values())).query(*(filter or []), **(params or {}))
+        return wrap(list(pools.validvalues())).query(*(filter or []), **(params or {}))
 
     @accepts()
     @returns(h.array(h.ref('zfs-pool')))
@@ -790,22 +791,11 @@ def sync_zpool_cache(dispatcher, pool, guid=None):
     zfs = libzfs.ZFS()
     try:
         zfspool = wrap(zfs.get(pool).__getstate__())
-        pools[pool] = zfspool
+        pools.put(pool, zfspool)
         zpool_sync_resources(dispatcher, pool)
-        dispatcher.dispatch_event('zfs.pool.changed', {
-            'operation': 'create' if pool not in pools else 'update',
-            'ids': [str(zfspool['guid'])]
-        })
     except libzfs.ZFSException as e:
         if e.code == libzfs.Error.NOENT:
-            if pool not in pools:
-                return
-
-            dispatcher.dispatch_event('zfs.pool.changed', {
-                'operation': 'delete',
-                'ids': [str(guid)]
-            })
-            del pools[pool]
+            pools.remove(pool)
             return
 
         logger.warning("Cannot read pool status from pool {0}".format(pool))
@@ -816,35 +806,21 @@ def sync_dataset_cache(dispatcher, dataset, old_dataset=None):
     pool = dataset.split('/')[0]
     try:
         if old_dataset:
-            dispatcher.dispatch_event('zfs.dataset.changed', {
-                'operation': 'delete',
-                'ids': [old_dataset]
-            })
-            del datasets[old_dataset]
+            datasets.rename(old_dataset, dataset)
+            return
 
-        if dataset not in datasets:
+        if not datasets.exists(dataset):
             dispatcher.register_resource(
                 Resource('zfs:{0}'.format(dataset)),
                 parents=['zpool:{0}'.format(pool)])
 
-        dispatcher.dispatch_event('zfs.dataset.changed', {
-            'operation': 'create' if dataset not in datasets else 'update',
-            'ids': [dataset]
-        })
-
-        datasets[dataset] = wrap(zfs.get_dataset(dataset).__getstate__(recursive=False))
+        datasets.put(dataset, wrap(zfs.get_dataset(dataset).__getstate__(recursive=False)))
         sync_zpool_cache(dispatcher, pool)
     except libzfs.ZFSException as e:
         if e.code == libzfs.Error.NOENT:
-            if dataset not in datasets:
-                return
+            if datasets.remove(dataset):
+                dispatcher.unregister_resource('zfs:{0}'.format(dataset))
 
-            dispatcher.unregister_resource('zfs:{0}'.format(dataset))
-            dispatcher.dispatch_event('zfs.dataset.changed', {
-                'operation': 'delete',
-                'ids': [dataset]
-            })
-            del datasets[dataset]
             return
 
         logger.warning("Cannot read dataset status from dataset {0}".format(dataset))
@@ -857,28 +833,13 @@ def sync_snapshot_cache(dispatcher, snapshot, old_snapshot=None):
     zfs = libzfs.ZFS()
     try:
         if old_snapshot:
-            dispatcher.dispatch_event('zfs.snapshot.changed', {
-                'operation': 'delete',
-                'ids': [old_snapshot]
-            })
-            del snapshots[old_snapshot]
+            snapshots.rename(old_snapshot, snapshot)
+            return
 
-        dispatcher.dispatch_event('zfs.dataset.changed', {
-            'operation': 'create' if snapshot not in snapshots else 'update',
-            'ids': [snapshot]
-        })
-
-        snapshots[snapshot] = wrap(zfs.get_snapshot(snapshot).__getstate__())
+        snapshots.put(snapshot, wrap(zfs.get_snapshot(snapshot).__getstate__()))
     except libzfs.ZFSException as e:
         if e.code == libzfs.Error.NOENT:
-            if snapshot not in snapshots:
-                return
-
-            dispatcher.dispatch_event('zfs.snapshot.changed', {
-                'operation': 'delete',
-                'ids': [snapshot]
-            })
-            del snapshots[snapshot]
+            snapshots.remove(snapshot)
             return
 
         logger.warning("Cannot read snapshot status from snapshot {0}".format(snapshot))
@@ -972,6 +933,9 @@ def _init(dispatcher, plugin):
         with dispatcher.get_lock('zfs-cache'):
             sync_zpool_cache(dispatcher, args['pool'], args['guid'])
 
+    def on_pool_reguid(args):
+        logger.info('Pool {0} changed guid to <{1}>'.format(args['pool'], args['guid']))
+
     def on_dataset_create(args):
         with dispatcher.get_lock('zfs-cache'):
             if '@' in args['ds']:
@@ -1022,7 +986,7 @@ def _init(dispatcher, plugin):
                 sync_dataset_cache(dispatcher, args['ds'])
 
     def on_device_attached(args):
-        for p in pools.values():
+        for p in pools.validvalues():
             if p['status'] not in ('DEGRADED', 'UNAVAIL'):
                 continue
 
@@ -1300,6 +1264,7 @@ def _init(dispatcher, plugin):
     plugin.register_event_handler('fs.zfs.pool.created', on_pool_create)
     plugin.register_event_handler('fs.zfs.pool.destroyed', on_pool_destroy)
     plugin.register_event_handler('fs.zfs.pool.setprop', on_pool_changed)
+    plugin.register_event_handler('fs.zfs.pool.reguid', on_pool_reguid)
     plugin.register_event_handler('fs.zfs.pool.config_sync', on_pool_changed)
     plugin.register_event_handler('fs.zfs.vdev.state_changed', on_pool_changed)
     plugin.register_event_handler('fs.zfs.dataset.created', on_dataset_create)
@@ -1349,16 +1314,23 @@ def _init(dispatcher, plugin):
 
     # Do initial caches sync
     try:
+        global pools
+        global datasets
+        global snapshots
+
         zfs = libzfs.ZFS()
         logger.info("Syncing ZFS pools...")
+        pools = EventCacheStore(dispatcher, 'zfs.pool')
         for i in zfs.pools:
             sync_zpool_cache(dispatcher, i.name)
 
         logger.info("Syncing ZFS datasets...")
+        datasets = EventCacheStore(dispatcher, 'zfs.dataset')
         for i in zfs.datasets:
             sync_dataset_cache(dispatcher, i.name)
 
         logger.info("Syncing ZFS snapshots...")
+        snapshots = EventCacheStore(dispatcher, 'zfs.snapshot')
         for i in zfs.snapshots:
             sync_snapshot_cache(dispatcher, i.name)
     except libzfs.ZFSException as err:
