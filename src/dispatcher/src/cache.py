@@ -27,6 +27,7 @@
 
 from gevent.event import Event
 from gevent.lock import RLock
+from freenas.utils.query import wrap
 
 
 class CacheStore(object):
@@ -102,25 +103,30 @@ class CacheStore(object):
             if value.valid.is_set():
                 yield value.data
 
+    def query(self, *filter, **params):
+        return wrap(list(self.validvalues())).query(*filter, **params)
+
 
 class EventCacheStore(CacheStore):
     def __init__(self, dispatcher, name):
         super(EventCacheStore, self).__init__()
         self.dispatcher = dispatcher
+        self.ready = False
         self.name = name
 
     def put(self, key, data):
         ret = super(EventCacheStore, self).put(key, data)
-        self.dispatcher.emit_event('{0}.changed'.format(self.name), {
-            'operation': 'create' if ret else 'update',
-            'ids': [key]
-        })
+        if self.ready:
+            self.dispatcher.emit_event('{0}.changed'.format(self.name), {
+                'operation': 'create' if ret else 'update',
+                'ids': [key]
+            })
 
         return ret
 
     def remove(self, key):
         ret = super(EventCacheStore, self).remove(key)
-        if ret:
+        if ret and self.ready:
             self.dispatcher.emit_event('{0}.changed'.format(self.name), {
                 'operation': 'delete',
                 'ids': [key]
@@ -130,7 +136,33 @@ class EventCacheStore(CacheStore):
 
     def rename(self, oldkey, newkey):
         super(EventCacheStore, self).rename(oldkey, newkey)
-        self.dispatcher.emit_event('{0}.changed'.format(self.name), {
-            'operation': 'rename',
-            'ids': [[oldkey, newkey]]
-        })
+        if self.ready:
+            self.dispatcher.emit_event('{0}.changed'.format(self.name), {
+                'operation': 'rename',
+                'ids': [[oldkey, newkey]]
+            })
+
+    def propagate(self, event, callback=None):
+        if event['operation'] == 'delete':
+            for i in event['ids']:
+                self.remove(i)
+
+            return
+
+        if event['operation'] == 'rename':
+            for o, i in event['ids']:
+                self.rename(o, i)
+
+            return
+
+        if event['operation'] in ('create', 'update'):
+            for i in event['entities']:
+                obj = callback(i) if callback else i
+                if not obj:
+                    continue
+                self.put(obj['id'], obj)
+
+    def populate(self, collection, callback=None):
+        for i in collection:
+            obj = callback(i) if callback else i
+            self.put(obj['id'], obj)
