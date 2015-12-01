@@ -530,19 +530,19 @@ class VolumeDestroyTask(Task):
         vol = self.datastore.get_one('volumes', ('name', '=', name))
         encryption = vol.get('encryption')
         config = self.dispatcher.call_sync('volume.get_config', name)
-        disks = self.dispatcher.call_sync('volume.get_volume_disks', name)
 
         self.dispatcher.run_hook('volume.pre_destroy', {'name': name})
 
         if config:
+            disks = self.dispatcher.call_sync('volume.get_volume_disks', name)
             self.join_subtasks(self.run_subtask('zfs.umount', name))
             self.join_subtasks(self.run_subtask('zfs.pool.destroy', name))
 
-        if encryption['key'] is not None:
-            subtasks = []
-            for dname in disks:
-                subtasks.append(self.run_subtask('disk.geli.kill', dname))
-            self.join_subtasks(*subtasks)
+            if encryption['key'] is not None:
+                subtasks = []
+                for dname in disks:
+                    subtasks.append(self.run_subtask('disk.geli.kill', dname))
+                self.join_subtasks(*subtasks)
 
         self.datastore.delete('volumes', vol['id'])
 
