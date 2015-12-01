@@ -194,7 +194,7 @@ t_COMMA = r'\,'
 t_UP = r'\.\.'
 t_QUOTE = r"'"
 t_LIST = r'\?'
-t_ATOM = r'[a-zA-Z_\$\/-\/\+\*\/][0-9a-zA-Z_\_\-\.\/#@\:\?]*'
+t_ATOM = r'[a-zA-Z_\$\/-\/\+\*\/][0-9a-zA-Z_\_\-\.\/#@\:\?\!]*'
 
 
 def t_error(t):

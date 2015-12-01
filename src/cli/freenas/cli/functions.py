@@ -52,6 +52,11 @@ def cons(x, y):
     return [x] + y
 
 
+def for_each(list, fn):
+    for i in list:
+        fn(i)
+
+
 def to_string(x):
     return str(x)
 
@@ -94,11 +99,13 @@ functions = {
     'null?': lambda x: not bool(x),
     'boolean?': lambda x: isinstance(x, bool),
     'pair?': is_pair,
-    'port?': lambdca x: isinstance(x, None),
+    'port?': lambda x: isinstance(x, None),
     'table?': lambda x: isinstance(x, Table),
     'apply': lambda proc, l:  proc(*l),
     'eval': lambda x: eval(expand(x)),
     'load': lambda fn: load(fn),
+    'map': lambda l, fn: list(map(fn, l)),
+    'for-each': for_each,
     'call/cc': callcc,
     'open-input-file': open,
     'close-input-port': lambda p: p.file.close(),
