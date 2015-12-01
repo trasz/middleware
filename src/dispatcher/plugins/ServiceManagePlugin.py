@@ -37,7 +37,7 @@ from freenas.dispatcher.rpc import SchemaHelper as h
 from datastore.config import ConfigNode
 from lib.system import system, SubprocessException
 from freenas.utils import extend as extend_dict
-
+from freenas.utils.query import wrap
 
 logger = logging.getLogger('ServiceManagePlugin')
 
@@ -88,7 +88,7 @@ class ServiceInfoProvider(Provider):
                 return greenlet.value
 
         result = group.map(result, jobs)
-        result = list(map(lambda s: extend_dict(s, {'config': self.get_service_config(s['name'])}), result))
+        result = list(map(lambda s: extend_dict(s, {'config': wrap(self.get_service_config(s['name']))}), result))
         return result[0] if single is True else result
 
     @accepts(str)
