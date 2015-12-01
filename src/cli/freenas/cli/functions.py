@@ -27,6 +27,8 @@
 
 import sys
 import operator as op
+from .scheme import hashtable, Function
+from .output import Table
 
 
 def read():
@@ -92,13 +94,14 @@ functions = {
     'null?': lambda x: not bool(x),
     'boolean?': lambda x: isinstance(x, bool),
     'pair?': is_pair,
-    'port?': lambda x: isinstance(x, None),
+    'port?': lambdca x: isinstance(x, None),
+    'table?': lambda x: isinstance(x, Table),
     'apply': lambda proc, l:  proc(*l),
-    'eval': lambda x:  eval(expand(x)),
-    'load': lambda fn:  load(fn),
+    'eval': lambda x: eval(expand(x)),
+    'load': lambda fn: load(fn),
     'call/cc': callcc,
     'open-input-file': open,
-    'close-input-port': lambda p:  p.file.close(),
+    'close-input-port': lambda p: p.file.close(),
     'open-output-file': lambda f: open(f, 'w'),
     'close-output-port': lambda p:  p.close(),
     'eof-object?': lambda x: x is eof_object,
@@ -107,6 +110,15 @@ functions = {
     'write': lambda x,port=sys.stdout: port.write(to_string(x)),
     'display': lambda x,port=sys.stdout: port.write(x if isinstance(x, str) else to_string(x))
 }
+
+
+def get_builtins():
+    ret = functions
+    for func in hashtable.__dict__.values():
+        if callable(func) and hasattr(func, 'name'):
+            ret[func.name] = func
+
+    return ret
 
 
 def do_if(context, exprs, env):
@@ -132,14 +144,15 @@ def do_set(context, exprs, env):
 
 
 def do_lambda(context, exprs, env):
-    pass
+    _, vars, exp = exprs
+    return Function(context, [i.name for i in vars.exprs], exp, env)
 
 
 def do_begin(context, exprs, env):
     for x in exprs[1:-1]:
         context.eval(x, env)
 
-    return exprs[-1]
+    return context.eval(exprs[-1], env)
 
 
 controls = {

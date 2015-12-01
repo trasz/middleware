@@ -44,6 +44,7 @@ import traceback
 import six
 import functions
 from socket import gaierror as socket_error
+from freenas.cli.scheme import Function, BuiltinFunction, ControlFunction, Environment
 from freenas.cli.descriptions import events
 from freenas.cli import config
 from freenas.cli.namespace import Namespace, RootNamespace, Command, FilteringCommand, CommandException
@@ -61,7 +62,8 @@ from freenas.cli.commands import (
     RebootCommand, EvalCommand, HelpCommand, ShowUrlsCommand, ShowIpsCommand,
     TopCommand, ClearCommand, HistoryCommand, SaveenvCommand, EchoCommand,
     SourceCommand, LessPipeCommand, SearchPipeCommand, ExcludePipeCommand,
-    SortPipeCommand, LimitPipeCommand, SelectPipeCommand, LoginCommand
+    SortPipeCommand, LimitPipeCommand, SelectPipeCommand, LoginCommand,
+    AttachDebuggerCommand
 )
 import collections
 
@@ -241,7 +243,7 @@ class Context(object):
         self.entity_subscribers = {}
         self.global_env = Environment(self)
         self.controls = functions.controls
-        self.builtins = functions.functions
+        self.builtins = functions.get_builtins()
         config.instance = self
 
     @property
@@ -488,69 +490,6 @@ class Context(object):
         return self.ml.eval(*args, **kwargs)
 
 
-class Function(object):
-    def __init__(self, context, parms, exp, env):
-        self.context = context
-        self.parms = parms
-        self.exp = exp
-        self.env = env
-
-    def __call__(self, *args):
-        return eval(self.exp, Environment(self.parms, args, self.env))
-
-
-class BuiltinFunction(object):
-    def __init__(self, context, name, f):
-        self.context = context
-        self.name = name
-        self.f = f
-
-    def __call__(self, *args):
-        return self.f(*args)
-
-    def __str__(self):
-        return "<builtin function '{0}'>".format(self.name)
-
-    def __repr__(self):
-        return str(self)
-
-
-class ControlFunction(object):
-    def __init__(self, context, name, f):
-        self.context = context
-        self.name = name
-        self.f = f
-
-    def __call__(self, exprs, env):
-        return self.f(self.context, exprs, env)
-
-    def __str__(self):
-        return "<control function '{0}'>".format(self.name)
-
-    def __repr__(self):
-        return str(self)
-
-
-class Environment(dict):
-    def __init__(self, context, outer=None, iterable=None):
-        super(Environment, self).__init__()
-        self.context = context
-        self.outer = outer
-
-    def find(self, var):
-        if var in self:
-            return self[var]
-
-        if self.outer:
-            return self.outer.find(var)
-
-        if var in self.context.controls:
-            return ControlFunction(self.context, var, self.context.controls.get(var))
-
-        if var in self.context.builtins:
-            return BuiltinFunction(self.context, var, self.context.builtins.get(var))
-
-
 class MainLoop(object):
     pipe_commands = {
         'search': SearchPipeCommand(),
@@ -578,6 +517,7 @@ class MainLoop(object):
         'clear': ClearCommand(),
         'history': HistoryCommand(),
         'echo': EchoCommand(),
+        'attach_debugger': AttachDebuggerCommand()
     }
     builtin_commands = base_builtin_commands.copy()
     builtin_commands.update(pipe_commands)
@@ -663,20 +603,24 @@ class MainLoop(object):
 
             self.process(line)
 
-    def find_in_scope(self, token):
+    def find_in_scope(self, token, cwd=None):
+        print('find_in_scope(cwd={0})'.format(cwd))
+        if not cwd:
+            cwd = self.cwd
+
         if token in list(self.builtin_commands.keys()):
             return self.builtin_commands[token]
 
         cwd_namespaces = self.cached_values['scope_namespaces']
         cwd_commands = self.cached_values['scope_commands']
         if (
-            self.cached_values['scope_cwd'] != self.cwd or
+            self.cached_values['scope_cwd'] != cwd or
             self.cached_values['scope_namespaces'] is not None
            ):
-            cwd_namespaces = self.cwd.namespaces()
-            cwd_commands = list(self.cwd.commands().items())
+            cwd_namespaces = cwd.namespaces()
+            cwd_commands = list(cwd.commands().items())
             self.cached_values.update({
-                'scope_cwd': self.cwd,
+                'scope_cwd': cwd,
                 'scope_namespaces': cwd_namespaces,
                 'scope_commands': cwd_commands,
                 })
@@ -733,8 +677,77 @@ class MainLoop(object):
         if isinstance(object, (str, int, bool)):
             output_msg(object)
 
-    def eval(self, tokens, env=None):
-        print(tokens)
+    def expand(self, x, toplevel=False):
+        "Walk tree of x, making optimizations/fixes, and signaling SyntaxError."
+        self.require(x, x != [])                    # () => Error
+
+        if not isinstance(x, list):                 # constant => unchanged
+            return x
+
+        if isinstance(x[0], Symbol):
+            if x[0].name == 'quote': # (quote exp)
+                self.require(x, len(x) == 2)
+                return x
+
+            elif x[0].name == 'if':
+                if len(x) == 3:
+                    x = x + [None]     # (if t c) => (if t c None)
+
+                self.require(x, len(x) == 4)
+                return map(self.expand, x)
+
+            elif x[0].name == 'set!':
+                self.require(x, len(x) == 3)
+                var = x[1]                       # (set! non-var exp) => Error
+                self.require(x, type(var) is Symbol, "can set! only a symbol")
+                return [Symbol('set!'), var, self.expand(x[2])]
+
+            elif x[0].name in ('define', 'define-macro'):
+                self.require(x, len(x)>=3)
+                _def, v, body = x[0], x[1], x[2:]
+                if isinstance(v, list) and v:           # (define (f args) body)
+                    f, args = v[0], v[1:]        #  => (define f (lambda (args) body))
+                    return self.expand([Symbol('define'), f, [Symbol('lambda'), args]+body])
+                else:
+                    self.require(x, len(x)==3)        # (define non-var/list exp) => Error
+                    self.require(x, isinstance(v, Symbol), "can define only a symbol")
+                    exp = self.expand(x[2])
+                    if _def.name == 'define-macro':
+                        self.require(x, toplevel, "define-macro only allowed at top level")
+                        proc = eval(exp)
+                        self.require(x, callable(proc), "macro must be a procedure")
+                        self.macros[v] = proc    # (define-macro v proc)
+                        return None              #  => None; add v:proc to macro_table
+                    return [Symbol('define'), v, exp]
+
+            elif x[0].name == 'begin':
+                if len(x)==1: return None        # (begin) => None
+                else: return [self.expand(xi, toplevel) for xi in x]
+
+            elif x[0].name == 'lambda':   # (lambda (x) e1 e2)
+                self.require(x, len(x)>=3)            #  => (lambda (x) (begin e1 e2))
+                vars, body = x[1], x[2:]
+                self.require(x, (isinstance(vars, list) and all(isinstance(v, Symbol) for v in vars))
+                        or isinstance(vars, Symbol), "illegal lambda argument list")
+                exp = body[0] if len(body) == 1 else [Symbol('begin')] + body
+                return [Symbol('lambda'), vars, self.expand(exp)]
+
+            elif x[0].name == 'quasiquote':           # `x => expand_quasiquote(x)
+                self.require(x, len(x) == 2)
+                return self.expand_quasiquote(x[1])
+
+            else:
+                return x
+
+        elif type(x[0]) is Symbol and x[0] in self.macros:
+            return self.expand(self.macros[x[0]](*x[1:]), toplevel) # (m arg...)
+
+        else:                                #        => macroexpand if m isa macro
+            return map(self.expand, x)            # (f arg...) => expand each
+
+
+    def eval(self, tokens, env=None, cwd=None):
+        print('eval(tokens={0}, cwd={1})'.format(tokens, cwd))
         env = env or self.context.global_env
         oldpath = self.path[:]
         if self.start_from_root:
@@ -743,6 +756,7 @@ class MainLoop(object):
         command = None
         pipe_stack = []
         args = []
+        tmpath = self.path[:]
 
         while tokens:
             token = tokens.pop(0) if isinstance(tokens, list) else tokens
@@ -751,19 +765,19 @@ class MainLoop(object):
                 if not token.exprs:
                     return
 
-                func = self.eval(token.exprs.pop(0), env)
+                func = self.eval(token.exprs.pop(0), env, cwd)
 
                 if isinstance(func, ControlFunction):
-                    return self.eval(func([func] + token.exprs, env), env)
+                    return func([func] + token.exprs, env)
+
+                if isinstance(func, Namespace):
+                    if token.exprs:
+                        return self.eval(SExpr(token.exprs), cwd=func)
 
                 exprs = map(lambda x: self.eval(x, env), token.exprs)
 
                 if isinstance(func, (Function, BuiltinFunction)):
                     return func(*exprs)
-
-                if isinstance(func, Namespace):
-                    self.cd(func)
-                    return self.eval(SExpr(token.exprs))
 
                 if isinstance(func, Command):
                     args, kwargs, opargs = sort_args(exprs)
@@ -785,13 +799,14 @@ class MainLoop(object):
                     return
 
                 item = env.find(token.name)
-                if not item:
-                    item = self.find_in_scope(token.name)
+                if item is not None:
+                    return item
 
+                item = self.find_in_scope(token.name, cwd=cwd or self.cwd)
                 if isinstance(item, (Namespace, Command)):
                     return item
 
-                return item
+                raise SyntaxError("Identifier {0} not found".format(token.name))
 
             if isinstance(token, CommandExpansion):
                 if not command:
@@ -845,8 +860,6 @@ class MainLoop(object):
                 raise SyntaxError('No command specified')
 
             return
-
-        tmpath = self.path[:]
 
         if isinstance(command, FilteringCommand):
             top_of_stack = True

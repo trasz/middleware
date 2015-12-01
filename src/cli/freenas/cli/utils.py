@@ -26,6 +26,14 @@
 #####################################################################
 
 
+def register_as(name):
+    def wrapped(fn):
+        fn.name = name
+        return fn
+
+    return wrapped
+
+
 def parse_query_args(args, kwargs):
     filters = []
     params = {}
