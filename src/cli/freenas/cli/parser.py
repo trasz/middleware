@@ -30,6 +30,9 @@ import ply.lex as lex
 import ply.yacc as yacc
 
 
+Null = object()
+
+
 class Symbol(object):
     def __init__(self, name):
         if name == "none":
@@ -37,8 +40,25 @@ class Symbol(object):
         else:
             self.name = name
 
+    def format(self):
+        return self.name
+
     def __str__(self):
         return "<Symbol '{0}'>".format(self.name)
+
+    def __repr__(self):
+        return str(self)
+
+
+class SExpr(object):
+    def __init__(self, exprs):
+        self.exprs = exprs
+
+    def format(self):
+        return "'({0})".format(' '.join([i.format() for i in self.exprs]))
+
+    def __str__(self):
+        return "<SExpr '{0}'>".format(self.exprs)
 
     def __repr__(self):
         return str(self)
@@ -73,6 +93,9 @@ class Literal(object):
         self.value = value
         self.type = type
 
+    def format(self):
+        return str(self.value)
+
     def __str__(self):
         return "<Literal '{0}' type '{1}>".format(self.value, self.type)
 
@@ -105,32 +128,45 @@ class CommandExpansion(object):
 
 tokens = [
     'ATOM', 'NUMBER', 'HEXNUMBER', 'BINNUMBER', 'OCTNUMBER', 'STRING',
-    'ASSIGN', 'EOPEN', 'ECLOSE', 'EQ', 'NE', 'GT', 'GE', 'LT', 'LE',
-    'REGEX', 'UP', 'PIPE', 'LIST', 'COMMA', 'INC', 'DEC'
+    'ASSIGN', 'LPAREN', 'RPAREN', 'EQ', 'NE', 'GT', 'GE', 'LT', 'LE',
+    'REGEX', 'UP', 'PIPE', 'LIST', 'COMMA', 'INC', 'DEC', 'BOOL',
+    'NULL', 'QUOTE'
 ]
 
 
 def t_HEXNUMBER(t):
-    r'0x[0-9a-fA-F]+$'
+    r'0x[0-9a-fA-F]+'
     t.value = int(t.value, 16)
     return t
 
 
 def t_OCTNUMBER(t):
-    r'0o[0-7]+$'
+    r'0o[0-7]+'
     t.value = int(t.value, 8)
     return t
 
 
 def t_BINNUMBER(t):
-    r'0b[01]+$'
+    r'0b[01]+'
     t.value = int(t.value, 2)
     return t
 
 
 def t_NUMBER(t):
-    r'\d+$'
+    r'\d+'
     t.value = int(t.value)
+    return t
+
+
+def t_BOOL(t):
+    r'true|false'
+    t.value = t.value == 'true'
+    return t
+
+
+def t_NULL(t):
+    r'none'
+    t.value = Null
     return t
 
 
@@ -142,8 +178,8 @@ def t_STRING(t):
 
 t_ignore = ' \t'
 t_PIPE = r'\|'
-t_EOPEN = r'\$\('
-t_ECLOSE = r'\)'
+t_LPAREN = r'\('
+t_RPAREN = r'\)'
 t_ASSIGN = r'='
 t_INC = r'=\+'
 t_DEC = r'=-'
@@ -156,12 +192,13 @@ t_LE = r'<'
 t_REGEX = r'~='
 t_COMMA = r'\,'
 t_UP = r'\.\.'
+t_QUOTE = r"'"
 t_LIST = r'\?'
-t_ATOM = r'[0-9a-zA-Z_\$\/-\/][0-9a-zA-Z_\_\-\.\/#@\:]*'
+t_ATOM = r'[a-zA-Z_\$\/-\/\+\*\/][0-9a-zA-Z_\_\-\.\/#@\:\?]*'
 
 
 def t_error(t):
-    print(("Illegal character '%s'" % t.value[0]))
+    print("Illegal character '%s'" % t.value[0])
     t.lexer.skip(1)
 
 
@@ -177,6 +214,14 @@ def p_stmt(p):
     p[0] = [PipeExpr(p[1], p[3])]
 
 
+def p_sexpr(p):
+    """
+    sexpr : LPAREN RPAREN
+    sexpr : LPAREN expr_list RPAREN
+    """
+    p[0] = SExpr(p[2] if len(p) == 4 else [])
+
+
 def p_expr_list(p):
     """
     expr_list : expr
@@ -189,22 +234,23 @@ def p_expr_list(p):
     p[0] = [p[1]] + p[2]
 
 
+def p_quote(p):
+    """
+    quote : QUOTE sexpr
+    """
+    p[0] = Literal(p[2], type(p[2]))
+
+
 def p_expr(p):
     """
     expr : literal
     expr : symbol
     expr : binary
-    expr : expansion
     expr : set
+    expr : sexpr
+    expr : quote
     """
     p[0] = p[1]
-
-
-def p_expansion(p):
-    """
-    expansion : EOPEN expr_list ECLOSE
-    """
-    p[0] = CommandExpansion(p[2])
 
 
 def p_literal(p):
@@ -214,7 +260,12 @@ def p_literal(p):
     literal : BINNUMBER
     literal : OCTNUMBER
     literal : STRING
+    literal : BOOL
+    literal : NULL
     """
+    if p[1] is Null:
+        p[1] = None
+
     p[0] = Literal(p[1], type(p[1]))
 
 
@@ -233,6 +284,7 @@ def p_binary(p):
     """
     p[0] = BinaryExpr(p[1], p[2], p[3])
 
+
 def p_set(p):
     """
     set : ATOM COMMA set
@@ -246,6 +298,7 @@ def p_set(p):
         p[0] = Set(p[1] + p[2] + right)
     else:
         p[0] = Symbol(p[1])
+
 
 def p_symbol(p):
     """

@@ -42,11 +42,12 @@ import gettext
 import getpass
 import traceback
 import six
+import functions
 from socket import gaierror as socket_error
 from freenas.cli.descriptions import events
 from freenas.cli import config
 from freenas.cli.namespace import Namespace, RootNamespace, Command, FilteringCommand, CommandException
-from freenas.cli.parser import parse, Symbol, Set, CommandExpansion, Literal, BinaryExpr, PipeExpr
+from freenas.cli.parser import parse, Symbol, Set, CommandExpansion, Literal, BinaryExpr, PipeExpr, SExpr
 from freenas.cli.output import (
     ValueType, Object, Table, ProgressBar, output_lock, output_msg, read_value, format_value,
     output_object, output_table
@@ -238,6 +239,9 @@ class Context(object):
         self.keepalive_timer = None
         self.argparse_parser = None
         self.entity_subscribers = {}
+        self.global_env = Environment(self)
+        self.controls = functions.controls
+        self.builtins = functions.functions
         config.instance = self
 
     @property
@@ -480,6 +484,72 @@ class Context(object):
         self.event_divert = False
         return tid
 
+    def eval(self, *args, **kwargs):
+        return self.ml.eval(*args, **kwargs)
+
+
+class Function(object):
+    def __init__(self, context, parms, exp, env):
+        self.context = context
+        self.parms = parms
+        self.exp = exp
+        self.env = env
+
+    def __call__(self, *args):
+        return eval(self.exp, Environment(self.parms, args, self.env))
+
+
+class BuiltinFunction(object):
+    def __init__(self, context, name, f):
+        self.context = context
+        self.name = name
+        self.f = f
+
+    def __call__(self, *args):
+        return self.f(*args)
+
+    def __str__(self):
+        return "<builtin function '{0}'>".format(self.name)
+
+    def __repr__(self):
+        return str(self)
+
+
+class ControlFunction(object):
+    def __init__(self, context, name, f):
+        self.context = context
+        self.name = name
+        self.f = f
+
+    def __call__(self, exprs, env):
+        return self.f(self.context, exprs, env)
+
+    def __str__(self):
+        return "<control function '{0}'>".format(self.name)
+
+    def __repr__(self):
+        return str(self)
+
+
+class Environment(dict):
+    def __init__(self, context, outer=None, iterable=None):
+        super(Environment, self).__init__()
+        self.context = context
+        self.outer = outer
+
+    def find(self, var):
+        if var in self:
+            return self[var]
+
+        if self.outer:
+            return self.outer.find(var)
+
+        if var in self.context.controls:
+            return ControlFunction(self.context, var, self.context.controls.get(var))
+
+        if var in self.context.builtins:
+            return BuiltinFunction(self.context, var, self.context.builtins.get(var))
+
 
 class MainLoop(object):
     pipe_commands = {
@@ -647,6 +717,9 @@ class MainLoop(object):
                     yield (i.left, i.op, self.eval(i.right.expr))
 
     def format_output(self, object):
+        if isinstance(object, SExpr):
+            output_msg(object.format())
+
         if isinstance(object, list):
             for i in object:
                 self.format_output(i)
@@ -660,7 +733,9 @@ class MainLoop(object):
         if isinstance(object, (str, int, bool)):
             output_msg(object)
 
-    def eval(self, tokens):
+    def eval(self, tokens, env=None):
+        print(tokens)
+        env = env or self.context.global_env
         oldpath = self.path[:]
         if self.start_from_root:
             self.path = self.root_path[:]
@@ -670,31 +745,53 @@ class MainLoop(object):
         args = []
 
         while tokens:
-            token = tokens.pop(0)
+            token = tokens.pop(0) if isinstance(tokens, list) else tokens
+
+            if isinstance(token, SExpr):
+                if not token.exprs:
+                    return
+
+                func = self.eval(token.exprs.pop(0), env)
+
+                if isinstance(func, ControlFunction):
+                    return self.eval(func([func] + token.exprs, env), env)
+
+                exprs = map(lambda x: self.eval(x, env), token.exprs)
+
+                if isinstance(func, (Function, BuiltinFunction)):
+                    return func(*exprs)
+
+                if isinstance(func, Namespace):
+                    self.cd(func)
+                    return self.eval(SExpr(token.exprs))
+
+                if isinstance(func, Command):
+                    args, kwargs, opargs = sort_args(exprs)
+                    print(args, kwargs, opargs)
+                    return func.run(self.context, args, kwargs, opargs)
+
+                raise SyntaxError()
+
+            if isinstance(token, Literal):
+                return token.value
+
+            if isinstance(token, BinaryExpr):
+                x = self.eval(token.right, env)
+                return token.left, token.op, x
 
             if isinstance(token, Symbol):
                 if token.name == '..':
                     self.cd_up()
-                    continue
+                    return
 
-                item = self.find_in_scope(token.name)
+                item = env.find(token.name)
+                if not item:
+                    item = self.find_in_scope(token.name)
 
-                if command:
-                    args.append(token)
-                    continue
+                if isinstance(item, (Namespace, Command)):
+                    return item
 
-                if isinstance(item, Namespace):
-                    self.cd(item)
-                    continue
-
-                if isinstance(item, Command):
-                    command = item
-                    continue
-
-                try:
-                    raise SyntaxError("Command or namespace {0} not found".format(token.name))
-                finally:
-                    self.path = oldpath
+                return item
 
             if isinstance(token, CommandExpansion):
                 if not command:
@@ -722,6 +819,7 @@ class MainLoop(object):
 
                 continue
 
+            """
             if isinstance(token, (Literal, BinaryExpr)):
                 if not command and isinstance(token, Literal):
                     item = self.find_in_scope(token.value)
@@ -731,6 +829,7 @@ class MainLoop(object):
 
                 args.append(token)
                 continue
+            """
 
             if isinstance(token, PipeExpr):
                 pipe_stack.append(token.right)
@@ -840,7 +939,9 @@ class MainLoop(object):
 
         try:
             i = parse(line)
-            self.format_output(self.eval(i))
+            x = self.eval(i)
+            print('result:' + str(x))
+            self.format_output(x)
         except SyntaxError as e:
             output_msg(_('Syntax error: {0}'.format(str(e))))
         except CommandException as e:
