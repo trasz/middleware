@@ -1112,6 +1112,10 @@ class ServerConnection(WebSocketApplication, EventEmitter):
                 if not user.check_local(client_addr, client_port, self.dispatcher.port):
                     self.emit_rpc_error(id, errno.EACCES, "Incorrect username or password")
                     return
+
+                lifetime = None
+
+            if client_addr == 'unix':
                 lifetime = None
         else:
             if not user.check_password(password):
