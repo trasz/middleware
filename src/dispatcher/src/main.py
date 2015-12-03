@@ -1495,9 +1495,15 @@ class FileConnection(WebSocketApplication, EventEmitter):
         gevent.joinall([rd, wr])
 
     def on_open(self, *args, **kwargs):
+        self.logger.debug(
+            "File {0} Initiated for file {1}".format(self.token.direction, self.token.file)
+        )
         pass
 
     def on_close(self, *args, **kwargs):
+        self.logger.debug(
+            "File {0} Closed for file {1}".format(self.token.direction, self.token.file)
+        )
         pass
 
     def on_message(self, message, *args, **kwargs):
