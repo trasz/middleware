@@ -67,6 +67,7 @@
     </script>
 
     <script type="text/javascript">
+
       Handlebars.registerHelper( "json", function ( context ) {
         return JSON.stringify( context, null, 4 );
       });
@@ -189,13 +190,18 @@
         };
         fileconn.onClose = function ( ) {
           console.log( "FileConnection closed" );
-        }
-        fileconn.upload( pathJoin(
-            [ sessionStorage.getItem( "filebrowser:cwd" ), file.name ]
+        };
+        fileconn.onData = function ( msg ) {
+          console.log( "FileConnection data: ", msg );
+        };
+        fileconn.upload(
+            pathJoin(
+              [ sessionStorage.getItem( "filebrowser:cwd" ), file.name ]
+            )
           , file.size
-          , 777
-          )
+          , "777"
         );
+
       }
 
       sock.connect();

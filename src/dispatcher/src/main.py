@@ -1495,23 +1495,22 @@ class FileConnection(WebSocketApplication, EventEmitter):
         gevent.joinall([rd, wr])
 
     def on_open(self, *args, **kwargs):
-        self.logger.debug(
+        self.logger.info(
             "File {0} Initiated for file {1}".format(self.token.direction, self.token.file)
         )
-        pass
 
     def on_close(self, *args, **kwargs):
-        self.logger.debug(
+        self.logger.info(
             "File {0} Closed for file {1}".format(self.token.direction, self.token.file)
         )
-        pass
 
     def on_message(self, message, *args, **kwargs):
+        self.logger.debug("FileConnection on_message, the message is: {0}".format(message))
         if message is None:
             return
 
         if not self.authenticated:
-            message = loads(message)
+            message = loads(message.decode('utf8'))
 
             if type(message) is not dict:
                 return
