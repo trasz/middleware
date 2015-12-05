@@ -104,8 +104,7 @@ class ContainerCreateTask(ContainerBaseTask):
 
         normalize(container['config'], {
             'memsize': 512,
-            'ncpus': 1,
-            'cdimage': None
+            'ncpus': 1
         })
 
         self.init_dataset(container)
