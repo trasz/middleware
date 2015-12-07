@@ -504,6 +504,66 @@ class DiskGELIDelUserKeyTask(Task):
             raise TaskException(errno.EFAULT, 'Cannot delete key of encrypted partition: {0}'.format(err.err))
 
 
+@accepts(str)
+class DiskGELIBackupMetadataTask(Task):
+    def describe(self, disk):
+        return "Backup metadata of encrypted partition on {0}".format(os.path.basename(disk))
+
+    def verify(self, disk):
+        if not get_disk_by_path(disk):
+            raise VerifyException(errno.ENOENT, "Disk {0} not found".format(disk))
+
+        return ['disk:{0}'.format(disk)]
+
+    def run(self, disk):
+        disk_info = self.dispatcher.call_sync('disk.query', [('path', 'in', disk),
+                                                             ('online', '=', True)], {'single': True})
+        disk_status = disk_info.get('status', None)
+        if disk_status is not None:
+            data_partition_path = disk_status.get('data_partition_path')
+        else:
+            raise TaskException(errno.EINVAL, 'Cannot get disk status for: {0}'.format(disk))
+
+        with tempfile.NamedTemporaryFile('wrb') as metadata_file:
+            try:
+                system('/sbin/geli', 'backup', data_partition_path, metadata_file.name)
+            except SubprocessException as err:
+                raise TaskException(errno.EFAULT, 'Cannot backup metadata of encrypted partition: {0}'.format(err.err))
+
+            return {'disk': disk, 'metadata': metadata_file.read()}
+
+
+@accepts(h.object())
+class DiskGELIRestoreMetadataTask(Task):
+    def describe(self, metadata):
+        return "Restore metadata of encrypted partition on {0}".format(os.path.basename(disk))
+
+    def verify(self, metadata):
+        disk = metadata.get('disk')
+        if not get_disk_by_path(disk):
+            raise VerifyException(errno.ENOENT, "Disk {0} not found".format(disk))
+
+        return ['disk:{0}'.format(disk)]
+
+    def run(self, metadata):
+        disk = metadata.get('disk')
+        disk_info = self.dispatcher.call_sync('disk.query', [('path', 'in', disk),
+                                                             ('online', '=', True)], {'single': True})
+        disk_status = disk_info.get('status', None)
+        if disk_status is not None:
+            data_partition_path = disk_status.get('data_partition_path')
+        else:
+            raise TaskException(errno.EINVAL, 'Cannot get disk status for: {0}'.format(disk))
+
+        with tempfile.NamedTemporaryFile('wb') as metadata_file:
+            metadata_file.write(metadata.get('metadata'))
+            metadata_file.flush()
+            try:
+                system('/sbin/geli', 'restore', '-f', metadata_file.name, data_partition_path)
+            except SubprocessException as err:
+                raise TaskException(errno.EFAULT, 'Cannot restore metadata of encrypted partition: {0}'.format(err.err))
+
+
 @accepts(str, h.object())
 class DiskGELIAttachTask(Task):
     def describe(self, disk, params=None):
@@ -1196,6 +1256,8 @@ def _init(dispatcher, plugin):
     plugin.register_task_handler('disk.geli.init', DiskGELIInitTask)
     plugin.register_task_handler('disk.geli.ukey.set', DiskGELISetUserKeyTask)
     plugin.register_task_handler('disk.geli.ukey.del', DiskGELIDelUserKeyTask)
+    plugin.register_task_handler('disk.geli.mkey.backup', DiskGELIBackupMetadataTask)
+    plugin.register_task_handler('disk.geli.mkey.restore', DiskGELIRestoreMetadataTask)
     plugin.register_task_handler('disk.geli.attach', DiskGELIAttachTask)
     plugin.register_task_handler('disk.geli.detach', DiskGELIDetachTask)
     plugin.register_task_handler('disk.geli.kill', DiskGELIKillTask)
