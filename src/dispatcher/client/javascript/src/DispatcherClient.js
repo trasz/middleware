@@ -24,6 +24,7 @@
  * POSSIBILITY OF SUCH DAMAGE.
  *
  */
+require("babel-polyfill");
 
 const INVALID_JSON_RESPONSE = 1;
 const CONNECTION_TIMEOUT = 2;
@@ -37,6 +38,7 @@ const OTHER = 8;
 import { getErrno, getCode } from './ErrnoCodes.js'
 export { getErrno, getCode }
 export { ShellClient, ContainerConsoleClient } from './ShellClient'
+export { FileClient } from "./FileClient"
 export { EntitySubscriber } from './EntitySubscriber.js'
 
 export class RPCException

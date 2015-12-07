@@ -132,7 +132,7 @@ class CappedMap
     set(key, value)
     {
         this.map.set(key, value);
-        if (this.map.size() > this.maxsize) {
+        if (this.map.size > this.maxsize) {
             let mapIter = this.map.entries();
             this.map.delete(mapIter.next().key);
         }
@@ -186,6 +186,15 @@ export class EntitySubscriber
         this.onCreate = () => {};
         this.onUpdate = () => {};
         this.onDelete = () => {};
+    }
+
+    fetch()
+    {
+        this.client.call(`${this.name}.query`, [[], {"limit": this.maxsize}], result => {
+            for (let i of result) {
+                this.objects.set(i.id, i);
+            }
+        });
     }
 
     start()

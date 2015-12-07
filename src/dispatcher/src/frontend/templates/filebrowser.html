@@ -12,6 +12,20 @@
           position:relative;
           left: -10px;
         }
+        #drop_zone {
+          border: 2px dashed #bbb;
+          -moz-border-radius: 5px;
+          -webkit-border-radius: 5px;
+          border-radius: 5px;
+          padding: 25px;
+          text-align: center;
+          font: 20pt bold 'Vollkorn';
+          color: #bbb;
+        }
+        .dropcontainer {
+          padding: 10px;
+          border: 1px solid #ccc;
+        }
     </style>
     <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/font-awesome/4.5.0/css/font-awesome.min.css">
     <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.5/css/bootstrap.min.css" integrity="sha512-dTfge/zgoMYpP7QbHy4gWMEGsbsdZeCXz7irItjcC3sPUFtf0kuFbDz/ixG7ArTxmDjLXDmezHubeNikyKGVyQ==" crossorigin="anonymous">
@@ -43,14 +57,29 @@
       {% endraw %}
     </script>
 
+    <script id="outputfiles" type="text/x-handlebars-template">
+      {% raw %}
+        <li>
+          <strong>{{ file.name }}</strong>
+          {{ type }} - {{ file.size }} bytes, last modified: {{ modifiedDate }}
+        </li>
+      {% endraw %}
+    </script>
+
     <script type="text/javascript">
+
       Handlebars.registerHelper( "json", function ( context ) {
         return JSON.stringify( context, null, 4 );
+      });
+      Handlebars.registerHelper( "stringifyFunc" , function ( fn ) {
+        return new Handlebars.SafeString( "(" +
+          fn.toString().replace( /\"/g,"'" ) + ")()" );
       });
       var fileTemplate = Handlebars.compile( $( "#fileTemplate" ).html() );
       var directoryTemplate = Handlebars.compile(
         $( "#directoryTemplate" ).html()
       );
+      var outputfiles = Handlebars.compile( $( "#outputfiles" ).html() );
       var sock = new middleware.DispatcherClient( document.domain );
 
       function pathJoin ( parts, sep ) {
@@ -69,7 +98,7 @@
           $( "#cwd" ).html( "Current Path: " + path );
           $( "#cdup" ).on( "click", function ( e ) {
             if ( path !== "/" ) {
-              listDir( path.substring( 0, path.lastIndexOf( "/" ) ));
+              listDir( path.substring( 0, path.lastIndexOf( "/" ) ) );
             };
           });
           sessionStorage.setItem( "filebrowser:cwd", path );
@@ -87,6 +116,93 @@
           });
         });
       };
+
+      function handleFileSelect ( evt ) {
+        evt.stopPropagation();
+        evt.preventDefault();
+
+        var files = evt.dataTransfer.files; // FileList object.
+
+        $( "#outputfilelist" ).empty();
+        $.each( files, function ( key, file ) {
+          var date = file.lastModifiedDate ? file.lastModifiedDate.toLocaleDateString() : "n/a";
+          $( "#outputfilelist" ).append(
+              outputfiles(
+                { file: file
+                , type: file.type || "n/a"
+                , modifiedDate: date
+              })
+          );
+          $( "#outputfilelist" ).append(
+            $( "<button/>", {
+              text: "Upload",
+              click: function () { uploadToSocket( file ) }
+            })
+          );
+        });
+      }
+
+      function handleDragOver ( evt ) {
+        evt.stopPropagation();
+        evt.preventDefault();
+        evt.dataTransfer.dropEffect = "copy"; // Explicitly show this is a copy.
+      }
+
+      // Setup the dnd listeners.
+      var dropZone = document.getElementById( "drop_zone" );
+      dropZone.addEventListener( "dragover", handleDragOver, false );
+      dropZone.addEventListener( "drop", handleFileSelect, false );
+
+
+      function readBlob ( file, optStartByte, optStopByte ) {
+        var start = parseInt( optStartByte ) || 0;
+        var stop = parseInt( optStopByte ) || file.size - 1;
+
+        var reader = new FileReader();
+
+        reader.onloadend = function ( evt ) {
+          if ( evt.target.readyState == FileReader.DONE ) { // DONE == 2
+            console.log( "readBlob byte_content: ", evt.target.result );
+            console.log
+              ( "readBlob byte_range: Read bytes: "
+              , start + 1
+              , " - "
+              , stop + 1
+              , " of "
+              , file.size
+              , " byte file"
+            );
+          }
+        };
+
+        var blob = file.slice( start, stop + 1 );
+        reader.readAsBinaryString( blob );
+      }
+
+      function uploadToSocket ( file ) {
+        console.log( "uploadToSocket: Initializing FileClient now" );
+        fileconn = new middleware.FileClient( sock );
+        fileconn.onOpen = function ( ) {
+          console.log( "FileConnection opened" );
+        };
+        fileconn.onData = function ( msg ) {
+          console.log( "FileConnection message recieved is ", msg );
+        };
+        fileconn.onClose = function ( ) {
+          console.log( "FileConnection closed" );
+        };
+        fileconn.onData = function ( msg ) {
+          console.log( "FileConnection data: ", msg );
+        };
+        fileconn.upload(
+            pathJoin(
+              [ sessionStorage.getItem( "filebrowser:cwd" ), file.name ]
+            )
+          , file.size
+          , "777"
+        );
+
+      }
 
       sock.connect();
       $( document ).ready( function () {
@@ -114,6 +230,7 @@
 
       });
     </script>
+
 {% endblock %}
 {% block content %}
 {{ nav.nav() }}
@@ -125,7 +242,11 @@
     <div class="panel-body">
      <button type="button" class="btn btn-primary" id="cdup">Up (..)</button>
     </div>
- 
+
+    <div class="dropcontainer">
+      <div id="drop_zone">File Upload: Drop files here</div>
+      <output id="outputfilelist"></output>
+    </div>
     <table class="table" id="dirlist">
       <thead>
         <tr>

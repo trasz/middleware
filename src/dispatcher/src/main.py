@@ -1112,6 +1112,10 @@ class ServerConnection(WebSocketApplication, EventEmitter):
                 if not user.check_local(client_addr, client_port, self.dispatcher.port):
                     self.emit_rpc_error(id, errno.EACCES, "Incorrect username or password")
                     return
+
+                lifetime = None
+
+            if client_addr == 'unix':
                 lifetime = None
         else:
             if not user.check_password(password):
@@ -1491,17 +1495,22 @@ class FileConnection(WebSocketApplication, EventEmitter):
         gevent.joinall([rd, wr])
 
     def on_open(self, *args, **kwargs):
-        pass
+        self.logger.info(
+            "File {0} Initiated for file {1}".format(self.token.direction, self.token.file)
+        )
 
     def on_close(self, *args, **kwargs):
-        pass
+        self.logger.info(
+            "File {0} Closed for file {1}".format(self.token.direction, self.token.file)
+        )
 
     def on_message(self, message, *args, **kwargs):
+        self.logger.debug("FileConnection on_message, the message is: {0}".format(message))
         if message is None:
             return
 
         if not self.authenticated:
-            message = loads(message)
+            message = loads(message.decode('utf8'))
 
             if type(message) is not dict:
                 return
