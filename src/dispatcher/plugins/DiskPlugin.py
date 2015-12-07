@@ -427,7 +427,7 @@ class DiskGELIInitTask(Task):
 
 
 @accepts(str, h.object())
-class DiskGELISetKeyTask(Task):
+class DiskGELISetUserKeyTask(Task):
     def describe(self, disk, params=None):
         return "Set new key for encrypted partition on {0}".format(os.path.basename(disk))
 
@@ -476,7 +476,7 @@ class DiskGELISetKeyTask(Task):
 
 
 @accepts(str, int)
-class DiskGELIDelKeyTask(Task):
+class DiskGELIDelUserKeyTask(Task):
     def describe(self, disk, slot):
         return "Delete key of encrypted partition on {0}".format(os.path.basename(disk))
 
@@ -1194,8 +1194,8 @@ def _init(dispatcher, plugin):
     plugin.register_task_handler('disk.format.gpt', DiskGPTFormatTask)
     plugin.register_task_handler('disk.format.boot', DiskBootFormatTask)
     plugin.register_task_handler('disk.geli.init', DiskGELIInitTask)
-    plugin.register_task_handler('disk.geli.key.set', DiskGELISetKeyTask)
-    plugin.register_task_handler('disk.geli.key.del', DiskGELIDelKeyTask)
+    plugin.register_task_handler('disk.geli.ukey.set', DiskGELISetUserKeyTask)
+    plugin.register_task_handler('disk.geli.ukey.del', DiskGELIDelUserKeyTask)
     plugin.register_task_handler('disk.geli.attach', DiskGELIAttachTask)
     plugin.register_task_handler('disk.geli.detach', DiskGELIDetachTask)
     plugin.register_task_handler('disk.geli.kill', DiskGELIKillTask)

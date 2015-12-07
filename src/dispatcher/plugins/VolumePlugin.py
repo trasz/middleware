@@ -659,7 +659,7 @@ class VolumeUpdateTask(Task):
                 if encryption['slot'] is not 0:
                     subtasks = []
                     for vdev, group in iterate_vdevs(new_vdevs):
-                        subtasks.append(self.run_subtask('disk.geli.key.set', vdev['path'], {
+                        subtasks.append(self.run_subtask('disk.geli.ukey.set', vdev['path'], {
                             'key': encryption['key'],
                             'password': password,
                             'slot': 1
@@ -668,7 +668,7 @@ class VolumeUpdateTask(Task):
 
                     subtasks = []
                     for vdev, group in iterate_vdevs(new_vdevs):
-                        subtasks.append(self.run_subtask('disk.geli.key.del', vdev['path'], 0))
+                        subtasks.append(self.run_subtask('disk.geli.ukey.del', vdev['path'], 0))
                     self.join_subtasks(*subtasks)
 
                 if encryption['locked'] is False:
@@ -988,7 +988,7 @@ class VolumeRekeyTask(Task):
 
             subtasks = []
             for dname in disks:
-                subtasks.append(self.run_subtask('disk.geli.key.set', dname, {
+                subtasks.append(self.run_subtask('disk.geli.ukey.set', dname, {
                     'key': key,
                     'password': password,
                     'slot': slot
@@ -1009,7 +1009,7 @@ class VolumeRekeyTask(Task):
 
             subtasks = []
             for dname in disks:
-                subtasks.append(self.run_subtask('disk.geli.key.del', dname, slot))
+                subtasks.append(self.run_subtask('disk.geli.ukey.del', dname, slot))
             self.join_subtasks(*subtasks)
 
             self.dispatcher.dispatch_event('volume.changed', {
