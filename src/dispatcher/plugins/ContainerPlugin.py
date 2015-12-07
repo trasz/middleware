@@ -94,6 +94,9 @@ class ContainerBaseTask(Task):
 @accepts(h.ref('container'))
 class ContainerCreateTask(ContainerBaseTask):
     def verify(self, container):
+        if not self.dispatcher.call_sync('volume.query', [('name', '=', container['target'])], {'single': True}):
+            raise VerifyException(errno.ENXIO, 'Volume {0} doesn\'t exist'.format(container['target']))
+
         return ['zpool:{0}'.format(container['target'])]
 
     def run(self, container):
@@ -120,6 +123,9 @@ class ContainerCreateTask(ContainerBaseTask):
 @accepts(str, h.ref('container'))
 class ContainerUpdateTask(ContainerBaseTask):
     def verify(self, id, updated_params):
+        if not self.datastore.exists('containers', ('id', '=', id)):
+            raise VerifyException(errno.ENOENT, 'Container {0} not found'.format(id))
+
         return ['system']
 
     def run(self, id, updated_params):
@@ -143,6 +149,9 @@ class ContainerUpdateTask(ContainerBaseTask):
 @accepts(str)
 class ContainerDeleteTask(Task):
     def verify(self, id):
+        if not self.datastore.exists('containers', ('id', '=', id)):
+            raise VerifyException(errno.ENOENT, 'Container {0} not found'.format(id))
+
         return ['system']
 
     def run(self, id):
