@@ -25,6 +25,7 @@
 #
 #####################################################################
 
+import errno
 import os
 import uuid
 from task import Provider, Task, VerifyException, TaskException, query
@@ -133,10 +134,7 @@ class ContainerUpdateTask(ContainerBaseTask):
 
         if 'devices' in updated_params:
             for res in updated_params['devices']:
-                if 'id' not in res:
-                    res['id'] = str(uuid.uuid4())
-
-                existing = first_or_default(lambda i: i['id'] == res['id'], container['devices'])
+                existing = first_or_default(lambda i: i['name'] == res['name'], container['devices'])
                 if existing:
                     self.update_device(container, existing, res)
                 else:
@@ -187,7 +185,7 @@ def _init(dispatcher, plugin):
             'target': {'type': 'string'},
             'type': {
                 'type': 'string',
-                'enum': ['JAIL', 'VM']
+                'enum': ['JAIL', 'VM', 'DOCKER']
             },
             'config': {
                 'type': 'object',
@@ -214,7 +212,6 @@ def _init(dispatcher, plugin):
         'type': 'object',
         'additionalProperties': False,
         'properties': {
-            'id': {'type': 'string'},
             'name': {'type': 'string'},
             'type': {
                 'type': 'string',
@@ -223,6 +220,34 @@ def _init(dispatcher, plugin):
             'properties': {'type': 'object'}
         },
         'requiredProperties': ['name', 'type', 'properties']
+    })
+
+    plugin.register_schema_definition('container-device-nic', {
+        'type': 'object',
+        'additionalProperties': False,
+        'properties': {
+            'mode': {
+                'type': 'string',
+                'enum': ['BRIDGED', 'NAT', 'HOSTONLY']
+            },
+            'bridge': {'type': ['string', 'null']}
+        }
+    })
+
+    plugin.register_schema_definition('container-device-disk', {
+        'type': 'object',
+        'additionalProperties': False,
+        'properties': {
+            'size': {'type': 'integer'}
+        }
+    })
+
+    plugin.register_schema_definition('container-device-cdrom', {
+        'type': 'object',
+        'additionalProperties': False,
+        'properties': {
+            'path': {'type': 'string'}
+        }
     })
 
     plugin.register_provider('container', ContainerProvider)
