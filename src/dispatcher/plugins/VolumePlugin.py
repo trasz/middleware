@@ -778,7 +778,7 @@ class DatasetCreateTask(Task):
 
 
 @description("Deletes an existing Dataset from a Volume")
-@accepts(str, str)
+@accepts(str, str, bool)
 class DatasetDeleteTask(Task):
     def verify(self, pool_name, path, recursive=False):
         if not self.datastore.exists('volumes', ('name', '=', pool_name)):
@@ -787,12 +787,14 @@ class DatasetDeleteTask(Task):
         return ['zpool:{0}'.format(pool_name)]
 
     def run(self, pool_name, path, recursive=False):
-        #if recursive:
-        #    subtask = []
-        #    deps = self.dispatcher.call_sync('zfs.dataset.get_dependencies', path)
-        #
-        #    for i in deps:
-        #        if i
+        if recursive:
+            deps = self.dispatcher.call_sync('zfs.dataset.get_dependencies', path)
+
+            for i in deps:
+                if i['type'] == 'FILESYSTEM':
+                    self.join_subtasks(self.run_subtask('zfs.umount', i['name']))
+
+                self.join_subtasks(self.run_subtask('zfs.destroy', i['name']))
 
         self.join_subtasks(self.run_subtask('zfs.umount', path))
         self.join_subtasks(self.run_subtask('zfs.destroy', path))
