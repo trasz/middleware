@@ -90,7 +90,15 @@ class ContainerBaseTask(Task):
         pass
 
     def delete_device(self, container, res):
-        pass
+        if res['type'] == 'DISK':
+            container_ds = os.path.join(container['target'], 'vm', container['name'])
+            ds_name = os.path.join(container_ds, res['name'])
+            self.join_subtasks(self.run_subtask(
+                'volume.dataset.delete',
+                container['target'],
+                ds_name,
+                True
+            ))
 
 
 @accepts(h.ref('container'))
