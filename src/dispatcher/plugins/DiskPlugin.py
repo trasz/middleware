@@ -520,17 +520,18 @@ class DiskGELIBackupMetadataTask(Task):
                                                              ('online', '=', True)], {'single': True})
         disk_status = disk_info.get('status', None)
         if disk_status is not None:
-            data_partition_path = disk_status.get('data_partition_path')
+            data_partition_path = os.path.join('/dev/gptid/', disk_status.get('data_partition_uuid'))
         else:
             raise TaskException(errno.EINVAL, 'Cannot get disk status for: {0}'.format(disk))
 
-        with tempfile.NamedTemporaryFile('wrb') as metadata_file:
+        with tempfile.NamedTemporaryFile('w+b') as metadata_file:
             try:
                 system('/sbin/geli', 'backup', data_partition_path, metadata_file.name)
             except SubprocessException as err:
                 raise TaskException(errno.EFAULT, 'Cannot backup metadata of encrypted partition: {0}'.format(err.err))
 
-            return {'disk': disk, 'metadata': metadata_file.read()}
+            metadata_file.seek(0)
+            return {'disk': disk, 'metadata': base64.b64encode(metadata_file.read()).decode('utf-8')}
 
 
 @accepts(h.object())
@@ -551,11 +552,11 @@ class DiskGELIRestoreMetadataTask(Task):
                                                              ('online', '=', True)], {'single': True})
         disk_status = disk_info.get('status', None)
         if disk_status is not None:
-            data_partition_path = disk_status.get('data_partition_path')
+            data_partition_path = os.path.join('/dev/gptid/', disk_status.get('data_partition_uuid'))
         else:
             raise TaskException(errno.EINVAL, 'Cannot get disk status for: {0}'.format(disk))
 
-        with tempfile.NamedTemporaryFile('wb') as metadata_file:
+        with tempfile.NamedTemporaryFile('w+b') as metadata_file:
             metadata_file.write(metadata.get('metadata'))
             metadata_file.flush()
             try:

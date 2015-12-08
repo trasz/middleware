@@ -35,6 +35,7 @@ import base64
 import bsd
 import bsd.kld
 import hashlib
+import json
 from cache import EventCacheStore
 from lib.system import system, SubprocessException
 from lib.freebsd import fstyp
@@ -47,6 +48,7 @@ from datastore import DuplicateKeyException
 from freenas.utils import include, exclude, normalize
 from freenas.utils.query import wrap
 from freenas.utils.copytree import count_files, copytree
+from cryptography.fernet import Fernet, InvalidToken
 
 
 VOLUMES_ROOT = '/mnt'
@@ -363,7 +365,7 @@ class VolumeCreateTask(ProgressTask):
         )
         encryption = params.pop('encryption', False)
         if encryption:
-            key = base64.b64encode(os.urandom(64))
+            key = base64.b64encode(os.urandom(64)).decode('utf-8')
             password = params.pop('password', None)
         else:
             key = None
@@ -372,8 +374,8 @@ class VolumeCreateTask(ProgressTask):
         if password is not None:
             salt, digest = get_digest(password)
         else:
-          salt = None
-          digest = None
+            salt = None
+            digest = None
 
         if type != 'zfs':
             raise TaskException(errno.EINVAL, 'Invalid volume type')
@@ -867,7 +869,7 @@ class VolumeLockTask(Task):
 
         encryption = vol.get('encryption')
 
-        if encryption['key'] is not None:
+        if encryption['key'] is None:
             raise VerifyException(errno.EINVAL, 'Volume {0} is not encrypted'.format(name))
 
         if not encryption['locked'] is False:
@@ -907,7 +909,7 @@ class VolumeUnlockTask(Task):
 
         encryption = vol.get('encryption')
 
-        if encryption['key'] is not None:
+        if encryption['key'] is None:
             raise VerifyException(errno.EINVAL, 'Volume {0} is not encrypted'.format(name))
 
         if not encryption['locked'] is True:
@@ -964,7 +966,7 @@ class VolumeRekeyTask(Task):
 
         encryption = vol.get('encryption')
 
-        if encryption['key'] is not None:
+        if encryption['key'] is None:
             raise VerifyException(errno.EINVAL, 'Volume {0} is not encrypted'.format(name))
 
         if not encryption['locked'] is False:
@@ -978,7 +980,7 @@ class VolumeRekeyTask(Task):
             encryption = vol.get('encryption')
             disks = self.dispatcher.call_sync('volume.get_volume_disks', name)
 
-            key = base64.b64encode(os.urandom(64))
+            key = base64.b64encode(os.urandom(64)).decode('utf-8')
             slot = 0 if encryption['slot'] is 1 else 1
             if password is not None:
                 salt, digest = get_digest(password)
@@ -1016,6 +1018,78 @@ class VolumeRekeyTask(Task):
                 'operation': 'rekey',
                 'ids': [vol['id']]
             })
+
+
+@description("Creates a backup file of User Key and/or Master Key of encrypted volume")
+@accepts(str, str, h.object())
+class VolumeBackupKeysTask(Task):
+    def verify(self, name, out_path=None, params={}):
+        if not self.datastore.exists('volumes', ('name', '=', name)):
+            raise VerifyException(errno.ENOENT, 'Volume {0} not found'.format(name))
+
+        vol = self.datastore.get_one('volumes', ('name', '=', name))
+
+        encryption = vol.get('encryption')
+
+        if encryption['key'] is None:
+            raise VerifyException(errno.EINVAL, 'Volume {0} is not encrypted'.format(name))
+
+        if not encryption['locked'] is False:
+            raise VerifyException(errno.EINVAL, 'Volume {0} is locked'.format(name))
+
+        if out_path is None:
+            raise VerifyException(errno.EINVAL, 'Output file is not specified')
+
+        keys = params.get('keys', None)
+        if keys is None:
+            raise VerifyException(errno.EINVAL, 'No keys specified for backup')
+        else:
+            for i in keys:
+                if i not in ('master', 'user'):
+                    raise VerifyException(errno.EINVAL, 'Unknown type of key selected {0}. Must be master or user'
+                                          .format(i))
+
+        return ['disk:{0}'.format(d) for d in self.dispatcher.call_sync('volume.get_volume_disks', name)]
+
+    def run(self, name, out_path=None, params={}):
+        security = params.get('security', None)
+        with self.dispatcher.get_lock('volumes'):
+            vol = self.datastore.get_one('volumes', ('name', '=', name))
+            encryption = vol.get('encryption')
+            disks = self.dispatcher.call_sync('volume.get_volume_disks', name)
+
+            keys = params.get('keys', None)
+            out_data = {}
+
+            if 'master' in keys:
+                subtasks = []
+                for dname in disks:
+                    subtasks.append(self.run_subtask('disk.geli.mkey.backup', dname))
+                output = self.join_subtasks(*subtasks)
+                for result in output:
+                    out_data[result['disk']] = result
+
+            if 'user' in keys:
+                out_data['ukey'] = encryption['key']
+
+        if security is not None:
+            password = security.get('password', None)
+            if password is not None:
+                enc_data = fernet_encrypt(password, json.dumps(out_data).encode('utf-8'))
+
+                try:
+                    with open(out_path, 'wb') as out_file:
+                        out_file.write(enc_data)
+                except Exception:
+                    pass
+            else:
+                raise TaskException(errno.EINVAL, 'Selected type of security is not supported')
+        else:
+            try:
+                with open(out_path, 'w') as out_file:
+                    json.dump(out_data, out_file)
+            except Exception as err:
+                raise TaskException(errno.EINVAL, '{0}'.format(err))
 
 
 @description("Creates a dataset in an existing volume")
@@ -1219,13 +1293,25 @@ def split_snapshot_name(name):
 
 def get_digest(password, salt=None):
     if not salt:
-        salt = base64.b64encode(os.urandom(64))
-    digest = base64.b64encode(hashlib.pbkdf2_hmac('sha256', bytes(password, 'utf-8'), salt, 200000))
+        salt = base64.b64encode(os.urandom(64)).decode('utf-8')
+    digest = base64.b64encode(hashlib.pbkdf2_hmac('sha256', bytes(password, 'utf-8'), salt.encode('utf-8'), 200000)).decode('utf-8')
     return salt, digest
 
 
 def is_password(password, salt, digest):
     return get_digest(password, salt)[1] == digest
+
+
+def fernet_encrypt(password, in_data):
+    digest = get_digest(password, b'')[1]
+    f = Fernet(digest)
+    return f.encrypt(in_data)
+
+
+def fernet_decrypt(password, in_data):
+    digest = get_digest(password, b'')[1]
+    f = Fernet(digest)
+    return f.decrypt(in_data)
 
 
 def _depends():
@@ -1398,6 +1484,7 @@ def _init(dispatcher, plugin):
     plugin.register_task_handler('volume.lock', VolumeLockTask)
     plugin.register_task_handler('volume.unlock', VolumeUnlockTask)
     plugin.register_task_handler('volume.rekey', VolumeRekeyTask)
+    plugin.register_task_handler('volume.keys.backup', VolumeBackupKeysTask)
     plugin.register_task_handler('volume.dataset.create', DatasetCreateTask)
     plugin.register_task_handler('volume.dataset.delete', DatasetDeleteTask)
     plugin.register_task_handler('volume.dataset.update', DatasetConfigureTask)
