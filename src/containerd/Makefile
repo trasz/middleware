@@ -2,9 +2,8 @@ PREFIX ?= /usr/local
 PYTHON ?= python
 
 fetch:
-	mkdir -p rancher
-	fetch -o rancher/vmlinuz http://releases.rancher.com/os/latest/vmlinuz
-	fetch -o rancher/initrd http://releases.rancher.com/os/latest/initrd
+	fetch -o share/rancheros/vmlinuz http://releases.rancher.com/os/latest/vmlinuz
+	fetch -o share/rancheros/initrd http://releases.rancher.com/os/latest/initrd
 
 install:
 	install etc/containerd ${PREFIX}/etc/rc.d/
@@ -14,5 +13,5 @@ install:
 	install -d ${PREFIX}/lib/containerd/plugins
 	install -d ${PREFIX}/share/containerd
 	install -d ${PREFIX}/share/containerd/rancheros
-	cp -a rancher/ ${PREFIX}/share/containerd/rancheros/
+	cp -a share/ ${PREFIX}/share/containerd/
 	cp -a src/ ${PREFIX}/lib/containerd/src/
