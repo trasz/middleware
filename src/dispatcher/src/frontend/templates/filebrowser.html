@@ -68,6 +68,7 @@
 
     <script type="text/javascript">
 
+      // Handlebars Stuff
       Handlebars.registerHelper( "json", function ( context ) {
         return JSON.stringify( context, null, 4 );
       });
@@ -80,6 +81,10 @@
         $( "#directoryTemplate" ).html()
       );
       var outputfiles = Handlebars.compile( $( "#outputfiles" ).html() );
+      // Handlebars Stuff
+
+      // Actual JS code for filebrowser
+      var BUFSIZE = 6;
       var sock = new middleware.DispatcherClient( document.domain );
 
       function pathJoin ( parts, sep ) {
@@ -154,28 +159,35 @@
       dropZone.addEventListener( "drop", handleFileSelect, false );
 
 
-      function readBlob ( file, optStartByte, optStopByte ) {
+      function sendBlob ( fileconn, file, optStartByte, optStopByte ) {
         var start = parseInt( optStartByte ) || 0;
-        var stop = parseInt( optStopByte ) || file.size - 1;
+        var stop = parseInt( optStopByte ) || file.size;
 
         var reader = new FileReader();
 
         reader.onloadend = function ( evt ) {
           if ( evt.target.readyState == FileReader.DONE ) { // DONE == 2
-            console.log( "readBlob byte_content: ", evt.target.result );
             console.log
               ( "readBlob byte_range: Read bytes: "
-              , start + 1
+              , start
               , " - "
-              , stop + 1
+              , stop
               , " of "
               , file.size
               , " byte file"
             );
+            fileconn.send( evt.target.result );
+            if ( stop == file.size ) {
+              // we are done with the transfer, AWESOME!
+              // disconnet after a small delay
+              setTimeout( function ( ) {
+                  fileconn.disconnect();
+                }, 2000 );
+            }
           }
         };
 
-        var blob = file.slice( start, stop + 1 );
+        var blob = file.slice( start, stop );
         reader.readAsBinaryString( blob );
       }
 
@@ -183,16 +195,22 @@
         console.log( "uploadToSocket: Initializing FileClient now" );
         fileconn = new middleware.FileClient( sock );
         fileconn.onOpen = function ( ) {
-          console.log( "FileConnection opened" );
+          console.log( "FileConnection opened, Websocket resdyState: ", fileconn.socket.readyState );
+          console.log( "Going for upload in 1024 byte slices..." );
+          var filePos = 0;
+          while ( filePos + BUFSIZE <= file.size ) {
+            sendBlob( fileconn, file, filePos, filePos + BUFSIZE );
+            filePos = filePos + BUFSIZE;
+          }
+          if ( filePos < file.size ) {
+            sendBlob( fileconn, file, filePos, file.size );
+          }
         };
         fileconn.onData = function ( msg ) {
           console.log( "FileConnection message recieved is ", msg );
         };
         fileconn.onClose = function ( ) {
           console.log( "FileConnection closed" );
-        };
-        fileconn.onData = function ( msg ) {
-          console.log( "FileConnection data: ", msg );
         };
         fileconn.upload(
             pathJoin(

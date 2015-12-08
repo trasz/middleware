@@ -132,7 +132,8 @@ class FilesystemProvider(Provider):
             user=sender.user,
             lifetime=60,
             direction='download',
-            file=f
+            file=f,
+            size=os.path.getsize(path)
         ))
 
         return token
@@ -175,7 +176,7 @@ class DownloadFileTask(Task):
         return TaskStatus(percentage)
 
 
-@accepts(str, int)
+@accepts(str)
 @private
 class UploadFileTask(Task):
     def verify(self, connection):

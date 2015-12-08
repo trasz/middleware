@@ -318,6 +318,7 @@ class Dispatcher(object):
         self.keyfile = None
         self.ready = Event()
         self.port = 0
+        self.file_ws_connectios = None
 
     def init(self):
         self.logger.info('Initializing')
@@ -1477,35 +1478,49 @@ class FileConnection(WebSocketApplication, EventEmitter):
         self.logger = logging.getLogger('FileConnection')
 
     def worker(self, file, direction, size=None):
-        def read_worker():
-            while True:
+        # def read_worker():
+        #     while True:
+        #         data = file.read(self.BUFSIZE)
+        #         if not data:
+        #             return
+
+        #         self.ws.send(data)
+
+        # def write_worker():
+        #     for i in self.inq:
+        #         file.write(i)
+
+        # if self.token.direction == "upload":
+        #     worker = gevent.spawn(write_worker)
+        # else:
+        #     worker = gevent.spawn(read_worker)
+        if self.token.direction == "download":
+            file.seek(0)
+            while file.tell() <= self.bytes_total:
                 data = file.read(self.BUFSIZE)
                 if not data:
-                    return
-
+                    break
                 self.ws.send(data)
-
-        def write_worker():
+                self.bytes_done = file.tell()
+        else:
             for i in self.inq:
                 file.write(i)
-
-        wr = gevent.spawn(write_worker)
-        rd = gevent.spawn(read_worker)
+                self.bytes_done = file.tell()
+        self.file.close()
+        self.done()
         self.ws.close()
-        gevent.joinall([rd, wr])
+        # gevent.joinall([worker])
 
     def on_open(self, *args, **kwargs):
-        self.logger.info(
-            "File {0} Initiated for file {1}".format(self.token.direction, self.token.file)
-        )
+        self.logger.info("FileConnection Opened")
 
     def on_close(self, *args, **kwargs):
+        self.inq.put(StopIteration)
         self.logger.info(
             "File {0} Closed for file {1}".format(self.token.direction, self.token.file)
         )
 
     def on_message(self, message, *args, **kwargs):
-        self.logger.debug("FileConnection on_message, the message is: {0}".format(message))
         if message is None:
             return
 
@@ -1520,14 +1535,17 @@ class FileConnection(WebSocketApplication, EventEmitter):
 
             self.token = self.dispatcher.token_store.lookup_token(message['token'])
             self.authenticated = True
+            self.bytes_total = self.token.size
 
             gevent.spawn(self.worker, self.token.file, self.token.direction, self.token.size)
-            self.dispatcher.balancer.submit('file.{0}'.format(self.token.direction), self)
+            # self.dispatcher.file_ws_connectios[message["token"]] = self
+            # self.dispatcher.balancer.submit(
+            #     'file.{0}'.format(self.token.direction), [self], self.token.user)
             self.ws.send(dumps({'status': 'ok'}))
             return
 
-        for i in message:
-            self.inq.put(i)
+        # Not doing for i in message since websocket is sending data as binary string
+        self.inq.put(message.decode('utf8'))
 
 
 def run(d, args):
