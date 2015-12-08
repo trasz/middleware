@@ -29,6 +29,7 @@ import errno
 import os
 import uuid
 from task import Provider, Task, VerifyException, TaskException, query
+from freenas.dispatcher.rpc import RpcException
 from freenas.dispatcher.rpc import SchemaHelper as h, description, accepts, returns, private
 from freenas.utils import first_or_default, normalize
 
@@ -153,7 +154,18 @@ class ContainerDeleteTask(Task):
         return ['system']
 
     def run(self, id):
-        pass
+        container = self.datastore.get_by_id('containers', id)
+        pool = container['target']
+        root_ds = os.path.join(pool, 'vm')
+        container_ds = os.path.join(root_ds, container['name'])
+
+        try:
+            self.join_subtasks(self.run_subtask('volume.dataset.delete', pool, container_ds, True))
+        except RpcException as err:
+            if err.code == errno.ENOENT:
+                pass
+
+        self.datastore.delete('containers', id)
 
 
 @accepts(str)
