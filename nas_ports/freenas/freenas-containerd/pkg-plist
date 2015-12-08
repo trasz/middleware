@@ -1,2 +1,4 @@
 etc/rc.d/containerd
 sbin/containerd
+share/containerd/rancheros/vmlinuz
+share/containerd/rancheros/initrd

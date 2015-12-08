@@ -22,8 +22,11 @@ MAKE_JOBS_UNSAFE= yes
 ALL_TARGET=	obj all
 WRKSRC=		/usr/middleware_src/containerd
 
-checksum fetch:
+checksum extract:
 	${ECHO_CMD} ${.TARGET} not needed because building direct
+
+fetch:
+	${MAKE} -C ${WRKSRC} fetch
 
 do-install:
 	${MAKE} -C ${WRKSRC} install PREFIX=${STAGEDIR}${PREFIX} PYTHON=${PYTHON_CMD}
