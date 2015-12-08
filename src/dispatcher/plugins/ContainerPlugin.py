@@ -162,8 +162,8 @@ class ContainerDeleteTask(Task):
         try:
             self.join_subtasks(self.run_subtask('volume.dataset.delete', pool, container_ds, True))
         except RpcException as err:
-            if err.code == errno.ENOENT:
-                pass
+            if err.code != errno.ENOENT:
+                raise err
 
         self.datastore.delete('containers', id)
 
