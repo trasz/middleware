@@ -244,8 +244,8 @@ class VolumeProvider(Provider):
     def get_volume_disks(self, name):
         result = []
         vol = self.datastore.get_one('volumes', ('name', '=', name))
-        encryption = vol.get('encryption')
-        if encryption['locked'] is not True:
+        encryption = vol.get('encryption', {})
+        if encryption.get('locked', False) is not True:
             for dev in self.dispatcher.call_sync('zfs.pool.get_disks', name):
                 try:
                     result.append(self.dispatcher.call_sync('disk.partition_to_disk', dev))
@@ -512,7 +512,7 @@ class VolumeDestroyTask(Task):
 
     def run(self, name):
         vol = self.datastore.get_one('volumes', ('name', '=', name))
-        encryption = vol.get('encryption')
+        encryption = vol.get('encryption', {})
         config = self.dispatcher.call_sync('volume.get_config', name)
 
         self.dispatcher.run_hook('volume.pre_destroy', {'name': name})
@@ -523,7 +523,7 @@ class VolumeDestroyTask(Task):
                 self.join_subtasks(self.run_subtask('zfs.umount', name))
                 self.join_subtasks(self.run_subtask('zfs.pool.destroy', name))
 
-                if encryption['key'] is not None:
+                if encryption.get('key', None) is not None:
                     subtasks = []
                     for dname in disks:
                         subtasks.append(self.run_subtask('disk.geli.kill', dname))
