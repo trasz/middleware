@@ -32,6 +32,7 @@ import tempfile
 import shutil
 import itertools
 import base64
+import copy
 import bsd
 import bsd.kld
 import hashlib
@@ -1299,7 +1300,7 @@ def get_disk_gptid(dispatcher, disk):
 
 
 def convert_topology_to_gptids(dispatcher, topology):
-    topology = topology.copy()
+    topology = copy.deepcopy(topology)
     for vdev, _ in iterate_vdevs(topology):
         vdev['path'] = get_disk_gptid(dispatcher, vdev['path'])
 
