@@ -906,7 +906,9 @@ class VolumeLockTask(Task):
 @description("Unlocks encrypted ZFS volume")
 @accepts(str, h.object())
 class VolumeUnlockTask(Task):
-    def verify(self, name, params={}):
+    def verify(self, name, params=None):
+        if params is None:
+            params = {}
         if not self.datastore.exists('volumes', ('name', '=', name)):
             raise VerifyException(errno.ENOENT, 'Volume {0} not found'.format(name))
 
@@ -928,7 +930,9 @@ class VolumeUnlockTask(Task):
 
         return ['disk:{0}'.format(d) for d, _ in get_disks(vol['topology'])]
 
-    def run(self, name, params={}):
+    def run(self, name, params=None):
+        if params is None:
+            params = {}
         with self.dispatcher.get_lock('volumes'):
             vol = self.datastore.get_one('volumes', ('name', '=', name))
 
