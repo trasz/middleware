@@ -36,6 +36,7 @@ import bsd
 import bsd.kld
 import hashlib
 import json
+import uuid
 from cache import EventCacheStore
 from lib.system import system, SubprocessException
 from lib.freebsd import fstyp
@@ -1020,10 +1021,10 @@ class VolumeRekeyTask(Task):
             })
 
 
-@description("Creates a backup file of User Key and/or Master Key of encrypted volume")
-@accepts(str, str, h.object())
+@description("Creates a backup file of Master Keys of encrypted volume")
+@accepts(str, str)
 class VolumeBackupKeysTask(Task):
-    def verify(self, name, out_path=None, params={}):
+    def verify(self, name, out_path=None):
         if not self.datastore.exists('volumes', ('name', '=', name)):
             raise VerifyException(errno.ENOENT, 'Volume {0} not found'.format(name))
 
@@ -1040,56 +1041,76 @@ class VolumeBackupKeysTask(Task):
         if out_path is None:
             raise VerifyException(errno.EINVAL, 'Output file is not specified')
 
-        keys = params.get('keys', None)
-        if keys is None:
-            raise VerifyException(errno.EINVAL, 'No keys specified for backup')
-        else:
-            for i in keys:
-                if i not in ('master', 'user'):
-                    raise VerifyException(errno.EINVAL, 'Unknown type of key selected {0}. Must be master or user'
-                                          .format(i))
+        return ['disk:{0}'.format(d) for d in self.dispatcher.call_sync('volume.get_volume_disks', name)]
+
+    def run(self, name, out_path=None):
+        with self.dispatcher.get_lock('volumes'):
+            disks = self.dispatcher.call_sync('volume.get_volume_disks', name)
+            out_data = {}
+
+            subtasks = []
+            for dname in disks:
+                subtasks.append(self.run_subtask('disk.geli.mkey.backup', dname))
+            output = self.join_subtasks(*subtasks)
+
+        for result in output:
+            out_data[result['disk']] = result
+
+        password = str(uuid.uuid4())
+        enc_data = fernet_encrypt(password, json.dumps(out_data).encode('utf-8'))
+
+        with open(out_path, 'wb') as out_file:
+            out_file.write(enc_data)
+
+        return password
+
+
+@description("Loads a backup file of Master Keys of encrypted volume")
+@accepts(str, str, str)
+class VolumeRestoreKeysTask(Task):
+    def verify(self, name, password=None, in_path=None):
+        if not self.datastore.exists('volumes', ('name', '=', name)):
+            raise VerifyException(errno.ENOENT, 'Volume {0} not found'.format(name))
+
+        vol = self.datastore.get_one('volumes', ('name', '=', name))
+
+        encryption = vol.get('encryption')
+
+        if encryption['key'] is None:
+            raise VerifyException(errno.EINVAL, 'Volume {0} is not encrypted'.format(name))
+
+        if not encryption['locked'] is True:
+            raise VerifyException(errno.EINVAL, 'Volume {0} is not locked'.format(name))
+
+        if in_path is None:
+            raise VerifyException(errno.EINVAL, 'Input file is not specified')
+
+        if password is None:
+            raise VerifyException(errno.EINVAL, 'Password is not specified')
 
         return ['disk:{0}'.format(d) for d in self.dispatcher.call_sync('volume.get_volume_disks', name)]
 
-    def run(self, name, out_path=None, params={}):
-        security = params.get('security', None)
+    def run(self, name, password=None, in_path=None):
+        with open(in_path, 'rb') as in_file:
+            enc_data = in_file.read()
+
+        try:
+            json_data = fernet_decrypt(password, enc_data)
+        except InvalidToken:
+            raise TaskException(errno.EINVAL, 'Provided password do not match backup file')
+
+        data = json.loads(json_data, 'utf-8')
+
         with self.dispatcher.get_lock('volumes'):
-            vol = self.datastore.get_one('volumes', ('name', '=', name))
-            encryption = vol.get('encryption')
             disks = self.dispatcher.call_sync('volume.get_volume_disks', name)
+            subtasks = []
+            for disk in data:
+                if disk['disk'] not in disks:
+                    raise TaskException(errno.EINVAL, 'Disk {0} is not a part of volume {1}'.format(disk['disk'], name))
 
-            keys = params.get('keys', None)
-            out_data = {}
+                subtasks.append(self.run_subtask('disk.geli.mkey.restore', disk))
 
-            if 'master' in keys:
-                subtasks = []
-                for dname in disks:
-                    subtasks.append(self.run_subtask('disk.geli.mkey.backup', dname))
-                output = self.join_subtasks(*subtasks)
-                for result in output:
-                    out_data[result['disk']] = result
-
-            if 'user' in keys:
-                out_data['ukey'] = encryption['key']
-
-        if security is not None:
-            password = security.get('password', None)
-            if password is not None:
-                enc_data = fernet_encrypt(password, json.dumps(out_data).encode('utf-8'))
-
-                try:
-                    with open(out_path, 'wb') as out_file:
-                        out_file.write(enc_data)
-                except Exception:
-                    pass
-            else:
-                raise TaskException(errno.EINVAL, 'Selected type of security is not supported')
-        else:
-            try:
-                with open(out_path, 'w') as out_file:
-                    json.dump(out_data, out_file)
-            except Exception as err:
-                raise TaskException(errno.EINVAL, '{0}'.format(err))
+            self.join_subtasks(*subtasks)
 
 
 @description("Creates a dataset in an existing volume")
@@ -1485,6 +1506,7 @@ def _init(dispatcher, plugin):
     plugin.register_task_handler('volume.unlock', VolumeUnlockTask)
     plugin.register_task_handler('volume.rekey', VolumeRekeyTask)
     plugin.register_task_handler('volume.keys.backup', VolumeBackupKeysTask)
+    plugin.register_task_handler('volume.keys.restore', VolumeRestoreKeysTask)
     plugin.register_task_handler('volume.dataset.create', DatasetCreateTask)
     plugin.register_task_handler('volume.dataset.delete', DatasetDeleteTask)
     plugin.register_task_handler('volume.dataset.update', DatasetConfigureTask)
