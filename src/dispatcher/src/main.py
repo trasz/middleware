@@ -800,9 +800,14 @@ class UnixSocketServer(object):
         def send(self, message):
             data = message.encode('utf-8')
             header = struct.pack('II', 0xdeadbeef, len(data))
-            self.fd.write(header)
-            self.fd.write(data)
-            self.fd.flush()
+            try:
+                self.fd.write(header)
+                self.fd.write(data)
+                self.fd.flush()
+            except OSError:
+                self.server.logger.info('Send failed; closing connection')
+                self.conn.on_close('Bye bye')
+                self.fd.close()
 
         def handle_connection(self):
             self.conn = ServerConnection(self, self.dispatcher)
