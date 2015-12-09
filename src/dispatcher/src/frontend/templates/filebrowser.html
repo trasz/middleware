@@ -3,31 +3,7 @@
 {% block title %}File Browser{% endblock %}
 {% block styles %}
     {{ super() }}
-    <style type="text/css">
-        body {
-            margin: 20px;
-            padding-top: 50px;
-        }
-        #fileIcon {
-          position:relative;
-          left: -10px;
-        }
-        #drop_zone {
-          border: 2px dashed #bbb;
-          -moz-border-radius: 5px;
-          -webkit-border-radius: 5px;
-          border-radius: 5px;
-          padding: 25px;
-          text-align: center;
-          font: 20pt bold 'Vollkorn';
-          color: #bbb;
-        }
-        .dropcontainer {
-          padding: 10px;
-          border: 1px solid #ccc;
-        }
-    </style>
-    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/font-awesome/4.5.0/css/font-awesome.min.css">
+    <link rel="stylesheet" href="/static/filebrowser.css">
     <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.5/css/bootstrap.min.css" integrity="sha512-dTfge/zgoMYpP7QbHy4gWMEGsbsdZeCXz7irItjcC3sPUFtf0kuFbDz/ixG7ArTxmDjLXDmezHubeNikyKGVyQ==" crossorigin="anonymous">
 
 {% endblock %}
@@ -37,12 +13,13 @@
     <script src="//cdnjs.cloudflare.com/ajax/libs/handlebars.js/2.0.0/handlebars.min.js"></script>
     <script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.5/js/bootstrap.min.js" integrity="sha512-K1qjQ+NcF2TYO/eI3M6v8EiNYZfA95pQumfvcVrTHtwQVDG+aHRqLi/ETn2uB+1JqwYqVG3LIvdm9lj6imS/pQ==" crossorigin="anonymous"></script>
     <script src="/static/middleware.js"></script>
+    <script src="/static/contextmenu.js"></script>
 
     <script id="directoryTemplate" type="text/x-handlebars-template">
       {% raw %}
-        <td onclick="listDir('{{~args.name}}', true)">
-          <i id="glass" class="fa fa-folder"/>
-          {{args.name}}
+        <td class="fileElement" onclick="listDir('{{~args.name}}', true)">
+          <i class="glyphicon glyphicon-folder-close"/>
+          {{~args.name}}
         </td>
         <td>{{args.size}}</td>
         <td>{{args.modified}}</td>
@@ -51,7 +28,10 @@
 
     <script id="fileTemplate" type="text/x-handlebars-template">
       {% raw %}
-        <td><i id="glass" class="fa fa-file-text"/>{{args.name}}</td>
+        <td class="fileElement">
+          <i class="glyphicon glyphicon-file"/>
+          {{~args.name}}
+        </td>
         <td>{{ args.size }}</td>
         <td>{{ args.modified }}</td>
       {% endraw %}
@@ -83,15 +63,33 @@
       var outputfiles = Handlebars.compile( $( "#outputfiles" ).html() );
       // Handlebars Stuff
 
-      // Actual JS code for filebrowser
-      var BUFSIZE = 6;
-      var sock = new middleware.DispatcherClient( document.domain );
-
+      // Utility Helper functions
       function pathJoin ( parts, sep ) {
         var separator = sep || "/";
         var replace   = new RegExp( separator + "{1,}", "g" );
         return parts.join( separator ).replace( replace, separator );
       }
+
+      function humanFileSize ( bytes, si ) {
+        var thresh = si ? 1000 : 1024;
+        if ( Math.abs( bytes ) < thresh ) {
+          return bytes + " B";
+        }
+        var units = si
+            ? [ "kB", "MB", "GB", "TB", "PB", "EB", "ZB", "YB" ]
+            : [ "KiB", "MiB", "GiB", "TiB", "PiB", "EiB", "ZiB", "YiB" ];
+        var u = -1;
+        do {
+          bytes /= thresh;
+          ++u;
+        } while ( Math.abs( bytes ) >= thresh && u < units.length - 1 );
+        return bytes.toFixed( 1 ) + " " + units[u];
+      };
+      // Utility Helper functions
+
+      // Actual JS code for filebrowser
+      var BUFSIZE = 1024;
+      var sock = new middleware.DispatcherClient( document.domain );
 
       var listDir = function ( path, relative ) {
         if ( relative === true ) {
@@ -108,6 +106,9 @@
           });
           sessionStorage.setItem( "filebrowser:cwd", path );
           $.each( dirs, function ( key, value ) {
+            var date = new Date( 0 );
+            value.modified = new Date( date.setUTCSeconds( value.modified ) );
+            value.size = humanFileSize( value.size, false );
             var resultingHtml;
             if ( value.type === "DIRECTORY" ) {
               resultingHtml = directoryTemplate({args: value});
@@ -253,6 +254,13 @@
 {% block content %}
 {{ nav.nav() }}
   <h1>File Browser</h1>
+  <nav id="context-menu" class="context-menu">
+    <ul class="context-menu__items">
+      <li class="context-menu__item">
+        <a href="#" class="context-menu__link" data-action="Download"><i class="glyphicon glyphicon-download"></i>Download File</a>
+      </li>
+    </ul>
+  </nav>
   <div class="panel panel-info">
     <div class="panel-heading">
       <h3 class="panel-title" id="cwd"></h3>
@@ -262,7 +270,7 @@
     </div>
 
     <div class="dropcontainer">
-      <div id="drop_zone">File Upload: Drop files here</div>
+      <div id="drop_zone" class="drop_zone">File Upload: Drop files here</div>
       <output id="outputfilelist"></output>
     </div>
     <table class="table" id="dirlist">
