@@ -1540,6 +1540,27 @@ def _init(dispatcher, plugin):
     dispatcher.rpc.call_sync('alert.register_alert', 'volume.disk_removed', 'Volume disk removed')
 
     for vol in dispatcher.datastore.query('volumes'):
+        encryption = vol.get('encryption', {})
+        if encryption.get('key', None) is not None:
+            if encryption['locked'] is True:
+                continue
+
+            dname, dgroup = next(get_disks(vol['topology']))
+            disk_config = dispatcher.call_sync('disk.get_disk_config', dname)
+            provider = disk_config.get('data_partition_uuid', dname) + '.eli'
+            try:
+                system('/sbin/geli', 'list', provider)
+            except SubprocessException:
+                encryption['locked'] = True
+                vol['encryption'] = encryption
+                dispatcher.datastore.update('volumes', vol['id'], vol)
+
+                dispatcher.dispatch_event('volume.changed', {
+                    'operation': 'update',
+                    'ids': vol['id']
+                })
+                continue
+
         try:
             dispatcher.call_task_sync('zfs.mount', vol['name'], True)
 
