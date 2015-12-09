@@ -1095,9 +1095,10 @@ class VolumeRestoreKeysTask(Task):
         if password is None:
             raise VerifyException(errno.EINVAL, 'Password is not specified')
 
-        return ['disk:{0}'.format(d) for d in self.dispatcher.call_sync('volume.get_volume_disks', name)]
+        return ['disk:{0}'.format(d) for d, _ in get_disks(vol['topology'])]
 
     def run(self, name, password=None, in_path=None):
+        vol = self.datastore.get_one('volumes', ('name', '=', name))
         with open(in_path, 'rb') as in_file:
             enc_data = in_file.read()
 
@@ -1106,13 +1107,13 @@ class VolumeRestoreKeysTask(Task):
         except InvalidToken:
             raise TaskException(errno.EINVAL, 'Provided password do not match backup file')
 
-        data = json.loads(json_data, 'utf-8')
+        data = json.loads(json_data.decode('utf-8'), 'utf-8')
 
         with self.dispatcher.get_lock('volumes'):
-            disks = self.dispatcher.call_sync('volume.get_volume_disks', name)
             subtasks = []
-            for disk in data:
-                if disk['disk'] not in disks:
+            for dname, dgroup in get_disks(vol['topology']):
+                disk = data.get(dname, None)
+                if disk is None:
                     raise TaskException(errno.EINVAL, 'Disk {0} is not a part of volume {1}'.format(disk['disk'], name))
 
                 subtasks.append(self.run_subtask('disk.geli.mkey.restore', disk))
@@ -1320,7 +1321,7 @@ def split_snapshot_name(name):
 
 
 def get_digest(password, salt=None):
-    if not salt:
+    if salt is None:
         salt = base64.b64encode(os.urandom(64)).decode('utf-8')
     digest = base64.b64encode(hashlib.pbkdf2_hmac('sha256', bytes(password, 'utf-8'), salt.encode('utf-8'), 200000)).decode('utf-8')
     return salt, digest
@@ -1331,13 +1332,13 @@ def is_password(password, salt, digest):
 
 
 def fernet_encrypt(password, in_data):
-    digest = get_digest(password, b'')[1]
+    digest = get_digest(password, '')[1]
     f = Fernet(digest)
     return f.encrypt(in_data)
 
 
 def fernet_decrypt(password, in_data):
-    digest = get_digest(password, b'')[1]
+    digest = get_digest(password, '')[1]
     f = Fernet(digest)
     return f.decrypt(in_data)
 

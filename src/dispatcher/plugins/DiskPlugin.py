@@ -557,7 +557,7 @@ class DiskGELIRestoreMetadataTask(Task):
             raise TaskException(errno.EINVAL, 'Cannot get disk status for: {0}'.format(disk))
 
         with tempfile.NamedTemporaryFile('w+b') as metadata_file:
-            metadata_file.write(metadata.get('metadata'))
+            metadata_file.write(base64.b64decode(metadata.get('metadata').encode('utf-8')))
             metadata_file.flush()
             try:
                 system('/sbin/geli', 'restore', '-f', metadata_file.name, data_partition_path)
