@@ -454,7 +454,7 @@ class DiskGELISetUserKeyTask(Task):
                                                              ('online', '=', True)], {'single': True})
         disk_status = disk_info.get('status', None)
         if disk_status is not None:
-            data_partition_path = disk_status.get('data_partition_path')
+            data_partition_path = os.path.join('/dev/gptid/', disk_status.get('data_partition_uuid'))
         else:
             raise TaskException(errno.EINVAL, 'Cannot get disk status for: {0}'.format(disk))
 
@@ -484,7 +484,7 @@ class DiskGELIDelUserKeyTask(Task):
         if not get_disk_by_path(disk):
             raise VerifyException(errno.ENOENT, "Disk {0} not found".format(disk))
 
-        if slot not in [0,1]:
+        if slot not in [0, 1]:
             raise VerifyException(errno.EINVAL, "Chosen key slot value {0} is not in valid range [0-1]".format(slot))
 
         return ['disk:{0}'.format(disk)]
@@ -494,12 +494,12 @@ class DiskGELIDelUserKeyTask(Task):
                                                              ('online', '=', True)], {'single': True})
         disk_status = disk_info.get('status', None)
         if disk_status is not None:
-            data_partition_path = disk_status.get('data_partition_path')
+            data_partition_path = os.path.join('/dev/gptid/', disk_status.get('data_partition_uuid'))
         else:
             raise TaskException(errno.EINVAL, 'Cannot get disk status for: {0}'.format(disk))
 
         try:
-            system('/sbin/geli', 'delkey', '-a', '-n', str(slot), data_partition_path)
+            system('/sbin/geli', 'delkey', '-n', str(slot), data_partition_path)
         except SubprocessException as err:
             raise TaskException(errno.EFAULT, 'Cannot delete key of encrypted partition: {0}'.format(err.err))
 
