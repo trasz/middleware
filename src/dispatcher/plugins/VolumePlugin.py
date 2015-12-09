@@ -243,11 +243,14 @@ class VolumeProvider(Provider):
     @returns(h.array(str))
     def get_volume_disks(self, name):
         result = []
-        for dev in self.dispatcher.call_sync('zfs.pool.get_disks', name):
-            try:
-                result.append(self.dispatcher.call_sync('disk.partition_to_disk', dev))
-            except RpcException:
-                pass
+        vol = self.datastore.get_one('volumes', ('name', '=', name))
+        encryption = vol.get('encryption')
+        if encryption['locked'] is not True:
+            for dev in self.dispatcher.call_sync('zfs.pool.get_disks', name):
+                try:
+                    result.append(self.dispatcher.call_sync('disk.partition_to_disk', dev))
+                except RpcException:
+                    pass
 
         return result
 
@@ -895,7 +898,7 @@ class VolumeLockTask(Task):
             self.datastore.update('volumes', vol['id'], vol)
 
             self.dispatcher.dispatch_event('volume.changed', {
-                'operation': 'lock',
+                'operation': 'update',
                 'ids': [vol['id']]
             })
 
@@ -903,7 +906,7 @@ class VolumeLockTask(Task):
 @description("Unlocks encrypted ZFS volume")
 @accepts(str, h.object())
 class VolumeUnlockTask(Task):
-    def verify(self, name, params=None):
+    def verify(self, name, params={}):
         if not self.datastore.exists('volumes', ('name', '=', name)):
             raise VerifyException(errno.ENOENT, 'Volume {0} not found'.format(name))
 
@@ -923,15 +926,14 @@ class VolumeUnlockTask(Task):
                                encryption.get('hashed_password', '')):
                 raise VerifyException(errno.EINVAL, 'Password provided for volume {0} unlock is not valid'.format(name))
 
-        return ['disk:{0}'.format(d) for d in self.dispatcher.call_sync('volume.get_volume_disks', name)]
+        return ['disk:{0}'.format(d) for d, _ in get_disks(vol['topology'])]
 
-    def run(self, name, params=None):
+    def run(self, name, params={}):
         with self.dispatcher.get_lock('volumes'):
             vol = self.datastore.get_one('volumes', ('name', '=', name))
-            disks = self.dispatcher.call_sync('volume.get_volume_disks', name)
 
             subtasks = []
-            for dname in disks:
+            for dname, dgroup in get_disks(vol['topology']):
                 subtasks.append(self.run_subtask('disk.geli.attach', dname, {
                     'key': vol['encryption']['key'],
                     'password': params.get('password', None)
@@ -952,7 +954,7 @@ class VolumeUnlockTask(Task):
             self.datastore.update('volumes', vol['id'], vol)
 
             self.dispatcher.dispatch_event('volume.changed', {
-                'operation': 'unlock',
+                'operation': 'update',
                 'ids': [vol['id']]
             })
 
@@ -1017,7 +1019,7 @@ class VolumeRekeyTask(Task):
             self.join_subtasks(*subtasks)
 
             self.dispatcher.dispatch_event('volume.changed', {
-                'operation': 'rekey',
+                'operation': 'update',
                 'ids': [vol['id']]
             })
 
@@ -1367,7 +1369,8 @@ def _init(dispatcher, plugin):
             for i in args['ids']:
                 with dispatcher.get_lock('volumes'):
                     volume = dispatcher.datastore.get_one('volumes', ('name', '=', i))
-                    if volume:
+                    encryption = volume.get('encryption')
+                    if volume and not encryption['locked']:
                         logger.info('Volume {0} is going away'.format(volume['name']))
                         dispatcher.datastore.delete('volumes', volume['id'])
                         dispatcher.dispatch_event('volume.changed', {
