@@ -366,7 +366,7 @@ class ConfigurationService(RpcService):
         for i in self.datastore.query('network.interfaces'):
             self.logger.info('Configuring interface {0}...'.format(i['id']))
             try:
-                self.configure_interface(i['id'])
+                self.configure_interface(i['id'], False)
             except BaseException as e:
                 self.logger.warning('Cannot configure {0}: {1}'.format(i['id'], str(e)), exc_info=True)
 
@@ -491,7 +491,7 @@ class ConfigurationService(RpcService):
             'addresses': addrs,
         })
 
-    def configure_interface(self, name):
+    def configure_interface(self, name, restart_rtsold=True):
         entity = self.datastore.get_one('network.interfaces', ('id', '=', name))
         if not entity:
             raise RpcException(errno.ENXIO, "Configuration for interface {0} not found".format(name))
@@ -583,6 +583,8 @@ class ConfigurationService(RpcService):
         # nd6 stuff
         if entity.get('rtadv', False):
             iface.nd6_flags = iface.nd6_flags | {netif.NeighborDiscoveryFlags.ACCEPT_RTADV}
+            if restart_rtsold:
+                self.client.call_sync('service.restart', 'rtsold')
         else:
             iface.nd6_flags = iface.nd6_flags - {netif.NeighborDiscoveryFlags.ACCEPT_RTADV}
 
