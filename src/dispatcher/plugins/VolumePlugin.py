@@ -701,9 +701,9 @@ class VolumeUpdateTask(Task):
 
 
 @description("Imports previously exported volume")
-@accepts(str, str, h.object())
+@accepts(str, str, h.object(), h.object())
 class VolumeImportTask(Task):
-    def verify(self, id, new_name, params=None):
+    def verify(self, id, new_name, params=None, enc_params=None):
         if self.datastore.exists('volumes', ('id', '=', id)):
             raise VerifyException(
                 errno.ENOENT,
@@ -718,15 +718,17 @@ class VolumeImportTask(Task):
 
         return self.verify_subtask('zfs.pool.import', id)
 
-    def run(self, id, new_name, params=None):
+    def run(self, id, new_name, params=None, enc_params=None):
+        if enc_params is None:
+            enc_params = {}
         with self.dispatcher.get_lock('volumes'):
-            key = params.get('key', None)
+            key = enc_params.get('key', None)
             if key is not None:
-                disks = params.get('disks', [])
-                password = params.get('password', None)
+                disks = enc_params.get('disks', [])
+                password = enc_params.get('password', None)
 
                 for dname in disks:
-                    self.join_subtasks(self.run_subtask('disk.geli.attach', dname, params))
+                    self.join_subtasks(self.run_subtask('disk.geli.attach', dname, enc_params))
             else:
                 password = None
 
@@ -904,11 +906,9 @@ class VolumeLockTask(Task):
 
 
 @description("Unlocks encrypted ZFS volume")
-@accepts(str, h.object())
+@accepts(str, str, h.object())
 class VolumeUnlockTask(Task):
-    def verify(self, name, params=None):
-        if params is None:
-            params = {}
+    def verify(self, name, password='', params=None):
         if not self.datastore.exists('volumes', ('name', '=', name)):
             raise VerifyException(errno.ENOENT, 'Volume {0} not found'.format(name))
 
@@ -923,16 +923,14 @@ class VolumeUnlockTask(Task):
             raise VerifyException(errno.EINVAL, 'Volume {0} is not locked'.format(name))
 
         if encryption['hashed_password'] is not None:
-            if not is_password(params.get('password', ''),
+            if not is_password(password,
                                encryption.get('salt', ''),
                                encryption.get('hashed_password', '')):
                 raise VerifyException(errno.EINVAL, 'Password provided for volume {0} unlock is not valid'.format(name))
 
         return ['disk:{0}'.format(d) for d, _ in get_disks(vol['topology'])]
 
-    def run(self, name, params=None):
-        if params is None:
-            params = {}
+    def run(self, name, password='', params=None):
         with self.dispatcher.get_lock('volumes'):
             vol = self.datastore.get_one('volumes', ('name', '=', name))
 
@@ -940,7 +938,7 @@ class VolumeUnlockTask(Task):
             for dname, dgroup in get_disks(vol['topology']):
                 subtasks.append(self.run_subtask('disk.geli.attach', dname, {
                     'key': vol['encryption']['key'],
-                    'password': params.get('password', None)
+                    'password': password
                 }))
             self.join_subtasks(*subtasks)
 
