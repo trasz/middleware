@@ -14,9 +14,7 @@ LICENSE_COMB=	dual
 
 LIB_DEPENDS=	libargp.so:${PORTSDIR}/devel/argp-standalone liburcu-bp.so:${PORTSDIR}/sysutils/liburcu
 
-USE_GCC=	any
-
-USES=		bison gettext libtool pkgconfig python:build readline \
+USES=		bison gettext libtool pkgconfig python:2,build readline \
 		shebangfix
 SHEBANG_FILES=	extras/peer_add_secret_pub.in \
 		tools/glusterfind/S57glusterfind-delete-post.py \
