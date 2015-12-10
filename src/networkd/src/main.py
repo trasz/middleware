@@ -687,7 +687,13 @@ class Main:
                 self.datastore.insert('network.interfaces', {
                     'enabled': False,
                     'id': i.name,
-                    'type': i.type.name
+                    'type': i.type.name,
+                    'dhcp': False,
+                    'noipv6': False,
+                    'rtadv': False,
+                    'mtu': None,
+                    'media': None,
+                    'aliases': []
                 })
 
         # Remove unplugged NICs from DB
