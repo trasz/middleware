@@ -552,19 +552,26 @@ class ConfigurationService(RpcService):
                     iface.add_member(port)
 
         if entity.get('dhcp'):
-            # Remove all existing aliases
-            for i in iface.addresses:
-                iface.remove_address(i)
+            if self.context.dhclient_running(name):
+                self.logger.info('Interface {0} already configured using DHCP'.format(name))
+            else:
+                # Remove all existing aliases
+                for i in iface.addresses:
+                    iface.remove_address(i)
 
-            self.logger.info('Trying to acquire DHCP lease on interface {0}...'.format(name))
-            if not self.context.configure_dhcp(name):
-                self.logger.warn('Failed to configure interface {0} using DHCP'.format(name))
+                self.logger.info('Trying to acquire DHCP lease on interface {0}...'.format(name))
+                if not self.context.configure_dhcp(name):
+                    self.logger.warn('Failed to configure interface {0} using DHCP'.format(name))
         else:
             addresses = set(convert_aliases(entity))
             existing_addresses = set([a for a in iface.addresses if a.af != netif.AddressFamily.LINK])
 
             # Remove orphaned addresses
             for i in existing_addresses - addresses:
+                if i.af == netif.AddressFamily.INET6 and str(i.address).startswith('fe80::'):
+                    # skip link-local IPv6 addresses
+                    continue
+
                 self.logger.info('Removing address from interface {0}: {1}'.format(name, i))
                 iface.remove_address(i)
 
@@ -647,9 +654,26 @@ class Main:
         self.rtsock_thread = None
         self.logger = logging.getLogger('networkd')
 
+    def dhclient_running(self, interface):
+        path = os.path.join('/var/run', 'dhclient.{0}.pid'.format(interface))
+        if not os.path.exists(path):
+            return False
+
+        try:
+            with open(path) as f:
+                pid = int(f.read().strip())
+        except (IOError, ValueError):
+            return False
+
+        try:
+            os.kill(pid, 0)
+            return True
+        except OSError:
+            return False
+
     def configure_dhcp(self, interface):
         # Check if dhclient is running
-        if os.path.exists(os.path.join('/var/run', 'dhclient.{0}.pid'.format(interface))):
+        if self.dhclient_running(interface):
             self.logger.info('Interface {0} already configured by DHCP'.format(interface))
             return True
 
