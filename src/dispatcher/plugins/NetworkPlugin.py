@@ -280,6 +280,31 @@ class InterfaceDownTask(Task):
         })
 
 
+@description("Renews IP lease on interface")
+@accepts(str)
+class InterfaceRenewTask(Task):
+    def verify(self, name):
+        interface = self.datastore.get_by_id('network.interfaces', name)
+        if not interface:
+            raise VerifyException(errno.ENOENT, 'Interface {0} does not exist'.format(name))
+
+        if not interface['dhcp']:
+            raise VerifyException(errno.EINVAL, 'Cannot renew a lease on interface that is not configured for DHCP')
+
+        return ['system']
+
+    def run(self, name):
+        try:
+            self.dispatcher.call_sync('networkd.configuration.renew_lease', name)
+        except RpcException as err:
+            raise TaskException(err.code, err.message, err.extra)
+
+        self.dispatcher.dispatch_event('network.interface.changed', {
+            'operation': 'update',
+            'ids': [name]
+        })
+
+
 @description("Adds host entry to the database")
 @accepts(h.all_of(
     h.ref('network-host'),
@@ -592,6 +617,7 @@ def _init(dispatcher, plugin):
     plugin.register_task_handler('network.interface.configure', ConfigureInterfaceTask)
     plugin.register_task_handler('network.interface.create', CreateInterfaceTask)
     plugin.register_task_handler('network.interface.delete', DeleteInterfaceTask)
+    plugin.register_task_handler('network.interface.renew', InterfaceRenewTask)
 
     plugin.register_event_handler('network.dns.configured', on_resolv_conf_change)
     plugin.register_event_type('network.interface.changed')
