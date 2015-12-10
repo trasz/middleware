@@ -25,9 +25,11 @@
 #
 #####################################################################
 
+import errno
 import os
 import uuid
 from task import Provider, Task, VerifyException, TaskException, query
+from freenas.dispatcher.rpc import RpcException
 from freenas.dispatcher.rpc import SchemaHelper as h, description, accepts, returns, private
 from freenas.utils import first_or_default, normalize
 
@@ -88,12 +90,23 @@ class ContainerBaseTask(Task):
         pass
 
     def delete_device(self, container, res):
-        pass
+        if res['type'] == 'DISK':
+            container_ds = os.path.join(container['target'], 'vm', container['name'])
+            ds_name = os.path.join(container_ds, res['name'])
+            self.join_subtasks(self.run_subtask(
+                'volume.dataset.delete',
+                container['target'],
+                ds_name,
+                True
+            ))
 
 
 @accepts(h.ref('container'))
 class ContainerCreateTask(ContainerBaseTask):
     def verify(self, container):
+        if not self.dispatcher.call_sync('volume.query', [('name', '=', container['target'])], {'single': True}):
+            raise VerifyException(errno.ENXIO, 'Volume {0} doesn\'t exist'.format(container['target']))
+
         return ['zpool:{0}'.format(container['target'])]
 
     def run(self, container):
@@ -104,8 +117,7 @@ class ContainerCreateTask(ContainerBaseTask):
 
         normalize(container['config'], {
             'memsize': 512,
-            'ncpus': 1,
-            'cdimage': None
+            'ncpus': 1
         })
 
         self.init_dataset(container)
@@ -121,6 +133,9 @@ class ContainerCreateTask(ContainerBaseTask):
 @accepts(str, h.ref('container'))
 class ContainerUpdateTask(ContainerBaseTask):
     def verify(self, id, updated_params):
+        if not self.datastore.exists('containers', ('id', '=', id)):
+            raise VerifyException(errno.ENOENT, 'Container {0} not found'.format(id))
+
         return ['system']
 
     def run(self, id, updated_params):
@@ -128,10 +143,7 @@ class ContainerUpdateTask(ContainerBaseTask):
 
         if 'devices' in updated_params:
             for res in updated_params['devices']:
-                if 'id' not in res:
-                    res['id'] = str(uuid.uuid4())
-
-                existing = first_or_default(lambda i: i['id'] == res['id'], container['devices'])
+                existing = first_or_default(lambda i: i['name'] == res['name'], container['devices'])
                 if existing:
                     self.update_device(container, existing, res)
                 else:
@@ -144,10 +156,24 @@ class ContainerUpdateTask(ContainerBaseTask):
 @accepts(str)
 class ContainerDeleteTask(Task):
     def verify(self, id):
+        if not self.datastore.exists('containers', ('id', '=', id)):
+            raise VerifyException(errno.ENOENT, 'Container {0} not found'.format(id))
+
         return ['system']
 
     def run(self, id):
-        pass
+        container = self.datastore.get_by_id('containers', id)
+        pool = container['target']
+        root_ds = os.path.join(pool, 'vm')
+        container_ds = os.path.join(root_ds, container['name'])
+
+        try:
+            self.join_subtasks(self.run_subtask('volume.dataset.delete', pool, container_ds, True))
+        except RpcException as err:
+            if err.code != errno.ENOENT:
+                raise err
+
+        self.datastore.delete('containers', id)
 
 
 @accepts(str)
@@ -179,7 +205,7 @@ def _init(dispatcher, plugin):
             'target': {'type': 'string'},
             'type': {
                 'type': 'string',
-                'enum': ['JAIL', 'VM']
+                'enum': ['JAIL', 'VM', 'DOCKER']
             },
             'config': {
                 'type': 'object',
@@ -206,7 +232,6 @@ def _init(dispatcher, plugin):
         'type': 'object',
         'additionalProperties': False,
         'properties': {
-            'id': {'type': 'string'},
             'name': {'type': 'string'},
             'type': {
                 'type': 'string',
@@ -215,6 +240,34 @@ def _init(dispatcher, plugin):
             'properties': {'type': 'object'}
         },
         'requiredProperties': ['name', 'type', 'properties']
+    })
+
+    plugin.register_schema_definition('container-device-nic', {
+        'type': 'object',
+        'additionalProperties': False,
+        'properties': {
+            'mode': {
+                'type': 'string',
+                'enum': ['BRIDGED', 'NAT', 'HOSTONLY']
+            },
+            'bridge': {'type': ['string', 'null']}
+        }
+    })
+
+    plugin.register_schema_definition('container-device-disk', {
+        'type': 'object',
+        'additionalProperties': False,
+        'properties': {
+            'size': {'type': 'integer'}
+        }
+    })
+
+    plugin.register_schema_definition('container-device-cdrom', {
+        'type': 'object',
+        'additionalProperties': False,
+        'properties': {
+            'path': {'type': 'string'}
+        }
     })
 
     plugin.register_provider('container', ContainerProvider)

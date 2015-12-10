@@ -3,17 +3,7 @@
 {% block title %}File Browser{% endblock %}
 {% block styles %}
     {{ super() }}
-    <style type="text/css">
-        body {
-            margin: 20px;
-            padding-top: 50px;
-        }
-        #fileIcon {
-          position:relative;
-          left: -10px;
-        }
-    </style>
-    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/font-awesome/4.5.0/css/font-awesome.min.css">
+    <link rel="stylesheet" href="/static/filebrowser.css">
     <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.5/css/bootstrap.min.css" integrity="sha512-dTfge/zgoMYpP7QbHy4gWMEGsbsdZeCXz7irItjcC3sPUFtf0kuFbDz/ixG7ArTxmDjLXDmezHubeNikyKGVyQ==" crossorigin="anonymous">
 
 {% endblock %}
@@ -23,12 +13,13 @@
     <script src="//cdnjs.cloudflare.com/ajax/libs/handlebars.js/2.0.0/handlebars.min.js"></script>
     <script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.5/js/bootstrap.min.js" integrity="sha512-K1qjQ+NcF2TYO/eI3M6v8EiNYZfA95pQumfvcVrTHtwQVDG+aHRqLi/ETn2uB+1JqwYqVG3LIvdm9lj6imS/pQ==" crossorigin="anonymous"></script>
     <script src="/static/middleware.js"></script>
+    <script src="/static/contextmenu.js"></script>
 
     <script id="directoryTemplate" type="text/x-handlebars-template">
       {% raw %}
-        <td onclick="listDir('{{~args.name}}', true)">
-          <i id="glass" class="fa fa-folder"/>
-          {{args.name}}
+        <td class="fileElement" onclick="listDir('{{~args.name}}', true)">
+          <i class="glyphicon glyphicon-folder-close"/>
+          {{~args.name}}
         </td>
         <td>{{args.size}}</td>
         <td>{{args.modified}}</td>
@@ -37,27 +28,68 @@
 
     <script id="fileTemplate" type="text/x-handlebars-template">
       {% raw %}
-        <td><i id="glass" class="fa fa-file-text"/>{{args.name}}</td>
+        <td class="fileElement">
+          <i class="glyphicon glyphicon-file"/>
+          {{~args.name}}
+        </td>
         <td>{{ args.size }}</td>
         <td>{{ args.modified }}</td>
       {% endraw %}
     </script>
 
+    <script id="outputfiles" type="text/x-handlebars-template">
+      {% raw %}
+        <li>
+          <strong>{{ file.name }}</strong>
+          {{ type }} - {{ file.size }} bytes, last modified: {{ modifiedDate }}
+        </li>
+      {% endraw %}
+    </script>
+
     <script type="text/javascript">
+
+      // Handlebars Stuff
       Handlebars.registerHelper( "json", function ( context ) {
         return JSON.stringify( context, null, 4 );
+      });
+      Handlebars.registerHelper( "stringifyFunc" , function ( fn ) {
+        return new Handlebars.SafeString( "(" +
+          fn.toString().replace( /\"/g,"'" ) + ")()" );
       });
       var fileTemplate = Handlebars.compile( $( "#fileTemplate" ).html() );
       var directoryTemplate = Handlebars.compile(
         $( "#directoryTemplate" ).html()
       );
-      var sock = new middleware.DispatcherClient( document.domain );
+      var outputfiles = Handlebars.compile( $( "#outputfiles" ).html() );
+      // Handlebars Stuff
 
+      // Utility Helper functions
       function pathJoin ( parts, sep ) {
         var separator = sep || "/";
         var replace   = new RegExp( separator + "{1,}", "g" );
         return parts.join( separator ).replace( replace, separator );
       }
+
+      function humanFileSize ( bytes, si ) {
+        var thresh = si ? 1000 : 1024;
+        if ( Math.abs( bytes ) < thresh ) {
+          return bytes + " B";
+        }
+        var units = si
+            ? [ "kB", "MB", "GB", "TB", "PB", "EB", "ZB", "YB" ]
+            : [ "KiB", "MiB", "GiB", "TiB", "PiB", "EiB", "ZiB", "YiB" ];
+        var u = -1;
+        do {
+          bytes /= thresh;
+          ++u;
+        } while ( Math.abs( bytes ) >= thresh && u < units.length - 1 );
+        return bytes.toFixed( 1 ) + " " + units[u];
+      };
+      // Utility Helper functions
+
+      // Actual JS code for filebrowser
+      var BUFSIZE = 1024;
+      var sock = new middleware.DispatcherClient( document.domain );
 
       var listDir = function ( path, relative ) {
         if ( relative === true ) {
@@ -69,11 +101,14 @@
           $( "#cwd" ).html( "Current Path: " + path );
           $( "#cdup" ).on( "click", function ( e ) {
             if ( path !== "/" ) {
-              listDir( path.substring( 0, path.lastIndexOf( "/" ) ));
+              listDir( path.substring( 0, path.lastIndexOf( "/" ) ) );
             };
           });
           sessionStorage.setItem( "filebrowser:cwd", path );
           $.each( dirs, function ( key, value ) {
+            var date = new Date( 0 );
+            value.modified = new Date( date.setUTCSeconds( value.modified ) );
+            value.size = humanFileSize( value.size, false );
             var resultingHtml;
             if ( value.type === "DIRECTORY" ) {
               resultingHtml = directoryTemplate({args: value});
@@ -87,6 +122,106 @@
           });
         });
       };
+
+      function handleFileSelect ( evt ) {
+        evt.stopPropagation();
+        evt.preventDefault();
+
+        var files = evt.dataTransfer.files; // FileList object.
+
+        $( "#outputfilelist" ).empty();
+        $.each( files, function ( key, file ) {
+          var date = file.lastModifiedDate ? file.lastModifiedDate.toLocaleDateString() : "n/a";
+          $( "#outputfilelist" ).append(
+              outputfiles(
+                { file: file
+                , type: file.type || "n/a"
+                , modifiedDate: date
+              })
+          );
+          $( "#outputfilelist" ).append(
+            $( "<button/>", {
+              text: "Upload",
+              click: function () { uploadToSocket( file ) }
+            })
+          );
+        });
+      }
+
+      function handleDragOver ( evt ) {
+        evt.stopPropagation();
+        evt.preventDefault();
+        evt.dataTransfer.dropEffect = "copy"; // Explicitly show this is a copy.
+      }
+
+      // Setup the dnd listeners.
+      var dropZone = document.getElementById( "drop_zone" );
+      dropZone.addEventListener( "dragover", handleDragOver, false );
+      dropZone.addEventListener( "drop", handleFileSelect, false );
+
+
+      function sendBlob ( fileconn, file, optStartByte, optStopByte ) {
+        var start = parseInt( optStartByte ) || 0;
+        var stop = parseInt( optStopByte ) || file.size;
+
+        var reader = new FileReader();
+
+        reader.onloadend = function ( evt ) {
+          if ( evt.target.readyState == FileReader.DONE ) { // DONE == 2
+            console.log
+              ( "readBlob byte_range: Read bytes: "
+              , start
+              , " - "
+              , stop
+              , " of "
+              , file.size
+              , " byte file"
+            );
+            fileconn.send( evt.target.result );
+            if ( stop == file.size ) {
+              // we are done with the transfer, AWESOME!
+              // disconnet after a small delay
+              setTimeout( function ( ) {
+                  fileconn.disconnect();
+                }, 2000 );
+            }
+          }
+        };
+
+        var blob = file.slice( start, stop );
+        reader.readAsBinaryString( blob );
+      }
+
+      function uploadToSocket ( file ) {
+        console.log( "uploadToSocket: Initializing FileClient now" );
+        fileconn = new middleware.FileClient( sock );
+        fileconn.onOpen = function ( ) {
+          console.log( "FileConnection opened, Websocket resdyState: ", fileconn.socket.readyState );
+          console.log( "Going for upload in 1024 byte slices..." );
+          var filePos = 0;
+          while ( filePos + BUFSIZE <= file.size ) {
+            sendBlob( fileconn, file, filePos, filePos + BUFSIZE );
+            filePos = filePos + BUFSIZE;
+          }
+          if ( filePos < file.size ) {
+            sendBlob( fileconn, file, filePos, file.size );
+          }
+        };
+        fileconn.onData = function ( msg ) {
+          console.log( "FileConnection message recieved is ", msg );
+        };
+        fileconn.onClose = function ( ) {
+          console.log( "FileConnection closed" );
+        };
+        fileconn.upload(
+            pathJoin(
+              [ sessionStorage.getItem( "filebrowser:cwd" ), file.name ]
+            )
+          , file.size
+          , "777"
+        );
+
+      }
 
       sock.connect();
       $( document ).ready( function () {
@@ -114,10 +249,18 @@
 
       });
     </script>
+
 {% endblock %}
 {% block content %}
 {{ nav.nav() }}
   <h1>File Browser</h1>
+  <nav id="context-menu" class="context-menu">
+    <ul class="context-menu__items">
+      <li class="context-menu__item">
+        <a href="#" class="context-menu__link" data-action="Download"><i class="glyphicon glyphicon-download"></i>Download File</a>
+      </li>
+    </ul>
+  </nav>
   <div class="panel panel-info">
     <div class="panel-heading">
       <h3 class="panel-title" id="cwd"></h3>
@@ -125,7 +268,11 @@
     <div class="panel-body">
      <button type="button" class="btn btn-primary" id="cdup">Up (..)</button>
     </div>
- 
+
+    <div class="dropcontainer">
+      <div id="drop_zone" class="drop_zone">File Upload: Drop files here</div>
+      <output id="outputfilelist"></output>
+    </div>
     <table class="table" id="dirlist">
       <thead>
         <tr>

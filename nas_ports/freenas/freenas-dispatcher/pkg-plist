@@ -21,10 +21,12 @@ lib/dispatcher/src/frontend/templates/apidoc/events.html
 lib/dispatcher/src/frontend/templates/apidoc/tasks.html
 lib/dispatcher/src/frontend/templates/apidoc/schemas.html
 lib/dispatcher/src/frontend/static/middleware.js
+lib/dispatcher/src/frontend/static/contextmenu.js
 lib/dispatcher/src/frontend/static/term.js
 lib/dispatcher/src/frontend/static/jquery.jsonview.js
 lib/dispatcher/src/frontend/static/jquery.jsonview.css
 lib/dispatcher/src/frontend/static/main.css
+lib/dispatcher/src/frontend/static/filebrowser.css
 libexec/dispatcher/notify-pam
 libexec/dispatcher/ssh_transport_catcher
 lib/dispatcher/src/lib/sendzfs.so

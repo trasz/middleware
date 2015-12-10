@@ -1,2 +1,5 @@
 etc/rc.d/containerd
 sbin/containerd
+share/containerd/rancheros/vmlinuz
+share/containerd/rancheros/initrd
+share/containerd/rancheros/grub.cfg

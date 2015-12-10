@@ -107,21 +107,47 @@ class NetworkConfigureTask(Task):
             raise TaskException(errno.ENXIO, 'Cannot reconfigure interface: {0}'.format(str(e)))
 
 
-@accepts(
-    {'type': 'string', 'enum': ['VLAN', 'BRIDGE', 'LAGG']},
-)
+@accepts({
+    'type': 'string',
+    'enum': ['VLAN', 'BRIDGE', 'LAGG']
+},)
 class CreateInterfaceTask(Task):
     def verify(self, type):
         return ['system']
 
     def run(self, type):
         name = self.dispatcher.call_sync('networkd.configuration.get_next_name', type)
-        self.datastore.insert('network.interfaces', {
+        iface = {
             'id': name,
             'type': type,
             'cloned': True,
-            'enabled': True
-        })
+            'enabled': True,
+            'dhcp': False,
+            'rtadv': False,
+            'noipv6': False,
+            'mtu': None,
+            'media': None,
+            'aliases': []
+        }
+
+        if type == 'VLAN':
+            iface['vlan'] = {
+                'parent': None,
+                'tag': None
+            }
+
+        if type == 'LAGG':
+            iface['lagg'] = {
+                'protocol': 'FAILOVER',
+                'ports': []
+            }
+
+        if type == 'BRIDGE':
+            iface['bridge'] = {
+                'members': []
+            }
+
+        self.datastore.insert('network.interfaces', iface)
 
         try:
             self.dispatcher.call_sync('networkd.configuration.configure_network')

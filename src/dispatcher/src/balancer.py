@@ -43,7 +43,7 @@ from gevent.lock import RLock
 from gevent.event import Event, AsyncResult
 from gevent.subprocess import Popen
 from freenas.utils import first_or_default
-from resources import ResourceGraph, Resource
+from resources import Resource
 from task import TaskException, TaskAbortException, VerifyException, TaskStatus, TaskState
 import collections
 

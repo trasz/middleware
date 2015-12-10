@@ -33,7 +33,9 @@ import os
 import stat
 import bsd
 from bsd import acl
-from freenas.dispatcher.rpc import RpcException, description, accepts, returns, pass_sender, private
+from freenas.dispatcher.rpc import (
+    RpcException, description, accepts, returns, pass_sender, private
+)
 from freenas.dispatcher.rpc import SchemaHelper as h
 from task import Provider, Task, TaskStatus, VerifyException, TaskException
 from auth import FileToken
@@ -132,7 +134,8 @@ class FilesystemProvider(Provider):
             user=sender.user,
             lifetime=60,
             direction='download',
-            file=f
+            file=f,
+            size=os.path.getsize(path)
         ))
 
         return token
@@ -175,7 +178,7 @@ class DownloadFileTask(Task):
         return TaskStatus(percentage)
 
 
-@accepts(str, int)
+@accepts(str)
 @private
 class UploadFileTask(Task):
     def verify(self, connection):
