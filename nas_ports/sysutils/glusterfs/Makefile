@@ -16,12 +16,7 @@ LIB_DEPENDS=	libargp.so:${PORTSDIR}/devel/argp-standalone liburcu-bp.so:${PORTSD
 
 USE_GCC=	any
 
-USES=		bison gettext libtool pkgconfig python:build readline \
-		shebangfix
-SHEBANG_FILES=	extras/peer_add_secret_pub.in \
-		tools/glusterfind/S57glusterfind-delete-post.py \
-		extras/ganesha/scripts/ganesha-ha.sh
-
+USES=		bison gettext libtool pkgconfig python:2,build readline 
 USE_GNOME=	glib20 libxml2
 USE_LDCONFIG=	yes
 USE_OPENSSL=	yes
@@ -40,14 +35,6 @@ CONFIGURE_ARGS=	--with-pkgconfigdir=${PREFIX}/libdata/pkgconfig \
 CPPFLAGS+=	-I"${LOCALBASE}/include"
 LDFLAGS+=	-L"${LOCALBASE}/lib" -largp
 INSTALL_TARGET=	install-strip
-PLIST_SUB=	GLUSTERLIBDIR="lib/${PORTNAME}/3.7.6"
-KMODDIR?=	/boot/modules
-
-.include <bsd.port.options.mk>
-
-.if ${OSVERSION} < 1000000
-WITH_OPENSSL_PORT=	yes
-RUN_DEPENDS+=	${KMODDIR}/fuse.ko:${PORTSDIR}/sysutils/fusefs-kmod
-.endif
+PLIST_SUB=	GLUSTERLIBDIR="${PREFIX}/lib/${PORTNAME}/3.7.6"
 
 .include <bsd.port.mk>
