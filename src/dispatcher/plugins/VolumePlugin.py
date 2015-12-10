@@ -1346,7 +1346,7 @@ def fernet_decrypt(password, in_data):
 
 
 def _depends():
-    return ['DevdPlugin', 'ZfsPlugin']
+    return ['DevdPlugin', 'ZfsPlugin', 'AlertPlugin']
 
 
 def _init(dispatcher, plugin):
