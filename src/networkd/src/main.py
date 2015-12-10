@@ -36,7 +36,7 @@ import subprocess
 import errno
 import threading
 import setproctitle
-import socket
+import signal
 import netif
 import time
 import ipaddress
@@ -644,6 +644,16 @@ class ConfigurationService(RpcService):
 
         iface.down()
 
+    def renew_lease(self, name):
+        self.logger.info('Renewing IP lease on {0}'.format(name))
+        if self.context.dhclient_running(name):
+            pid = self.context.dhclient_pid(name)
+            os.kill(pid, signal.SIGTERM)
+            self.logger.info('Killed dhclient with pid {0}'.format(pid))
+
+        time.sleep(1)
+        return self.configure_interface(name)
+
 
 class Main:
     def __init__(self):
@@ -654,15 +664,21 @@ class Main:
         self.rtsock_thread = None
         self.logger = logging.getLogger('networkd')
 
-    def dhclient_running(self, interface):
+    def dhclient_pid(self, interface):
         path = os.path.join('/var/run', 'dhclient.{0}.pid'.format(interface))
         if not os.path.exists(path):
-            return False
+            return None
 
         try:
             with open(path) as f:
                 pid = int(f.read().strip())
+                return pid
         except (IOError, ValueError):
+            return None
+
+    def dhclient_running(self, interface):
+        pid = self.dhclient_pid(interface)
+        if not pid:
             return False
 
         try:
@@ -677,9 +693,11 @@ class Main:
             self.logger.info('Interface {0} already configured by DHCP'.format(interface))
             return True
 
-        # XXX: start dhclient through launchd in the future
-        ret = subprocess.call(['/sbin/dhclient', interface])
-        return ret == 0
+        def unblock_signals():
+            signal.pthread_sigmask(signal.SIG_UNBLOCK, [signal.SIGTERM, signal.SIGINT])
+
+        ret = subprocess.call(['/sbin/dhclient', interface], close_fds=True, preexec_fn=unblock_signals)
+        return
 
     def interface_detached(self, name):
         self.logger.warn('Interface {0} detached from the system'.format(name))
