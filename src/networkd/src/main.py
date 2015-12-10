@@ -620,12 +620,7 @@ class ConfigurationService(RpcService):
         })
 
     def up_interface(self, name):
-        try:
-            iface = netif.get_interface(name)
-        except NameError:
-            raise RpcException(errno.ENOENT, "Interface {0} not found".format(name))
-
-        iface.up()
+        self.configure_interface(name)
 
     def down_interface(self, name):
         try:
@@ -699,7 +694,7 @@ class Main:
             signal.pthread_sigmask(signal.SIG_UNBLOCK, [signal.SIGTERM, signal.SIGINT])
 
         ret = subprocess.call(['/sbin/dhclient', interface], close_fds=True, preexec_fn=unblock_signals)
-        return
+        return ret == 0
 
     def interface_detached(self, name):
         self.logger.warn('Interface {0} detached from the system'.format(name))
