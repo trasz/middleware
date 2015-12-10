@@ -30,6 +30,8 @@ import re
 import enum
 import errno
 import logging
+import tempfile
+import base64
 import gevent
 import gevent.monkey
 from bsd import geom
@@ -370,6 +372,299 @@ class DiskDeleteTask(Task):
         self.datastore.delete('disks', id)
 
 
+@accepts(str, h.object())
+class DiskGELIInitTask(Task):
+    def describe(self, disk, params=None):
+        return "Creating encrypted partition for {0}".format(os.path.basename(disk))
+
+    def verify(self, disk, params=None):
+        if params is None:
+            params = {}
+
+        if not get_disk_by_path(disk):
+            raise VerifyException(errno.ENOENT, "Disk {0} not found".format(disk))
+
+        key = params.get('key', None)
+        if key is None:
+            raise VerifyException(errno.EINVAL, "No key for encryption specified")
+
+        return ['disk:{0}'.format(disk)]
+
+    def run(self, disk, params=None):
+        if params is None:
+            params = {}
+        key = base64.b64decode(params.get('key', None))
+        password = params.get('password', None)
+        disk_info = self.dispatcher.call_sync('disk.query', [('path', 'in', disk),
+                                                             ('online', '=', True)], {'single': True})
+        disk_status = disk_info.get('status', None)
+        if disk_status is not None:
+            data_partition_path = disk_status.get('data_partition_path')
+        else:
+            raise TaskException(errno.EINVAL, 'Cannot get disk status for: {0}'.format(disk))
+
+        try:
+            system('/sbin/geli', 'kill', data_partition_path)
+        except SubprocessException:
+            # ignore
+            pass
+
+        with tempfile.NamedTemporaryFile('wb') as keyfile:
+            keyfile.write(key)
+            keyfile.flush()
+            try:
+                if password is not None:
+                    with tempfile.NamedTemporaryFile('w') as passfile:
+                        passfile.write(password)
+                        passfile.flush()
+                        system('/sbin/geli', 'init', '-s', str(4096), '-K', keyfile.name, '-J', passfile.name,
+                               '-B none', data_partition_path)
+                else:
+                    system('/sbin/geli', 'init', '-s', str(4096), '-K', keyfile.name, '-P', '-B none',
+                           data_partition_path)
+            except SubprocessException as err:
+                raise TaskException(errno.EFAULT, 'Cannot init encrypted partition: {0}'.format(err.err))
+
+
+@accepts(str, h.object())
+class DiskGELISetUserKeyTask(Task):
+    def describe(self, disk, params=None):
+        return "Set new key for encrypted partition on {0}".format(os.path.basename(disk))
+
+    def verify(self, disk, params=None):
+        if not get_disk_by_path(disk):
+            raise VerifyException(errno.ENOENT, "Disk {0} not found".format(disk))
+
+        if params.get('key', None) is None:
+            raise VerifyException(errno.EINVAL, "No key specified for operation")
+
+        if params.get('slot', None) not in [0,1]:
+            raise VerifyException(errno.EINVAL, "Chosen key slot value {0} is not in valid range [0-1]".
+                                  format(params.get('slot', None)))
+
+        return ['disk:{0}'.format(disk)]
+
+    def run(self, disk, params=None):
+        if params is None:
+            params = {}
+        key = base64.b64decode(params.get('key', None))
+        password = params.get('password', None)
+        slot = params.get('slot', None)
+        disk_info = self.dispatcher.call_sync('disk.query', [('path', 'in', disk),
+                                                             ('online', '=', True)], {'single': True})
+        disk_status = disk_info.get('status', None)
+        if disk_status is not None:
+            data_partition_path = os.path.join('/dev/gptid/', disk_status.get('data_partition_uuid'))
+        else:
+            raise TaskException(errno.EINVAL, 'Cannot get disk status for: {0}'.format(disk))
+
+        with tempfile.NamedTemporaryFile('wb') as keyfile:
+            keyfile.write(key)
+            keyfile.flush()
+            try:
+                if password is not None:
+                    with tempfile.NamedTemporaryFile('w') as passfile:
+                        passfile.write(password)
+                        passfile.flush()
+                        system('/sbin/geli', 'setkey', '-K', keyfile.name, '-J', passfile.name,
+                               '-n', str(slot), data_partition_path)
+                else:
+                    system('/sbin/geli', 'setkey', '-K', keyfile.name, '-P', '-n', str(slot),
+                           data_partition_path)
+            except SubprocessException as err:
+                raise TaskException(errno.EFAULT, 'Cannot set new key for encrypted partition: {0}'.format(err.err))
+
+
+@accepts(str, int)
+class DiskGELIDelUserKeyTask(Task):
+    def describe(self, disk, slot):
+        return "Delete key of encrypted partition on {0}".format(os.path.basename(disk))
+
+    def verify(self, disk, slot):
+        if not get_disk_by_path(disk):
+            raise VerifyException(errno.ENOENT, "Disk {0} not found".format(disk))
+
+        if slot not in [0, 1]:
+            raise VerifyException(errno.EINVAL, "Chosen key slot value {0} is not in valid range [0-1]".format(slot))
+
+        return ['disk:{0}'.format(disk)]
+
+    def run(self, disk, slot):
+        disk_info = self.dispatcher.call_sync('disk.query', [('path', 'in', disk),
+                                                             ('online', '=', True)], {'single': True})
+        disk_status = disk_info.get('status', None)
+        if disk_status is not None:
+            data_partition_path = os.path.join('/dev/gptid/', disk_status.get('data_partition_uuid'))
+        else:
+            raise TaskException(errno.EINVAL, 'Cannot get disk status for: {0}'.format(disk))
+
+        try:
+            system('/sbin/geli', 'delkey', '-n', str(slot), data_partition_path)
+        except SubprocessException as err:
+            raise TaskException(errno.EFAULT, 'Cannot delete key of encrypted partition: {0}'.format(err.err))
+
+
+@accepts(str)
+class DiskGELIBackupMetadataTask(Task):
+    def describe(self, disk):
+        return "Backup metadata of encrypted partition on {0}".format(os.path.basename(disk))
+
+    def verify(self, disk):
+        if not get_disk_by_path(disk):
+            raise VerifyException(errno.ENOENT, "Disk {0} not found".format(disk))
+
+        return ['disk:{0}'.format(disk)]
+
+    def run(self, disk):
+        disk_info = self.dispatcher.call_sync('disk.query', [('path', 'in', disk),
+                                                             ('online', '=', True)], {'single': True})
+        disk_status = disk_info.get('status', None)
+        if disk_status is not None:
+            data_partition_path = os.path.join('/dev/gptid/', disk_status.get('data_partition_uuid'))
+        else:
+            raise TaskException(errno.EINVAL, 'Cannot get disk status for: {0}'.format(disk))
+
+        with tempfile.NamedTemporaryFile('w+b') as metadata_file:
+            try:
+                system('/sbin/geli', 'backup', data_partition_path, metadata_file.name)
+            except SubprocessException as err:
+                raise TaskException(errno.EFAULT, 'Cannot backup metadata of encrypted partition: {0}'.format(err.err))
+
+            metadata_file.seek(0)
+            return {'disk': disk, 'metadata': base64.b64encode(metadata_file.read()).decode('utf-8')}
+
+
+@accepts(h.object())
+class DiskGELIRestoreMetadataTask(Task):
+    def describe(self, metadata):
+        return "Restore metadata of encrypted partition on {0}".format(os.path.basename(disk))
+
+    def verify(self, metadata):
+        disk = metadata.get('disk')
+        if not get_disk_by_path(disk):
+            raise VerifyException(errno.ENOENT, "Disk {0} not found".format(disk))
+
+        return ['disk:{0}'.format(disk)]
+
+    def run(self, metadata):
+        disk = metadata.get('disk')
+        disk_info = self.dispatcher.call_sync('disk.query', [('path', 'in', disk),
+                                                             ('online', '=', True)], {'single': True})
+        disk_status = disk_info.get('status', None)
+        if disk_status is not None:
+            data_partition_path = os.path.join('/dev/gptid/', disk_status.get('data_partition_uuid'))
+        else:
+            raise TaskException(errno.EINVAL, 'Cannot get disk status for: {0}'.format(disk))
+
+        with tempfile.NamedTemporaryFile('w+b') as metadata_file:
+            metadata_file.write(base64.b64decode(metadata.get('metadata').encode('utf-8')))
+            metadata_file.flush()
+            try:
+                system('/sbin/geli', 'restore', '-f', metadata_file.name, data_partition_path)
+            except SubprocessException as err:
+                raise TaskException(errno.EFAULT, 'Cannot restore metadata of encrypted partition: {0}'.format(err.err))
+
+
+@accepts(str, h.object())
+class DiskGELIAttachTask(Task):
+    def describe(self, disk, params=None):
+        return "Attach encrypted partition of {0}".format(os.path.basename(disk))
+
+    def verify(self, disk, params=None):
+        if params is None:
+            params = {}
+        if not get_disk_by_path(disk):
+            raise VerifyException(errno.ENOENT, "Disk {0} not found".format(disk))
+
+        key = params.get('key', None)
+        if key is None:
+            raise VerifyException(errno.EINVAL, "No key for attach specified")
+
+        return ['disk:{0}'.format(disk)]
+
+    def run(self, disk, params=None):
+        if params is None:
+            params = {}
+        key = base64.b64decode(params.get('key', None))
+        password = params.get('password', None)
+        disk_info = self.dispatcher.call_sync('disk.query', [('path', 'in', disk),
+                                                             ('online', '=', True)], {'single': True})
+        disk_status = disk_info.get('status', None)
+        if disk_status is not None:
+            data_partition_path = disk_status.get('data_partition_path')
+        else:
+            raise TaskException(errno.EINVAL, 'Cannot get disk status for: {0}'.format(disk))
+
+        with tempfile.NamedTemporaryFile('wb') as keyfile:
+            keyfile.write(key)
+            keyfile.flush()
+            try:
+                if password is not None:
+                    with tempfile.NamedTemporaryFile('w') as passfile:
+                        passfile.write(password)
+                        passfile.flush()
+                        system('/sbin/geli', 'attach', '-k', keyfile.name, '-j', passfile.name, data_partition_path)
+                else:
+                    system('/sbin/geli', 'attach', '-k', keyfile.name, '-p', data_partition_path)
+                self.dispatcher.call_sync('disk.update_disk_cache', disk, timeout=120)
+            except SubprocessException as err:
+                raise TaskException(errno.EFAULT, 'Cannot attach encrypted partition: {0}'.format(err.err))
+
+
+@accepts(str)
+class DiskGELIDetachTask(Task):
+    def describe(self, disk):
+        return "Detach encrypted partition of {0}".format(os.path.basename(disk))
+
+    def verify(self, disk):
+        if not get_disk_by_path(disk):
+            raise VerifyException(errno.ENOENT, "Disk {0} not found".format(disk))
+
+        return ['disk:{0}'.format(disk)]
+
+    def run(self, disk):
+        disk_info = self.dispatcher.call_sync('disk.query', [('path', 'in', disk),
+                                                             ('online', '=', True)], {'single': True})
+        disk_status = disk_info.get('status', None)
+        if disk_status is not None:
+            data_partition_path = disk_status.get('data_partition_path')
+        else:
+            raise TaskException(errno.EINVAL, 'Cannot get disk status for: {0}'.format(disk))
+
+        try:
+            system('/sbin/geli', 'detach', '-f', data_partition_path)
+            self.dispatcher.call_sync('disk.update_disk_cache', disk, timeout=120)
+        except SubprocessException as err:
+            raise TaskException(errno.EFAULT, 'Cannot detach encrypted partition: {0}'.format(err.err))
+
+
+@accepts(str)
+class DiskGELIKillTask(Task):
+    def describe(self, disk):
+        return "Kill encrypted partition of {0}".format(os.path.basename(disk))
+
+    def verify(self, disk):
+        if not get_disk_by_path(disk):
+            raise VerifyException(errno.ENOENT, "Disk {0} not found".format(disk))
+
+        return ['disk:{0}'.format(disk)]
+
+    def run(self, disk):
+        disk_info = self.dispatcher.call_sync('disk.query', [('path', 'in', disk),
+                                                             ('online', '=', True)], {'single': True})
+        disk_status = disk_info.get('status', None)
+        if disk_status is not None:
+            data_partition_path = disk_status.get('data_partition_path')
+        else:
+            raise TaskException(errno.EINVAL, 'Cannot get disk status for: {0}'.format(disk))
+
+        try:
+            system('/sbin/geli', 'kill', data_partition_path)
+            self.dispatcher.call_sync('disk.update_disk_cache', disk, timeout=120)
+        except SubprocessException as err:
+            raise TaskException(errno.EFAULT, 'Cannot kill encrypted partition: {0}'.format(err.err))
+
+
 @description("Performs SMART test on disk")
 @accepts(str, h.ref('disk-selftest-type'))
 class DiskTestTask(ProgressTask):
@@ -606,12 +901,17 @@ def generate_partitions_list(gpart):
 
         label = p.config.get('label')
         uuid = p.config.get('rawuuid')
+        eli = geom.geom_by_name('ELI', 'gptid/{0}.eli'.format(uuid))
 
         if label:
             paths.append(os.path.join("/dev/gpt", label))
 
         if uuid:
-            paths.append(os.path.join("/dev/gptid", uuid))
+            if eli:
+                elipath = uuid + '.eli'
+                paths.append(os.path.join("/dev/gptid", elipath))
+            else:
+                paths.append(os.path.join("/dev/gptid", uuid))
 
         yield {
             'name': p.name,
@@ -619,7 +919,8 @@ def generate_partitions_list(gpart):
             'mediasize': int(p.mediasize),
             'uuid': uuid,
             'type': p.config['type'],
-            'label': p.config.get('label')
+            'label': p.config.get('label'),
+            'encrypted': True if eli else False
         }
 
 
@@ -669,6 +970,11 @@ def update_disk_cache(dispatcher, path):
     identifier = device_to_identifier(gdisk.name, serial)
     data_part = first_or_default(lambda x: x['type'] == 'freebsd-zfs', partitions)
     data_uuid = data_part["uuid"] if data_part else None
+    if data_part:
+        if data_part["encrypted"]:
+            data_path = data_uuid + '.eli'
+        else:
+            data_path = data_uuid
     swap_part = first_or_default(lambda x: x['type'] == 'freebsd-swap', partitions)
     swap_uuid = swap_part["uuid"] if swap_part else None
 
@@ -683,7 +989,7 @@ def update_disk_cache(dispatcher, path):
         'schema': gpart.config.get('scheme') if gpart else None,
         'partitions': partitions,
         'data_partition_uuid': data_uuid,
-        'data_partition_path': os.path.join("/dev/gptid", data_uuid) if data_uuid else None,
+        'data_partition_path': os.path.join("/dev/gptid", data_path) if data_uuid else None,
         'swap_partition_uuid': swap_uuid,
         'swap_partition_path': os.path.join("/dev/gptid", swap_uuid) if swap_uuid else None,
         'gdisk_name': gdisk.name,
@@ -948,6 +1254,14 @@ def _init(dispatcher, plugin):
     plugin.register_task_handler('disk.erase', DiskEraseTask)
     plugin.register_task_handler('disk.format.gpt', DiskGPTFormatTask)
     plugin.register_task_handler('disk.format.boot', DiskBootFormatTask)
+    plugin.register_task_handler('disk.geli.init', DiskGELIInitTask)
+    plugin.register_task_handler('disk.geli.ukey.set', DiskGELISetUserKeyTask)
+    plugin.register_task_handler('disk.geli.ukey.del', DiskGELIDelUserKeyTask)
+    plugin.register_task_handler('disk.geli.mkey.backup', DiskGELIBackupMetadataTask)
+    plugin.register_task_handler('disk.geli.mkey.restore', DiskGELIRestoreMetadataTask)
+    plugin.register_task_handler('disk.geli.attach', DiskGELIAttachTask)
+    plugin.register_task_handler('disk.geli.detach', DiskGELIDetachTask)
+    plugin.register_task_handler('disk.geli.kill', DiskGELIKillTask)
     plugin.register_task_handler('disk.install_bootloader', DiskInstallBootloaderTask)
     plugin.register_task_handler('disk.configure', DiskConfigureTask)
     plugin.register_task_handler('disk.delete', DiskDeleteTask)
