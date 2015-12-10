@@ -1,10 +1,10 @@
 # $FreeBSD$
 
 PORTNAME=	glusterfs
-PORTVERSION=	3.7.6
+PORTVERSION=	3.7.2
 CATEGORIES=	sysutils
 MASTER_SITES=	http://bits.gluster.org/pub/gluster/glusterfs/src/
-DISTNAME=	${PORTNAME}-3.7.6
+DISTNAME=	${PORTNAME}-3.7.2
 
 MAINTAINER=	craig001@lerwick.hopto.org
 COMMENT=	GlusterFS distributed file system
@@ -35,6 +35,6 @@ CONFIGURE_ARGS=	--with-pkgconfigdir=${PREFIX}/libdata/pkgconfig \
 CPPFLAGS+=	-I"${LOCALBASE}/include"
 LDFLAGS+=	-L"${LOCALBASE}/lib" -largp
 INSTALL_TARGET=	install-strip
-PLIST_SUB=	GLUSTERLIBDIR="${PREFIX}/lib/${PORTNAME}/3.7.6"
+PLIST_SUB=	GLUSTERLIBDIR="${PREFIX}/lib/${PORTNAME}/3.7.2"
 
 .include <bsd.port.mk>
