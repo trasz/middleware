@@ -1101,7 +1101,9 @@ def purge_disk_cache(dispatcher, path):
 
 
 def persist_disk(dispatcher, disk):
-    ds_disk = dispatcher.datastore.get_by_id('disks', disk['id']) or {}
+    ds_disk = dispatcher.datastore.get_by_id('disks', disk['id'])
+    new = ds_disk is None
+    ds_disk = ds_disk or {}
     ds_disk.update({
         'lunid': disk['lunid'],
         'path': disk['path'],
@@ -1120,7 +1122,7 @@ def persist_disk(dispatcher, disk):
 
     dispatcher.datastore.upsert('disks', disk['id'], ds_disk)
     dispatcher.dispatch_event('disk.changed', {
-        'operation': 'create' if not ds_disk else 'update',
+        'operation': 'create' if new else 'update',
         'ids': [disk['id']]
     })
 
