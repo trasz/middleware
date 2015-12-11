@@ -204,9 +204,9 @@
   function menuItemListener ( e, link ) {
     // console.log( "Task action - " + link.getAttribute( "data-action" ) );
     if ( link.getAttribute( "data-action" ) === "download" ) {
-      // Note this downloadFromSocket function is defined in the filebrowser.html file
+      // Note this downloadFromHttp function is defined in the filebrowser.html file
       // This is a bit sloopy (i.e. having it in a different file) but will be fixed later on
-      downloadFromSocket( taskItemInContext.getAttribute( "data-id" ) );
+      downloadFromHttp( taskItemInContext.getAttribute( "data-id" ) );
     }
     toggleMenuOff();
   }

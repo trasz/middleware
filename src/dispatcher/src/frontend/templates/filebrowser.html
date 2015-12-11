@@ -224,6 +224,15 @@
 
       }
 
+      function downloadFromHttp ( filename ) {
+        console.log( "downloadFromHttp: Starting download of file: ", filename );
+        var path = pathJoin(
+              [ sessionStorage.getItem( "filebrowser:cwd" ), filename ]
+          );
+        fileconn = new middleware.FileClient( sock );
+        fileconn.download ( path, filename, "static" );
+      }
+
       function downloadFromSocket ( filename ) {
         console.log( "downloadFromSocket: Initializing FileClient now" );
         var path = pathJoin(
@@ -239,7 +248,7 @@
         fileconn.onClose = function ( ) {
           console.log( "FileConnection closed" );
         };
-        fileconn.download( path );
+        fileconn.download( path, filename, "stream" );
       }
 
       sock.connect();

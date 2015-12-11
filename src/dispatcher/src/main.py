@@ -1580,6 +1580,8 @@ class DownloadRequestHandler(object):
 
     def start_file_transfer(self, environ, start_response):
         start_response('200 OK', [
+            ('Access-Control-Allow-Origin', '*'),
+            ('Access-Control-Allow-Credentials', 'true'),
             ('Content-Type', 'application/octet-stream'),
             ('Content-Disposition', 'attachment; filename="{}"'.format(
                 os.path.basename(self.token.file.name)
