@@ -115,10 +115,10 @@ filter f_slip { program("startslip"); };
 #
 # *.err;kern.warning;auth.notice;mail.crit		/dev/console
 #
-log { source(src); filter(f_err); destination(console); };
-log { source(src); filter(f_kern); filter(f_warning); destination(console); };
-log { source(src); filter(f_auth); filter(f_notice); destination(console); };
-log { source(src); filter(f_mail); filter(f_crit); destination(console); };
+#log { source(src); filter(f_err); destination(console); };
+#log { source(src); filter(f_kern); filter(f_warning); destination(console); };
+#log { source(src); filter(f_auth); filter(f_notice); destination(console); };
+#log { source(src); filter(f_mail); filter(f_crit); destination(console); };
 
 #
 # *.notice;authpriv.none;kern.debug;lpr.info;mail.crit;news.err	/var/log/messages
