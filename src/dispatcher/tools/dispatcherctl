@@ -37,7 +37,7 @@ from freenas.dispatcher.rpc import RpcException
 from texttable import Texttable
 
 
-DEFAULT_SERVER = '127.0.0.1'
+DEFAULT_SERVER = 'unix:'
 DEFAULT_TIMEOUT = 10
 
 
