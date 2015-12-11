@@ -1581,7 +1581,9 @@ class DownloadRequestHandler(object):
     def start_file_transfer(self, environ, start_response):
         start_response('200 OK', [
             ('Content-Type', 'application/octet-stream'),
-            ('Content-Disposition', 'attachment; filename="{}"'.format(self.token.file.name)),
+            ('Content-Disposition', 'attachment; filename="{}"'.format(
+                os.path.basename(self.token.file.name)
+            )),
             ('Content-Length', str(self.token.size))
         ])
         # This is just temp, will implement chunking later on
