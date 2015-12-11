@@ -908,7 +908,7 @@ class VolumeLockTask(Task):
 @description("Unlocks encrypted ZFS volume")
 @accepts(str, str, h.object())
 class VolumeUnlockTask(Task):
-    def verify(self, name, password='', params=None):
+    def verify(self, name, password=None, params=None):
         if not self.datastore.exists('volumes', ('name', '=', name)):
             raise VerifyException(errno.ENOENT, 'Volume {0} not found'.format(name))
 
@@ -923,6 +923,9 @@ class VolumeUnlockTask(Task):
             raise VerifyException(errno.EINVAL, 'Volume {0} is not locked'.format(name))
 
         if encryption['hashed_password'] is not None:
+            if password is None:
+                raise VerifyException(errno.EINVAL, 'Volume {0} is protected with password. Provide a valid password.'
+                                      .format(name))
             if not is_password(password,
                                encryption.get('salt', ''),
                                encryption.get('hashed_password', '')):
@@ -930,7 +933,7 @@ class VolumeUnlockTask(Task):
 
         return ['disk:{0}'.format(d) for d, _ in get_disks(vol['topology'])]
 
-    def run(self, name, password='', params=None):
+    def run(self, name, password=None, params=None):
         with self.dispatcher.get_lock('volumes'):
             vol = self.datastore.get_one('volumes', ('name', '=', name))
 
