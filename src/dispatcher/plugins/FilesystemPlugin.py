@@ -126,7 +126,7 @@ class FilesystemProvider(Provider):
     @returns(str)
     def download(self, path, sender):
         try:
-            f = open(path, 'r')
+            f = open(path, 'rb')
         except OSError as e:
             raise RpcException(e.errno, e.message)
 

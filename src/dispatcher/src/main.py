@@ -1506,7 +1506,7 @@ class FileConnection(WebSocketApplication, EventEmitter):
                 data = file.read(self.BUFSIZE)
                 if not data:
                     break
-                self.ws.send(data.encode('utf-8'))
+                self.ws.send(data)
                 self.bytes_done = file.tell()
         else:
             for i in self.inq:
@@ -1592,7 +1592,7 @@ class DownloadRequestHandler(object):
         # (i.e the reading the whole content to ram part is bad and will be fixed later on)
         file_body = self.token.file.read()
         self.token.file.close()
-        return [file_body.encode('utf-8')]
+        return [file_body]
 
 
 def run(d, args):
