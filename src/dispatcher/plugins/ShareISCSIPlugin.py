@@ -66,10 +66,15 @@ class ISCSISharesProvider(Provider):
 
         while True:
             serial = '{0}{1:02}'.format(laddr, idx)
-            if not self.datastore.exists('shares', ('properties.serial', '=', serial)):
-                return serial
+            if self.datastore.exists('shares', ('properties.serial', '=', serial)):
+                idx += 1
+                continue
 
-            idx += 1
+            if self.datastore.exists('simulator.disks', ('serial', '=', serial)):
+                idx += 1
+                continue
+
+            return serial
 
         raise RpcException(errno.EBUSY, 'No free serial numbers found')
 
