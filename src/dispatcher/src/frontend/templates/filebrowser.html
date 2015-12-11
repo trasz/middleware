@@ -17,9 +17,11 @@
 
     <script id="directoryTemplate" type="text/x-handlebars-template">
       {% raw %}
-        <td class="fileElement" onclick="listDir('{{~args.name}}', true)">
+        <td class="fileElement"
+            onclick="listDir('{{~args.name~}}', true)"
+            data-id="{{~args.name~}}">
           <i class="glyphicon glyphicon-folder-close"/>
-          {{~args.name}}
+          {{~args.name~}}
         </td>
         <td>{{args.size}}</td>
         <td>{{args.modified}}</td>
@@ -28,9 +30,9 @@
 
     <script id="fileTemplate" type="text/x-handlebars-template">
       {% raw %}
-        <td class="fileElement">
+        <td class="fileElement" data-id="{{~args.name~}}">
           <i class="glyphicon glyphicon-file"/>
-          {{~args.name}}
+          {{~args.name~}}
         </td>
         <td>{{ args.size }}</td>
         <td>{{ args.modified }}</td>
@@ -194,10 +196,9 @@
 
       function uploadToSocket ( file ) {
         console.log( "uploadToSocket: Initializing FileClient now" );
-        fileconn = new middleware.FileClient( sock );
+        var fileconn = new middleware.FileClient( sock );
         fileconn.onOpen = function ( ) {
           console.log( "FileConnection opened, Websocket resdyState: ", fileconn.socket.readyState );
-          console.log( "Going for upload in 1024 byte slices..." );
           var filePos = 0;
           while ( filePos + BUFSIZE <= file.size ) {
             sendBlob( fileconn, file, filePos, filePos + BUFSIZE );
@@ -221,6 +222,24 @@
           , "777"
         );
 
+      }
+
+      function downloadFromSocket ( filename ) {
+        console.log( "downloadFromSocket: Initializing FileClient now" );
+        var path = pathJoin(
+              [ sessionStorage.getItem( "filebrowser:cwd" ), filename ]
+          );
+        fileconn = new middleware.FileClient( sock );
+        fileconn.onOpen = function ( ) {
+          console.log( "FileConnection opened, Websocket resdyState: ", fileconn.socket.readyState );
+        };
+        fileconn.onData = function ( msg ) {
+          console.log( "FileConnection message recieved is ", msg );
+        };
+        fileconn.onClose = function ( ) {
+          console.log( "FileConnection closed" );
+        };
+        fileconn.download( path );
       }
 
       sock.connect();
@@ -257,7 +276,10 @@
   <nav id="context-menu" class="context-menu">
     <ul class="context-menu__items">
       <li class="context-menu__item">
-        <a href="#" class="context-menu__link" data-action="Download"><i class="glyphicon glyphicon-download"></i>Download File</a>
+        <a href="#" class="context-menu__link" data-action="download">
+          <i class="glyphicon glyphicon-download"></i>
+          Download File
+        </a>
       </li>
     </ul>
   </nav>

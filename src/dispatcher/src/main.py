@@ -50,6 +50,7 @@ import tempfile
 import pty
 import struct
 import termios
+import cgi
 
 import gevent
 from pyee import EventEmitter
@@ -1505,7 +1506,7 @@ class FileConnection(WebSocketApplication, EventEmitter):
                 data = file.read(self.BUFSIZE)
                 if not data:
                     break
-                self.ws.send(data)
+                self.ws.send(data.encode('utf-8'))
                 self.bytes_done = file.tell()
         else:
             for i in self.inq:
@@ -1553,6 +1554,43 @@ class FileConnection(WebSocketApplication, EventEmitter):
         self.inq.put(message.decode('utf8'))
 
 
+# Custom handler for enabling downloading of files
+class DownloadRequestHandler(object):
+
+    def __init__(self, dispatcher):
+        self.dispatcher = dispatcher
+        self.token = None
+
+    def __call__(self, environ, start_response):
+        # body = environ['wsgi.input'].read()
+        path = environ['PATH_INFO'][1:].split('/')
+        token_str = cgi.parse_qs(environ['QUERY_STRING']).get('token')
+
+        if path[0] != "filedownload":
+            start_response('404 Not found', [])
+            return [""]
+        if token_str is None:
+            start_response('401 Unauthorized', [('Content-Type', 'text/html')])
+            return [b"No Token provided so no cookie for you!"]
+        self.token = self.dispatcher.token_store.lookup_token(token_str[0])
+        if self.token is None or self.token.direction != "download":
+            start_response('400 Bad Request', [('Content-Type', 'text/html')])
+            return [b"You provided an invalid/timedout token!"]
+        return self.start_file_transfer(environ, start_response)
+
+    def start_file_transfer(self, environ, start_response):
+        start_response('200 OK', [
+            ('Content-Type', 'application/octet-stream'),
+            ('Content-Disposition', 'attachment; filename="{}"'.format(self.token.file.name)),
+            ('Content-Length', str(self.token.size))
+        ])
+        # This is just temp, will implement chunking later on
+        # (i.e the reading the whole content to ram part is bad and will be fixed later on)
+        file_body = self.token.file.read()
+        self.token.file.close()
+        return [file_body.encode('utf-8')]
+
+
 def run(d, args):
     setproctitle.setproctitle('dispatcher')
     monkey.patch_all(thread=False)
@@ -1572,14 +1610,16 @@ def run(d, args):
         '/socket': ServerConnection,
         '/shell': ShellConnection,
         '/file': FileConnection,
-        '/api': ApiHandler(d)
+        '/api': ApiHandler(d),
+        '/filedownload': DownloadRequestHandler(d)
     }, dispatcher=d), **kwargs)
 
     s6 = Server(('::', args.p), ServerResource({
         '/socket': ServerConnection,
         '/shell': ShellConnection,
         '/file': FileConnection,
-        '/api': ApiHandler(d)
+        '/api': ApiHandler(d),
+        '/filedownload': DownloadRequestHandler(d)
     }, dispatcher=d), **kwargs)
 
     su = UnixSocketServer(
@@ -1599,11 +1639,10 @@ def run(d, args):
         http_server4 = WSGIServer(('', args.s), frontend.app, **kwargs)
         http_server6 = WSGIServer(('::', args.s), frontend.app, **kwargs)
 
-        d.http_servers = [http_server4, http_server6]
-        for i in d.http_servers:
-            gevent.spawn(i.serve_forever)
-
+        d.http_servers.extend([http_server4, http_server6])
         logging.info('Frontend server listening on port %d', args.s)
+    for i in d.http_servers:
+        gevent.spawn(i.serve_forever)
 
     serv_threads = [gevent.spawn(s4.serve_forever), gevent.spawn(s6.serve_forever), gevent.spawn(su.serve_forever)]
 

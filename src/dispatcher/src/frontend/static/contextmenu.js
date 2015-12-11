@@ -119,7 +119,7 @@
 
       if ( clickeElIsLink ) {
         e.preventDefault();
-        menuItemListener( clickeElIsLink );
+        menuItemListener( e, clickeElIsLink );
       } else {
         var button = e.which || e.button;
         if ( button === 1 ) {
@@ -201,8 +201,13 @@
    * Dummy action function that logs an action when a menu item link is clicked
    * @param {HTMLElement} link The link that was clicked
    */
-  function menuItemListener ( link ) {
+  function menuItemListener ( e, link ) {
     // console.log( "Task action - " + link.getAttribute( "data-action" ) );
+    if ( link.getAttribute( "data-action" ) === "download" ) {
+      // Note this downloadFromSocket function is defined in the filebrowser.html file
+      // This is a bit sloopy (i.e. having it in a different file) but will be fixed later on
+      downloadFromSocket( taskItemInContext.getAttribute( "data-id" ) );
+    }
     toggleMenuOff();
   }
 
