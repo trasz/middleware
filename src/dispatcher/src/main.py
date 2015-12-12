@@ -1512,8 +1512,8 @@ class FileConnection(WebSocketApplication, EventEmitter):
             for i in self.inq:
                 file.write(i)
                 self.bytes_done = file.tell()
-        self.file.close()
-        self.done()
+        file.close()
+        self.done.set()
         self.ws.close()
         # gevent.joinall([worker])
 
