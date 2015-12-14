@@ -623,8 +623,11 @@ class DiskGELIDetachTask(Task):
         return ['disk:{0}'.format(disk)]
 
     def run(self, disk):
-        disk_info = self.dispatcher.call_sync('disk.query', [('path', 'in', disk),
-                                                             ('online', '=', True)], {'single': True})
+        disk_info = self.dispatcher.call_sync('disk.query', [
+            ('path', 'in', disk),
+            ('online', '=', True)
+        ], {'single': True})
+
         disk_status = disk_info.get('status', None)
         if disk_status is not None:
             data_partition_path = disk_status.get('data_partition_path')
@@ -650,8 +653,11 @@ class DiskGELIKillTask(Task):
         return ['disk:{0}'.format(disk)]
 
     def run(self, disk):
-        disk_info = self.dispatcher.call_sync('disk.query', [('path', 'in', disk),
-                                                             ('online', '=', True)], {'single': True})
+        disk_info = self.dispatcher.call_sync('disk.query', [
+            ('path', 'in', disk),
+            ('online', '=', True)
+        ], {'single': True})
+
         disk_status = disk_info.get('status', None)
         if disk_status is not None:
             data_partition_path = disk_status.get('data_partition_path')
@@ -975,6 +981,7 @@ def update_disk_cache(dispatcher, path):
             data_path = data_uuid + '.eli'
         else:
             data_path = data_uuid
+
     swap_part = first_or_default(lambda x: x['type'] == 'freebsd-swap', partitions)
     swap_uuid = swap_part["uuid"] if swap_part else None
 
@@ -987,6 +994,7 @@ def update_disk_cache(dispatcher, path):
         'smart_status': disk_info['smart_status'],
         'id': identifier,
         'schema': gpart.config.get('scheme') if gpart else None,
+        'empty': len(partitions) == 0,
         'partitions': partitions,
         'data_partition_uuid': data_uuid,
         'data_partition_path': os.path.join("/dev/gptid", data_path) if data_uuid else None,
@@ -1201,6 +1209,7 @@ def _init(dispatcher, plugin):
             'id': {'type': 'string'},
             'schema': {'type': ['string', 'null']},
             'controller': {'type': 'object'},
+            'empty': {'type': 'boolean'},
             'partitions': {
                 'type': 'array',
                 'items': {'$ref': 'disk-partition'}
