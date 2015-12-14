@@ -1028,7 +1028,9 @@
             "replication.key.public": null,
             "replication.key.private": null,
             "container.bridge": null,
-            "container.default_nic": null
+            "container.default_nic": null,
+            "storage.hotsparing.autoreplace": true,
+            "storage.hotsparing.strong_match": false
         },
         "metadata": {
             "attributes": {
