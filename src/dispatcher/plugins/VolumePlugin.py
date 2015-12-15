@@ -865,6 +865,35 @@ class VolumeUpgradeTask(Task):
         })
 
 
+class VolumeAutoReplaceTask(Task):
+    def verify(self, name, failed_vdev):
+        if not self.datastore.exists('volumes', ('name', '=', name)):
+            raise VerifyException(errno.ENOENT, 'Volume {0} not found'.format(name))
+
+        return ['zpool:{0}'.format(name)]
+
+    def run(self, name, failed_vdev):
+        empty_disks = self.dispatcher.call_sync('disk.query', [('status.empty', '=', True)])
+        vdev = self.dispatcher.call_sync('zfs.pool.vdev_by_guid', name, failed_vdev)
+        minsize = vdev['stats']['size']
+
+        if self.configstore.get('storage.hotsparing.strong_match'):
+            pass
+        else:
+            matching_disks = sorted(empty_disks, key=lambda d: d['mediasize'])
+            disk = first_or_default(lambda d: d['mediasize'] > minsize, matching_disks)
+
+            if disk:
+                self.join_subtasks(self.run_subtask('disk.format.gpt', disk['path'], 'freebsd-zfs', {'swapsize': 2048}))
+                disk = self.dispatcher.call_sync('disk.query', [('id', '=', disk['id'])], {'single': True})
+                self.join_subtasks(self.run_subtask('zfs.pool.replace', name, failed_vdev, {
+                    'type': 'disk',
+                    'path': disk['status']['data_partition_path']
+                }))
+            else:
+                raise TaskException(errno.EBUSY, 'No matching disk to be used as spare found')
+
+
 @description("Locks encrypted ZFS volume")
 @accepts(str)
 class VolumeLockTask(Task):
@@ -1514,6 +1543,7 @@ def _init(dispatcher, plugin):
     plugin.register_task_handler('volume.detach', VolumeDetachTask)
     plugin.register_task_handler('volume.update', VolumeUpdateTask)
     plugin.register_task_handler('volume.upgrade', VolumeUpgradeTask)
+    plugin.register_task_handler('volume.autoreplace', VolumeAutoReplaceTask)
     plugin.register_task_handler('volume.lock', VolumeLockTask)
     plugin.register_task_handler('volume.unlock', VolumeUnlockTask)
     plugin.register_task_handler('volume.rekey', VolumeRekeyTask)
@@ -1531,7 +1561,6 @@ def _init(dispatcher, plugin):
     plugin.register_hook('volume.pre_attach')
 
     plugin.register_event_handler('entity-subscriber.zfs.pool.changed', on_pool_change)
-    plugin.register_event_handler('entity-subscriber.zfs.snapshot.changed', on_snapshot_change)
     plugin.register_event_handler('fs.zfs.vdev.removed', on_vdev_remove)
     plugin.register_event_handler('fs.zfs.dataset.created', on_dataset_change)
     plugin.register_event_handler('fs.zfs.dataset.deleted', on_dataset_change)
@@ -1576,3 +1605,7 @@ def _init(dispatcher, plugin):
     snapshots = EventCacheStore(dispatcher, 'volume.snapshot')
     snapshots.populate(dispatcher.call_sync('zfs.snapshot.query'), callback=convert_snapshot)
     snapshots.ready = True
+    plugin.register_event_handler(
+        'entity-subscriber.zfs.snapshot.changed',
+        on_snapshot_change
+    )
