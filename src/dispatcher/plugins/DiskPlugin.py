@@ -608,7 +608,7 @@ class DiskGELIAttachTask(Task):
                     system('/sbin/geli', 'attach', '-k', keyfile.name, '-p', data_partition_path)
                 self.dispatcher.call_sync('disk.update_disk_cache', disk, timeout=120)
             except SubprocessException as err:
-                raise TaskException(errno.EFAULT, 'Cannot attach encrypted partition: {0}'.format(err.err))
+                logger.warning('Cannot attach encrypted partition: {0}'.format(err.err))
 
 
 @accepts(str)
@@ -638,7 +638,7 @@ class DiskGELIDetachTask(Task):
             system('/sbin/geli', 'detach', '-f', data_partition_path)
             self.dispatcher.call_sync('disk.update_disk_cache', disk, timeout=120)
         except SubprocessException as err:
-            raise TaskException(errno.EFAULT, 'Cannot detach encrypted partition: {0}'.format(err.err))
+            logger.warning('Cannot detach encrypted partition: {0}'.format(err.err))
 
 
 @accepts(str)
@@ -668,7 +668,7 @@ class DiskGELIKillTask(Task):
             system('/sbin/geli', 'kill', data_partition_path)
             self.dispatcher.call_sync('disk.update_disk_cache', disk, timeout=120)
         except SubprocessException as err:
-            raise TaskException(errno.EFAULT, 'Cannot kill encrypted partition: {0}'.format(err.err))
+            logger.warning('Cannot kill encrypted partition: {0}'.format(err.err))
 
 
 @description("Performs SMART test on disk")
