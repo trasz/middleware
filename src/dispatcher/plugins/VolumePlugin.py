@@ -1355,7 +1355,8 @@ def split_snapshot_name(name):
 def get_digest(password, salt=None):
     if salt is None:
         salt = base64.b64encode(os.urandom(64)).decode('utf-8')
-    digest = base64.b64encode(hashlib.pbkdf2_hmac('sha256', bytes(password, 'utf-8'), salt.encode('utf-8'), 200000)).decode('utf-8')
+    digest = base64.b64encode(hashlib.pbkdf2_hmac('sha256', bytes(str(password), 'utf-8'),
+                                                  salt.encode('utf-8'), 200000)).decode('utf-8')
     return salt, digest
 
 
