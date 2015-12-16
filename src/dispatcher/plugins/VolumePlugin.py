@@ -352,15 +352,15 @@ class SnapshotProvider(Provider):
 
 
 @description("Creates new volume")
-@accepts(h.ref('volume'))
+@accepts(h.ref('volume'), str)
 class VolumeCreateTask(ProgressTask):
-    def verify(self, volume):
+    def verify(self, volume, password=None):
         if self.datastore.exists('volumes', ('name', '=', volume['name'])):
             raise VerifyException(errno.EEXIST, 'Volume with same name already exists')
 
         return ['disk:{0}'.format(i) for i, _ in get_disks(volume['topology'])]
 
-    def run(self, volume):
+    def run(self, volume, password=None):
         name = volume['name']
         type = volume.get('type', 'zfs')
         params = volume.get('params') or {}
@@ -371,14 +371,14 @@ class VolumeCreateTask(ProgressTask):
         encryption = params.pop('encryption', False)
         if encryption:
             key = base64.b64encode(os.urandom(64)).decode('utf-8')
-            password = params.pop('password', None)
+            if password is not None:
+                salt, digest = get_digest(password)
+            else:
+                salt = None
+                digest = None
         else:
             key = None
             password = None
-
-        if password is not None:
-            salt, digest = get_digest(password)
-        else:
             salt = None
             digest = None
 
@@ -463,16 +463,16 @@ class VolumeCreateTask(ProgressTask):
 
 
 @description("Creates new volume and automatically guesses disks layout")
-@accepts(str, str, h.array(str), h.object())
+@accepts(str, str, h.array(str), h.object(), str)
 class VolumeAutoCreateTask(Task):
-    def verify(self, name, type, disks, params=None):
+    def verify(self, name, type, disks, params=None, password=None):
         if self.datastore.exists('volumes', ('name', '=', name)):
             raise VerifyException(errno.EEXIST,
                                   'Volume with same name already exists')
 
         return ['disk:{0}'.format(os.path.join('/dev', i)) for i in disks]
 
-    def run(self, name, type, disks, params=None):
+    def run(self, name, type, disks, params=None, password=None):
         vdevs = []
         if len(disks) % 3 == 0:
             for i in range(0, len(disks), 3):
@@ -493,7 +493,8 @@ class VolumeAutoCreateTask(Task):
             'name': name,
             'type': type,
             'topology': {'data': vdevs},
-            'params': params
+            'params': params,
+            'password': password
         }))
 
 
@@ -701,9 +702,9 @@ class VolumeUpdateTask(Task):
 
 
 @description("Imports previously exported volume")
-@accepts(str, str, h.object(), h.object())
+@accepts(str, str, h.object(), h.object(), str)
 class VolumeImportTask(Task):
-    def verify(self, id, new_name, params=None, enc_params=None):
+    def verify(self, id, new_name, params=None, enc_params=None, password=None):
         if self.datastore.exists('volumes', ('id', '=', id)):
             raise VerifyException(
                 errno.ENOENT,
@@ -718,22 +719,23 @@ class VolumeImportTask(Task):
 
         return self.verify_subtask('zfs.pool.import', id)
 
-    def run(self, id, new_name, params=None, enc_params=None):
+    def run(self, id, new_name, params=None, enc_params=None, password=None):
         if enc_params is None:
             enc_params = {}
         with self.dispatcher.get_lock('volumes'):
             key = enc_params.get('key', None)
             if key is not None:
                 disks = enc_params.get('disks', [])
-                password = enc_params.get('password', None)
 
+                if password is not None:
+                    salt, digest = get_digest(password)
+                else:
+                    salt = None
+                    digest = None
+
+                attach_params = {'key': key, 'password': password}
                 for dname in disks:
-                    self.join_subtasks(self.run_subtask('disk.geli.attach', dname, enc_params))
-            else:
-                password = None
-
-            if password is not None:
-                salt, digest = get_digest(password)
+                    self.join_subtasks(self.run_subtask('disk.geli.attach', dname, attach_params))
             else:
                 salt = None
                 digest = None
