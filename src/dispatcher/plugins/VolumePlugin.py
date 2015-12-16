@@ -540,7 +540,7 @@ class VolumeDestroyTask(Task):
 @description("Updates configuration of existing volume")
 @accepts(str, h.ref('volume'), str)
 class VolumeUpdateTask(Task):
-    def verify(self, name, updated_params, password=''):
+    def verify(self, name, updated_params, password=None):
         if not self.datastore.exists('volumes', ('name', '=', name)):
             raise VerifyException(errno.ENOENT, 'Volume {0} not found'.format(name))
 
@@ -551,7 +551,10 @@ class VolumeUpdateTask(Task):
 
         return ['disk:{0}'.format(i) for i, _ in get_disks(topology)]
 
-    def run(self, name, updated_params, password=''):
+    def run(self, name, updated_params, password=None):
+        if password is None:
+            password = ''
+
         volume = self.datastore.get_one('volumes', ('name', '=', name))
         encryption = volume.get('encryption')
         if not volume:
