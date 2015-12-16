@@ -272,11 +272,11 @@ class DevdEventSource(EventSource):
                     if event["system"] == "SYSTEM":
                         self.__process_system(event)
 
-            except OSError:
+            except OSError as err:
                 # sleep for a half a second and retry
-                self.dispatcher.logger.debug(
-                    '/var/run/devd.pipe timedout/was not available, retrying in 0.5 seconds')
-                time.sleep(0.5)
+                self.dispatcher.logger.info('/var/run/devd.pipe read error: {0}'.format(str(err)))
+                self.dispatcher.logger.info('retrying in 1s')
+                time.sleep(1)
 
 
 def _depends():
