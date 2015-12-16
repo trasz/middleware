@@ -244,8 +244,7 @@ class VolumeProvider(Provider):
     def get_volume_disks(self, name):
         result = []
         vol = self.datastore.get_one('volumes', ('name', '=', name))
-        encryption = vol.get('encryption', {})
-        if encryption.get('locked', False) is not True:
+        if vol.get('locked', False) is not True:
             for dev in self.dispatcher.call_sync('zfs.pool.get_disks', name):
                 try:
                     result.append(self.dispatcher.call_sync('disk.partition_to_disk', dev))
@@ -450,8 +449,9 @@ class VolumeCreateTask(ProgressTask):
                     'key': key if key else None,
                     'hashed_password': digest,
                     'salt': salt,
-                    'slot': 0 if key else None,
-                    'locked': False if key else None},
+                    'slot': 0 if key else None},
+                'encrypted': True if key else False,
+                'locked': False if key else None,
                 'attributes': volume.get('attributes', {})
             })
 
@@ -679,7 +679,7 @@ class VolumeUpdateTask(Task):
                         subtasks.append(self.run_subtask('disk.geli.ukey.del', vdev['path'], 0))
                     self.join_subtasks(*subtasks)
 
-                if encryption['locked'] is False:
+                if volume['locked'] is False:
                     subtasks = []
                     for vdev, group in iterate_vdevs(new_vdevs):
                         subtasks.append(self.run_subtask('disk.geli.attach', vdev['path'], {
@@ -759,8 +759,9 @@ class VolumeImportTask(Task):
                     'key': key if key else None,
                     'hashed_password': digest,
                     'salt': salt,
-                    'slot': 0 if key else None,
-                    'locked': False if key else None},
+                    'slot': 0 if key else None},
+                'encrypted': True if key else False,
+                'locked': False if key else None,
                 'mountpoint': mountpoint
             })
 
@@ -910,7 +911,7 @@ class VolumeLockTask(Task):
         if encryption['key'] is None:
             raise VerifyException(errno.EINVAL, 'Volume {0} is not encrypted'.format(name))
 
-        if not encryption['locked'] is False:
+        if not vol['locked'] is False:
             raise VerifyException(errno.EINVAL, 'Volume {0} is not unlocked'.format(name))
 
         return ['disk:{0}'.format(d) for d in self.dispatcher.call_sync('volume.get_volume_disks', name)]
@@ -927,7 +928,7 @@ class VolumeLockTask(Task):
                 subtasks.append(self.run_subtask('disk.geli.detach', dname))
             self.join_subtasks(*subtasks)
 
-            vol['encryption']['locked'] = True
+            vol['locked'] = True
             self.datastore.update('volumes', vol['id'], vol)
 
             self.dispatcher.dispatch_event('volume.changed', {
@@ -950,7 +951,7 @@ class VolumeUnlockTask(Task):
         if encryption['key'] is None:
             raise VerifyException(errno.EINVAL, 'Volume {0} is not encrypted'.format(name))
 
-        if not encryption['locked'] is True:
+        if not vol['locked'] is True:
             raise VerifyException(errno.EINVAL, 'Volume {0} is not locked'.format(name))
 
         if encryption['hashed_password'] is not None:
@@ -986,7 +987,7 @@ class VolumeUnlockTask(Task):
 
             self.join_subtasks(self.run_subtask('zfs.mount', name))
 
-            vol['encryption']['locked'] = False
+            vol['locked'] = False
             self.datastore.update('volumes', vol['id'], vol)
 
             self.dispatcher.dispatch_event('volume.changed', {
@@ -1009,7 +1010,7 @@ class VolumeRekeyTask(Task):
         if encryption['key'] is None:
             raise VerifyException(errno.EINVAL, 'Volume {0} is not encrypted'.format(name))
 
-        if not encryption['locked'] is False:
+        if not vol['locked'] is False:
             raise VerifyException(errno.EINVAL, 'Volume {0} is locked'.format(name))
 
         return ['disk:{0}'.format(d) for d in self.dispatcher.call_sync('volume.get_volume_disks', name)]
@@ -1041,8 +1042,7 @@ class VolumeRekeyTask(Task):
                 'key': key,
                 'hashed_password': digest,
                 'salt': salt,
-                'slot': slot,
-                'locked': False}
+                'slot': slot}
 
             vol['encryption'] = encryption
             self.datastore.update('volumes', vol['id'], vol)
@@ -1074,7 +1074,7 @@ class VolumeBackupKeysTask(Task):
         if encryption['key'] is None:
             raise VerifyException(errno.EINVAL, 'Volume {0} is not encrypted'.format(name))
 
-        if not encryption['locked'] is False:
+        if not vol['locked'] is False:
             raise VerifyException(errno.EINVAL, 'Volume {0} is locked'.format(name))
 
         if out_path is None:
@@ -1118,7 +1118,7 @@ class VolumeRestoreKeysTask(Task):
         if encryption['key'] is None:
             raise VerifyException(errno.EINVAL, 'Volume {0} is not encrypted'.format(name))
 
-        if not encryption['locked'] is True:
+        if not vol['locked'] is True:
             raise VerifyException(errno.EINVAL, 'Volume {0} is not locked'.format(name))
 
         if in_path is None:
@@ -1409,8 +1409,7 @@ def _init(dispatcher, plugin):
             for i in args['ids']:
                 with dispatcher.get_lock('volumes'):
                     volume = dispatcher.datastore.get_one('volumes', ('name', '=', i))
-                    encryption = volume.get('encryption')
-                    if volume and not encryption['locked']:
+                    if volume and not volume['locked']:
                         logger.info('Volume {0} is going away'.format(volume['name']))
                         dispatcher.datastore.delete('volumes', volume['id'])
                         dispatcher.dispatch_event('volume.changed', {
@@ -1488,6 +1487,8 @@ def _init(dispatcher, plugin):
                 'enum': ['zfs']
             },
             'topology': {'$ref': 'zfs-topology'},
+            'encrypted': {'type': 'boolean'},
+            'locked': {'type': 'boolean'},
             'params': {'type': 'object'},
             'attributes': {'type': 'object'}
         }
@@ -1577,7 +1578,7 @@ def _init(dispatcher, plugin):
     for vol in dispatcher.datastore.query('volumes'):
         encryption = vol.get('encryption', {})
         if encryption.get('key', None) is not None:
-            if encryption['locked'] is True:
+            if vol['locked'] is True:
                 continue
 
             dname, dgroup = next(get_disks(vol['topology']))
@@ -1586,8 +1587,7 @@ def _init(dispatcher, plugin):
             try:
                 system('/sbin/geli', 'list', provider)
             except SubprocessException:
-                encryption['locked'] = True
-                vol['encryption'] = encryption
+                vol['locked'] = True
                 dispatcher.datastore.update('volumes', vol['id'], vol)
 
                 dispatcher.dispatch_event('volume.changed', {
