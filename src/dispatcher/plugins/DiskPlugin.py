@@ -942,7 +942,7 @@ def generate_multipath_info(gmultipath):
 
 def update_disk_cache(dispatcher, path):
     geom.scan()
-    name = os.path.basename(path)
+    name = re.match('/dev/(.*)', path).group(1)
     gdisk = geom.geom_by_name('DISK', name)
     gpart = geom.geom_by_name('PART', name)
 
@@ -952,7 +952,7 @@ def update_disk_cache(dispatcher, path):
         if glabel and glabel.provider and glabel.provider.name.startswith('diskid/'):
             gpart = geom.geom_by_name('PART', glabel.provider.name)
 
-    gmultipath = geom.geom_by_name('MULTIPATH', path.split('/')[-1])
+    gmultipath = geom.geom_by_name('MULTIPATH', name)
     disk = get_disk_by_path(path)
     if not disk:
         return
@@ -1061,6 +1061,7 @@ def generate_disk_cache(dispatcher, path):
 
     if multipath_info:
         disk.update(multipath_info)
+        path = multipath_info['path']
 
     diskinfo_cache.put(identifier, disk)
     update_disk_cache(dispatcher, path)
