@@ -351,7 +351,7 @@ class SnapshotProvider(Provider):
 
 
 @description("Creates new volume")
-@accepts(h.ref('volume'), str)
+@accepts(h.ref('volume'), h.one_of(str, None))
 class VolumeCreateTask(ProgressTask):
     def verify(self, volume, password=None):
         if self.datastore.exists('volumes', ('name', '=', volume['name'])):
@@ -463,7 +463,7 @@ class VolumeCreateTask(ProgressTask):
 
 
 @description("Creates new volume and automatically guesses disks layout")
-@accepts(str, str, h.array(str), h.object(), str)
+@accepts(str, str, h.array(str), h.object(), h.one_of(str, None))
 class VolumeAutoCreateTask(Task):
     def verify(self, name, type, disks, params=None, password=None):
         if self.datastore.exists('volumes', ('name', '=', name)):
@@ -538,7 +538,7 @@ class VolumeDestroyTask(Task):
 
 
 @description("Updates configuration of existing volume")
-@accepts(str, h.ref('volume'), str)
+@accepts(str, h.ref('volume'), h.one_of(str, None))
 class VolumeUpdateTask(Task):
     def verify(self, name, updated_params, password=None):
         if not self.datastore.exists('volumes', ('name', '=', name)):
@@ -705,7 +705,7 @@ class VolumeUpdateTask(Task):
 
 
 @description("Imports previously exported volume")
-@accepts(str, str, h.object(), h.object(), str)
+@accepts(str, str, h.object(), h.object(), h.one_of(str, None))
 class VolumeImportTask(Task):
     def verify(self, id, new_name, params=None, enc_params=None, password=None):
         if self.datastore.exists('volumes', ('id', '=', id)):
@@ -941,7 +941,7 @@ class VolumeLockTask(Task):
 
 
 @description("Unlocks encrypted ZFS volume")
-@accepts(str, str, h.object())
+@accepts(str, h.one_of(str, None), h.object())
 class VolumeUnlockTask(Task):
     def verify(self, name, password=None, params=None):
         if not self.datastore.exists('volumes', ('name', '=', name)):
@@ -1000,7 +1000,7 @@ class VolumeUnlockTask(Task):
 
 
 @description("Generates and sets new key for encrypted ZFS volume")
-@accepts(str, str)
+@accepts(str, h.one_of(str, None))
 class VolumeRekeyTask(Task):
     def verify(self, name, password=None):
         if not self.datastore.exists('volumes', ('name', '=', name)):
@@ -1108,7 +1108,7 @@ class VolumeBackupKeysTask(Task):
 
 
 @description("Loads a backup file of Master Keys of encrypted volume")
-@accepts(str, str, str)
+@accepts(str, h.one_of(str, None), str)
 class VolumeRestoreKeysTask(Task):
     def verify(self, name, password=None, in_path=None):
         if not self.datastore.exists('volumes', ('name', '=', name)):
