@@ -493,9 +493,9 @@ class VolumeAutoCreateTask(Task):
             'name': name,
             'type': type,
             'topology': {'data': vdevs},
-            'params': params,
-            'password': password
-        }))
+            'params': params},
+            password
+        ))
 
 
 @description("Destroys active volume")
