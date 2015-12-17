@@ -53,6 +53,7 @@ import termios
 import cgi
 
 import gevent
+import gevent.socket
 from pyee import EventEmitter
 from gevent.os import tp_read, tp_write
 from gevent import monkey, Greenlet
@@ -790,6 +791,7 @@ class UnixSocketServer(object):
         def __init__(self, server, dispatcher, connfd, address):
             import types
             self.dispatcher = dispatcher
+            self.fileno = connfd.fileno()
             self.fd = connfd.makefile('rwb')
             self.address = address
             self.server = server
@@ -802,10 +804,11 @@ class UnixSocketServer(object):
             data = message.encode('utf-8')
             header = struct.pack('II', 0xdeadbeef, len(data))
             try:
+                gevent.socket.wait_write(self.fileno, 0.1)
                 self.fd.write(header)
                 self.fd.write(data)
                 self.fd.flush()
-            except OSError:
+            except (OSError, socket.timeout):
                 self.server.logger.info('Send failed; closing connection')
                 self.conn.on_close('Bye bye')
                 self.fd.close()
