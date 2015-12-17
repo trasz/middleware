@@ -720,7 +720,18 @@ class VolumeImportTask(Task):
                 'Volume with name {0} already exists'.format(new_name)
             )
 
-        return self.verify_subtask('zfs.pool.import', id)
+        if enc_params is None:
+            return self.verify_subtask('zfs.pool.import', id)
+        else:
+
+            disks = enc_params.get('disks', None)
+            if disks is None:
+                raise VerifyException(
+                    errno.EINVAL, 'List of disks must be provided for import')
+            else:
+                if isinstance(disks, str):
+                    disks = [disks]
+                return ['disk:{0}'.format(i) for i in disks]
 
     def run(self, id, new_name, params=None, enc_params=None, password=None):
         if enc_params is None:
@@ -729,6 +740,8 @@ class VolumeImportTask(Task):
             key = enc_params.get('key', None)
             if key is not None:
                 disks = enc_params.get('disks', [])
+                if isinstance(disks, str):
+                    disks = [disks]
 
                 if password is not None:
                     salt, digest = get_digest(password)
@@ -739,12 +752,23 @@ class VolumeImportTask(Task):
                 attach_params = {'key': key, 'password': password}
                 for dname in disks:
                     self.join_subtasks(self.run_subtask('disk.geli.attach', dname, attach_params))
+
+                real_id = None
+                pool_info = self.dispatcher.call_sync('volume.find')
+                for pool in pool_info:
+                    if pool['name'] == new_name and pool['status'] == "ONLINE":
+                        real_id = pool['id']
+                        break
+                if real_id is None:
+                    raise TaskException('Importable volume {0} not found'.format(new_name))
+
             else:
                 salt = None
                 digest = None
+                real_id = id
 
             mountpoint = os.path.join(VOLUMES_ROOT, new_name)
-            self.join_subtasks(self.run_subtask('zfs.pool.import', id, new_name, params))
+            self.join_subtasks(self.run_subtask('zfs.pool.import', real_id, new_name, params))
             self.join_subtasks(self.run_subtask(
                 'zfs.configure',
                 new_name,
@@ -755,7 +779,7 @@ class VolumeImportTask(Task):
             self.join_subtasks(self.run_subtask('zfs.mount', new_name))
 
             new_id = self.datastore.insert('volumes', {
-                'id': id,
+                'id': real_id,
                 'name': new_name,
                 'type': 'zfs',
                 'encryption': {
@@ -851,6 +875,11 @@ class VolumeDetachTask(Task):
             self.join_subtasks(*subtasks)
 
         self.datastore.delete('volumes', vol['id'])
+
+        if encryption['key']:
+            return encryption['key']
+        else:
+            return None
 
 
 @description("Upgrades volume to newest ZFS version")
