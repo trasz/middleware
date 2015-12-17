@@ -53,10 +53,10 @@ import termios
 import cgi
 
 import gevent
-import gevent.socket
-from pyee import EventEmitter
-from gevent.os import tp_read, tp_write
 from gevent import monkey, Greenlet
+from pyee import EventEmitter
+from gevent.socket import wait_write
+from gevent.os import tp_read, tp_write
 from gevent.queue import Queue
 from gevent.lock import RLock
 from gevent.subprocess import Popen
@@ -804,7 +804,7 @@ class UnixSocketServer(object):
             data = message.encode('utf-8')
             header = struct.pack('II', 0xdeadbeef, len(data))
             try:
-                gevent.socket.wait_write(self.fileno, 0.1)
+                wait_write(self.fileno, 0.1)
                 self.fd.write(header)
                 self.fd.write(data)
                 self.fd.flush()
