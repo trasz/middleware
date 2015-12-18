@@ -842,7 +842,7 @@ class Main:
                 'mtu': {'type': 'integer'},
                 'media_type': {'type': 'string'},
                 'media_subtype': {'type': 'string'},
-                'media_options': {'$ref': 'network-interface-media-options'},
+                'media_options': {'$ref': 'network-interface-mediaopts'},
                 'capabilities': {'$ref': 'network-interface-capabilities'},
                 'flags': {'$ref': 'network-interface-flags'},
                 'aliases': {
