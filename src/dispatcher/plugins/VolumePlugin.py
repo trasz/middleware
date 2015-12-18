@@ -520,13 +520,13 @@ class VolumeDestroyTask(Task):
 
         with self.dispatcher.get_lock('volumes'):
             if config:
-                disks = self.dispatcher.call_sync('volume.get_volume_disks', name)
                 self.join_subtasks(self.run_subtask('zfs.umount', name))
                 self.join_subtasks(self.run_subtask('zfs.pool.destroy', name))
 
-                if encryption.get('key', None) is not None:
-                    subtasks = []
-                    for dname in disks:
+            if encryption.get('key', None) is not None:
+                subtasks = []
+                if 'topology' in vol:
+                    for dname, _ in get_disks(vol['topology']):
                         subtasks.append(self.run_subtask('disk.geli.kill', dname))
                     self.join_subtasks(*subtasks)
 
