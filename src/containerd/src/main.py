@@ -164,10 +164,13 @@ class VirtualMachine(object):
             raise RuntimeError()
 
         for i in self.tap_interfaces:
-            i.down()
-            netif.destroy_interface(i.name)
+            self.cleanup_tap(i)
 
-        self.bhyve_process.terminate()
+        try:
+            self.bhyve_process.terminate()
+        except ProcessLookupError:
+            self.logger.warning('bhyve process is already dead')
+
         subprocess.call(['/usr/sbin/bhyvectl', '--destroy', '--vm={0}'.format(self.name)])
         self.set_state(VirtualMachineState.STOPPED)
 
