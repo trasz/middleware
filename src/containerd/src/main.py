@@ -166,10 +166,11 @@ class VirtualMachine(object):
         for i in self.tap_interfaces:
             self.cleanup_tap(i)
 
-        try:
-            self.bhyve_process.terminate()
-        except ProcessLookupError:
-            self.logger.warning('bhyve process is already dead')
+        if self.bhyve_process:
+            try:
+                self.bhyve_process.terminate()
+            except ProcessLookupError:
+                self.logger.warning('bhyve process is already dead')
 
         subprocess.call(['/usr/sbin/bhyvectl', '--destroy', '--vm={0}'.format(self.name)])
         self.set_state(VirtualMachineState.STOPPED)
