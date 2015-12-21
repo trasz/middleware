@@ -219,6 +219,7 @@ def _init(dispatcher, plugin):
                     },
                     'boot_device': {'type': ['string', 'null']},
                     'boot_partition': {'type': ['string', 'null']},
+                    'boot_directory': {'type': ['string', 'null']}
                 }
             },
             'devices': {

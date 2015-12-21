@@ -194,7 +194,8 @@ class VirtualMachine(object):
             with tempfile.NamedTemporaryFile('w+', delete=False) as devmap:
                 hdcounter = 0
                 cdcounter = 0
-                bootname = None
+                bootname = ''
+                bootswitch = '-r'
                 for i in filter(lambda i: i['type'] in ('DISK', 'CDROM'), self.devices):
                     path = self.context.client.call_sync('container.get_disk_path', self.id, i['name'])
 
@@ -213,11 +214,15 @@ class VirtualMachine(object):
                 if self.config.get('boot_partition'):
                     bootname += ',{0}'.format(self.config['boot_partition'])
 
+                if self.config.get('boot_directory'):
+                    bootswitch = '-d'
+                    bootname = self.config['boot_directory']
+
                 devmap.flush()
                 self.bhyve_process = subprocess.Popen(
                     [
                         '/usr/local/sbin/grub-bhyve', '-M', str(self.config['memsize']),
-                        '-r', bootname, '-m', devmap.name, '-c', self.nmdm[0], self.name
+                        bootswitch, bootname, '-m', devmap.name, '-c', self.nmdm[0], self.name
                     ],
                     stdout=subprocess.PIPE,
                     stderr=subprocess.STDOUT,
