@@ -118,7 +118,7 @@ class VirtualMachine(object):
                 index += 1
 
             if i['type'] == 'NIC':
-                iface = self.init_tap()
+                iface = self.init_tap(i['properties'])
                 args += ['-s', '{0}:0,virtio-net,{1}'.format(index, iface)]
                 index += 1
 
@@ -130,12 +130,23 @@ class VirtualMachine(object):
         self.logger.debug('bhyve args: {0}'.format(args))
         return args
 
-    def init_tap(self):
-        iface = netif.get_interface(netif.create_interface('tap'))
-        iface.up()
-        self.context.bridge_interface.add_member(iface.name)
-        self.tap_interfaces.append(iface)
-        return iface.name
+    def init_tap(self, tap):
+        try:
+            iface = netif.get_interface(netif.create_interface('tap'))
+            iface.description = 'vm:{0}'.format(self.name)
+            iface.up()
+            if tap['bridge']:
+                    bridge = netif.get_interface(tap['bridge'])
+                    bridge.add_member(iface.name)
+
+            self.tap_interfaces.append(iface)
+            return iface.name
+        except (KeyError, OSError):
+                pass
+
+    def cleanup_tap(self, iface):
+        iface.down()
+        netif.destroy_interface(iface.name)
 
     def get_nmdm(self):
         index = self.context.allocate_nmdm()
