@@ -362,6 +362,9 @@ class MongodbDatastore(object):
             self.insert(collection, full_obj, pkey=obj['id'], timestamp=False)
             return
 
+        if 'id' in obj:
+            del obj['id']
+
         if timestamp:
             t = datetime.now()
             obj['updated_at'] = t
