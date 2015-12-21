@@ -585,6 +585,13 @@ class VolumeUpdateTask(Task):
                 {'single': True, 'select': 'topology'}
             )
 
+            new_topology = []
+            for vdev in old_topology['data']:
+                if vdev['type'] == 'disk':
+                    new_topology.append({'type': vdev['type'], 'path': vdev['path'], 'guid': vdev['guid']})
+                else:
+                    new_topology.append({'type': vdev['type'], 'children': vdev['children'], 'guid': vdev['guid']})
+
             for group, vdevs in list(updated_params['topology'].items()):
                 for vdev in vdevs:
                     if 'guid' not in vdev:
@@ -643,6 +650,16 @@ class VolumeUpdateTask(Task):
                         'vdev': vdev['children'][-1]
                     })
 
+                    for idx, entry in enumerate(new_topology):
+                        if entry['guid'] is old_vdev['guid']:
+                            del new_topology[idx]
+                            if vdev['type'] == 'disk':
+                                new_topology.append({'type': vdev['type'], 'path': vdev['path'], 'guid': vdev['guid']})
+                            else:
+                                new_topology.append({'type': vdev['type'],
+                                                     'children': vdev['children'],
+                                                     'guid': vdev['guid']})
+
             for vdev, group in iterate_vdevs(new_vdevs):
                 if vdev['type'] == 'disk':
                     subtasks.append(self.run_subtask('disk.format.gpt', vdev['path'], 'freebsd-zfs', {
@@ -691,7 +708,7 @@ class VolumeUpdateTask(Task):
                         }))
                     self.join_subtasks(*subtasks)
 
-            new_vdevs = convert_topology_to_gptids(self.dispatcher, new_vdevs)
+            new_vdevs_gptids = convert_topology_to_gptids(self.dispatcher, new_vdevs)
 
             for vdev in updated_vdevs:
                 vdev['vdev']['path'] = get_disk_gptid(self.dispatcher, vdev['vdev']['path'])
@@ -699,9 +716,26 @@ class VolumeUpdateTask(Task):
             self.join_subtasks(self.run_subtask(
                 'zfs.pool.extend',
                 name,
-                new_vdevs,
+                new_vdevs_gptids,
                 updated_vdevs)
             )
+
+            for vdev in new_topology:
+                vdev.pop('guid', None)
+
+            for vdev, group in iterate_vdevs(new_vdevs):
+                if vdev['type'] == 'disk':
+                    new_topology.append({'type': vdev['type'], 'path': vdev['path']})
+                else:
+                    new_topology.append({'type': vdev['type'], 'children': vdev['children']})
+
+            volume['topology'] = {'data': new_topology}
+            self.datastore.update('volumes', volume['id'], volume)
+
+            self.dispatcher.dispatch_event('volume.changed', {
+                'operation': 'update',
+                'ids': [volume['id']]
+            })
 
 
 @description("Imports previously exported volume")
