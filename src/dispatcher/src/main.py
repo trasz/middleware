@@ -808,7 +808,7 @@ class UnixSocketServer(object):
                 self.fd.write(header)
                 self.fd.write(data)
                 self.fd.flush()
-            except (OSError, socket.timeout):
+            except (OSError, ValueError, socket.timeout):
                 self.server.logger.info('Send failed; closing connection')
                 self.conn.on_close('Bye bye')
                 self.fd.close()
