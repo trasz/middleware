@@ -1027,8 +1027,8 @@
             "network.netwait.addresses": [],
             "replication.key.public": null,
             "replication.key.private": null,
-            "container.bridge": null,
-            "container.default_nic": null,
+            "container.network.management": "169.254.16.1/20",
+            "container.network.nat": "169.254.32.1/20",
             "storage.hotsparing.autoreplace": true,
             "storage.hotsparing.strong_match": false
         },

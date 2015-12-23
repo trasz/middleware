@@ -25,6 +25,7 @@
 #
 #####################################################################
 
+import ipaddress
 import errno
 import os
 import uuid
@@ -86,11 +87,31 @@ class ContainerBaseTask(Task):
                 {'volsize': res['properties']['size']}
             ))
 
+        if res['type'] == 'VOLUME':
+            mgmt_net = ipaddress.ip_interface(self.configstore.get('container.network.management'))
+            container_ds = os.path.join(container['target'], 'vm', container['name'])
+            ds_name = os.path.join(container_ds, res['name'])
+            opts = {}
+
+            if res['properties']['access_method'] == 'NFS':
+                opts['sharenfs'] = '-network={0}'.format(str(mgmt_net.network))
+                if not self.configstore.get('service.nfs.enable'):
+                    self.join_subtasks(self.run_subtask('service.configure', 'nfs', {'enable': True}))
+
+            self.join_subtasks(self.run_subtask(
+                'volume.dataset.create',
+                container['target'],
+                ds_name,
+                'FILESYSTEM',
+                opts
+            ))
+
     def update_device(self, container, old_res, new_res):
-        pass
+        if new_res['type'] == 'DISK':
+            pass
 
     def delete_device(self, container, res):
-        if res['type'] == 'DISK':
+        if res['type'] in ('DISK', 'VOLUME'):
             container_ds = os.path.join(container['target'], 'vm', container['name'])
             ds_name = os.path.join(container_ds, res['name'])
             self.join_subtasks(self.run_subtask(
@@ -99,6 +120,8 @@ class ContainerBaseTask(Task):
                 ds_name,
                 True
             ))
+
+
 
 
 @accepts(h.ref('container'))
@@ -249,7 +272,7 @@ def _init(dispatcher, plugin):
         'properties': {
             'mode': {
                 'type': 'string',
-                'enum': ['BRIDGED', 'NAT', 'HOSTONLY']
+                'enum': ['BRIDGED', 'NAT', 'HOSTONLY', 'MANAGEMENT']
             },
             'bridge': {'type': ['string', 'null']}
         }
