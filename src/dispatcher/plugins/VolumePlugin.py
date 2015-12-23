@@ -742,6 +742,8 @@ class VolumeUpdateTask(Task):
 @accepts(str, str, h.object(), h.object(), h.one_of(str, None))
 class VolumeImportTask(Task):
     def verify(self, id, new_name, params=None, enc_params=None, password=None):
+        if enc_params is None:
+            enc_params = {}
         if self.datastore.exists('volumes', ('id', '=', id)):
             raise VerifyException(
                 errno.ENOENT,
@@ -754,10 +756,9 @@ class VolumeImportTask(Task):
                 'Volume with name {0} already exists'.format(new_name)
             )
 
-        if enc_params is None:
+        if enc_params.get('key', None) is None:
             return self.verify_subtask('zfs.pool.import', id)
         else:
-
             disks = enc_params.get('disks', None)
             if disks is None:
                 raise VerifyException(
