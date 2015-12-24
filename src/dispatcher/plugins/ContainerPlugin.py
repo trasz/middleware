@@ -29,10 +29,14 @@ import ipaddress
 import errno
 import os
 import uuid
+import json
+import urllib.request
+import urllib.parse
+import urllib.error
 from task import Provider, Task, VerifyException, TaskException, query
 from freenas.dispatcher.rpc import RpcException
 from freenas.dispatcher.rpc import SchemaHelper as h, description, accepts, returns, private
-from freenas.utils import first_or_default, normalize
+from freenas.utils import first_or_default, normalize, deep_update
 
 
 @query('container')
@@ -94,7 +98,7 @@ class ContainerBaseTask(Task):
             opts = {}
 
             if res['properties']['access_method'] == 'NFS':
-                opts['sharenfs'] = '-network={0}'.format(str(mgmt_net.network))
+                opts['sharenfs'] = {'value': '-network={0}'.format(str(mgmt_net.network))}
                 if not self.configstore.get('service.nfs.enable'):
                     self.join_subtasks(self.run_subtask('service.configure', 'nfs', {'enable': True}))
 
@@ -122,8 +126,6 @@ class ContainerBaseTask(Task):
             ))
 
 
-
-
 @accepts(h.ref('container'))
 class ContainerCreateTask(ContainerBaseTask):
     def verify(self, container):
@@ -133,10 +135,16 @@ class ContainerCreateTask(ContainerBaseTask):
         return ['zpool:{0}'.format(container['target'])]
 
     def run(self, container):
-        normalize(container, {
-            'config': {},
-            'devices': []
-        })
+        if container.get('template'):
+            deep_update(container, try_get_template(
+                self.configstore.get('container.template.search_path'),
+                container['template'].get('name')
+            ))
+        else:
+            normalize(container, {
+                'config': {},
+                'devices': []
+            })
 
         normalize(container['config'], {
             'memsize': 512,
@@ -217,6 +225,17 @@ class ContainerStopTask(Task):
         self.dispatcher.call_sync('containerd.management.stop_container', id)
 
 
+def try_get_template(search_path, template_name):
+    for i in search_path:
+        try:
+            with urllib.request.urlopen(urllib.parse.urljoin(i, template_name + '.json')) as f:
+                return json.loads(f.read().decode('utf-8'))
+        except urllib.error.HTTPError:
+            continue
+
+    raise RpcException(errno.ENOENT, 'Template {0} not found')
+
+
 def _init(dispatcher, plugin):
     plugin.register_schema_definition('container', {
         'type': 'object',
@@ -226,6 +245,12 @@ def _init(dispatcher, plugin):
             'name': {'type': 'string'},
             'description': {'type': 'string'},
             'target': {'type': 'string'},
+            'template': {
+                'type': ['object', 'none'],
+                'properties': {
+                    'name': {'type': 'string'}
+                }
+            },
             'type': {
                 'type': 'string',
                 'enum': ['JAIL', 'VM', 'DOCKER']
