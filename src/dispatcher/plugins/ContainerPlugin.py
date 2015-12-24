@@ -265,7 +265,8 @@ class DownloadImageTask(ProgressTask):
         self.set_progress(100, 'Copying image to virtual disk')
         with open(destination, 'wb') as dst:
             with gzip.open(path, 'rb') as src:
-                dst.write(src.read(self.BLOCKSIZE))
+                for chunk in iter(lambda: src.read(self.BLOCKSIZE), b""):
+                    dst.write(chunk)
 
 
 def try_get_template(search_path, template_name):
