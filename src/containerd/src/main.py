@@ -249,10 +249,19 @@ class VirtualMachine(object):
         self.logger.debug('Starting bhyve...')
         args = self.build_args()
         self.set_state(VirtualMachineState.RUNNING)
-        self.bhyve_process = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, close_fds=True)
-        out, err = self.bhyve_process.communicate()
-        self.bhyve_process.wait()
-        self.logger.debug('bhyve: {0}'.format(out))
+
+        while True:
+            self.bhyve_process = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, close_fds=True)
+            out, err = self.bhyve_process.communicate()
+            self.logger.debug('bhyve: {0}'.format(out))
+            self.bhyve_process.wait()
+
+            if self.bhyve_process.returncode == 0:
+                # reboot
+                continue
+
+            break
+
         self.set_state(VirtualMachineState.STOPPED)
 
     def console_worker(self):
