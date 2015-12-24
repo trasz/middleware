@@ -1255,6 +1255,7 @@ def _init(dispatcher, plugin):
     })
 
     plugin.register_event_handler('fs.zfs.pool.created', on_pool_create)
+    plugin.register_event_handler('fs.zfs.pool.imported', on_pool_create)
     plugin.register_event_handler('fs.zfs.pool.destroyed', on_pool_destroy)
     plugin.register_event_handler('fs.zfs.pool.setprop', on_pool_changed)
     plugin.register_event_handler('fs.zfs.pool.reguid', on_pool_reguid)
