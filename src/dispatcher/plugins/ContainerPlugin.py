@@ -32,6 +32,7 @@ import uuid
 import json
 import tempfile
 import hashlib
+import gzip
 import urllib.request
 import urllib.parse
 import urllib.error
@@ -255,12 +256,16 @@ class DownloadImageTask(ProgressTask):
 
         self.set_progress(100, 'Verifying checksum')
         with open(path, 'rb') as f:
-            hasher.update(f.read(self.BLOCKSIZE))
+            for chunk in iter(lambda: f.read(self.BLOCKSIZE), b""):
+                hasher.update(chunk)
 
         if hasher.hexdigest() != sha256:
             raise TaskException(errno.EINVAL, 'Invalid SHA256 checksum')
 
-        return path
+        self.set_progress(100, 'Copying image to virtual disk')
+        with open(destination, 'wb') as dst:
+            with gzip.open(path, 'rb') as src:
+                dst.write(src.read(self.BLOCKSIZE))
 
 
 def try_get_template(search_path, template_name):
