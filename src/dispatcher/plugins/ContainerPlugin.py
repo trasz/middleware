@@ -30,10 +30,12 @@ import errno
 import os
 import uuid
 import json
+import tempfile
+import hashlib
 import urllib.request
 import urllib.parse
 import urllib.error
-from task import Provider, Task, VerifyException, TaskException, query
+from task import Provider, Task, ProgressTask, VerifyException, TaskException, query
 from freenas.dispatcher.rpc import RpcException
 from freenas.dispatcher.rpc import SchemaHelper as h, description, accepts, returns, private
 from freenas.utils import first_or_default, normalize, deep_update
@@ -82,6 +84,7 @@ class ContainerBaseTask(Task):
     def create_device(self, container, res):
         if res['type'] == 'DISK':
             container_ds = os.path.join(container['target'], 'vm', container['name'])
+            container_dir = self.dispatcher.call_sync('volume.get_dataset_path', container['target'], container_ds)
             ds_name = os.path.join(container_ds, res['name'])
             self.join_subtasks(self.run_subtask(
                 'volume.dataset.create',
@@ -90,6 +93,16 @@ class ContainerBaseTask(Task):
                 'VOLUME',
                 {'volsize': res['properties']['size']}
             ))
+
+            if res['properties'].get('source'):
+                source = res['properties']['source']
+                self.join_subtasks(self.run_subtask(
+                    'container.download_image',
+                    source['url'],
+                    source['sha256'],
+                    container_dir,
+                    os.path.join('/dev/zvol', ds_name)
+                ))
 
         if res['type'] == 'VOLUME':
             mgmt_net = ipaddress.ip_interface(self.configstore.get('container.network.management'))
@@ -225,6 +238,31 @@ class ContainerStopTask(Task):
         self.dispatcher.call_sync('containerd.management.stop_container', id)
 
 
+@accepts(str, str)
+class DownloadImageTask(ProgressTask):
+    BLOCKSIZE = 65536
+
+    def verify(self, url, sha256, vmdir, destination):
+        return []
+
+    def run(self, url, sha256, vmdir, destination):
+        def progress_hook(nblocks, blocksize, totalsize):
+            self.set_progress((nblocks * blocksize) / float(totalsize) * 100)
+
+        self.set_progress(0, 'Downloading image')
+        path, headers = urllib.request.urlretrieve(url, tempfile.mktemp(dir=vmdir), progress_hook)
+        hasher = hashlib.sha256()
+
+        self.set_progress(100, 'Verifying checksum')
+        with open(path, 'rb') as f:
+            hasher.update(f.read(self.BLOCKSIZE))
+
+        if hasher.hexdigest() != sha256:
+            raise TaskException(errno.EINVAL, 'Invalid SHA256 checksum')
+
+        return path
+
+
 def try_get_template(search_path, template_name):
     for i in search_path:
         try:
@@ -325,5 +363,6 @@ def _init(dispatcher, plugin):
     plugin.register_task_handler('container.delete', ContainerDeleteTask)
     plugin.register_task_handler('container.start', ContainerStartTask)
     plugin.register_task_handler('container.stop', ContainerStopTask)
+    plugin.register_task_handler('container.download_image', DownloadImageTask)
 
     plugin.register_event_type('container.changed')
