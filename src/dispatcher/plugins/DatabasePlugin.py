@@ -59,8 +59,8 @@ class RestoreFactoryConfigTask(Task):
 
     def run(self):
         try:
-            fd = open(FACTORY_DB, 'r')
-            dump = json.load(fd)
+            with open(FACTORY_DB, 'r') as fd:
+                dump = json.load(fd)
         except IOError as err:
             raise TaskException(errno.ENOENT, "Cannot open input file: {0}".format(str(err)))
         except ValueError as err:
