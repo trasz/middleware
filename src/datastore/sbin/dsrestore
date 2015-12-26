@@ -31,6 +31,7 @@ import sys
 import argparse
 import json
 import datastore
+import datastore.restore
 
 
 DEFAULT_CONFIGFILE = '/usr/local/etc/middleware.conf'
@@ -67,21 +68,6 @@ def init_datastore(filename, alt):
         sys.exit(1)
 
 
-def restore_collection(dump):
-    metadata = dump['metadata']
-    data = dump['data']
-    name = metadata['name']
-    integer = metadata['pkey-type'] == 'integer'
-
-    ds.collection_delete(name)
-    ds.collection_create(name, metadata['pkey-type'], metadata['attributes'])
-    configstore = metadata['attributes'].get('configstore', False)
-
-    for key, row in list(data.items()):
-        pkey = int(key) if integer else key
-        ds.insert(name, row, pkey=pkey, config=configstore)
-
-
 def main():
     global ds
     parser = argparse.ArgumentParser()
@@ -104,14 +90,10 @@ def main():
         print("Cannot parse input file: {0}".format(str(err)))
         sys.exit(1)
 
-    for i in dump:
-        metadata = i['metadata']
-        attrs = metadata['attributes']
-        if types and 'type' in attrs.keys() and attrs['type'] not in types:
-            continue
+    def print_progress(name):
+        print("Restored collection {0}".format(name), file=sys.stderr)
 
-        restore_collection(i)
-        print("Restored collection {0}".format(metadata['name']), file=sys.stderr)
+    datastore.restore.restore_db(ds, dump, types, print_progress)
 
 
 if __name__ == '__main__':
