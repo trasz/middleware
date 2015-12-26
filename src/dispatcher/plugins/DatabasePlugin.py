@@ -26,7 +26,7 @@
 #####################################################################
 
 import errno
-import import json
+import json
 from datastore import DatastoreException
 from datastore.restore import restore_db
 from freenas.dispatcher.rpc import RpcException, description, accepts, returns
