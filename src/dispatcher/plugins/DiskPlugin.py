@@ -980,8 +980,12 @@ def update_disk_cache(dispatcher, path):
     if data_part:
         if data_part["encrypted"]:
             data_path = data_uuid + '.eli'
+            encrypted = True
         else:
             data_path = data_uuid
+            encrypted = False
+    else:
+        encrypted = False
 
     swap_part = first_or_default(lambda x: x['type'] == 'freebsd-swap', partitions)
     swap_uuid = swap_part["uuid"] if swap_part else None
@@ -1001,7 +1005,7 @@ def update_disk_cache(dispatcher, path):
         'data_partition_path': os.path.join("/dev/gptid", data_path) if data_uuid else None,
         'swap_partition_uuid': swap_uuid,
         'swap_partition_path': os.path.join("/dev/gptid", swap_uuid) if swap_uuid else None,
-        'encrypted': True if data_part['encrypted'] else False,
+        'encrypted': encrypted,
         'gdisk_name': gdisk.name,
     })
 
