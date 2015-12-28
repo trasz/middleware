@@ -1168,7 +1168,7 @@ class VolumeBackupKeysTask(Task):
         if not self.datastore.exists('volumes', ('name', '=', name)):
             raise VerifyException(errno.ENOENT, 'Volume {0} not found'.format(name))
 
-        vol = self.datastore.get_one('volumes', ('name', '=', name))
+        vol = self.dispatcher.call_sync('volume.query', [('name', '=', name)], {'single': True})
 
         encryption = vol.get('encryption')
 
@@ -1212,7 +1212,7 @@ class VolumeRestoreKeysTask(Task):
         if not self.datastore.exists('volumes', ('name', '=', name)):
             raise VerifyException(errno.ENOENT, 'Volume {0} not found'.format(name))
 
-        vol = self.datastore.get_one('volumes', ('name', '=', name))
+        vol = self.dispatcher.call_sync('volume.query', [('name', '=', name)], {'single': True})
 
         encryption = vol.get('encryption')
 
