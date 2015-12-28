@@ -824,7 +824,6 @@ class UnixSocketServer(object):
                 try:
                     header = self.fd.read(8)
                     if header == b'' or len(header) != 8:
-                        self.server.logger.info('Message wrong header dropped; closing connection')
                         break
 
                     magic, length = struct.unpack('II', header)
