@@ -35,7 +35,7 @@ from lib.system import system, SubprocessException
 from lib.freebsd import get_sysctl
 from task import Task, Provider, TaskException, ValidationException
 
-logger = logging.getLogger('CIFSPlugin')
+logger = logging.getLogger('SMBPlugin')
 
 
 class LogLevel(enum.IntEnum):
@@ -51,26 +51,26 @@ def validate_netbios_name(netbiosname):
     return regex.match(netbiosname)
 
 
-@description('Provides info about CIFS service configuration')
-class CIFSProvider(Provider):
+@description('Provides info about SMB service configuration')
+class SMBProvider(Provider):
     @accepts()
-    @returns(h.ref('service-cifs'))
+    @returns(h.ref('service-smb'))
     def get_config(self):
-        return ConfigNode('service.cifs', self.configstore).__getstate__()
+        return ConfigNode('service.smb', self.configstore).__getstate__()
 
 
-@description('Configure CIFS service')
-@accepts(h.ref('service-cifs'))
-class CIFSConfigureTask(Task):
-    def describe(self, cifs):
-        return 'Configuring CIFS service'
+@description('Configure SMB service')
+@accepts(h.ref('service-smb'))
+class SMBConfigureTask(Task):
+    def describe(self, smb):
+        return 'Configuring SMB service'
 
-    def verify(self, cifs):
+    def verify(self, smb):
         errors = []
 
-        node = ConfigNode('service.cifs', self.configstore).__getstate__()
+        node = ConfigNode('service.smb', self.configstore).__getstate__()
 
-        netbiosname = cifs.get('netbiosname')
+        netbiosname = smb.get('netbiosname')
         if netbiosname is not None:
             for n in netbiosname:
                 if not validate_netbios_name(n):
@@ -78,7 +78,7 @@ class CIFSConfigureTask(Task):
         else:
             netbiosname = node['netbiosname']
 
-        workgroup = cifs.get('workgroup')
+        workgroup = smb.get('workgroup')
         if workgroup is not None:
             if not validate_netbios_name(workgroup):
                 errors.append(('workgroup', errno.EINVAL, 'Invalid name'))
@@ -88,11 +88,11 @@ class CIFSConfigureTask(Task):
         if workgroup.lower() in [i.lower() for i in netbiosname]:
             errors.append(('netbiosname', errno.EEXIST, 'NetBIOS and Workgroup must be unique'))
 
-        dirmask = cifs.get('dirmask')
+        dirmask = smb.get('dirmask')
         if dirmask and (int(dirmask, 8) & ~0o11777):
             errors.append(('dirmask', errno.EINVAL, 'This is not a valid mask'))
 
-        filemask = cifs.get('filemask')
+        filemask = smb.get('filemask')
         if filemask and (int(filemask, 8) & ~0o11777):
             errors.append(('filemask', errno.EINVAL, 'This is not a valid mask'))
 
@@ -101,24 +101,24 @@ class CIFSConfigureTask(Task):
 
         return ['system']
 
-    def run(self, cifs):
+    def run(self, smb):
         try:
             action = 'NONE'
-            node = ConfigNode('service.cifs', self.configstore)
-            node.update(cifs)
+            node = ConfigNode('service.smb', self.configstore)
+            node.update(smb)
             configure_params(node.__getstate__())
 
             # XXX: Is restart to change netbios name/workgroup *really* needed?
-            if 'netbiosname' in cifs or 'workgroup' in cifs:
+            if 'netbiosname' in smb or 'workgroup' in smb:
                 action = 'RESTART'
 
-            self.dispatcher.dispatch_event('service.cifs.changed', {
+            self.dispatcher.dispatch_event('service.smb.changed', {
                 'operation': 'updated',
                 'ids': None,
             })
         except RpcException as e:
             raise TaskException(
-                errno.ENXIO, 'Cannot reconfigure CIFS: {0}'.format(str(e))
+                errno.ENXIO, 'Cannot reconfigure SMB: {0}'.format(str(e))
             )
 
         return action
@@ -128,16 +128,16 @@ def yesno(val):
     return 'yes' if val else 'no'
 
 
-def configure_params(cifs):
+def configure_params(smb):
     conf = smbconf.SambaConfig('registry')
-    conf['netbios name'] = cifs['netbiosname'][0]
-    conf['netbios aliases'] = ' '.join(cifs['netbiosname'][1:])
+    conf['netbios name'] = smb['netbiosname'][0]
+    conf['netbios aliases'] = ' '.join(smb['netbiosname'][1:])
 
-    if cifs['bind_addresses']:
-        conf['interfaces'] = ' '.join(['127.0.0.1'] + cifs['bind_addresses'])
+    if smb['bind_addresses']:
+        conf['interfaces'] = ' '.join(['127.0.0.1'] + smb['bind_addresses'])
 
-    conf['workgroup'] = cifs['workgroup']
-    conf['server string'] = cifs['description']
+    conf['workgroup'] = smb['workgroup']
+    conf['server string'] = smb['description']
     conf['encrypt passwords'] = 'yes'
     conf['dns proxy'] = 'no'
     conf['strict locking'] = 'no'
@@ -146,7 +146,7 @@ def configure_params(cifs):
     conf['max log size'] = '51200'
     conf['max open files'] = str(int(get_sysctl('kern.maxfilesperproc')) - 25)
 
-    if cifs['syslog']:
+    if smb['syslog']:
         conf['syslog only'] = 'yes'
         conf['syslog'] = '1'
 
@@ -155,9 +155,9 @@ def configure_params(cifs):
     conf['printcap name'] = '/dev/null'
     conf['disable spoolss'] = 'yes'
     conf['getwd cache'] = 'yes'
-    conf['guest account'] = cifs['guest_user']
+    conf['guest account'] = smb['guest_user']
     conf['map to guest'] = 'Bad User'
-    conf['obey pam restrictions'] = yesno(cifs['obey_pam_restrictions'])
+    conf['obey pam restrictions'] = yesno(smb['obey_pam_restrictions'])
     conf['directory name cache size'] = '0'
     conf['kernel change notify'] = 'no'
     conf['panic action'] = '/usr/local/libexec/samba/samba-backtrace'
@@ -165,17 +165,17 @@ def configure_params(cifs):
     conf['ea support'] = 'yes'
     conf['store dos attributes'] = 'yes'
     conf['lm announce'] = 'yes'
-    conf['hostname lookups'] = yesno(cifs['hostlookup'])
-    conf['unix extensions'] = yesno(cifs['unixext'])
-    conf['time server'] = yesno(cifs['time_server'])
-    conf['null passwords'] = yesno(cifs['empty_password'])
-    conf['acl allow execute always'] = yesno(cifs['execute_always'])
+    conf['hostname lookups'] = yesno(smb['hostlookup'])
+    conf['unix extensions'] = yesno(smb['unixext'])
+    conf['time server'] = yesno(smb['time_server'])
+    conf['null passwords'] = yesno(smb['empty_password'])
+    conf['acl allow execute always'] = yesno(smb['execute_always'])
     conf['acl check permissions'] = 'true'
     conf['dos filemode'] = 'yes'
-    conf['multicast dns register'] = yesno(cifs['zeroconf'])
-    conf['local master'] = yesno(cifs['local_master'])
+    conf['multicast dns register'] = yesno(smb['zeroconf'])
+    conf['local master'] = yesno(smb['local_master'])
     conf['server role'] = 'auto'
-    conf['log level'] = str(getattr(LogLevel, cifs['log_level']).value)
+    conf['log level'] = str(getattr(LogLevel, smb['log_level']).value)
     conf['username map'] = '/usr/local/etc/smbusers'
     conf['idmap config *: range'] = '90000001-100000000'
     conf['idmap config *: backend'] = 'tdb'
@@ -187,21 +187,21 @@ def _depends():
 
 def _init(dispatcher, plugin):
 
-    def set_cifs_sid():
-        cifs = dispatcher.call_sync('service.cifs.get_config')
-        if not cifs['sid']:
+    def set_smb_sid():
+        smb = dispatcher.call_sync('service.smb.get_config')
+        if not smb['sid']:
             try:
                 sid = system('/usr/local/bin/net', 'getlocalsid')[0]
                 if ':' in sid:
                     sid = sid.split(':', 1)[1].strip(' ').strip('\n')
                     if sid:
-                        dispatcher.configstore.set('service.cifs.sid', sid)
-                        cifs['sid'] = sid
+                        dispatcher.configstore.set('service.smb.sid', sid)
+                        smb['sid'] = sid
             except SubprocessException:
                 logger.error('Failed to get local sid', exc_info=True)
         try:
-            if cifs['sid']:
-                system('/usr/local/bin/net', 'setlocalsid', cifs['sid'])
+            if smb['sid']:
+                system('/usr/local/bin/net', 'setlocalsid', smb['sid'])
         except SubprocessException as err:
             logger.error('Failed to set local sid: {0}'.format(err.output))
 
@@ -221,7 +221,7 @@ def _init(dispatcher, plugin):
         'SMB3_00',
     ]
 
-    plugin.register_schema_definition('service-cifs', {
+    plugin.register_schema_definition('service-smb', {
         'type': 'object',
         'properties': {
             'netbiosname': {
@@ -262,11 +262,11 @@ def _init(dispatcher, plugin):
     })
 
     # Register providers
-    plugin.register_provider("service.cifs", CIFSProvider)
+    plugin.register_provider("service.smb", SMBProvider)
 
     # Register tasks
-    plugin.register_task_handler("service.cifs.configure", CIFSConfigureTask)
+    plugin.register_task_handler("service.smb.configure", SMBConfigureTask)
 
-    set_cifs_sid()
-    node = ConfigNode('service.cifs', dispatcher.configstore)
+    set_smb_sid()
+    node = ConfigNode('service.smb', dispatcher.configstore)
     configure_params(node.__getstate__())
