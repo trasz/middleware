@@ -791,7 +791,7 @@ class UnixSocketServer(object):
         def __init__(self, server, dispatcher, connfd, address):
             import types
             self.dispatcher = dispatcher
-            self.conn = connfd
+            self.connfd = connfd
             self.fd = connfd.makefile('rwb')
             self.address = address
             self.server = server
@@ -806,7 +806,7 @@ class UnixSocketServer(object):
                 data = message.encode('utf-8')
                 header = struct.pack('II', 0xdeadbeef, len(data))
                 try:
-                    wait_write(self.conn.fileno(), 0.1)
+                    wait_write(self.connfd.fileno(), 0.1)
                     self.fd.write(header)
                     self.fd.write(data)
                     self.fd.flush()
@@ -814,7 +814,7 @@ class UnixSocketServer(object):
                     self.server.logger.info('Send failed; closing connection')
                     self.conn.on_close('Bye bye')
                     self.fd.close()
-                    self.conn.close()
+                    self.connfd.close()
 
         def handle_connection(self):
             self.conn = ServerConnection(self, self.dispatcher)
@@ -844,7 +844,7 @@ class UnixSocketServer(object):
 
             self.conn.on_close('Bye bye')
             self.fd.close()
-            self.conn.close()
+            self.connfd.close()
 
     def __init__(self, path, dispatcher):
         self.path = path
