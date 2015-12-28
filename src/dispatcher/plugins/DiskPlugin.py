@@ -372,7 +372,7 @@ class DiskDeleteTask(Task):
         self.datastore.delete('disks', id)
 
 
-@accepts(str, h.object())
+@accepts(str, h.ref('disk-attach-params'))
 class DiskGELIInitTask(Task):
     def describe(self, disk, params=None):
         return "Creating encrypted partition for {0}".format(os.path.basename(disk))
@@ -426,7 +426,7 @@ class DiskGELIInitTask(Task):
                 raise TaskException(errno.EFAULT, 'Cannot init encrypted partition: {0}'.format(err.err))
 
 
-@accepts(str, h.object())
+@accepts(str, h.ref('disk-set-key-params'))
 class DiskGELISetUserKeyTask(Task):
     def describe(self, disk, params=None):
         return "Set new key for encrypted partition on {0}".format(os.path.basename(disk))
@@ -505,6 +505,7 @@ class DiskGELIDelUserKeyTask(Task):
 
 
 @accepts(str)
+@returns(h.ref('disk-metadata'))
 class DiskGELIBackupMetadataTask(Task):
     def describe(self, disk):
         return "Backup metadata of encrypted partition on {0}".format(os.path.basename(disk))
@@ -534,7 +535,7 @@ class DiskGELIBackupMetadataTask(Task):
             return {'disk': disk, 'metadata': base64.b64encode(metadata_file.read()).decode('utf-8')}
 
 
-@accepts(h.object())
+@accepts(h.ref('disk-metadata'))
 class DiskGELIRestoreMetadataTask(Task):
     def describe(self, metadata):
         return "Restore metadata of encrypted partition on {0}".format(os.path.basename(disk))
@@ -565,7 +566,7 @@ class DiskGELIRestoreMetadataTask(Task):
                 raise TaskException(errno.EFAULT, 'Cannot restore metadata of encrypted partition: {0}'.format(err.err))
 
 
-@accepts(str, h.object())
+@accepts(str, h.ref('disk-attach-params'))
 class DiskGELIAttachTask(Task):
     def describe(self, disk, params=None):
         return "Attach encrypted partition of {0}".format(os.path.basename(disk))
@@ -1259,6 +1260,31 @@ def _init(dispatcher, plugin):
     plugin.register_schema_definition('disk-selftest-type', {
         'type': 'string',
         'enum': list(SelfTestType.__members__.keys())
+    })
+
+    plugin.register_schema_definition('disk-attach-params', {
+        'type': 'object',
+        'properties': {
+            'key': {'type': 'string'},
+            'password': {'type': 'string'}
+        }
+    })
+
+    plugin.register_schema_definition('disk-set-key-params', {
+        'type': 'object',
+        'properties': {
+            'key': {'type': 'string'},
+            'password': {'type': 'string'},
+            'slot': {'type': 'integer'}
+        }
+    })
+
+    plugin.register_schema_definition('disk-metadata', {
+        'type': 'object',
+        'properties': {
+            'disk': {'type': 'string'},
+            'metadata': {'type': 'string'}
+        }
     })
 
     plugin.register_provider('disk', DiskProvider)
