@@ -129,6 +129,34 @@ class VolumeProvider(Provider):
                         'upgraded': is_upgraded(config),
                     })
 
+            encrypted = vol.get('encrypted', False)
+            if encrypted is True:
+                online = 0
+                offline = 0
+                for vdev, _ in get_disks(vol['topology']):
+                    try:
+                        vdev_conf = self.dispatcher.call_sync('disk.get_disk_config', vdev)
+                        if vdev_conf.get('encrypted', False) is True:
+                            online += 1
+                        else:
+                            offline += 1
+                    except RpcException:
+                        offline += 1
+                        pass
+
+                if offline == 0:
+                    presence = 'ALL'
+                elif online == 0:
+                    presence = 'NONE'
+                else:
+                    presence = 'PART'
+            else:
+                presence = None
+
+            vol.update({
+                'providers_presence': presence
+            })
+
             return vol
 
         return self.datastore.query('volumes', *(filter or []), callback=extend, **(params or {}))
@@ -243,8 +271,9 @@ class VolumeProvider(Provider):
     @returns(h.array(str))
     def get_volume_disks(self, name):
         result = []
-        vol = self.datastore.get_one('volumes', ('name', '=', name))
-        if vol.get('locked', False) is not True:
+        vol = self.dispatcher.call_sync('volume.query', [('name', '=', name)], {'single': True})
+
+        if vol.get('encrypted', False) is False or vol.get('providers_presence', 'NONE') != 'NONE':
             for dev in self.dispatcher.call_sync('zfs.pool.get_disks', name):
                 try:
                     result.append(self.dispatcher.call_sync('disk.partition_to_disk', dev))
@@ -451,7 +480,6 @@ class VolumeCreateTask(ProgressTask):
                     'salt': salt,
                     'slot': 0 if key else None},
                 'encrypted': True if key else False,
-                'locked': False if key else None,
                 'attributes': volume.get('attributes', {})
             })
 
@@ -699,7 +727,8 @@ class VolumeUpdateTask(Task):
                         subtasks.append(self.run_subtask('disk.geli.ukey.del', vdev['path'], 0))
                     self.join_subtasks(*subtasks)
 
-                if volume['locked'] is False:
+                vol = self.dispatcher.call_sync('volume.query', [('name', '=', name)], {'single': True})
+                if vol.get('providers_presence', 'NONE') != 'NONE':
                     subtasks = []
                     for vdev, group in iterate_vdevs(new_vdevs):
                         subtasks.append(self.run_subtask('disk.geli.attach', vdev['path'], {
@@ -823,7 +852,6 @@ class VolumeImportTask(Task):
                     'salt': salt,
                     'slot': 0 if key else None},
                 'encrypted': True if key else False,
-                'locked': False if key else None,
                 'mountpoint': mountpoint
             })
 
@@ -971,32 +999,33 @@ class VolumeLockTask(Task):
         if not self.datastore.exists('volumes', ('name', '=', name)):
             raise VerifyException(errno.ENOENT, 'Volume {0} not found'.format(name))
 
-        vol = self.datastore.get_one('volumes', ('name', '=', name))
+        vol = self.dispatcher.call_sync('volume.query', [('name', '=', name)], {'single': True})
 
         encryption = vol.get('encryption')
 
         if encryption['key'] is None:
             raise VerifyException(errno.EINVAL, 'Volume {0} is not encrypted'.format(name))
 
-        if not vol['locked'] is False:
-            raise VerifyException(errno.EINVAL, 'Volume {0} is not unlocked'.format(name))
+        if vol.get('providers_presence', 'NONE') == 'NONE':
+            raise VerifyException(errno.EINVAL, 'Volume {0} does not have any unlocked providers'.format(name))
 
         return ['disk:{0}'.format(d) for d in self.dispatcher.call_sync('volume.get_volume_disks', name)]
 
     def run(self, name):
         with self.dispatcher.get_lock('volumes'):
-            vol = self.datastore.get_one('volumes', ('name', '=', name))
-            disks = self.dispatcher.call_sync('volume.get_volume_disks', name)
+            vol = self.dispatcher.call_sync('volume.query', [('name', '=', name)], {'single': True})
             self.join_subtasks(self.run_subtask('zfs.umount', name))
             self.join_subtasks(self.run_subtask('zfs.pool.export', name))
 
             subtasks = []
-            for dname in disks:
-                subtasks.append(self.run_subtask('disk.geli.detach', dname))
+            for vdev, _ in iterate_vdevs(vol['topology']):
+                if vol['providers_presence'] == 'PART':
+                    vdev_conf = self.dispatcher.call_sync('disk.get_disk_config', vdev)
+                    if vdev_conf.get('encrypted', False) is True:
+                        subtasks.append(self.run_subtask('disk.geli.detach', vdev['path']))
+                else:
+                    subtasks.append(self.run_subtask('disk.geli.detach', vdev['path']))
             self.join_subtasks(*subtasks)
-
-            vol['locked'] = True
-            self.datastore.update('volumes', vol['id'], vol)
 
             self.dispatcher.dispatch_event('volume.changed', {
                 'operation': 'update',
@@ -1011,15 +1040,15 @@ class VolumeUnlockTask(Task):
         if not self.datastore.exists('volumes', ('name', '=', name)):
             raise VerifyException(errno.ENOENT, 'Volume {0} not found'.format(name))
 
-        vol = self.datastore.get_one('volumes', ('name', '=', name))
+        vol = self.dispatcher.call_sync('volume.query', [('name', '=', name)], {'single': True})
 
         encryption = vol.get('encryption')
 
         if encryption['key'] is None:
             raise VerifyException(errno.EINVAL, 'Volume {0} is not encrypted'.format(name))
 
-        if not vol['locked'] is True:
-            raise VerifyException(errno.EINVAL, 'Volume {0} is not locked'.format(name))
+        if vol.get('providers_presence', 'ALL') == 'ALL':
+            raise VerifyException(errno.EINVAL, 'Volume {0} does not have any locked providers'.format(name))
 
         if encryption['hashed_password'] is not None:
             if password is None:
@@ -1034,14 +1063,22 @@ class VolumeUnlockTask(Task):
 
     def run(self, name, password=None, params=None):
         with self.dispatcher.get_lock('volumes'):
-            vol = self.datastore.get_one('volumes', ('name', '=', name))
+            vol = self.dispatcher.call_sync('volume.query', [('name', '=', name)], {'single': True})
 
             subtasks = []
-            for dname, dgroup in get_disks(vol['topology']):
-                subtasks.append(self.run_subtask('disk.geli.attach', dname, {
-                    'key': vol['encryption']['key'],
-                    'password': password
-                }))
+            for vdev, _ in iterate_vdevs(vol['topology']):
+                if vol['providers_presence'] == 'PART':
+                    vdev_conf = self.dispatcher.call_sync('disk.get_disk_config', vdev)
+                    if vdev_conf.get('encrypted', False) is False:
+                        subtasks.append(self.run_subtask('disk.geli.attach', vdev['path'], {
+                            'key': vol['encryption']['key'],
+                            'password': password
+                        }))
+                else:
+                    subtasks.append(self.run_subtask('disk.geli.attach', vdev['path'], {
+                        'key': vol['encryption']['key'],
+                        'password': password
+                    }))
             self.join_subtasks(*subtasks)
 
             self.join_subtasks(self.run_subtask('zfs.pool.import', vol['id'], name, params))
@@ -1053,9 +1090,6 @@ class VolumeUnlockTask(Task):
             ))
 
             self.join_subtasks(self.run_subtask('zfs.mount', name))
-
-            vol['locked'] = False
-            self.datastore.update('volumes', vol['id'], vol)
 
             self.dispatcher.dispatch_event('volume.changed', {
                 'operation': 'update',
@@ -1070,15 +1104,15 @@ class VolumeRekeyTask(Task):
         if not self.datastore.exists('volumes', ('name', '=', name)):
             raise VerifyException(errno.ENOENT, 'Volume {0} not found'.format(name))
 
-        vol = self.datastore.get_one('volumes', ('name', '=', name))
+        vol = self.dispatcher.call_sync('volume.query', [('name', '=', name)], {'single': True})
 
         encryption = vol.get('encryption')
 
         if encryption['key'] is None:
             raise VerifyException(errno.EINVAL, 'Volume {0} is not encrypted'.format(name))
 
-        if not vol['locked'] is False:
-            raise VerifyException(errno.EINVAL, 'Volume {0} is locked'.format(name))
+        if vol.get('providers_presence', 'NONE') != 'ALL':
+            raise VerifyException(errno.EINVAL, 'Every provider associated with volume {0} must be online'.format(name))
 
         return ['disk:{0}'.format(d) for d in self.dispatcher.call_sync('volume.get_volume_disks', name)]
 
@@ -1141,8 +1175,8 @@ class VolumeBackupKeysTask(Task):
         if encryption['key'] is None:
             raise VerifyException(errno.EINVAL, 'Volume {0} is not encrypted'.format(name))
 
-        if not vol['locked'] is False:
-            raise VerifyException(errno.EINVAL, 'Volume {0} is locked'.format(name))
+        if vol.get('providers_presence', 'NONE') != 'ALL':
+            raise VerifyException(errno.EINVAL, 'Every provider associated with volume {0} must be online'.format(name))
 
         if out_path is None:
             raise VerifyException(errno.EINVAL, 'Output file is not specified')
@@ -1185,8 +1219,8 @@ class VolumeRestoreKeysTask(Task):
         if encryption['key'] is None:
             raise VerifyException(errno.EINVAL, 'Volume {0} is not encrypted'.format(name))
 
-        if not vol['locked'] is True:
-            raise VerifyException(errno.EINVAL, 'Volume {0} is not locked'.format(name))
+        if vol.get('providers_presence', 'ALL') != 'NONE':
+            raise VerifyException(errno.EINVAL, 'Volume {0} cannot have any online providers'.format(name))
 
         if in_path is None:
             raise VerifyException(errno.EINVAL, 'Input file is not specified')
@@ -1446,7 +1480,7 @@ def fernet_decrypt(password, in_data):
 
 
 def _depends():
-    return ['DevdPlugin', 'ZfsPlugin', 'AlertPlugin']
+    return ['DevdPlugin', 'ZfsPlugin', 'AlertPlugin', 'DiskPlugin']
 
 
 def _init(dispatcher, plugin):
@@ -1475,8 +1509,8 @@ def _init(dispatcher, plugin):
         if args['operation'] == 'delete':
             for i in args['ids']:
                 with dispatcher.get_lock('volumes'):
-                    volume = dispatcher.datastore.get_one('volumes', ('name', '=', i))
-                    if volume and not volume['locked']:
+                    volume = dispatcher.call_sync('volume.query', [('name', '=', i)], {'single': True})
+                    if (volume and volume.get('encrypted', False) == False) or not volume:
                         logger.info('Volume {0} is going away'.format(volume['name']))
                         dispatcher.datastore.delete('volumes', volume['id'])
                         dispatcher.dispatch_event('volume.changed', {
@@ -1555,7 +1589,10 @@ def _init(dispatcher, plugin):
             },
             'topology': {'$ref': 'zfs-topology'},
             'encrypted': {'type': 'boolean'},
-            'locked': {'type': 'boolean'},
+            'providers_presence': {
+                'type': 'string',
+                'enum': ['ALL', 'PART', 'NONE']
+            },
             'params': {'type': 'object'},
             'attributes': {'type': 'object'}
         }
@@ -1642,26 +1679,9 @@ def _init(dispatcher, plugin):
 
     dispatcher.rpc.call_sync('alert.register_alert', 'volume.disk_removed', 'Volume disk removed')
 
-    for vol in dispatcher.datastore.query('volumes'):
-        encryption = vol.get('encryption', {})
-        if encryption.get('key', None) is not None:
-            if vol['locked'] is True:
-                continue
-
-            dname, dgroup = next(get_disks(vol['topology']))
-            disk_config = dispatcher.call_sync('disk.get_disk_config', dname)
-            provider = disk_config.get('data_partition_uuid', dname) + '.eli'
-            try:
-                system('/sbin/geli', 'list', provider)
-            except SubprocessException:
-                vol['locked'] = True
-                dispatcher.datastore.update('volumes', vol['id'], vol)
-
-                dispatcher.dispatch_event('volume.changed', {
-                    'operation': 'update',
-                    'ids': vol['id']
-                })
-                continue
+    for vol in dispatcher.call_sync('volume.query'):
+        if vol.get('providers_presence', 'ALL') == 'NONE':
+            continue
 
         try:
             dispatcher.call_task_sync('zfs.mount', vol['name'], True)

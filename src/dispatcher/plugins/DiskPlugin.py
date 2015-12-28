@@ -1000,6 +1000,7 @@ def update_disk_cache(dispatcher, path):
         'data_partition_path': os.path.join("/dev/gptid", data_path) if data_uuid else None,
         'swap_partition_uuid': swap_uuid,
         'swap_partition_path': os.path.join("/dev/gptid", swap_uuid) if swap_uuid else None,
+        'encrypted': True if data_part['encrypted'] else False,
         'gdisk_name': gdisk.name,
     })
 
@@ -1230,6 +1231,7 @@ def _init(dispatcher, plugin):
             'data_partition_path': {'type': 'string'},
             'swap_partition_uuid': {'type': 'string'},
             'swap_partition_path': {'type': 'string'},
+            'encrypted': {'type': 'boolean'},
             'gdisk_name': {'type': 'string'},
         }
     })
