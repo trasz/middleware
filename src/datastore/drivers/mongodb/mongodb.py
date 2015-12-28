@@ -280,9 +280,12 @@ class MongodbDatastore(object):
         return self._get_db(collection).find(self._build_query(args), tailable=True, await_data=True)
 
     def tail(self, cur):
-        for i in cur:
-            i['id'] = i.pop('_id')
-            yield i
+        try:
+            for i in cur:
+                i['id'] = i.pop('_id')
+                yield i
+        except pymongo.errors.OperationFailure as err:
+            raise DatastoreException(str(err))
 
     def get_one(self, collection, *args, **kwargs):
         db = self._get_db(collection)
