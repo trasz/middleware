@@ -768,7 +768,7 @@ class VolumeUpdateTask(Task):
 
 
 @description("Imports previously exported volume")
-@accepts(str, str, h.object(), h.ref('import-params'), h.one_of(str, None))
+@accepts(str, str, h.object(), h.ref('volume-import-params'), h.one_of(str, None))
 class VolumeImportTask(Task):
     def verify(self, id, new_name, params=None, enc_params=None, password=None):
         if enc_params is None:
@@ -1641,7 +1641,7 @@ def _init(dispatcher, plugin):
         }
     })
 
-    plugin.register_schema_definition('import-params', {
+    plugin.register_schema_definition('volume-import-params', {
         'type': 'object',
         'properties': {
             'key': {'type': 'string'},
