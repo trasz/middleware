@@ -799,19 +799,21 @@ class UnixSocketServer(object):
             self.handler.client_address = ("unix", 0)
             self.handler.server = server
             self.conn = None
+            self.rlock = RLock()
 
         def send(self, message):
-            data = message.encode('utf-8')
-            header = struct.pack('II', 0xdeadbeef, len(data))
-            try:
-                wait_write(self.fileno, 0.1)
-                self.fd.write(header)
-                self.fd.write(data)
-                self.fd.flush()
-            except (OSError, ValueError, socket.timeout):
-                self.server.logger.info('Send failed; closing connection')
-                self.conn.on_close('Bye bye')
-                self.fd.close()
+            with self.rlock:
+                data = message.encode('utf-8')
+                header = struct.pack('II', 0xdeadbeef, len(data))
+                try:
+                    wait_write(self.fileno, 0.1)
+                    self.fd.write(header)
+                    self.fd.write(data)
+                    self.fd.flush()
+                except (OSError, ValueError, socket.timeout):
+                    self.server.logger.info('Send failed; closing connection')
+                    self.conn.on_close('Bye bye')
+                    self.fd.close()
 
         def handle_connection(self):
             self.conn = ServerConnection(self, self.dispatcher)
