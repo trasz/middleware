@@ -326,7 +326,7 @@ def _init(dispatcher, plugin):
 
     def on_dataset_delete(args):
         with dispatcher.get_lock('sharing'):
-            tokens = args['ds'].split('/', 3)
+            tokens = args['ds'].split('/', 2)
             if len(tokens) < 3:
                 # We don't care about root dataset being created
                 # neither about direct children of root datasets
