@@ -818,19 +818,23 @@ class UnixSocketServer(object):
             self.conn.on_open()
 
             while True:
-                header = self.fd.read(8)
-                if header == b'' or len(header) != 8:
-                    self.server.logger.info('Message wrong header dropped; closing connection')
-                    break
+                try:
+                    header = self.fd.read(8)
+                    if header == b'' or len(header) != 8:
+                        self.server.logger.info('Message wrong header dropped; closing connection')
+                        break
 
-                magic, length = struct.unpack('II', header)
-                if magic != 0xdeadbeef:
-                    self.server.logger.info('Message with wrong magic dropped')
-                    continue
+                    magic, length = struct.unpack('II', header)
+                    if magic != 0xdeadbeef:
+                        self.server.logger.info('Message with wrong magic dropped')
+                        continue
 
-                msg = self.fd.read(length)
-                if msg == b'' or len(msg) != length:
-                    self.server.logger.info('Message with wrong length dropped; closing connection')
+                    msg = self.fd.read(length)
+                    if msg == b'' or len(msg) != length:
+                        self.server.logger.info('Message with wrong length dropped; closing connection')
+                        break
+                except (OSError, ValueError):
+                    self.server.logger.info('Receive failed; closing connection')
                     break
 
                 self.conn.on_message(msg)
