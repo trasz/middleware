@@ -1,4 +1,4 @@
-#+
+#
 # Copyright 2015 iXsystems, Inc.
 # All rights reserved
 #
@@ -51,11 +51,11 @@ class SharesProvider(Provider):
     @accepts(str)
     @returns(h.array(h.ref('share-client')))
     def get_connected_clients(self, share_name):
-        share = self.datastore.get_by_id('shares', share_name)
+        share = self.datastore.get_by_id('share', share_name)
         if not share:
             raise RpcException(errno.ENOENT, 'Share not found')
 
-        return self.dispatcher.call_sync('shares.{0}.get_connected_clients'.format(share['type']), share_name)
+        return self.dispatcher.call_sync('share.{0}.get_connected_clients'.format(share['type']), share_name)
 
     @description("Get shares dependent on provided filesystem path")
     @accepts(str)
@@ -84,7 +84,7 @@ class CreateShareTask(Task):
 
     def run(self, share):
         self.join_subtasks(self.run_subtask('share.{0}.create'.format(share['type']), share))
-        self.dispatcher.dispatch_event('shares.changed', {
+        self.dispatcher.dispatch_event('share.changed', {
             'operation': 'create',
             'ids': [share['id']]
         })
@@ -105,7 +105,7 @@ class UpdateShareTask(Task):
         self.join_subtasks(
             self.run_subtask('share.{0}.update'.format(share['type']), name, updated_fields)
         )
-        self.dispatcher.dispatch_event('shares.changed', {
+        self.dispatcher.dispatch_event('share.changed', {
             'operation': 'update',
             'ids': [share['id']]
         })
@@ -124,7 +124,7 @@ class DeleteShareTask(Task):
     def run(self, name):
         share = self.datastore.get_by_id('shares', name)
         self.join_subtasks(self.run_subtask('share.{0}.delete'.format(share['type']), name))
-        self.dispatcher.dispatch_event('shares.changed', {
+        self.dispatcher.dispatch_event('share.changed', {
             'operation': 'delete',
             'ids': [name]
         })
@@ -139,12 +139,12 @@ class DeleteDependentShares(Task):
     def run(self, path):
         subtasks = []
         ids = []
-        for i in self.dispatcher.call_sync('shares.get_dependencies', path):
+        for i in self.dispatcher.call_sync('share.get_dependencies', path):
             subtasks.append(self.run_subtask('share.delete', i['id']))
             ids.append(i['id'])
 
         self.join_subtasks(*subtasks)
-        self.dispatcher.dispatch_event('shares.changed', {
+        self.dispatcher.dispatch_event('share.changed', {
             'operation': 'delete',
             'ids': ids
         })
@@ -177,10 +177,10 @@ def _init(dispatcher, plugin):
         }
     })
 
-    dispatcher.require_collection('shares', 'string')
-    plugin.register_provider('shares', SharesProvider)
+    dispatcher.require_collection('share', 'string')
+    plugin.register_provider('share', SharesProvider)
     plugin.register_task_handler('share.create', CreateShareTask)
     plugin.register_task_handler('share.update', UpdateShareTask)
     plugin.register_task_handler('share.delete', DeleteShareTask)
     plugin.register_task_handler('share.delete_dependent', DeleteDependentShares)
-    plugin.register_event_type('shares.changed')
+    plugin.register_event_type('share.changed')
