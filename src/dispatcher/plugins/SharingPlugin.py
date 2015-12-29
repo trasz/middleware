@@ -25,9 +25,9 @@
 #
 #####################################################################
 
-
+import os
 import errno
-from dispatcher.rpc import description, accepts, returns
+from dispatcher.rpc import description, accepts, returns, private
 from dispatcher.rpc import SchemaHelper as h
 from task import Task, TaskException, VerifyException, Provider, RpcException, query
 
@@ -40,10 +40,13 @@ class SharesProvider(Provider):
     @description("Returns list of supported sharing providers")
     @returns(h.array(str))
     def supported_types(self):
-        result = []
-        for p in self.dispatcher.plugins.values():
+        result = {}
+        for p in list(self.dispatcher.plugins.values()):
             if p.metadata and p.metadata.get('type') == 'sharing':
-                result.append(p.metadata['method'])
+                result[p.metadata['method']] = {
+                    'subtype': p.metadata['subtype'],
+                    'perm_type': p.metadata.get('perm_type')
+                }
 
         return result
 
@@ -72,6 +75,11 @@ class SharesProvider(Provider):
 
         return result
 
+    @private
+    def translate_path(self, share_id):
+        root = self.dispatcher.call_sync('volume.get_volumes_root')
+        return os.path.join(root, target, type, name)
+
 
 @description("Creates new share")
 @accepts(h.all_of(
@@ -80,9 +88,53 @@ class SharesProvider(Provider):
 ))
 class CreateShareTask(Task):
     def verify(self, share):
+        if not self.dispatcher.call_sync('share.supported_types').get(share['type']):
+            raise VerifyException(errno.ENXIO, 'Unknown sharing type {0}'.format(share['type']))
+
+        if self.datastore.exists(
+            'shares',
+            ('type', '=', share['type']),
+            ('name', '=', share['name'])
+        ):
+            raise VerifyException(errno.EEXIST, 'Share {0} of type {1} already exists'.format(
+                share['name'],
+                share['type']
+            ))
+
         return ['system']
 
     def run(self, share):
+        share_type = self.dispatcher.call_sync('share.supported_types').get(share['type'])
+
+        if share['target_type'] == 'DATASET':
+            dataset = share['target']
+            pool = share['target'].split('/')[0]
+            if not self.dispatcher.call_sync('zfs.dataset.query', [('name', '=', dataset)], {'single': True}):
+                if share_type['subtype'] == 'file':
+                    self.join_subtasks(self.run_subtask('volume.dataset.create', pool, dataset, 'FILESYSTEM', {
+                        'permissions_type': share_type['perm_type'],
+                    }))
+
+                if share_type['subtype'] == 'block':
+                    self.join_subtasks(self.run_subtask('volume.dataset.create', pool, dataset, 'VOLUME', {
+                        'volsize': share['properties']['size'],
+                    }))
+            else:
+                if share_type['subtype'] == 'file':
+                    self.run_subtask('volume.dataset.update', pool, dataset, {
+                        'permissions_type': share_type['perm_type']
+                    })
+
+        if share['target_type'] == 'DIRECTORY':
+            # Verify that target directory exists
+            if not os.path.isdir(share['target']):
+                raise TaskException(errno.ENOENT, "Target directory {0} doesn't exist".format(share['target']))
+
+        if share['target_type'] == 'FILE':
+            # Verify that target file exists
+            if not os.path.isfile(share['target']):
+                raise TaskException(errno.ENOENT, "Target file {0} doesn't exist".format(share['target']))
+
         self.join_subtasks(self.run_subtask('share.{0}.create'.format(share['type']), share))
         self.dispatcher.dispatch_event('share.changed', {
             'operation': 'create',
@@ -155,11 +207,15 @@ def _init(dispatcher, plugin):
         'type': 'object',
         'properties': {
             'id': {'type': 'string'},
+            'name': {'type': 'string'},
             'description': {'type': 'string'},
             'enabled': {'type': 'boolean'},
             'type': {'type': 'string'},
-            'target': {'type': 'string'},
-            'homedirs': {'type': 'boolean'},
+            'target_type': {
+                'type': 'string',
+                'enum': ['DATASET', 'DIRECTORY', 'FILE']
+            },
+            'target_path': {'type': 'string'},
             'properties': {'type': 'object'}
         }
     })
