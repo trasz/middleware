@@ -82,7 +82,7 @@ class SharesProvider(Provider):
     @private
     def translate_path(self, share_id):
         root = self.dispatcher.call_sync('volume.get_volumes_root')
-        share = self.datastore.get_by_id(share_id)
+        share = self.datastore.get_by_id('shares', share_id)
 
         if share['target_type'] == 'DATASET':
             return os.path.join(root, share['target_path'])
