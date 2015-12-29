@@ -35,7 +35,11 @@ from task import Task, TaskException, VerifyException, Provider, RpcException, q
 class SharesProvider(Provider):
     @query('share')
     def query(self, filter=None, params=None):
-        return self.datastore.query('shares', *(filter or []), **(params or {}))
+        def extend(share):
+            share['filesystem_path'] = self.translate_path(share['id'])
+            return share
+
+        return self.datastore.query('shares', *(filter or []), callback=extend, **(params or {}))
 
     @description("Returns list of supported sharing providers")
     @returns(h.array(str))
