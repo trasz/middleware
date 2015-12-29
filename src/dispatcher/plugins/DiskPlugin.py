@@ -182,6 +182,14 @@ class DiskGPTFormatTask(Task):
         if fstype not in ['freebsd-zfs']:
             raise VerifyException(errno.EINVAL, "Unsupported fstype {0}".format(fstype))
 
+        allocation = self.dispatcher.call_sync(
+            'volume.get_disks_allocation',
+            [disk]
+        ).get(disk)
+
+        if allocation is not None:
+            raise VerifyException(errno.EINVAL, "Cannot perform format operation on an allocated disk {0}".format(disk))
+
         return ['disk:{0}'.format(disk)]
 
     def run(self, disk, fstype, params=None):
@@ -269,6 +277,14 @@ class DiskEraseTask(Task):
     def verify(self, disk, erase_method=None):
         if not get_disk_by_path(disk):
             raise VerifyException(errno.ENOENT, "Disk {0} not found".format(disk))
+
+        allocation = self.dispatcher.call_sync(
+            'volume.get_disks_allocation',
+            [disk]
+        ).get(disk)
+
+        if allocation is not None:
+            raise VerifyException(errno.EINVAL, "Cannot perform erase operation on an allocated disk {0}".format(disk))
 
         return ['disk:{0}'.format(disk)]
 
