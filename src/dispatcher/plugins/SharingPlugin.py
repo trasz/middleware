@@ -66,11 +66,11 @@ class SharesProvider(Provider):
     def get_dependencies(self, path):
         result = []
         for i in self.datastore.query('shares', ('enabled', '=', True)):
-            if i['target'][0] != '/':
+            if i['target_path'][0] != '/':
                 # non-filesystem share
                 continue
 
-            if i['target'].startswith(path):
+            if i['target_path'].startswith(path):
                 result.append(i)
 
         return result
@@ -81,10 +81,10 @@ class SharesProvider(Provider):
         share = self.datastore.get_by_id(share_id)
 
         if share['target_type'] == 'DATASET':
-            return os.path.join(root, share['target'])
+            return os.path.join(root, share['target_path'])
 
         if share['target_type'] in ('DIRECTORY', 'FILE'):
-            return share['target']
+            return share['target_path']
 
         raise RpcException(errno.EINVAL, 'Invalid share target type {0}'.format(share['target_type']))
 
@@ -92,7 +92,7 @@ class SharesProvider(Provider):
 @description("Creates new share")
 @accepts(h.all_of(
     h.ref('share'),
-    h.required('id', 'type', 'target', 'properties')
+    h.required('id', 'type', 'target_type', 'target_path', 'properties')
 ))
 class CreateShareTask(Task):
     def verify(self, share):
@@ -115,8 +115,8 @@ class CreateShareTask(Task):
         share_type = self.dispatcher.call_sync('share.supported_types').get(share['type'])
 
         if share['target_type'] == 'DATASET':
-            dataset = share['target']
-            pool = share['target'].split('/')[0]
+            dataset = share['target_path']
+            pool = share['target_path'].split('/')[0]
             if not self.dispatcher.call_sync('zfs.dataset.query', [('name', '=', dataset)], {'single': True}):
                 if share_type['subtype'] == 'file':
                     self.join_subtasks(self.run_subtask('volume.dataset.create', pool, dataset, 'FILESYSTEM', {
@@ -135,13 +135,13 @@ class CreateShareTask(Task):
 
         if share['target_type'] == 'DIRECTORY':
             # Verify that target directory exists
-            if not os.path.isdir(share['target']):
-                raise TaskException(errno.ENOENT, "Target directory {0} doesn't exist".format(share['target']))
+            if not os.path.isdir(share['target_path']):
+                raise TaskException(errno.ENOENT, "Target directory {0} doesn't exist".format(share['target_path']))
 
         if share['target_type'] == 'FILE':
             # Verify that target file exists
-            if not os.path.isfile(share['target']):
-                raise TaskException(errno.ENOENT, "Target file {0} doesn't exist".format(share['target']))
+            if not os.path.isfile(share['target_path']):
+                raise TaskException(errno.ENOENT, "Target file {0} doesn't exist".format(share['target_path']))
 
         self.join_subtasks(self.run_subtask('share.{0}.create'.format(share['type']), share))
         self.dispatcher.dispatch_event('share.changed', {
