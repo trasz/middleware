@@ -27,8 +27,8 @@
 
 import os
 import errno
-from dispatcher.rpc import description, accepts, returns, private
-from dispatcher.rpc import SchemaHelper as h
+from freenas.dispatcher.rpc import description, accepts, returns, private
+from freenas.dispatcher.rpc import SchemaHelper as h
 from task import Task, TaskException, VerifyException, Provider, RpcException, query
 
 
@@ -66,7 +66,7 @@ class SharesProvider(Provider):
     def get_dependencies(self, path):
         result = []
         for i in self.datastore.query('shares', ('enabled', '=', True)):
-            if i['target_path'][0] != '/':
+            if i['target_type'] != 'DATASET':
                 # non-filesystem share
                 continue
 
@@ -92,7 +92,7 @@ class SharesProvider(Provider):
 @description("Creates new share")
 @accepts(h.all_of(
     h.ref('share'),
-    h.required('id', 'type', 'target_type', 'target_path', 'properties')
+    h.required('name', 'type', 'target_type', 'target_path', 'properties')
 ))
 class CreateShareTask(Task):
     def verify(self, share):
@@ -143,11 +143,13 @@ class CreateShareTask(Task):
             if not os.path.isfile(share['target_path']):
                 raise TaskException(errno.ENOENT, "Target file {0} doesn't exist".format(share['target_path']))
 
-        self.join_subtasks(self.run_subtask('share.{0}.create'.format(share['type']), share))
+        ids = self.join_subtasks(self.run_subtask('share.{0}.create'.format(share['type']), share))
         self.dispatcher.dispatch_event('share.changed', {
             'operation': 'create',
-            'ids': [share['id']]
+            'ids': ids
         })
+
+        return ids[0]
 
 
 @description("Updates existing share")

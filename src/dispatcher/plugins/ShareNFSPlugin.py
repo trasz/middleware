@@ -30,6 +30,7 @@ import logging
 from task import Task, TaskStatus, Provider, TaskException
 from freenas.dispatcher.rpc import RpcException, description, accepts, returns, private
 from freenas.dispatcher.rpc import SchemaHelper as h
+from utils import split_dataset
 
 
 logger = logging.getLogger(__name__)
@@ -45,7 +46,7 @@ class NFSSharesProvider(Provider):
         f = open('/var/db/mountdtab')
         for line in f:
             host, path = line.split()
-            if share['target'] in path:
+            if share['target_path'] in path:
                 result.append({
                     'host': host,
                     'share': share_id,
@@ -71,15 +72,10 @@ class CreateNFSShareTask(Task):
         self.dispatcher.call_sync('etcd.generation.generate_group', 'nfs')
         self.dispatcher.call_sync('service.reload', 'nfs')
 
-        dataset = dataset_for_share(self.dispatcher, share)
-        self.join_subtasks(self.run_subtask('zfs.configure', dataset['pool'], dataset['name'], {
+        pool, dataset = split_dataset(share['target_path'])
+        self.join_subtasks(self.run_subtask('zfs.configure', pool, dataset, {
             'sharenfs': {'value': opts(share)}
         }))
-
-        self.dispatcher.dispatch_event('share.nfs.changed', {
-            'operation': 'create',
-            'ids': [id]
-        })
 
         return id
 
@@ -99,8 +95,8 @@ class UpdateNFSShareTask(Task):
         self.datastore.update('shares', name, share)
         self.dispatcher.call_sync('etcd.generation.generate_group', 'nfs')
 
-        dataset = dataset_for_share(self.dispatcher, share)
-        self.join_subtasks(self.run_subtask('zfs.configure', dataset['pool'], dataset['name'], {
+        pool, dataset = split_dataset(share['target_path'])
+        self.join_subtasks(self.run_subtask('zfs.configure', pool, dataset, {
             'sharenfs': {'value': opts(share)}
         }))
 
@@ -125,25 +121,22 @@ class DeleteNFSShareTask(Task):
         self.dispatcher.call_sync('etcd.generation.generate_group', 'nfs')
         self.dispatcher.call_sync('service.reload', 'nfs')
 
-        dataset = dataset_for_share(self.dispatcher, share)
-        if dataset:
-            self.join_subtasks(self.run_subtask('zfs.configure', dataset['pool'], 
-                dataset['name'], {'sharenfs': {'value': 'off'}
-            }))
+        try:
+            pool, dataset = split_dataset(share['target_path'])
+            self.join_subtasks(self.run_subtask(
+                'volume.dataset.configure',
+                pool,
+                dataset,
+                {'sharenfs': {'value': 'off'}}
+            ))
+        except TaskException as err:
+            if err.code != errno.ENOENT:
+                raise err
 
         self.dispatcher.dispatch_event('share.nfs.changed', {
             'operation': 'delete',
             'ids': [name]
         })
-
-
-def dataset_for_share(dispatcher, share):
-    return dispatcher.call_sync(
-        'share.translate_dataset',
-        'nfs',
-        share['target'],
-        share['name']
-    )
 
 
 def opts(share):
@@ -232,11 +225,11 @@ def _init(dispatcher, plugin):
     plugin.register_event_type('share.nfs.changed')
 
     for share in dispatcher.datastore.query('shares', ('type', '=', 'nfs')):
-        dataset = dataset_for_share(dispatcher, share)
+        dataset = share['target_path']
         if not dataset:
             logger.warning('Invalid share: {0} pointing to {1}, target dataset doesn\'t exist'.format(
                 share['name'],
-                share['target']
+                share['target_path']
             ))
             continue
 
