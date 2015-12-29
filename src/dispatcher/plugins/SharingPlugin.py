@@ -78,7 +78,15 @@ class SharesProvider(Provider):
     @private
     def translate_path(self, share_id):
         root = self.dispatcher.call_sync('volume.get_volumes_root')
-        return os.path.join(root, target, type, name)
+        share = self.datastore.get_by_id(share_id)
+
+        if share['target_type'] == 'DATASET':
+            return os.path.join(root, share['target'])
+
+        if share['target_type'] in ('DIRECTORY', 'FILE'):
+            return share['target']
+
+        raise RpcException(errno.EINVAL, 'Invalid share target type {0}'.format(share['target_type']))
 
 
 @description("Creates new share")
