@@ -815,6 +815,7 @@ class UnixSocketServer(object):
                     self.conn.on_close('Bye bye')
                     self.fd.close()
                     self.connfd.close()
+                    self.conn = None
 
         def handle_connection(self):
             self.conn = ServerConnection(self, self.dispatcher)
@@ -841,9 +842,11 @@ class UnixSocketServer(object):
 
                 self.conn.on_message(msg)
 
-            self.conn.on_close('Bye bye')
-            self.fd.close()
-            self.connfd.close()
+            # self.conn might have been closed earlier by failed send().
+            if self.conn:
+                self.conn.on_close('Bye bye')
+                self.fd.close()
+                self.connfd.close()
 
     def __init__(self, path, dispatcher):
         self.path = path
