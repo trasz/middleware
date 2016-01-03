@@ -382,7 +382,7 @@ def _init(dispatcher, plugin):
             'target': {'type': 'string'},
             'filesystem_path': {'type': 'string'},
             'dataset_path': {'type': 'string'},
-            'owner': {'$ref': ['permissions', 'null']},
+            'permissions': {'$ref': 'permissions'},
             'compression': {
                 'type': 'string',
                 'enum': ['off', 'on', 'lzjb', 'gzip', 'zle', 'lz4']
