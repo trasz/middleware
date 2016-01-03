@@ -44,6 +44,11 @@ class SharesProvider(Provider):
                 share['name']
             )
 
+            try:
+                share['permissions'] = self.dispatcher.call_sync('filesystem.stat', share['filesystem_path'])['permissions']
+            except RpcException:
+                share['permissions'] = None
+
             return share
 
         return self.datastore.query('shares', *(filter or []), callback=extend, **(params or {}))
@@ -157,6 +162,11 @@ class CreateShareTask(Task):
                     }))
 
             ids = self.join_subtasks(self.run_subtask('share.{0}.create'.format(share['type']), share))
+
+            if share.get('permissions'):
+                path = self.dispatcher.call_sync('share.translate_path', share['type'], pool, share['name'])
+                self.join_subtasks(self.run_subtask('file.set_permissions', path, share['permissions']))
+
             self.dispatcher.dispatch_event('share.changed', {
                 'operation': 'create',
                 'ids': ids
@@ -240,6 +250,10 @@ class UpdateShareTask(Task):
                 self.join_subtasks(self.run_subtask('share.{0}.create'.format(share['type']), share))
             else:
                 self.join_subtasks(self.run_subtask('share.{0}.update'.format(share['type']), id, updated_fields))
+
+            if 'permissions' in updated_fields:
+                path = self.dispatcher.call_sync('share.translate_path', share['type'], pool, share['name'])
+                self.join_subtasks(self.run_subtask('file.set_permissions', path, updated_fields['permissions']))
 
             self.dispatcher.dispatch_event('share.changed', {
                 'operation': 'update',
@@ -368,6 +382,7 @@ def _init(dispatcher, plugin):
             'target': {'type': 'string'},
             'filesystem_path': {'type': 'string'},
             'dataset_path': {'type': 'string'},
+            'owner': {'$ref': ['permissions', 'null']},
             'compression': {
                 'type': 'string',
                 'enum': ['off', 'on', 'lzjb', 'gzip', 'zle', 'lz4']
