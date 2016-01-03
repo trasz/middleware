@@ -100,6 +100,8 @@ class FilesystemProvider(Provider):
             'group': groupname,
             'permissions': {
                 'acls': a.__getstate__(),
+                'user': username,
+                'group': groupname,
                 'modes': {
                     'value': st.st_mode & 0o777,
                     'user': {
