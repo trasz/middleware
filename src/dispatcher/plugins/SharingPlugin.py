@@ -216,6 +216,10 @@ class DeleteDependentShares(Task):
         })
 
 
+def _depends():
+    return ['VolumePlugin']
+
+
 def _init(dispatcher, plugin):
     plugin.register_schema_definition('share', {
         'type': 'object',
