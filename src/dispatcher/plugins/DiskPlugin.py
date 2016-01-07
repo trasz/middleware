@@ -144,31 +144,6 @@ class DiskProvider(Provider):
         with self.dispatcher.get_lock('diskcache:{0}'.format(disk)):
             update_disk_cache(self.dispatcher, disk)
 
-    @private
-    def configure_disk(self, id):
-        disk = self.datastore.get_by_id('disks', id)
-        acc_level = getattr(AcousticLevel, disk.get('acoustic_level', 'DISABLED')).value
-        powermgmt = disk.get('apm_mode', 0)
-        try:
-            system('/usr/local/sbin/ataidle', '-P', str(powermgmt), '-A', str(acc_level), disk['path'])
-        except SubprocessException as err:
-            logger.warning('Cannot configure power management for disk {0}: {1}'.format(id, err.err))
-
-        if disk.get('standby_mode'):
-            def configure_standby(mode):
-                try:
-                    system(
-                        '/usr/local/sbin/ataidle',
-                        '-I',
-                        mode,
-                        disk['path']
-                    )
-                except SubprocessException as err:
-                    logger.warning('Cannot configure standby mode for disk {0}: {1}', id, err.err)
-
-            standby_mode = str(disk['standby_mode'])
-            gevent.spawn_later(60, configure_standby, standby_mode)
-
 
 @accepts(str, str, h.object())
 class DiskGPTFormatTask(Task):
@@ -358,7 +333,7 @@ class DiskConfigureTask(Task):
         self.datastore.update('disks', disk['id'], disk)
 
         if {'standby_mode', 'apm_mode', 'acoustic_level'} & set(updated_fields):
-            self.dispatcher.call_sync('disk.configure_disk', id)
+            configure_disk(self.datastore, id)
 
         if 'smart' in updated_fields or 'smart_options' in updated_fields:
             self.dispatcher.call_sync('service.reload', 'smartd')
@@ -1086,7 +1061,7 @@ def generate_disk_cache(dispatcher, path):
 
     diskinfo_cache.put(identifier, disk)
     update_disk_cache(dispatcher, path)
-    dispatcher.call_sync('disk.configure_disk', identifier)
+    configure_disk(dispatcher.datastore, identifier)
 
     logger.info('Added <%s> (%s) to disk cache', identifier, disk['description'])
     diskinfo_cache_lock.release()
@@ -1164,6 +1139,31 @@ def persist_disk(dispatcher, disk):
         'operation': 'create' if new else 'update',
         'ids': [disk['id']]
     })
+
+
+def configure_disk(datastore, id):
+    disk = datastore.get_by_id('disks', id)
+    acc_level = getattr(AcousticLevel, disk.get('acoustic_level', 'DISABLED')).value
+    powermgmt = disk.get('apm_mode', 0)
+    try:
+        system('/usr/local/sbin/ataidle', '-P', str(powermgmt), '-A', str(acc_level), disk['path'])
+    except SubprocessException as err:
+        logger.warning('Cannot configure power management for disk {0}: {1}'.format(id, err.err))
+
+    if disk.get('standby_mode'):
+        def configure_standby(mode):
+            try:
+                system(
+                    '/usr/local/sbin/ataidle',
+                    '-I',
+                    mode,
+                    disk['path']
+                )
+            except SubprocessException as err:
+                logger.warning('Cannot configure standby mode for disk {0}: {1}', id, err.err)
+
+        standby_mode = str(disk['standby_mode'])
+        gevent.spawn_later(60, configure_standby, standby_mode)
 
 
 def _depends():

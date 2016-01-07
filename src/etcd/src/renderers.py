@@ -60,7 +60,6 @@ class MakoTemplateRenderer(object):
             raise
 
 
-
 class PythonRenderer(object):
     def __init__(self, context):
         self.context = context
