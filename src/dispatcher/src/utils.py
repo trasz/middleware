@@ -32,3 +32,8 @@ def first_or_default(f, iterable, default=None):
         return i[0]
 
     return default
+
+
+def split_dataset(dataset_path):
+    pool = dataset_path.split('/')[0]
+    return pool, dataset_path
