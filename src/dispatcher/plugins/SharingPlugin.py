@@ -30,6 +30,7 @@ import errno
 from freenas.dispatcher.rpc import description, accepts, returns, private
 from freenas.dispatcher.rpc import SchemaHelper as h
 from task import Task, TaskException, VerifyException, Provider, RpcException, query
+from freenas.utils import normalize
 
 
 class SharesProvider(Provider):
@@ -117,6 +118,10 @@ class CreateShareTask(Task):
 
     def run(self, share):
         share_type = self.dispatcher.call_sync('share.supported_types').get(share['type'])
+        normalize(share, {
+            'enabled': True,
+            'description': ''
+        })
 
         if share['target_type'] == 'DATASET':
             dataset = share['target_path']
