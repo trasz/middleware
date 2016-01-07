@@ -134,6 +134,11 @@ class EventCacheStore(CacheStore):
 
         return ret
 
+    def remove_predicate(self, predicate):
+        for k, v in self.itervalid():
+            if predicate(v):
+                self.remove(k)
+
     def rename(self, oldkey, newkey):
         super(EventCacheStore, self).rename(oldkey, newkey)
         if self.ready:
