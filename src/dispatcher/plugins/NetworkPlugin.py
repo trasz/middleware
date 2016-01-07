@@ -161,8 +161,12 @@ class CreateInterfaceTask(Task):
 @accepts(str)
 class DeleteInterfaceTask(Task):
     def verify(self, name):
-        if not self.datastore.exists('network.interfaces', ('id', '=', name)):
+        iface = self.datastore.get_by_id('network.interfaces', name)
+        if not iface:
             raise VerifyException(errno.ENOENT, 'Interface {0} does not exist'.format(name))
+
+        if iface['type'] not in ('VLAN', 'LAGG', 'BRIDGE'):
+            raise VerifyException(errno.EBUSY, 'Cannot delete physical interface')
 
         return ['system']
 
