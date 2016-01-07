@@ -782,7 +782,7 @@ def _init(dispatcher, plugin):
 
         logger.debug('Scheduling a nightly update check task')
         caltask = dispatcher.call_sync(
-            'calendar_tasks.query', [('name', '=', 'update.checkfetch')], {'single': True}
+            'calendar_task.query', [('name', '=', 'update.checkfetch')], {'single': True}
         ) or {'schedule': {}}
 
         caltask.update({
@@ -797,9 +797,9 @@ def _init(dispatcher, plugin):
         })
 
         if caltask.get('id'):
-            dispatcher.call_task_sync('calendar_tasks.update', caltask['id'], caltask)
+            dispatcher.call_task_sync('calendar_task.update', caltask['id'], caltask)
         else:
-            dispatcher.call_task_sync('calendar_tasks.create', caltask)
+            dispatcher.call_task_sync('calendar_task.create', caltask)
 
     # Register Schemas
     plugin.register_schema_definition('update', {

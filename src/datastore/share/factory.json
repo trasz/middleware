@@ -692,33 +692,33 @@
             "service.afp.homedir_name": null,
             "service.afp.dbpath": null,
             "service.afp.auxiliary": null,
-            "service.cifs.enable": false,
-            "service.cifs.netbiosname": [
+            "service.smb.enable": false,
+            "service.smb.netbiosname": [
                 "FreeNAS"
             ],
-            "service.cifs.workgroup": "WORKGROUP",
-            "service.cifs.description": "FreeNAS Server",
-            "service.cifs.dos_charset": "CP437",
-            "service.cifs.unix_charset": "UTF-8",
-            "service.cifs.log_level": "MINIMUM",
-            "service.cifs.syslog": false,
-            "service.cifs.local_master": false,
-            "service.cifs.domain_logons": false,
-            "service.cifs.time_server": false,
-            "service.cifs.guest_user": "nobody",
-            "service.cifs.filemask": null,
-            "service.cifs.dirmask": null,
-            "service.cifs.empty_password": false,
-            "service.cifs.unixext": true,
-            "service.cifs.zeroconf": true,
-            "service.cifs.hostlookup": true,
-            "service.cifs.min_protocol": null,
-            "service.cifs.max_protocol": "SMB2",
-            "service.cifs.execute_always": true,
-            "service.cifs.obey_pam_restrictions": true,
-            "service.cifs.bind_addresses": null,
-            "service.cifs.sid": null,
-            "service.cifs.auxiliary": null,
+            "service.smb.workgroup": "WORKGROUP",
+            "service.smb.description": "FreeNAS Server",
+            "service.smb.dos_charset": "CP437",
+            "service.smb.unix_charset": "UTF-8",
+            "service.smb.log_level": "MINIMUM",
+            "service.smb.syslog": false,
+            "service.smb.local_master": false,
+            "service.smb.domain_logons": false,
+            "service.smb.time_server": false,
+            "service.smb.guest_user": "nobody",
+            "service.smb.filemask": null,
+            "service.smb.dirmask": null,
+            "service.smb.empty_password": false,
+            "service.smb.unixext": true,
+            "service.smb.zeroconf": true,
+            "service.smb.hostlookup": true,
+            "service.smb.min_protocol": null,
+            "service.smb.max_protocol": "SMB2",
+            "service.smb.execute_always": true,
+            "service.smb.obey_pam_restrictions": true,
+            "service.smb.bind_addresses": null,
+            "service.smb.sid": null,
+            "service.smb.auxiliary": null,
             "service.dyndns.enable": false,
             "service.dyndns.provider": null,
             "service.dyndns.ipserver": null,
@@ -949,7 +949,7 @@
             "system.dataset.services": [
                 "syslog",
                 "fnstatd",
-                "cifs"
+                "smb"
             ],
             "system.dataset.layout": {
                 "log": {
@@ -1366,8 +1366,8 @@
                     "/var/run/samba4/winbindd.pid"
                 ],
                 "builtin": false,
-                "task": "service.cifs.configure",
-                "name": "cifs"
+                "task": "service.smb.configure",
+                "name": "smb"
             },
             "FFD1EA3F-36E3-4CFA-8A1E-9BADA0DEFB76": {
                 "rcng": {

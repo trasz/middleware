@@ -54,6 +54,11 @@ class SessionProvider(Provider):
                 live_user_session_ids.append(conn.session_id)
         return self.datastore.query('sessions', ('id', 'in', live_user_session_ids))
 
+    @pass_sender
+    @returns(int)
+    def get_my_session_id(self, sender):
+        return sender.session_id
+
     @description("Returns the logged in user for the current session")
     @returns(str)
     @pass_sender

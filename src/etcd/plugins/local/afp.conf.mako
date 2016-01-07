@@ -47,7 +47,7 @@
 % endif
 
 % for share in dispatcher.call_sync("share.query", [("type", "=", "afp")]):
-[${share["id"]}]
+[${share["name"]}]
 ${opt("path", share["filesystem_path"])}\
 ${opt("valid users", share["properties"].get("users_allow"))}\
 ${opt("invalid users", share["properties"].get("users_deny"))}\

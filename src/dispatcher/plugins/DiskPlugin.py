@@ -46,7 +46,7 @@ from lib.geom import confxml
 from lib.system import system, SubprocessException
 from task import (
     Provider, Task, ProgressTask, TaskStatus, TaskException, VerifyException,
-    query, ValidationException
+    query
 )
 from freenas.dispatcher.rpc import RpcException, accepts, returns, description, private
 from freenas.dispatcher.rpc import SchemaHelper as h
@@ -182,6 +182,14 @@ class DiskGPTFormatTask(Task):
         if fstype not in ['freebsd-zfs']:
             raise VerifyException(errno.EINVAL, "Unsupported fstype {0}".format(fstype))
 
+        allocation = self.dispatcher.call_sync(
+            'volume.get_disks_allocation',
+            [disk]
+        ).get(disk)
+
+        if allocation is not None:
+            raise VerifyException(errno.EINVAL, "Cannot perform format operation on an allocated disk {0}".format(disk))
+
         return ['disk:{0}'.format(disk)]
 
     def run(self, disk, fstype, params=None):
@@ -270,6 +278,14 @@ class DiskEraseTask(Task):
         if not get_disk_by_path(disk):
             raise VerifyException(errno.ENOENT, "Disk {0} not found".format(disk))
 
+        allocation = self.dispatcher.call_sync(
+            'volume.get_disks_allocation',
+            [disk]
+        ).get(disk)
+
+        if allocation is not None:
+            raise VerifyException(errno.EINVAL, "Cannot perform erase operation on an allocated disk {0}".format(disk))
+
         return ['disk:{0}'.format(disk)]
 
     def run(self, disk, erase_method=None):
@@ -322,8 +338,7 @@ class DiskEraseTask(Task):
 )
 class DiskConfigureTask(Task):
     def verify(self, id, updated_fields):
-        disk = self.datastore.get_by_id('disks', id)
-        errors = []
+        disk = self.dispatcher.call_sync('disk.query', [('id', '=', id)], {'single': True})
 
         if not disk:
             raise VerifyException(errno.ENOENT, 'Disk {0} not found'.format(id))
@@ -332,12 +347,8 @@ class DiskConfigureTask(Task):
             raise VerifyException(errno.EINVAL, 'Cannot configure offline disk')
 
         if not disk['status']['smart_capable']:
-            if 'smart' in updated_fields:
-                errors.append(('smart', errno.EINVAL, 'Disk is not SMART capable'))
-            if 'smart_options' in updated_fields:
-                errors.append(('smart_options', errno.EINVAL, 'Disk is not SMART capable'))
-        if errors:
-            raise ValidationException(errors)
+            if 'smart' in updated_fields or 'smart_options' in updated_fields:
+                raise VerifyException(errno.EINVAL, 'Disk is not SMART capable')
 
         return ['disk:{0}'.format(disk['path'])]
 
@@ -352,6 +363,11 @@ class DiskConfigureTask(Task):
         if 'smart' in updated_fields or 'smart_options' in updated_fields:
             self.dispatcher.call_sync('service.reload', 'smartd')
             self.dispatcher.call_sync('disk.update_disk_cache', disk['path'], timeout=120)
+
+        self.dispatcher.dispatch_event('disk.changed', {
+            'operation': 'update',
+            'ids': [disk['id']]
+        })
 
 
 @description("Deletes offline disk configuration from database")
@@ -1127,6 +1143,15 @@ def persist_disk(dispatcher, disk):
         'data_partition_uuid': disk['data_partition_uuid'],
         'delete_at': None
     })
+
+    if 'standby_mode' not in ds_disk:
+        ds_disk.update({'standby_mode': 0})
+
+    if 'apm_mode' not in ds_disk:
+        ds_disk.update({'apm_mode': 0})
+
+    if 'acoustic_level' not in ds_disk:
+        ds_disk.update({'acoustic_level': 'DISABLED'})
 
     if 'smart' not in ds_disk:
         ds_disk.update({'smart': True if disk['smart_capable'] else False})

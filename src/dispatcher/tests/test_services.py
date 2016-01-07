@@ -158,8 +158,8 @@ class ServicesTest(BaseTestCase):
         self.assertTaskCompletion(self.submitTask('service.configure', sname, \
     		{'enable': True, 'contact': 'nobody', 'v3_password': 'abcd1234', 'v3_privacy_passphrase': 'abcd1234'}))	
 
-    ################# CIFS
-    def test_start_stop_cifs(self):
+    ################# SMB
+    def test_start_stop_smb(self):
         '''
         Can start from stopped state
         '''
@@ -169,25 +169,25 @@ class ServicesTest(BaseTestCase):
     	    self.assertTaskCompletion(self.submitTask('service.manage', sname, 'stop'))
         self.assertTaskCompletion(self.submitTask('service.manage', sname, 'start'))
 
-    def test_restart_cifs(self):
+    def test_restart_smb(self):
     	'''
     	Can restart
     	'''
     	sname = inspect.stack()[0][3].split('_')[-1]
     	if not self.isRunning(sname):
-            self.assertTaskCompletion(self.submitTask('service.manage', 'cifs', 'start'))
-        self.assertTaskCompletion(self.submitTask('service.manage', 'cifs', 'restart'))
+            self.assertTaskCompletion(self.submitTask('service.manage', 'smb', 'start'))
+        self.assertTaskCompletion(self.submitTask('service.manage', 'smb', 'restart'))
 
-    def atest_configure_cifs(self):
+    def atest_configure_smb(self):
     	'''
         NOT WORKING
     	'''
     	sname = inspect.stack()[0][3].split('_')[-1]
-    	#service = self.conn.call_sync('service.query', [('name', '=', 'cifs')], {'single': True})
+    	#service = self.conn.call_sync('service.query', [('name', '=', 'smb')], {'single': True})
     	if not self.isRunning(sname):
-    		self.assertTaskCompletion(self.submitTask('service.manage', 'cifs', 'start'))
-    	self.assertTaskCompletion(self.submitTask('service.manage', 'cifs', 'reload'))
-    	self.assertTaskCompletion(self.submitTask('service.configure', 'cifs', \
+    		self.assertTaskCompletion(self.submitTask('service.manage', 'smb', 'start'))
+    	self.assertTaskCompletion(self.submitTask('service.manage', 'smb', 'reload'))
+    	self.assertTaskCompletion(self.submitTask('service.configure', 'smb', \
     		{"zeroconf": False, 'log_level': 'mininum', 'netbiosname': ['freenas']}))
 	
     
