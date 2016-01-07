@@ -1,6 +1,16 @@
 <%
     config = dispatcher.call_sync('service.nfs.get_config')
-    def opts(share):
+
+    def unique_networks():
+        for s in dispatcher.call_sync("share.query", [("type", "=", "nfs")]):
+            if not s.get('hosts'):
+                yield s, None
+                continue
+
+            for h in s['hosts']:
+                yield s, h
+
+    def opts(share, network):
         if not 'properties' in share:
             return ''
         result = []
@@ -21,11 +31,12 @@
                 result.append('-maproot={maroot_user}:{maproot_group}'.format(**properties))
             else:
                 result.append('-maproot={maroot_user}'.format(**properties))
-        for host in properties.get('hosts', []):
-            if '/' in host:
-                result.append('-network={0}'.format(host))
-                continue
+
+        if '/' in network:
+            result.append('-network={0}'.format(network))
+        else:
             result.append(host)
+
         return ' '.join(result)
 %>\
 % if config.get('v4'):
@@ -35,6 +46,6 @@ V4: / -sec=krb5:krb5i:krb5p
 V4: / -sec=sys:krb5:krb5i:krb5p
 % endif
 % endif
-% for share in dispatcher.call_sync("shares.query", [("type", "=", "nfs")]):
-${share["target_path"]} ${opts(share)}
+% for share, network in unique_networks():
+${share["filesystem_path"]} ${opts(share, network)}
 % endfor
