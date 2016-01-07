@@ -79,6 +79,11 @@ class VolumeProvider(Provider):
 
         def extend_dataset(ds):
             ds = wrap(ds)
+            perms = None
+
+            if ds['mountpoint']:
+                perms = self.dispatcher.call_sync('filesystem.stat', ds['mountpoint'])
+
             return {
                 'name': ds['name'],
                 'type': ds['type'],
@@ -90,7 +95,8 @@ class VolumeProvider(Provider):
                     'quota', 'refquota', 'reservation', 'refreservation',
                     'casesensitivity', 'volsize', 'volblocksize',
                 ),
-                'permissions_type':  ds.get('properties.org\\.freenas:permissions_type.value'),
+                'permissions_type': ds.get('properties.org\\.freenas:permissions_type.value'),
+                'permissions': perms['permissions'] if perms else None
             }
 
         def extend(vol):
@@ -1255,40 +1261,42 @@ class VolumeRestoreKeysTask(Task):
 
 
 @description("Creates a dataset in an existing volume")
-@accepts(str, str, h.ref('dataset-type'), h.object())
+@accepts(h.ref('dataset'))
 class DatasetCreateTask(Task):
-    def verify(self, pool_name, path, type, params=None):
-        if not self.datastore.exists('volumes', ('name', '=', pool_name)):
-            raise VerifyException(errno.ENOENT, 'Volume {0} not found'.format(pool_name))
+    def verify(self, dataset):
+        if not self.datastore.exists('volumes', ('name', '=', dataset['pool'])):
+            raise VerifyException(errno.ENOENT, 'Volume {0} not found'.format(dataset['pool']))
 
-        return ['zpool:{0}'.format(pool_name)]
+        return ['zpool:{0}'.format(dataset['pool'])]
 
-    def run(self, pool_name, path, type, params=None):
-        if params:
-            normalize(params, {
-                'properties': {}
-            })
+    def run(self, dataset):
+        normalize(dataset, {
+            'type': 'FILESYSTEM',
+            'permissions_type': 'CHMOD',
+            'properties': {}
+        })
 
-        if type == 'VOLUME':
-            params['properties']['volsize'] = {'value': str(params['volsize'])}
+        props = {
+            'org.freenas:permissions_type': dataset['permissions_type'],
+            'aclmode': 'restricted' if dataset['permissions_type'] == 'ACL' else 'passthrough'
+        }
+
+        if dataset['type'] == 'VOLUME':
+            props['volsize'] = str(dataset['volsize'])
 
         self.join_subtasks(self.run_subtask(
             'zfs.create_dataset',
-            pool_name,
-            path,
-            type,
-            {k: v['value'] for k, v in list(params['properties'].items())} if params else {}
+            dataset['pool'],
+            dataset['name'],
+            dataset['type'],
+            props
         ))
 
-        if params:
-            props = {}
-            if 'permissions_type' in params:
-                props['org.freenas:permissions_type'] = {'value': params['permissions_type']}
-                props['aclmode'] = {'value': 'restricted' if params['permissions_type'] == 'ACL' else 'passthrough'}
+        self.join_subtasks(self.run_subtask('zfs.mount', dataset['name']))
 
-            self.join_subtasks(self.run_subtask('zfs.configure', pool_name, path, props))
-
-        self.join_subtasks(self.run_subtask('zfs.mount', path))
+        if dataset.get('permissions'):
+            path = os.path.join(VOLUMES_ROOT, dataset['name'])
+            self.join_subtasks(self.run_subtask('file.set_permissions', path, dataset['permissions']))
 
 
 @description("Deletes an existing Dataset from a Volume")
@@ -1361,6 +1369,10 @@ class DatasetConfigureTask(Task):
 
             if oldtyp != 'PERMS' and typ == 'PERMS':
                 self.switch_to_chmod(pool_name, ds['name'])
+
+        if 'permissions' in updated_params:
+            fs_path = os.path.join(VOLUMES_ROOT, path)
+            self.join_subtasks(self.run_subtask('file.set_permissions', fs_path, updated_params['permissions']))
 
 
 class SnapshotCreateTask(Task):
@@ -1609,6 +1621,7 @@ def _init(dispatcher, plugin):
             },
             'volsize': {'type': ['integer', 'null']},
             'properties': {'type': 'object'},
+            'permissions': {'$ref': 'permissions'},
             'permissions_type': {
                 'type': 'string',
                 'enum': ['PERM', 'ACL']

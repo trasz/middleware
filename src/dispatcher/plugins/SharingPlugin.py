@@ -128,12 +128,17 @@ class CreateShareTask(Task):
             pool = share['target_path'].split('/')[0]
             if not self.dispatcher.call_sync('zfs.dataset.query', [('name', '=', dataset)], {'single': True}):
                 if share_type['subtype'] == 'file':
-                    self.join_subtasks(self.run_subtask('volume.dataset.create', pool, dataset, 'FILESYSTEM', {
+                    self.join_subtasks(self.run_subtask('volume.dataset.create', {
+                        'pool': pool,
+                        'name': dataset,
                         'permissions_type': share_type['perm_type'],
                     }))
 
                 if share_type['subtype'] == 'block':
-                    self.join_subtasks(self.run_subtask('volume.dataset.create', pool, dataset, 'VOLUME', {
+                    self.join_subtasks(self.run_subtask('volume.dataset.create', {
+                        'pool': pool,
+                        'name': dataset,
+                        'type': 'VOLUME',
                         'volsize': share['properties']['size'],
                     }))
             else:
