@@ -458,7 +458,6 @@ def _depends():
 
 
 def _init(dispatcher, plugin):
-
     def on_resolv_conf_change(args):
         # If DNS has changed lets reset our DNS resolver to reflect reality
         logger.debug('Resetting resolver')
