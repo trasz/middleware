@@ -78,22 +78,27 @@ class ContainerBaseTask(Task):
 
         if not self.dispatcher.call_sync('zfs.dataset.query', [('name', '=', root_ds)], {'single': True}):
             # Create VM root
-            self.join_subtasks(self.run_subtask('volume.dataset.create', pool, root_ds, 'FILESYSTEM'))
+            self.join_subtasks(self.run_subtask('volume.dataset.create', {
+                'pool': pool,
+                'name': root_ds
+            }))
 
-        self.join_subtasks(self.run_subtask('volume.dataset.create', pool, container_ds, 'FILESYSTEM'))
+        self.join_subtasks(self.run_subtask('volume.dataset.create', {
+            'pool': pool,
+            'name': container_ds
+        }))
 
     def create_device(self, container, res):
         if res['type'] == 'DISK':
             container_ds = os.path.join(container['target'], 'vm', container['name'])
             container_dir = self.dispatcher.call_sync('volume.get_dataset_path', container['target'], container_ds)
             ds_name = os.path.join(container_ds, res['name'])
-            self.join_subtasks(self.run_subtask(
-                'volume.dataset.create',
-                container['target'],
-                ds_name,
-                'VOLUME',
-                {'volsize': res['properties']['size']}
-            ))
+            self.join_subtasks(self.run_subtask('volume.dataset.create', {
+                'pool': container['target'],
+                'name': ds_name,
+                'type': 'VOLUME',
+                'volsize': res['properties']['size']
+            }))
 
             if res['properties'].get('source'):
                 source = res['properties']['source']
@@ -116,13 +121,11 @@ class ContainerBaseTask(Task):
                 if not self.configstore.get('service.nfs.enable'):
                     self.join_subtasks(self.run_subtask('service.configure', 'nfs', {'enable': True}))
 
-            self.join_subtasks(self.run_subtask(
-                'volume.dataset.create',
-                container['target'],
-                ds_name,
-                'FILESYSTEM',
-                opts
-            ))
+            self.join_subtasks(self.run_subtask('volume.dataset.create', {
+                'pool': container['target'],
+                'name': ds_name,
+                'properties': opts
+            }))
 
     def update_device(self, container, old_res, new_res):
         if new_res['type'] == 'DISK':
