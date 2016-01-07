@@ -32,10 +32,11 @@
             else:
                 result.append('-maproot={maroot_user}'.format(**properties))
 
-        if '/' in network:
-            result.append('-network={0}'.format(network))
-        else:
-            result.append(host)
+        if network:
+            if '/' in network:
+                result.append('-network={0}'.format(network))
+            else:
+                result.append(host)
 
         return ' '.join(result)
 %>\
