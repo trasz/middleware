@@ -134,7 +134,7 @@ class DeleteSMBShareTask(Task):
         return "Deleting SMB share {0}".format(id)
 
     def verify(self, id):
-        return ['service:SMB']
+        return ['service:smb']
 
     def run(self, id):
         share = self.datastore.get_by_id('shares', id)
