@@ -30,6 +30,7 @@ import logging
 from task import Task, TaskStatus, Provider, TaskException
 from freenas.dispatcher.rpc import RpcException, description, accepts, returns, private
 from freenas.dispatcher.rpc import SchemaHelper as h
+from freenas.utils import normalize
 from utils import split_dataset
 
 
@@ -68,6 +69,17 @@ class CreateNFSShareTask(Task):
         return ['service:nfs']
 
     def run(self, share):
+        normalize(share['properties'], {
+            'alldirs': False,
+            'read_only': False,
+            'maproot_user': None,
+            'maproot_group': None,
+            'mapall_user': None,
+            'mapall_group': None,
+            'hosts': [],
+            'security': []
+        })
+
         id = self.datastore.insert('shares', share)
         self.dispatcher.call_sync('etcd.generation.generate_group', 'nfs')
         self.dispatcher.call_sync('service.reload', 'nfs')
@@ -133,10 +145,10 @@ def _init(dispatcher, plugin):
         'properties': {
             'alldirs': {'type': 'boolean'},
             'read_only': {'type': 'boolean'},
-            'maproot_user': {'type': 'string'},
-            'maproot_group': {'type': 'string'},
-            'mapall_user': {'type': 'string'},
-            'mapall_group': {'type': 'string'},
+            'maproot_user': {'type': ['string', 'null']},
+            'maproot_group': {'type': ['string', 'null']},
+            'mapall_user': {'type': ['string', 'null']},
+            'mapall_group': {'type': ['string', 'null']},
             'hosts': {
                 'type': 'array',
                 'items': {'type': 'string'}
