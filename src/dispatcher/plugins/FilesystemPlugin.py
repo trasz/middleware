@@ -39,6 +39,7 @@ from freenas.dispatcher.rpc import (
 from freenas.dispatcher.rpc import SchemaHelper as h
 from task import Provider, Task, TaskStatus, VerifyException, TaskException
 from auth import FileToken
+from freenas.utils import first_or_default
 from freenas.utils.query import wrap
 
 
@@ -255,6 +256,19 @@ class SetPermissionsTask(Task):
 
                 for n in dirs:
                     a.apply(file=os.path.join(root, n))
+
+        # Update volume if dataset permissions were changed
+        try:
+            poolname, dsname, rest = self.dispatcher.call_sync('volume.decode_path', path)
+            pool = self.dispatcher.call_sync('volume.query', [('name', '=', poolname)], {'single': True})
+            ds = first_or_default(lambda d: d['mountpoint'] == path, pool['datasets'])
+            if ds:
+                self.dispatcher.dispatch_event('volume.changed', {
+                    'operation': 'update',
+                    'ids': [pool['id']]
+                })
+        except RpcException:
+            pass
 
         self.dispatcher.dispatch_event('file.permissions.changed', {
             'path': path,
