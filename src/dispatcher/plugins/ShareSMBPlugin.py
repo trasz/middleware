@@ -237,7 +237,7 @@ def _init(dispatcher, plugin):
     smb_conf = smbconf.SambaConfig('registry')
     smb_conf.shares.clear()
 
-    for s in dispatcher.datastore.query('shares', ('type', '=', 'smb')):
+    for s in dispatcher.datastore.query('shares', ('type', '=', 'smb'), ('enabled', '=', True)):
         smb_share = smbconf.SambaShare()
         path = dispatcher.call_sync('share.translate_path', s['id'])
         convert_share(smb_share, path, s.get('properties', {}))
