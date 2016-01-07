@@ -80,12 +80,7 @@ class CreateCIFSShareTask(Task):
         })
 
         id = self.datastore.insert('shares', share)
-        path = self.dispatcher.call_sync(
-            'share.translate_path',
-            share['type'],
-            share['target'],
-            share['name']
-        )
+        path = self.dispatcher.call_sync('share.translate_path', id)
 
         try:
             smb_conf = smbconf.SambaConfig('registry')
@@ -116,12 +111,7 @@ class UpdateCIFSShareTask(Task):
         share = self.datastore.get_by_id('shares', id)
         share.update(updated_fields)
         self.datastore.update('shares', id, share)
-        path = self.dispatcher.call_sync(
-            'share.translate_path',
-            share['type'],
-            share['target'],
-            share['name']
-        )
+        path = self.dispatcher.call_sync('share.translate_path', share['id'])
 
         try:
             smb_conf = smbconf.SambaConfig('registry')
@@ -247,7 +237,8 @@ def _init(dispatcher, plugin):
     smb_conf = smbconf.SambaConfig('registry')
     smb_conf.shares.clear()
 
-    for s in dispatcher.call_sync('share.query', [('type', '=', 'cifs')]):
+    for s in dispatcher.datastore.query('shares', ('type', '=', 'cifs')):
         smb_share = smbconf.SambaShare()
-        convert_share(smb_share, s['filesystem_path'], s.get('properties', {}))
+        path = dispatcher.call_sync('share.translate_path', s['id'])
+        convert_share(smb_share, path, s.get('properties', {}))
         smb_conf.shares[s['name']] = smb_share
