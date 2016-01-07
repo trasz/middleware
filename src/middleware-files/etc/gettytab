@@ -238,6 +238,8 @@ al.230400:\
 #
 cli|freenas-cli:\
 	:ht:np:sp#15200:lo=/usr/local/bin/logincli:al=root:
+go-cli:\
+	:ht:np:sp#15200:lo=/usr/local/libexec/cli-tty:al=root:
 cli_serial9600:\
 	:ht:np:sp#9600:lo=/usr/local/bin/logincli:al=root:
 cli_serial19200:\

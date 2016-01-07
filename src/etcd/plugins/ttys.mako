@@ -51,13 +51,13 @@
 %>\
 console	none				unknown	off secure
 #
+ttyv0	"/usr/libexec/getty go-cli"	cons25	on  secure
 % if adv.get('console_cli'):
-ttyv0	"/usr/libexec/getty cli"	cons25	on  secure
+ttyv1	"/usr/libexec/getty cli"	cons25	on  secure
 % else:
-ttyv0	"/usr/libexec/getty Pc"		cons25	on  secure
+ttyv1	"/usr/libexec/getty Pc"		cons25	on  secure
 % endif
 # Virtual terminals
-ttyv1	"/usr/libexec/getty Pc"		cons25	on  secure
 ttyv2	"/usr/libexec/getty Pc"		cons25	on  secure
 ttyv3	"/usr/libexec/getty Pc"		cons25	on  secure
 ttyv4	"/usr/libexec/getty Pc"		cons25	on  secure
