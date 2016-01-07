@@ -333,7 +333,7 @@ class DiskConfigureTask(Task):
         self.datastore.update('disks', disk['id'], disk)
 
         if {'standby_mode', 'apm_mode', 'acoustic_level'} & set(updated_fields):
-            configure_disk(self.dispatcher, id)
+            configure_disk(self.datastore, id)
 
         if 'smart' in updated_fields or 'smart_options' in updated_fields:
             self.dispatcher.call_sync('service.reload', 'smartd')
@@ -1061,7 +1061,7 @@ def generate_disk_cache(dispatcher, path):
 
     diskinfo_cache.put(identifier, disk)
     update_disk_cache(dispatcher, path)
-    configure_disk(dispatcher, identifier)
+    configure_disk(dispatcher.datastore, identifier)
 
     logger.info('Added <%s> (%s) to disk cache', identifier, disk['description'])
     diskinfo_cache_lock.release()
@@ -1141,8 +1141,8 @@ def persist_disk(dispatcher, disk):
     })
 
 
-def configure_disk(dispatcher, id):
-    disk = dispatcher.datastore.get_by_id('disks', id)
+def configure_disk(datastore, id):
+    disk = datastore.get_by_id('disks', id)
     acc_level = getattr(AcousticLevel, disk.get('acoustic_level', 'DISABLED')).value
     powermgmt = disk.get('apm_mode', 0)
     try:
