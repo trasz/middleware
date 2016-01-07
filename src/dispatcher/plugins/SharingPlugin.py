@@ -37,7 +37,15 @@ class SharesProvider(Provider):
     @query('share')
     def query(self, filter=None, params=None):
         def extend(share):
-            share['filesystem_path'] = self.translate_path(share['id'])
+            path, perms = None, None
+            try:
+                path = self.translate_path(share['id'])
+                perms = self.dispatcher.call_sync('filesystem.stat', path)
+            except RpcException:
+                pass
+
+            share['filesystem_path'] = path
+            share['permissions'] = perms['permissions'] if perms else None
             return share
 
         return self.datastore.query('shares', *(filter or []), callback=extend, **(params or {}))
@@ -244,6 +252,7 @@ def _init(dispatcher, plugin):
                 'enum': ['DATASET', 'DIRECTORY', 'FILE']
             },
             'target_path': {'type': 'string'},
+            'permissions': {'$ref': 'permissions'},
             'properties': {'type': 'object'}
         }
     })
