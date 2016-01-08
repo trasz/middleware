@@ -95,39 +95,45 @@ class CreateNFSShareTask(Task):
 @description("Updates existing NFS share")
 @accepts(str, h.ref('nfs-share'))
 class UpdateNFSShareTask(Task):
-    def describe(self, name, updated_fields):
-        return "Updating NFS share {0}".format(name)
+    def describe(self, id, updated_fields):
+        return "Updating NFS share {0}".format(id)
 
-    def verify(self, name, updated_fields):
+    def verify(self, id, updated_fields):
+        if 'properties' in updated_fields:
+            properties = updated_fields['properties']
+            if (properties.get('maproot_user') or properties.get('maproot_group')) and \
+               (properties.get('mapall_user') or properties.get('mapall_group')):
+                raise VerifyException(errno.EINVAL, 'Cannot set maproot and mapall properties simultaneously')
+
         return ['service:nfs']
 
-    def run(self, name, updated_fields):
-        share = self.datastore.get_by_id('shares', name)
+    def run(self, id, updated_fields):
+        share = self.datastore.get_by_id('shares', id)
         share.update(updated_fields)
-        self.datastore.update('shares', name, share)
+        self.datastore.update('shares', id, share)
         self.dispatcher.call_sync('etcd.generation.generate_group', 'nfs')
         self.dispatcher.dispatch_event('share.nfs.changed', {
             'operation': 'update',
-            'ids': [name]
+            'ids': [id]
         })
 
 
 @description("Removes NFS share")
 @accepts(str)
 class DeleteNFSShareTask(Task):
-    def describe(self, name):
-        return "Deleting NFS share {0}".format(name)
+    def describe(self, id):
+        return "Deleting NFS share {0}".format(id)
 
-    def verify(self, name):
+    def verify(self, id):
         return ['service:nfs']
 
-    def run(self, name):
-        self.datastore.delete('shares', name)
+    def run(self, id):
+        self.datastore.delete('shares', id)
         self.dispatcher.call_sync('etcd.generation.generate_group', 'nfs')
         self.dispatcher.call_sync('service.reload', 'nfs')
         self.dispatcher.dispatch_event('share.nfs.changed', {
             'operation': 'delete',
-            'ids': [name]
+            'ids': [id]
         })
 
 
