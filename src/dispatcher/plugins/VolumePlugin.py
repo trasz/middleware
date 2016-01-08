@@ -93,7 +93,10 @@ class VolumeProvider(Provider):
                     ds['properties'],
                     'used', 'available', 'compression', 'atime', 'dedup',
                     'quota', 'refquota', 'reservation', 'refreservation',
-                    'casesensitivity', 'volsize', 'volblocksize',
+                    'casesensitivity', 'volsize', 'volblocksize', 'refcompressratio',
+                    'numclones', 'compressratio', 'written', 'referenced',
+                    'usedbyrefreservation', 'usedbysnapshots', 'usedbydataset',
+                    'usedbychildren', 'logicalused', 'logicalreferenced'
                 ),
                 'permissions_type': ds.get('properties.org\\.freenas:permissions_type.value'),
                 'permissions': perms['permissions'] if perms else None
