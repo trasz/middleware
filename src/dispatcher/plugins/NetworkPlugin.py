@@ -181,7 +181,7 @@ class DeleteInterfaceTask(Task):
 @description("Alters network interface configuration")
 @accepts(str, h.all_of(
     h.ref('network-interface'),
-    h.forbidden('id', 'type')
+    h.forbidden('id', 'type', 'status')
 ))
 class ConfigureInterfaceTask(Task):
     def verify(self, name, updated_fields):
