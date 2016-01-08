@@ -246,8 +246,12 @@ class ConfigureInterfaceTask(Task):
 @accepts(str)
 class InterfaceUpTask(Task):
     def verify(self, name):
-        if not self.datastore.exists('network.interfaces', ('id', '=', name)):
+        iface = self.datastore.exists('network.interfaces', ('id', '=', name))
+        if not iface:
             raise VerifyException(errno.ENOENT, 'Interface {0} does not exist'.format(name))
+
+        if not iface['enabled']:
+            raise VerifyException(errno.ENXIO, 'Interface {0} is disabled'.format(name))
 
         return ['system']
 
@@ -267,8 +271,12 @@ class InterfaceUpTask(Task):
 @accepts(str)
 class InterfaceDownTask(Task):
     def verify(self, name):
-        if not self.datastore.exists('network.interfaces', ('id', '=', name)):
+        iface = self.datastore.exists('network.interfaces', ('id', '=', name))
+        if not iface:
             raise VerifyException(errno.ENOENT, 'Interface {0} does not exist'.format(name))
+
+        if not iface['enabled']:
+            raise VerifyException(errno.ENXIO, 'Interface {0} is disabled'.format(name))
 
         return ['system']
 
@@ -291,6 +299,9 @@ class InterfaceRenewTask(Task):
         interface = self.datastore.get_by_id('network.interfaces', name)
         if not interface:
             raise VerifyException(errno.ENOENT, 'Interface {0} does not exist'.format(name))
+
+        if not interface['enabled']:
+            raise VerifyException(errno.ENXIO, 'Interface {0} is disabled'.format(name))
 
         if not interface['dhcp']:
             raise VerifyException(errno.EINVAL, 'Cannot renew a lease on interface that is not configured for DHCP')
