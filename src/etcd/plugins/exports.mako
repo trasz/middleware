@@ -22,12 +22,12 @@
         if properties.get('security'):
             result.append('-sec={0}'.format(':'.join(properties['security'])))
         if properties.get('mapall_user'):
-            if 'mapall_group' in properties:
+            if properties.get('mapall_group'):
                 result.append('-mapall={mapall_user}:{mapall_group}'.format(**properties))
             else:
                 result.append('-mapall={mapall_user}'.format(**properties))
         elif properties.get('maproot_user'):
-            if 'maproot_group' in properties:
+            if properties.get('maproot_group'):
                 result.append('-maproot={maroot_user}:{maproot_group}'.format(**properties))
             else:
                 result.append('-maproot={maroot_user}'.format(**properties))
