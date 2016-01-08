@@ -1270,16 +1270,18 @@ class DatasetCreateTask(Task):
         return ['zpool:{0}'.format(dataset['pool'])]
 
     def run(self, dataset):
+        props = {}
         normalize(dataset, {
             'type': 'FILESYSTEM',
             'permissions_type': 'CHMOD',
             'properties': {}
         })
 
-        props = {
-            'org.freenas:permissions_type': dataset['permissions_type'],
-            'aclmode': 'restricted' if dataset['permissions_type'] == 'ACL' else 'passthrough'
-        }
+        if dataset['type'] == 'FILESYSTEM':
+            props = {
+                'org.freenas:permissions_type': dataset['permissions_type'],
+                'aclmode': 'restricted' if dataset['permissions_type'] == 'ACL' else 'passthrough'
+            }
 
         if dataset['type'] == 'VOLUME':
             props['volsize'] = str(dataset['volsize'])
