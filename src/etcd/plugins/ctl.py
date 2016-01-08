@@ -70,7 +70,7 @@ def generate_luns(context):
     for share in context.client.call_sync('share.query', [('type', '=', 'iscsi')]):
         props = share['properties']
         extent = {
-            'path': os.path.join('/dev/zvol', share['dataset_path']),
+            'path': share['filesystem_path'],
             'blocksize': props['block_size'],
             'serial': props['serial'],
             'options': {
