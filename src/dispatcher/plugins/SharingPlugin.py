@@ -125,6 +125,7 @@ class CreateShareTask(Task):
         return ['system']
 
     def run(self, share):
+        root = self.dispatcher.call_sync('volume.get_volumes_root')
         share_type = self.dispatcher.call_sync('share.supported_types').get(share['type'])
         normalize(share, {
             'enabled': True,
@@ -134,6 +135,7 @@ class CreateShareTask(Task):
         if share['target_type'] == 'DATASET':
             dataset = share['target_path']
             pool = share['target_path'].split('/')[0]
+            path = os.path.join(root, dataset)
             if not self.dispatcher.call_sync('zfs.dataset.query', [('name', '=', dataset)], {'single': True}):
                 if share_type['subtype'] == 'file':
                     self.join_subtasks(self.run_subtask('volume.dataset.create', {
@@ -155,15 +157,23 @@ class CreateShareTask(Task):
                         'permissions_type': share_type['perm_type']
                     })
 
-        if share['target_type'] == 'DIRECTORY':
+        elif share['target_type'] == 'DIRECTORY':
             # Verify that target directory exists
-            if not os.path.isdir(share['target_path']):
-                raise TaskException(errno.ENOENT, "Target directory {0} doesn't exist".format(share['target_path']))
+            path = share['target_path']
+            if not os.path.isdir(path):
+                raise TaskException(errno.ENOENT, "Target directory {0} doesn't exist".format(path))
 
-        if share['target_type'] == 'FILE':
+        elif share['target_type'] == 'FILE':
             # Verify that target file exists
-            if not os.path.isfile(share['target_path']):
-                raise TaskException(errno.ENOENT, "Target file {0} doesn't exist".format(share['target_path']))
+            path = share['target_path']
+            if not os.path.isfile(path):
+                raise TaskException(errno.ENOENT, "Target file {0} doesn't exist".format(path))
+
+        else:
+            raise AssertionError('Invalid target type')
+
+        if share.get('permissions'):
+            self.join_subtasks(self.run_subtask('file.set_permissions', path, share['permissions']))
 
         ids = self.join_subtasks(self.run_subtask('share.{0}.create'.format(share['type']), share))
         self.dispatcher.dispatch_event('share.changed', {
@@ -177,18 +187,24 @@ class CreateShareTask(Task):
 @description("Updates existing share")
 @accepts(str, h.ref('share'))
 class UpdateShareTask(Task):
-    def verify(self, name, updated_fields):
-        share = self.datastore.get_by_id('shares', name)
+    def verify(self, id, updated_fields):
+        share = self.datastore.get_by_id('shares', id)
         if not share:
             raise VerifyException(errno.ENOENT, 'Share not found')
 
         return ['system']
 
-    def run(self, name, updated_fields):
-        share = self.datastore.get_by_id('shares', name)
+    def run(self, id, updated_fields):
+        share = self.datastore.get_by_id('shares', id)
+
         self.join_subtasks(
-            self.run_subtask('share.{0}.update'.format(share['type']), name, updated_fields)
+            self.run_subtask('share.{0}.update'.format(share['type']), id, updated_fields)
         )
+
+        if 'permissions' in updated_fields:
+            path = self.dispatcher.call_sync('share.translate_path', id)
+            self.join_subtasks(self.run_subtask('file.set_permissions', path, updated_fields['permissions']))
+
         self.dispatcher.dispatch_event('share.changed', {
             'operation': 'update',
             'ids': [share['id']]
