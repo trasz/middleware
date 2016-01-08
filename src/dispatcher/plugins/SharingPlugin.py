@@ -37,10 +37,10 @@ class SharesProvider(Provider):
     @query('share')
     def query(self, filter=None, params=None):
         def extend(share):
-            path, perms = None, None
+            perms = None
+            path = self.translate_path(share['id'])
             if share['target_type'] in ('DIRECTORY', 'DATASET', 'FILE'):
                 try:
-                    path = self.translate_path(share['id'])
                     perms = self.dispatcher.call_sync('filesystem.stat', path)
                 except RpcException:
                     pass

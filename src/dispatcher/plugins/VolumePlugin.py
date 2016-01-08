@@ -82,7 +82,10 @@ class VolumeProvider(Provider):
             perms = None
 
             if ds['mountpoint']:
-                perms = self.dispatcher.call_sync('filesystem.stat', ds['mountpoint'])
+                try:
+                    perms = self.dispatcher.call_sync('filesystem.stat', ds['mountpoint'])
+                except RpcException:
+                    pass
 
             return {
                 'name': ds['name'],
