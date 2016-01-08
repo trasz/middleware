@@ -106,13 +106,15 @@ class CreateISCSIShareTask(Task):
         return "Creating iSCSI share {0}".format(share['name'])
 
     def verify(self, share):
-        if share['target'][0] == '/':
+        if share['target_type'] == 'FILE':
             # File extent
-            if not os.path.exists(share['target']):
+            if not os.path.exists(share['target_path']):
                 raise VerifyException(errno.ENOENT, "Extent file does not exist")
-        else:
-            if not os.path.exists(convert_share_target(share['target'])):
+        elif share['target_type'] == 'ZVOL':
+            if not os.path.exists(os.path.join('/dev/zvol', share['target_path'])):
                 raise VerifyException(errno.ENOENT, "Extent ZVol does not exist")
+        else:
+            raise VerifyException(errno.EINVAL, 'Unsupported target type {0}'.format(share['target_type']))
 
         return ['service:ctl']
 

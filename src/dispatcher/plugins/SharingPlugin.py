@@ -38,11 +38,12 @@ class SharesProvider(Provider):
     def query(self, filter=None, params=None):
         def extend(share):
             path, perms = None, None
-            try:
-                path = self.translate_path(share['id'])
-                perms = self.dispatcher.call_sync('filesystem.stat', path)
-            except RpcException:
-                pass
+            if share['target_type'] in ('DIRECTORY', 'DATASET', 'FILE'):
+                try:
+                    path = self.translate_path(share['id'])
+                    perms = self.dispatcher.call_sync('filesystem.stat', path)
+                except RpcException:
+                    pass
 
             share['filesystem_path'] = path
             share['permissions'] = perms['permissions'] if perms else None
@@ -96,6 +97,9 @@ class SharesProvider(Provider):
         if share['target_type'] == 'DATASET':
             return os.path.join(root, share['target_path'])
 
+        if share['target_type'] == 'ZVOL':
+            return os.path.join('/dev/zvol', share['target_path'])
+
         if share['target_type'] in ('DIRECTORY', 'FILE'):
             return share['target_path']
 
@@ -132,7 +136,7 @@ class CreateShareTask(Task):
             'description': ''
         })
 
-        if share['target_type'] == 'DATASET':
+        if share['target_type'] in ('DATASET', 'ZVOL'):
             dataset = share['target_path']
             pool = share['target_path'].split('/')[0]
             path = os.path.join(root, dataset)
@@ -265,7 +269,7 @@ def _init(dispatcher, plugin):
             'type': {'type': 'string'},
             'target_type': {
                 'type': 'string',
-                'enum': ['DATASET', 'DIRECTORY', 'FILE']
+                'enum': ['DATASET', 'ZVOL', 'DIRECTORY', 'FILE']
             },
             'target_path': {'type': 'string'},
             'permissions': {'$ref': 'permissions'},
