@@ -2038,6 +2038,26 @@
     },
     {
         "metadata": {
+            "name": "container.template_sources",
+            "migration": "keep",
+            "pkey-type": "native",
+            "attributes": {
+                "type": "config"
+            }
+        },
+        "data": {
+            "local": {
+                "driver": "local",
+                "url": "file:///usr/local/share/containerd/templates"
+            },
+            "github": {
+                "driver": "github",
+                "url": "https://github.com/freenas/vm-templates"
+            }
+        }
+    },
+    {
+        "metadata": {
             "name": "syslog",
             "migration": "keep",
             "pkey-type": "uuid",
