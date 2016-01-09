@@ -97,7 +97,10 @@ class TaskExecutor(object):
         except LookupError:
             pass
 
-        if status['status'] in ('FINISHED', 'ROLLBACK'):
+        if status['status'] == 'ROLLBACK':
+            self.task.set_state(TaskState.ROLLBACK)
+
+        if status['status'] == 'FINISHED':
             self.result.set(status['result'])
 
         if status['status'] == 'FAILED':
