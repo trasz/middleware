@@ -53,7 +53,7 @@ class UploadDatabaseTask(Task):
         pass
 
 
-class RestoreFactoryConfigTask(Task):
+class RestoreFactoryConfigTask(ProgressTask):
     def verify(self):
         return ['root']
 
