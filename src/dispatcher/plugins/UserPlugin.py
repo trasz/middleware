@@ -26,6 +26,7 @@
 #####################################################################
 
 import crypt
+import copy
 import errno
 import os
 import random
@@ -338,6 +339,10 @@ class UserDeleteTask(Task):
     )
 )
 class UserUpdateTask(Task):
+    def __init__(self, dispatcher, datastore):
+        super(UserUpdateTask, self).__init__(dispatcher, datastore)
+        self.original_user = None
+
     def verify(self, uid, updated_fields):
         if not self.datastore.exists('users', ('id', '=', uid)):
             raise VerifyException(errno.ENOENT, 'User does not exist')
@@ -381,6 +386,7 @@ class UserUpdateTask(Task):
     def run(self, uid, updated_fields):
         try:
             user = self.datastore.get_by_id('users', uid)
+            self.original_user = copy.deepcopy(user)
 
             home_before = user.get('home')
             user.update(updated_fields)
@@ -443,6 +449,21 @@ class UserUpdateTask(Task):
             'operation': 'update',
             'ids': [user['id']]
         })
+
+    def rollback(self, uid, updated_fields):
+        user = self.original_user
+        self.datastore.update('users', uid, user)
+        self.dispatcher.call_sync('etcd.generation.generate_group', 'accounts')
+
+        if 'password' in updated_fields:
+            password = user['password']
+            system(
+                '/usr/local/bin/smbpasswd', '-D', '0', '-s', '-a', user['username'],
+                stdin='{0}\n{1}\n'.format(password, password).encode('utf8')
+            )
+
+            user['smbhash'] = system('/usr/local/bin/pdbedit', '-d', '0', '-w', user['username'])[0]
+            self.datastore.update('users', uid, user)
 
 
 @description("Creates a group")
