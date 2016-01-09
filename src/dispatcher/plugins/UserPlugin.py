@@ -35,6 +35,7 @@ from task import Provider, Task, TaskException, ValidationException, VerifyExcep
 from freenas.dispatcher.rpc import RpcException, description, accepts, returns, SchemaHelper as h
 from datastore import DuplicateKeyException, DatastoreException
 from lib.system import SubprocessException, system
+from freenas.utils import normalize
 
 
 EMAIL_REGEX = re.compile(r"\b[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]*[a-zA-Z0-9]\.[a-zA-Z]{2,4}\b")
@@ -158,6 +159,11 @@ class GroupProvider(Provider):
     )
 ))
 class UserCreateTask(Task):
+    def __init__(self, dispatcher, datastore):
+        super(UserCreateTask, self).__init__(dispatcher, datastore)
+        self.uid = None
+        self.created_group = False
+
     def describe(self, user):
         return "Adding user {0}".format(user['username'])
 
@@ -200,14 +206,18 @@ class UserCreateTask(Task):
         else:
             uid = user.pop('id')
 
+        self.uid = uid
+
         try:
-            user['builtin'] = False
-            user['unixhash'] = user.get('unixhash', '*')
-            user['full_name'] = user.get('full_name', 'User &')
-            user['shell'] = user.get('shell', '/bin/sh')
-            user['home'] = user.get('home', '/nonexistent')
-            user.setdefault('groups', [])
-            user.setdefault('attributes', {})
+            normalize(user, {
+                'builtin': False,
+                'unixhash': '*',
+                'full_name': 'User &',
+                'shell': '/bin/sh',
+                'home': '/nonexistent',
+                'groups': [],
+                'attributes': {}
+            })
 
             password = user.pop('password', None)
             if password:
@@ -223,6 +233,7 @@ class UserCreateTask(Task):
                     raise err
 
                 user['group'] = result[0]
+                self.created_group = result[0]
 
             self.datastore.insert('users', user, pkey=uid)
             self.dispatcher.call_sync('etcd.generation.generate_group', 'accounts')
@@ -230,21 +241,25 @@ class UserCreateTask(Task):
             if password:
                 system(
                     '/usr/local/bin/smbpasswd', '-D', '0', '-s', '-a', user['username'],
-                    stdin='{0}\n{1}\n'.format(password, password).encode('utf8'))
+                    stdin='{0}\n{1}\n'.format(password, password).encode('utf8')
+                )
+
                 user['smbhash'] = system('/usr/local/bin/pdbedit', '-d', '0', '-w', user['username'])[0]
                 self.datastore.update('users', uid, user)
 
         except SubprocessException as e:
             raise TaskException(
                 errno.ENXIO,
-                'Could not generate samba password. stdout: {0}\nstderr: {1}'.format(e.out, e.err))
+                'Could not generate samba password. stdout: {0}\nstderr: {1}'.format(e.out, e.err)
+            )
         except DuplicateKeyException as e:
             raise TaskException(errno.EBADMSG, 'Cannot add user: {0}'.format(str(e)))
         except RpcException as e:
             raise TaskException(
                 errno.ENXIO,
                 'Cannot regenerate users file, maybe etcd service is offline. Actual Error: {0}'.format(e)
-                )
+            )
+
         volumes_root = self.dispatcher.call_sync('volume.get_volumes_root')
         if user['home'].startswith(volumes_root):
             if not os.path.exists(user['home']):
@@ -260,7 +275,7 @@ class UserCreateTask(Task):
                 errno.ENOENT,
                 "Invalid mountpoint specified for home directory: {0}.".format(user['home']) +
                 " Use '{0}' instead as the mountpoint".format(volumes_root)
-                )
+            )
 
         self.dispatcher.dispatch_event('user.changed', {
             'operation': 'create',
@@ -268,6 +283,18 @@ class UserCreateTask(Task):
         })
 
         return uid
+
+    def rollback(self, user):
+        if user['home'] not in (None, '/nonexistent'):
+            if os.path.isdir(user['home']):
+                os.rmdir(user['home'])
+
+        if self.datastore.exists('users', ('id', '=', self.uid)):
+            self.datastore.delete('users', self.uid)
+            self.dispatcher.call_sync('etcd.generation.generate_group', 'accounts')
+
+        if self.created_group:
+            self.join_subtasks(self.run_subtask('group.delete', self.created_group))
 
 
 @description("Deletes an user from the system")
@@ -521,12 +548,12 @@ class GroupUpdateTask(Task):
 @description("Deletes a group")
 @accepts(int)
 class GroupDeleteTask(Task):
-    def describe(self, name):
-        return "Deleting group {0}".format(name)
+    def describe(self, gid):
+        return "Deleting group {0}".format(gid)
 
-    def verify(self, id):
+    def verify(self, gid):
         # Check if group exists
-        group = self.datastore.get_one('groups', ('id', '=', id))
+        group = self.datastore.get_one('groups', ('id', '=', gid))
         if group is None:
             raise VerifyException(errno.ENOENT, 'Group with given ID does not exist')
 
