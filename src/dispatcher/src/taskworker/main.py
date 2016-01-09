@@ -182,6 +182,15 @@ class Context(object):
                 except BaseException as err:
                     print("Task exception: {0}".format(str(err)), file=sys.stderr)
                     traceback.print_exc(file=sys.stderr)
+
+                    if hasattr(self.instance, 'rollback'):
+                        self.put_status('ROLLBACK')
+                        try:
+                            self.instance.rollback(*task['args'])
+                        except BaseException as rerr:
+                            print("Task exception during rollback: {0}".format(str(rerr)), file=sys.stderr)
+                            traceback.print_exc(file=sys.stderr)
+
                     self.put_status('FAILED', exception=err)
                 else:
                     self.put_status('FINISHED', result=result)

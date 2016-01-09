@@ -36,6 +36,7 @@ class TaskState(object):
     CREATED = 'CREATED'
     WAITING = 'WAITING'
     EXECUTING = 'EXECUTING'
+    ROLLBACK = 'ROLLBACK'
     FINISHED = 'FINISHED'
     FAILED = 'FAILED'
     ABORTED = 'ABORTED'
