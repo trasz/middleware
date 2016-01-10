@@ -971,7 +971,7 @@
                     }
                 },
                 "log-db": {
-                    "link": "/data/freenas.db/freenas-log"
+                    "link": "/data/freenas.db/freenas.45log"
                 },
                 "samba": {
                     "link": "/var/db/samba4",
