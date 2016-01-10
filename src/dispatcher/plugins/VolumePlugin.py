@@ -852,7 +852,7 @@ class VolumeImportTask(Task):
                 {'mountpoint': {'value': mountpoint}}
             ))
 
-            self.join_subtasks(self.run_subtask('zfs.mount', new_name))
+            self.join_subtasks(self.run_subtask('zfs.mount', new_name, True))
 
             new_id = self.datastore.insert('volumes', {
                 'id': real_id,
