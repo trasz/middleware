@@ -333,7 +333,6 @@ class Dispatcher(object):
         self.logger.info('Connected to datastore')
         self.require_collection('events', 'serial', type='log')
         self.require_collection('sessions', 'serial', type='log')
-        self.require_collection('tasks', 'serial', type='log')
         self.require_collection('logs', 'uuid', type='log')
 
         self.balancer = Balancer(self)
@@ -613,7 +612,8 @@ class Dispatcher(object):
         self.rpc.unregister_schema_definition(name)
 
     def require_collection(self, collection, pkey_type='uuid', **kwargs):
-        self.datastore.collection_create(collection, pkey_type, kwargs)
+        if not self.datastore.collection_exists(collection):
+            self.datastore.collection_create(collection, pkey_type, kwargs)
 
     def register_resource(self, res, parents=None):
         self.logger.debug('Resource added: {0}'.format(res.name))
