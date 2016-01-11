@@ -104,41 +104,40 @@ class CreateWebDAVShareTask(Task):
 @description("Updates existing WebDAV share")
 @accepts(str, h.ref('webdav-share'))
 class UpdateWebDAVShareTask(Task):
-    def describe(self, name, updated_fields):
-        return "Updating WebDAV share {0}".format(name)
+    def describe(self, id, updated_fields):
+        return "Updating WebDAV share {0}".format(id)
 
-    def verify(self, name, updated_fields):
+    def verify(self, id, updated_fields):
         return ['service:webdav']
 
-    def run(self, name, updated_fields):
-        share = self.datastore.get_by_id('shares', name)
+    def run(self, id, updated_fields):
+        share = self.datastore.get_by_id('shares', id)
         share.update(updated_fields)
-        self.datastore.update('shares', name, share)
+        self.datastore.update('shares', id, share)
         self.dispatcher.call_sync('etcd.generation.generate_group', 'webdav')
         self.dispatcher.call_sync('service.reload', 'webdav')
         self.dispatcher.dispatch_event('share.webdav.changed', {
             'operation': 'update',
-            'ids': [name]
+            'ids': [id]
         })
 
 
 @description("Removes WebDAV share")
 @accepts(str)
 class DeleteWebDAVShareTask(Task):
-    def describe(self, name):
-        return "Deleting WebDAV share {0}".format(name)
+    def describe(self, id):
+        return "Deleting WebDAV share {0}".format(id)
 
-    def verify(self, name):
+    def verify(self, id):
         return ['service:webdav']
 
-    def run(self, name):
-        share = self.datastore.get_by_id('shares', name)
-        self.datastore.delete('shares', name)
+    def run(self, id):
+        self.datastore.delete('shares', id)
         self.dispatcher.call_sync('etcd.generation.generate_group', 'webdav')
         self.dispatcher.call_sync('service.reload', 'webdav')
         self.dispatcher.dispatch_event('share.webdav.changed', {
             'operation': 'delete',
-            'ids': [name]
+            'ids': [id]
         })
 
 
