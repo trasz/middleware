@@ -31,6 +31,7 @@ from freenas.dispatcher.rpc import description, accepts, returns, private
 from freenas.dispatcher.rpc import SchemaHelper as h
 from task import Task, TaskException, VerifyException, Provider, RpcException, query
 from freenas.utils import normalize
+from utils import split_dataset
 
 
 class SharesProvider(Provider):
@@ -201,9 +202,22 @@ class UpdateShareTask(Task):
     def run(self, id, updated_fields):
         share = self.datastore.get_by_id('shares', id)
 
-        self.join_subtasks(
-            self.run_subtask('share.{0}.update'.format(share['type']), id, updated_fields)
-        )
+        if 'type' in updated_fields:
+            old_share_type = share['type']
+            new_share_type = self.dispatcher.call_sync('share.supported_types').get(updated_fields['type'])
+            if share['target_type'] == 'DATASET':
+                pool, dataset = split_dataset(share['target_path'])
+                self.join_subtasks(
+                    self.run_subtask('volume.dataset.update', pool, dataset, {
+                        'permissions_type': new_share_type['perm_type']
+                    })
+                )
+
+            share.update(updated_fields)
+            self.join_subtasks(self.run_subtask('share.{0}.delete'.format(old_share_type), id))
+            self.join_subtasks(self.run_subtask('share.{0}.create'.format(updated_fields['type']), share))
+        else:
+            self.join_subtasks(self.run_subtask('share.{0}.update'.format(share['type']), id, updated_fields))
 
         if 'permissions' in updated_fields:
             path = self.dispatcher.call_sync('share.translate_path', id)
