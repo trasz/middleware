@@ -262,10 +262,6 @@ class DeleteDependentShares(Task):
             ids.append(i['id'])
 
         self.join_subtasks(*subtasks)
-        self.dispatcher.dispatch_event('share.changed', {
-            'operation': 'delete',
-            'ids': ids
-        })
 
 
 def _depends():
