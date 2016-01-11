@@ -54,7 +54,7 @@ class AlertsProvider(Provider):
     def dismiss(self, id):
         try:
             self.datastore.delete('alerts', id)
-            self.dispatcher.dispatch_event('alert.change', {
+            self.dispatcher.dispatch_event('alert.changed', {
                 'operation': 'delete',
                 'ids': [id]
             })
