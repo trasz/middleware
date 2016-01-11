@@ -32,6 +32,7 @@ import uuid
 import logging
 import shutil
 import time
+import tempfile
 import libzfs
 from freenas.dispatcher.rpc import RpcException, accepts, returns, description, private
 from freenas.dispatcher.rpc import SchemaHelper as h
@@ -138,7 +139,7 @@ def umount_system_dataset(dispatcher, dsid, pool):
 
 def move_system_dataset(dispatcher, dsid, services, src_pool, dst_pool):
     logger.warning('Migrating system dataset from pool {0} to {1}'.format(src_pool, dst_pool))
-    tmpath = os.tempnam('/tmp')
+    tmpath = tempfile.mkdtemp()
     create_system_dataset(dispatcher, dsid, dst_pool)
     mount_system_dataset(dispatcher, dsid, dst_pool, tmpath)
 
