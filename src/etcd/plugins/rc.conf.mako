@@ -22,6 +22,7 @@ background_fsck="NO"
 fsck_y_enable="YES"
 synchronous_dhclient="YES"
 zfs_enable="YES"
+devd_enable="NO"
 
 # middleware10
 dispatcher_enable="YES"
