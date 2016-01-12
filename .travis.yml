@@ -1,5 +1,7 @@
-language: python
 os:
     - osx
+before_install:
+    - brew update
+    - brew install python
 install: pip install virtualenv
 script: make bin
