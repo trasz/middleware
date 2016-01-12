@@ -3,4 +3,4 @@ os:
 before_install:
     - brew update
     - brew install python
-script: make -C src/cli macosx
+script: make -C src/cli macosx VERSION=1.0.0
