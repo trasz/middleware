@@ -74,6 +74,8 @@ class RestoreFactoryConfigTask(ProgressTask):
         except DatastoreException as err:
             raise TaskException(errno.EFAULT, 'Cannot restore factory database: {0}'.format(str(err)))
 
+        self.join_subtasks(self.run_subtask('system.reboot', 1))
+
 
 def _init(dispatcher, plugin):
     plugin.register_task_handler('database.restore_factory', RestoreFactoryConfigTask)
