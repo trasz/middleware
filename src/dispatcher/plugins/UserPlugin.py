@@ -100,10 +100,13 @@ class UserProvider(Provider):
 
     @description("Retrieve the next UID available")
     @returns(int)
-    def next_uid(self):
+    def next_uid(self, check_gid=False):
         start_uid, end_uid = self.dispatcher.configstore.get('accounts.local_uid_range')
         uid = None
         for i in range(start_uid, end_uid):
+            if check_gid and self.datastore.exists('groups', ('id', '=', i)):
+                continue
+
             if not self.datastore.exists('users', ('id', '=', i)):
                 uid = i
                 break
@@ -203,7 +206,7 @@ class UserCreateTask(Task):
     def run(self, user):
         if 'id' not in user:
             # Need to get next free UID
-            uid = self.dispatcher.call_sync('user.next_uid')
+            uid = self.dispatcher.call_sync('user.next_uid', user.get('group') is None)
         else:
             uid = user.pop('id')
 
