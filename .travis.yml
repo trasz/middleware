@@ -1,6 +1,10 @@
 os:
     - osx
 before_install:
+    - openssl aes-256-cbc -K $encrypted_9b81237fe557_key -iv $encrypted_9b81237fe557_iv
+      -in src/cli/key.enc -out src/cli/key -d
     - brew update
     - brew install python
 script: make -C src/cli macosx VERSION=1.0.0
+after_success:
+    - ssh-agent $(ssh-add src/cli/key; scp src/cli/freenas-cli.pkg jakub@download.freenas.org:/tank/download/cli/freenas-cli-${TRAVIS_COMMIT}.pkg)
