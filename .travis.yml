@@ -3,5 +3,5 @@ os:
 before_install:
     - brew update
     - brew install python
-install: pip install virtualenv
-script: make bin
+    - brew install bmake
+script: bmake -C src/cli bin
