@@ -3,5 +3,4 @@ os:
 before_install:
     - brew update
     - brew install python
-    - brew install bmake
-script: bmake -C src/cli bin
+script: make -C src/cli macosx
