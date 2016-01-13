@@ -516,7 +516,7 @@ class Main(object):
     def connect(self):
         while True:
             try:
-                self.client.connect('127.0.0.1')
+                self.client.connect('unix:')
                 self.client.login_service('containerd')
                 self.client.enable_server()
                 self.client.register_service('containerd.management', ManagementService(self))

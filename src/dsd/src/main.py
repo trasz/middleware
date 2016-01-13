@@ -607,7 +607,7 @@ class Main(object):
     def connect(self, resume=False):
         while True:  
             try:
-                self.client.connect('127.0.0.1')
+                self.client.connect('unix:')
                 self.client.login_service('dsd')
                 self.client.enable_server()
                 self.register_schemas()
