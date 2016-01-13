@@ -444,10 +444,10 @@ class SystemTimeConfigureTask(Task):
 @accepts()
 @description("Reboots the System after a delay of 10 seconds")
 class SystemRebootTask(Task):
-    def describe(self):
+    def describe(self, delay=10):
         return "System Reboot"
 
-    def verify(self):
+    def verify(self, delay=10):
         return ['root']
 
     def run(self, delay=10):
