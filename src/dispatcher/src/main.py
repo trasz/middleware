@@ -813,8 +813,12 @@ class UnixSocketServer(object):
                 except (OSError, ValueError, socket.timeout):
                     self.server.logger.info('Send failed; closing connection')
                     self.conn.on_close('Bye bye')
-                    self.fd.close()
-                    self.connfd.close()
+                    try:
+                        self.fd.close()
+                        self.connfd.close()
+                    except OSError:
+                        pass
+
                     self.conn = None
 
         def handle_connection(self):
