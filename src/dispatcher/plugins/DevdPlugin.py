@@ -278,6 +278,8 @@ class DevdEventSource(EventSource):
                 self.dispatcher.logger.info('retrying in 1s')
                 time.sleep(1)
 
+            self.socket.close()
+
 
 def _depends():
     return ['ServiceManagePlugin']
