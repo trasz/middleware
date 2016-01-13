@@ -241,7 +241,7 @@ class Context(object):
     def connect(self):
         while True:
             try:
-                self.client.connect('127.0.0.1')
+                self.client.connect('unix:')
                 self.client.login_service('schedulerd')
                 self.client.enable_server()
                 self.client.register_service('scheduler.management', ManagementService(self))
