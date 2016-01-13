@@ -806,7 +806,11 @@ class UnixSocketServer(object):
                 data = message.encode('utf-8')
                 header = struct.pack('II', 0xdeadbeef, len(data))
                 try:
-                    wait_write(self.connfd.fileno(), 0.1)
+                    fd = self.connfd.fileno()
+                    if fd == -1:
+                        return
+
+                    wait_write(fd, 0.1)
                     self.fd.write(header)
                     self.fd.write(data)
                     self.fd.flush()
@@ -849,8 +853,11 @@ class UnixSocketServer(object):
             # self.conn might have been closed earlier by failed send().
             if self.conn:
                 self.conn.on_close('Bye bye')
-                self.fd.close()
-                self.connfd.close()
+                try:
+                    self.fd.close()
+                    self.connfd.close()
+                except OSError:
+                    pass
 
     def __init__(self, path, dispatcher):
         self.path = path
