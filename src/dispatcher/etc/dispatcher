@@ -31,6 +31,11 @@ prestart()
    if [ -z "$(check_pidfile /var/run/devd.pid /sbin/devd)" ]; then
         /sbin/devd
    fi
+
+   if [ "$(check_pidfile /var/run/dispatcher.pid /usr/sbin/daemon)" ]; then
+        echo "ERROR: dispatcher is already running"
+        exit 1
+   fi
 }
 
 poststart()
