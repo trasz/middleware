@@ -937,6 +937,7 @@ def update_disk_cache(dispatcher, path):
     name = re.match('/dev/(.*)', path).group(1)
     gdisk = geom.geom_by_name('DISK', name)
     gpart = geom.geom_by_name('PART', name)
+    gmultipath = None
 
     # Handle diskid labels
     if gpart is None:
@@ -944,7 +945,10 @@ def update_disk_cache(dispatcher, path):
         if glabel and glabel.provider and glabel.provider.name.startswith('diskid/'):
             gpart = geom.geom_by_name('PART', glabel.provider.name)
 
-    gmultipath = geom.geom_by_name('MULTIPATH', name)
+    if name.startswith('multipath/'):
+        multipath_name = re.match('multipath/(.*)', name).group(1)
+        gmultipath = geom.geom_by_name('MULTIPATH', multipath_name)
+
     disk = get_disk_by_path(path)
     if not disk:
         return
