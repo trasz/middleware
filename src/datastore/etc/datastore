@@ -8,50 +8,26 @@
 name="datastore"
 rcvar="datastore_enable"
 start_cmd="datastore_start"
-start_precmd="precmd"
 init_cmd="datastore_init"
-init_precmd="precmd"
 stop_cmd="datastore_stop"
-stop_precmd="precmd"
-status_cmd="datastore_status"
 extra_commands="init"
 libdir="/usr/local/lib/datastore"
 
 . /etc/rc.subr
 
-precmd()
-{
-    if [ ! -d ${libdir}/drivers/${datastore_driver} ]; then
-        warn "Could not find specified driver"
-        return 1
-    fi
-
-    if [ ! -n "${datastore_dbdir}" ]; then
-        warn "dbdir is not set"
-        return 1
-    fi
-
-    driver_ctl="${libdir}/drivers/${datastore_driver}/control"
-}
-
 datastore_start()
 {
-   ${driver_ctl} ${datastore_dbdir} start
+    /usr/local/sbin/dsinit --start-forked
 }
 
 datastore_stop()
 {
-    ${driver_ctl} ${datastore_dbdir} stop
-}
-
-datastore_status()
-{
-    ${driver_ctl} ${datastore_dbdir} status
+    /usr/local/sbin/dsinit --stop-forked
 }
 
 datastore_init()
 {
-    ${driver_ctl} ${datastore_dbdir} init
+     /usr/local/sbin/dsinit --init
 }
 
 load_rc_config $name

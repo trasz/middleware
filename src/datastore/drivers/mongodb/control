@@ -2,7 +2,7 @@
 datadir=$1
 cmd=$2
 driverdir=$(dirname $0)
-dbdir=${datadir}/freenas.db
+dbdir=${datadir}
 mongod=/usr/local/bin/mongod
 pidfile=${dbdir}/mongod.lock
 
