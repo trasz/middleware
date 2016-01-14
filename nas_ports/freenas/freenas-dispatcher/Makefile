@@ -31,7 +31,7 @@ RUN_DEPENDS=	${PYTHON_PKGNAMEPREFIX}argh>0:${PORTSDIR}/devel/py-argh \
 		${PYTHON_PKGNAMEPREFIX}simplejson>0:${PORTSDIR}/devel/py-simplejson \
 		${PYTHON_PKGNAMEPREFIX}texttable>0:${PORTSDIR}/textproc/py-texttable \
 		${PYTHON_PKGNAMEPREFIX}ws4py>0:${PORTSDIR}/freenas/py-ws4py \
-		${PYTHON_PKGNAMEPREFIX}pygithub>0:${PORTSDIR}/devel/py-pygithub
+		${PYTHON_PKGNAMEPREFIX}pygit2>0:${PORTSDIR}/devel/py-pygit2
 
 USES=		python
 USE_PYTHON=	py3kplist
