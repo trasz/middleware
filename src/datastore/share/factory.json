@@ -1029,10 +1029,6 @@
             "replication.key.private": null,
             "container.network.management": "169.254.16.1/20",
             "container.network.nat": "169.254.32.1/20",
-            "container.template.search_path": [
-                "file:///usr/local/share/containerd/templates",
-                "https://raw.github.com/freenas/vm-templates/master/templates"
-            ],
             "storage.hotsparing.autoreplace": true,
             "storage.hotsparing.strong_match": false
         },
