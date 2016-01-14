@@ -30,7 +30,7 @@ import sys
 import errno
 from freenas.utils.query import wrap
 from task import Provider, Task, ProgressTask, VerifyException, TaskException
-
+from freenas.dispatcher.rpc import accepts, returns, description, SchemaHelper as h
 
 sys.path.append('/usr/local/lib')
 from freenasOS.Update import ListClones, FindClone, RenameClone, ActivateClone, DeleteClone, CreateClone
@@ -49,6 +49,8 @@ class BootEnvironmentsProvider(Provider):
         return wrap(clones).query(*(filter or []), **(params or {}))
 
 
+@description("Creates a clone of the current Boot Environment or of the specified source (optional")
+@accepts(str, h.any_of(str, None))
 class BootEnvironmentCreate(Task):
     def verify(self, newname, source=None):
         return ['system']
@@ -58,6 +60,8 @@ class BootEnvironmentCreate(Task):
             raise TaskException(errno.EIO, 'Cannot create the {0} boot environment'.format(newname))
 
 
+@description("Activates the specified Boot Environment to be selected on reboot")
+@accepts(str)
 class BootEnvironmentActivate(Task):
     def verify(self, name):
         be = FindClone(name)
@@ -71,6 +75,8 @@ class BootEnvironmentActivate(Task):
             raise TaskException(errno.EIO, 'Cannot activate the {0} boot environment'.format(name))
 
 
+@description("Renames the given Boot Environment with the alternate name provieded")
+@accepts(str, str)
 class BootEnvironmentRename(Task):
     def verify(self, oldname, newname):
         be = FindClone(oldname)
@@ -84,6 +90,8 @@ class BootEnvironmentRename(Task):
             raise TaskException(errno.EIO, 'Cannot rename the {0} boot evironment'.format(newname))
 
 
+@description("Deletes the given Boot Environments. Note: It cannot delete an activated BE")
+@accepts(h.array(str))
 class BootEnvironmentsDelete(Task):
     def verify(self, names):
         for n in names:
@@ -99,6 +107,8 @@ class BootEnvironmentsDelete(Task):
                 raise TaskException(errno.EIO, 'Cannot delete the {0} boot environment'.format(n))
 
 
+@description("Attaches the given Disk to the Boot Pool")
+@accepts(str, str)
 class BootAttachDisk(ProgressTask):
     def verify(self, guid, disk):
         boot_pool_name = self.configstore.get('system.boot_pool_name')
@@ -126,6 +136,8 @@ class BootAttachDisk(ProgressTask):
         self.set_progress(100)
 
 
+@description("Detaches the specified Disk fron the Boot Pool (not functional yet)")
+@accepts(str)
 class BootDetachDisk(Task):
     def verify(self, disk):
         pass

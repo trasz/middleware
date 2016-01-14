@@ -975,6 +975,7 @@ class VolumeUpgradeTask(Task):
         })
 
 
+@accepts(str, h.ref('zfs-vdev'))
 class VolumeAutoReplaceTask(Task):
     def verify(self, name, failed_vdev):
         if not self.datastore.exists('volumes', ('name', '=', name)):
@@ -1383,6 +1384,8 @@ class DatasetConfigureTask(Task):
             self.join_subtasks(self.run_subtask('file.set_permissions', fs_path, updated_params['permissions']))
 
 
+@description("Creates a snapshot")
+@accepts(str, str, str, h.any_of(bool, None))
 class SnapshotCreateTask(Task):
     def verify(self, pool_name, dataset_name, snapshot_name, recursive=False):
         return ['zfs:{0}'.format(dataset_name)]
@@ -1397,6 +1400,8 @@ class SnapshotCreateTask(Task):
         ))
 
 
+@description("Deletes the specified snapshot")
+@accepts(str, str, str)
 class SnapshotDeleteTask(Task):
     def verify(self, pool_name, dataset_name, snapshot_name):
         return ['zfs:{0}'.format(dataset_name)]

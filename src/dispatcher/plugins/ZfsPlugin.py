@@ -643,6 +643,7 @@ class ZfsDatasetCreateTask(Task):
             raise TaskException(errno.EFAULT, str(err))
 
 
+@accepts(str, str, str, h.any_of(bool, None), h.any_of(h.object(), None))
 class ZfsSnapshotCreateTask(ZfsBaseTask):
     def run(self, pool_name, path, snapshot_name, recursive=False, params=None):
         if params:
@@ -656,6 +657,7 @@ class ZfsSnapshotCreateTask(ZfsBaseTask):
             raise TaskException(errno.EFAULT, str(err))
 
 
+@accepts(str, str, str, h.any_of(bool, None))
 class ZfsSnapshotDeleteTask(ZfsBaseTask):
     def run(self, pool_name, path, snapshot_name, recursive=False):
         try:
@@ -666,6 +668,7 @@ class ZfsSnapshotDeleteTask(ZfsBaseTask):
             raise TaskException(errno.EFAULT, str(err))
 
 
+@accepts(str, str, h.array(str), h.any_of(bool, None))
 class ZfsSnapshotDeleteMultipleTask(ZfsBaseTask):
     def run(self, pool_name, path, snapshot_names, recursive=False):
         try:
@@ -705,6 +708,7 @@ class ZfsDestroyTask(ZfsBaseTask):
             raise TaskException(errno.EFAULT, str(err))
 
 
+@accepts(str, str)
 class ZfsRenameTask(ZfsBaseTask):
     def run(self, name, new_name):
         try:
@@ -715,6 +719,7 @@ class ZfsRenameTask(ZfsBaseTask):
             raise TaskException(errno.EFAULT, str(err))
 
 
+@accepts(str)
 class ZfsCloneTask(ZfsBaseTask):
     def run(self, path):
         try:

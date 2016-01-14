@@ -441,8 +441,8 @@ class SystemTimeConfigureTask(Task):
                 )
 
 
-@accepts()
-@description("Reboots the System after a delay of 10 seconds")
+@accepts(h.any_of(int, None))
+@description("Reboots the System after delay of 10 seconds")
 class SystemRebootTask(Task):
     def describe(self, delay=10):
         return "System Reboot"
@@ -458,7 +458,7 @@ class SystemRebootTask(Task):
                   shell=True)
 
 
-@accepts()
+@accepts(h.any_of(int, None))
 @description("Shuts the system down after a delay of 10 seconds")
 class SystemHaltTask(Task):
     def describe(self):

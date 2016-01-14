@@ -26,7 +26,7 @@
 #####################################################################
 
 from task import Provider, Task, VerifyException, TaskException
-from freenas.dispatcher.rpc import description, accepts, returns, private
+from freenas.dispatcher.rpc import description, accepts, returns, private, SchemaHelper as h
 
 
 @description("Provides access to configuration store")
@@ -43,6 +43,7 @@ class ConfigProvider(Provider):
 
 
 @description("Updates configuration settings")
+@accepts(h.object())
 class UpdateConfigTask(Task):
     def verify(self, settings):
         return ['system']

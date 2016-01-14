@@ -145,6 +145,9 @@ class DiskProvider(Provider):
             update_disk_cache(self.dispatcher, disk)
 
 
+@description(
+    "GPT formats the given disk with the filesystem type and parameters(optional) specified"
+)
 @accepts(str, str, h.object())
 class DiskGPTFormatTask(Task):
     def describe(self, disk, fstype, params=None):
@@ -197,6 +200,8 @@ class DiskGPTFormatTask(Task):
             raise TaskException(errno.EFAULT, 'Cannot format disk: {0}'.format(err.err))
 
 
+@description('Formats given disk to be bootable and capable to be included in the Boot Pool')
+@accepts(str)
 class DiskBootFormatTask(Task):
     def describe(self, disk):
         return "Formatting bootable disk {0}".format(disk)
@@ -223,6 +228,8 @@ class DiskBootFormatTask(Task):
             raise TaskException(errno.EFAULT, 'Cannot format disk: {0}'.format(err.err))
 
 
+@description("Installs Bootloader (grub) on specified disk")
+@accepts(str)
 class DiskInstallBootloaderTask(Task):
     def describe(self, disk):
         return "Installing bootloader on disk {0}".format(disk)
@@ -241,6 +248,7 @@ class DiskInstallBootloaderTask(Task):
             raise TaskException(errno.EFAULT, 'Cannot install GRUB: {0}'.format(err.err))
 
 
+@description("Erases the given Disk with erasure method specified (default: QUICK)")
 @accepts(str, h.ref('disk-erase-method'))
 class DiskEraseTask(Task):
     def __init__(self, dispatcher, datastore):
@@ -690,6 +698,8 @@ class DiskTestTask(ProgressTask):
         self.dispatcher.call_sync('disk.update_disk_cache', diskinfo['path'], timeout=120)
 
 
+@description("Performs the given SMART test on the disk IDs specified (in parallel)")
+@accepts(h.array(str), h.ref('disk-selftest-type'))
 class DiskParallelTestTask(ProgressTask):
     def verify(self, ids, test_type):
         res = []

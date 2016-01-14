@@ -38,6 +38,7 @@ class FakeDisksProvider(Provider):
         return self.datastore.query('simulator.disks', *(filter or []), **(params or {}))
 
 
+@description("Creates a Simulated Fake Disk with the parameters provided")
 @accepts(
     h.all_of(
         h.ref('simulated-disk'),
@@ -71,6 +72,14 @@ class CreateFakeDisk(Task):
         self.dispatcher.call_sync('service.reload', 'ctl')
 
 
+@description("Configures the given Simulated Disk ID with the specified parameters")
+@accepts(
+    str,
+    h.all_of(
+        h.ref('simulated-disk'),
+        h.no(h.required('id'))
+    )
+)
 class ConfigureFakeDisk(Task):
     def verify(self, id, updated_params):
         if not self.datastore.exists('simulator.disks', ('id', '=', id)):
@@ -86,6 +95,8 @@ class ConfigureFakeDisk(Task):
         self.dispatcher.call_sync('service.reload', 'ctl')
 
 
+@description("Deletes the Simulated Fake Disk identified with the ID provided")
+@accepts(str)
 class DeleteFakeDisk(Task):
     def verify(self, id):
         if not self.datastore.exists('simulator.disks', ('id', '=', id)):
