@@ -185,6 +185,7 @@ class DevdEventSource(EventSource):
             if args["type"] == "CHANGE":
                 params = exclude(args, "system", "subsystem", "type")
                 params["description"] = "System hostname changed"
+                params["jid"] = int(args["jid"])
                 self.emit_event("system.hostname.change", **params)
 
     def __process_zfs(self, args):

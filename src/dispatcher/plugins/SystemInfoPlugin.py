@@ -480,6 +480,9 @@ def _init(dispatcher, plugin):
         if 'hostname' not in args:
             return
 
+        if args.get('jid') != 0:
+            return
+
         dispatcher.configstore.set('system.hostname', args['hostname'])
         dispatcher.call_sync('service.restart', 'mdns')
         dispatcher.dispatch_event('system.general.changed', {
