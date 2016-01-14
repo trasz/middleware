@@ -611,7 +611,7 @@ class ZfsDatasetUmountTask(ZfsBaseTask):
             raise TaskException(errno.EFAULT, str(err))
 
 
-@accepts(str, str, h.object())
+@accepts(str, str, h.ref('dataset-type'), h.object())
 class ZfsDatasetCreateTask(Task):
     def check_type(self, type):
         try:
@@ -1214,7 +1214,7 @@ def _init(dispatcher, plugin):
 
     plugin.register_schema_definition('dataset-type', {
         'type': 'string',
-        'enum': ['FILESYSTEM', 'VOLUME']
+        'enum': list(libzfs.DatasetType.__members__.keys())
     })
 
     plugin.register_schema_definition('zfs-snapshot', {
