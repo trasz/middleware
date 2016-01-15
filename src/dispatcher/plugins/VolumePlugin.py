@@ -526,9 +526,9 @@ class VolumeCreateTask(ProgressTask):
 
 
 @description("Creates new volume and automatically guesses disks layout")
-@accepts(str, str, str, h.array(str), h.object(), h.one_of(str, None))
+@accepts(str, str, str, h.array(str), h.array(str), h.array(str), h.one_of(str, None))
 class VolumeAutoCreateTask(Task):
-    def verify(self, name, type, layout, disks, params=None, password=None):
+    def verify(self, name, type, layout, disks, cache_disks, log_disks, password=None):
         if self.datastore.exists('volumes', ('name', '=', name)):
             raise VerifyException(
                 errno.EEXIST,
@@ -537,8 +537,10 @@ class VolumeAutoCreateTask(Task):
 
         return ['disk:{0}'.format(os.path.join('/dev', i)) for i in disks]
 
-    def run(self, name, type, layout, disks, cache_disks, log_disks, password=None):
+    def run(self, name, type, layout, disks, cache_disks=None, log_disks=None, password=None):
         vdevs = []
+        cache_vdevs = []
+        log_vdevs = []
         ltype = VOLUME_LAYOUTS[layout]
         ndisks = DISKS_PER_VDEV[ltype]
 
@@ -562,11 +564,25 @@ class VolumeAutoCreateTask(Task):
                     ]
                 })
 
-        self.join_subtasks(self.run_subtask('volume.create', {
-            'name': name,
-            'type': type,
-            'topology': {'data': vdevs},
-            'params': params},
+        cache_vdevs = [
+            {'type': 'disk', 'path': os.path.join('/dev', i)} for i in cache_disks or []
+        ]
+
+        log_vdevs = [
+            {'type': 'disk', 'path': os.path.join('/dev', i)} for i in log_disks or []
+        ]
+
+        self.join_subtasks(self.run_subtask(
+            'volume.create',
+            {
+                'name': name,
+                'type': type,
+                'topology': {
+                    'data': vdevs,
+                    'cache': cache_vdevs,
+                    'log': log_vdevs
+                    },
+            },
             password
         ))
 
