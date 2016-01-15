@@ -304,7 +304,9 @@ class TemplateFetchTask(ProgressTask):
             raise TaskException(errno.EACCES, 'Cannot remove templates directory: {0}'.format(templates_dir))
         except FileNotFoundError:
             pass
+
         self.set_progress(10, 'Downloading new templates')
+
         pygit2.clone_repository('http://github.com/freenas/vm-templates', templates_dir)
         self.set_progress(100, 'Templates downloaded')
 
