@@ -528,7 +528,7 @@ class VolumeCreateTask(ProgressTask):
 @description("Creates new volume and automatically guesses disks layout")
 @accepts(str, str, str, h.array(str), h.array(str), h.array(str), h.one_of(str, None))
 class VolumeAutoCreateTask(Task):
-    def verify(self, name, type, layout, disks, cache_disks, log_disks, password=None):
+    def verify(self, name, type, layout, disks, cache_disks=None, log_disks=None, password=None):
         if self.datastore.exists('volumes', ('name', '=', name)):
             raise VerifyException(
                 errno.EEXIST,
@@ -539,8 +539,6 @@ class VolumeAutoCreateTask(Task):
 
     def run(self, name, type, layout, disks, cache_disks=None, log_disks=None, password=None):
         vdevs = []
-        cache_vdevs = []
-        log_vdevs = []
         ltype = VOLUME_LAYOUTS[layout]
         ndisks = DISKS_PER_VDEV[ltype]
 
