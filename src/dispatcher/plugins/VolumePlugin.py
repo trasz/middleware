@@ -47,11 +47,34 @@ from freenas.dispatcher.rpc import (
     )
 from utils import first_or_default
 from datastore import DuplicateKeyException
-from freenas.utils import include, exclude, normalize
+from freenas.utils import include, exclude, normalize, chunks
 from freenas.utils.query import wrap
 from freenas.utils.copytree import count_files, copytree
 from cryptography.fernet import Fernet, InvalidToken
 
+
+VOLUME_LAYOUTS = {
+    'stripe': 'disk',
+    'mirror': 'mirror',
+    'raidz': 'raidz1',
+    'raidz1': 'raidz1',
+    'raidz2': 'raidz2',
+    'raidz3': 'raidz3',
+    'virtualization': 'mirror',
+    'speed': 'mirror',
+    'backup': 'raidz2',
+    'safety': 'raidz2',
+    'storage': 'raidz1',
+    'auto': 'mirror'
+}
+
+DISKS_PER_VDEV = {
+    'disk': 1,
+    'mirror': 2,
+    'raidz1': 3,
+    'raidz2': 4,
+    'raidz3': 5
+}
 
 VOLUMES_ROOT = '/mnt'
 DEFAULT_ACLS = [
@@ -505,29 +528,36 @@ class VolumeCreateTask(ProgressTask):
 @description("Creates new volume and automatically guesses disks layout")
 @accepts(str, str, h.array(str), h.object(), h.one_of(str, None))
 class VolumeAutoCreateTask(Task):
-    def verify(self, name, type, disks, params=None, password=None):
+    def verify(self, name, type, layout, disks, params=None, password=None):
         if self.datastore.exists('volumes', ('name', '=', name)):
-            raise VerifyException(errno.EEXIST,
-                                  'Volume with same name already exists')
+            raise VerifyException(
+                errno.EEXIST,
+                'Volume with same name already exists'
+            )
 
         return ['disk:{0}'.format(os.path.join('/dev', i)) for i in disks]
 
-    def run(self, name, type, disks, params=None, password=None):
+    def run(self, name, type, layout, disks, params=None, password=None):
         vdevs = []
-        if len(disks) % 3 == 0:
-            for i in range(0, len(disks), 3):
+        type = VOLUME_LAYOUTS[layout]
+        ndisks = DISKS_PER_VDEV[type]
+
+        for chunk in chunks(disks, ndisks):
+            if len(chunk) != ndisks:
+                break
+
+            if type == 'disk':
                 vdevs.append({
-                    'type': 'raidz1',
-                    'children': [{'type': 'disk', 'path': os.path.join('/dev', i)} for i in disks[i:i+3]]
+                    'type': 'disk',
+                    'path': os.path.join('/dev', chunk[0])
                 })
-        elif len(disks) % 2 == 0:
-            for i in range(0, len(disks), 2):
+            else:
                 vdevs.append({
-                    'type': 'mirror',
-                    'children': [{'type': 'disk', 'path': os.path.join('/dev', i)} for i in disks[i:i+2]]
+                    'type': type,
+                    'children': [
+                        {'type': 'disk', 'path': os.path.join('/dev', i)} for i in chunk
+                    ]
                 })
-        else:
-            vdevs = [{'type': 'disk', 'path': os.path.join('/dev', i)} for i in disks]
 
         self.join_subtasks(self.run_subtask('volume.create', {
             'name': name,
