@@ -553,7 +553,7 @@ class VolumeAutoCreateTask(Task):
                 })
             else:
                 vdevs.append({
-                    'type': type,
+                    'type': ltype,
                     'children': [
                         {'type': 'disk', 'path': os.path.join('/dev', i)} for i in chunk
                     ]
