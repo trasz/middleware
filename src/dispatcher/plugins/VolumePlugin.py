@@ -546,7 +546,7 @@ class VolumeAutoCreateTask(Task):
             if len(chunk) != ndisks:
                 break
 
-            if type == 'disk':
+            if ltype == 'disk':
                 vdevs.append({
                     'type': 'disk',
                     'path': os.path.join('/dev', chunk[0])
