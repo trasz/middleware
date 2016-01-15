@@ -539,8 +539,8 @@ class VolumeAutoCreateTask(Task):
 
     def run(self, name, type, layout, disks, params=None, password=None):
         vdevs = []
-        type = VOLUME_LAYOUTS[layout]
-        ndisks = DISKS_PER_VDEV[type]
+        ltype = VOLUME_LAYOUTS[layout]
+        ndisks = DISKS_PER_VDEV[ltype]
 
         for chunk in chunks(disks, ndisks):
             if len(chunk) != ndisks:
