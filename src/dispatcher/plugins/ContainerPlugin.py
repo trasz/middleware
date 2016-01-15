@@ -33,9 +33,11 @@ import json
 import tempfile
 import hashlib
 import gzip
+import pygit2
 import urllib.request
 import urllib.parse
 import urllib.error
+import shutil
 from task import Provider, Task, ProgressTask, VerifyException, TaskException, query
 from freenas.dispatcher.rpc import RpcException
 from freenas.dispatcher.rpc import SchemaHelper as h, description, accepts, returns, private
@@ -272,6 +274,41 @@ class DownloadImageTask(ProgressTask):
                     dst.write(chunk)
 
 
+@query('template')
+class TemplateProvider(Provider):
+    def query(self, filter=None, params=None):
+        templates_dir = '/var/db/system/vm-templates'
+        templates = []
+        for root, dirs, files in os.walk(templates_dir):
+            if 'template.json' in files:
+                with open(os.path.join(root, 'template.json'), encoding='utf-8') as template:
+                    templates.append(json.loads(template.read()))
+
+        return templates
+
+    def get_one(self, name):
+        templates = self.dispatcher.call_sync('template.query')
+        return first_or_default(lambda t: t['template']['name'] == name, templates)
+
+
+class TemplateFetchTask(ProgressTask):
+    def verify(self):
+        return []
+
+    def run(self):
+        templates_dir = '/var/db/system/vm-templates'
+        self.set_progress(0, 'Removing old templates')
+        try:
+            shutil.rmtree(templates_dir)
+        except shutil.Error:
+            raise TaskException(errno.EACCES, 'Cannot remove templates directory: {0}'.format(templates_dir))
+        except FileNotFoundError:
+            pass
+        self.set_progress(10, 'Downloading new templates')
+        pygit2.clone_repository('http://github.com/freenas/vm-templates', templates_dir)
+        self.set_progress(100, 'Templates downloaded')
+
+
 def try_get_template(search_path, template_name):
     for i in search_path:
         try:
@@ -373,5 +410,8 @@ def _init(dispatcher, plugin):
     plugin.register_task_handler('container.start', ContainerStartTask)
     plugin.register_task_handler('container.stop', ContainerStopTask)
     plugin.register_task_handler('container.download_image', DownloadImageTask)
+
+    plugin.register_provider('template', TemplateProvider)
+    plugin.register_task_handler('template.fetch', TemplateFetchTask)
 
     plugin.register_event_type('container.changed')
