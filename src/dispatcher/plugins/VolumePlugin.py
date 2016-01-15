@@ -526,7 +526,7 @@ class VolumeCreateTask(ProgressTask):
 
 
 @description("Creates new volume and automatically guesses disks layout")
-@accepts(str, str, str, h.array(str), h.array(str), h.array(str), h.one_of(str, None))
+@accepts(str, str, str, h.array(str), h.array(str), h.array(str), h.one_of(bool, None), h.one_of(str, None))
 class VolumeAutoCreateTask(Task):
     def verify(self, name, type, layout, disks, cache_disks=None, log_disks=None, encryption=False, password=None):
         if self.datastore.exists('volumes', ('name', '=', name)):
