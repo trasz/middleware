@@ -537,7 +537,7 @@ class VolumeAutoCreateTask(Task):
 
         return ['disk:{0}'.format(os.path.join('/dev', i)) for i in disks]
 
-    def run(self, name, type, layout, disks, cache_disks=None, log_disks=None, password=None):
+    def run(self, name, type, layout, disks, cache_disks=None, log_disks=None, encryption=False, password=None):
         vdevs = []
         ltype = VOLUME_LAYOUTS[layout]
         ndisks = DISKS_PER_VDEV[ltype]
