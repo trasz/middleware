@@ -305,9 +305,16 @@ class TemplateFetchTask(ProgressTask):
         except FileNotFoundError:
             pass
 
-        self.set_progress(10, 'Downloading new templates')
+        progress = 10
+        self.set_progress(progress, 'Downloading templates')
+        template_sources = self.datastore.query('container.template_sources', [], callback=None, {})
 
-        pygit2.clone_repository('http://github.com/freenas/vm-templates', templates_dir)
+        progress_per_source = 90 / len(template_sources)
+        for source in template_sources:
+            if source.get('driver', '') == 'git':
+                pygit2.clone_repository(source['url'], os.path.join(templates_dir, source['id']))
+            self.set_progress(progress + progress_per_source, 'Finished operation for {0}'.format(source['id']))
+
         self.set_progress(100, 'Templates downloaded')
 
 
