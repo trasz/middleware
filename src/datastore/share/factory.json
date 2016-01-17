@@ -2035,7 +2035,7 @@
     {
         "metadata": {
             "name": "container.template_sources",
-            "migration": "keep",
+            "migration": "replace",
             "pkey-type": "native",
             "attributes": {
                 "type": "config"
