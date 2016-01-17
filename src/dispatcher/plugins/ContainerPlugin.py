@@ -307,7 +307,7 @@ class TemplateFetchTask(ProgressTask):
 
         progress = 10
         self.set_progress(progress, 'Downloading templates')
-        template_sources = self.datastore.query('container.template_sources', [], callback=None, {})
+        template_sources = self.datastore.query('container.template_sources')
 
         progress_per_source = 90 / len(template_sources)
         for source in template_sources:
