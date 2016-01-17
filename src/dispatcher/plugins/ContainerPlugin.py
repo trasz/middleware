@@ -277,7 +277,7 @@ class DownloadImageTask(ProgressTask):
 @query('template')
 class TemplateProvider(Provider):
     def query(self, filter=None, params=None):
-        templates_dir = '/var/db/system/vm-templates'
+        templates_dir = self.dispatcher.call_sync('system_dataset.request_directory', 'vm-templates')
         templates = []
         for root, dirs, files in os.walk(templates_dir):
             if 'template.json' in files:
@@ -296,7 +296,7 @@ class TemplateFetchTask(ProgressTask):
         return []
 
     def run(self):
-        templates_dir = '/var/db/system/vm-templates'
+        templates_dir = self.dispatcher.call_sync('system_dataset.request_directory', 'vm-templates')
         self.set_progress(0, 'Removing old templates')
         try:
             shutil.rmtree(templates_dir)
