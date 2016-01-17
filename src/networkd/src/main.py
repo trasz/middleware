@@ -864,6 +864,7 @@ class Main:
         self.scan_interfaces()
         self.init_routing_socket()
         self.client.resume_service('networkd.configuration')
+        self.client.resume_service('networkd.debug')
         self.logger.info('Started')
         self.client.wait_forever()
 
