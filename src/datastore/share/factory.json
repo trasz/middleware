@@ -2047,7 +2047,7 @@
                 "url": "file:///usr/local/share/containerd/templates"
             },
             "github": {
-                "driver": "github",
+                "driver": "git",
                 "url": "https://github.com/freenas/vm-templates"
             }
         }
