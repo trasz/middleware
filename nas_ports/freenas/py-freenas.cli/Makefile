@@ -19,6 +19,7 @@ RUN_DEPENDS=	${PYTHON_PKGNAMEPREFIX}columnize>0:${PORTSDIR}/devel/py-columnize \
 		${PYTHON_PKGNAMEPREFIX}texttable>0:${PORTSDIR}/textproc/py-texttable \
 		${PYTHON_PKGNAMEPREFIX}six>0:${PORTSDIR}/devel/py-six \
 		${PYTHON_PKGNAMEPREFIX}pyte>0:${PORTSDIR}/devel/py-pyte \
+		${PYTHON_PKGNAMEPREFIX}future>0:${PORTSDIR}/devel/py-future \
 		${PYTHON_PKGNAMEPREFIX}freenas.utils>0:${PORTSDIR}/freenas/py-freenas.utils \
 		${PYTHON_PKGNAMEPREFIX}freenas.dispatcher>0:${PORTSDIR}/freenas/py-freenas.dispatcher
 
