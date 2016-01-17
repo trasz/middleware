@@ -9,10 +9,7 @@ VALID_CATEGORIES+= freenas
 MAINTAINER=	dev@ixsystems.com
 COMMENT=	FreeNAS middleware daemon
 
-FETCH_DEPENDS=	npm012>0:${PORTSDIR}/www/npm012
-
-BUILD_DEPENDS=	cython>0:${PORTSDIR}/lang/cython \
-		npm012>0:${PORTSDIR}/www/npm012
+BUILD_DEPENDS=	cython>0:${PORTSDIR}/lang/cython
 
 RUN_DEPENDS=	${PYTHON_PKGNAMEPREFIX}argh>0:${PORTSDIR}/devel/py-argh \
 		${PYTHON_PKGNAMEPREFIX}dateutil>0:${PORTSDIR}/devel/py-dateutil \
@@ -31,7 +28,9 @@ RUN_DEPENDS=	${PYTHON_PKGNAMEPREFIX}argh>0:${PORTSDIR}/devel/py-argh \
 		${PYTHON_PKGNAMEPREFIX}simplejson>0:${PORTSDIR}/devel/py-simplejson \
 		${PYTHON_PKGNAMEPREFIX}texttable>0:${PORTSDIR}/textproc/py-texttable \
 		${PYTHON_PKGNAMEPREFIX}ws4py>0:${PORTSDIR}/freenas/py-ws4py \
-		${PYTHON_PKGNAMEPREFIX}pygit2>0:${PORTSDIR}/devel/py-pygit2
+		${PYTHON_PKGNAMEPREFIX}pygit2>0:${PORTSDIR}/devel/py-pygit2 \
+		${PYTHON_PKGNAMEPREFIX}freenas.dispatcher>0:${PORTSDIR}/freenas/py-freenas.dispatcher \
+		js-freenas.dispatcher>0:${PORTSDIR}/freenas/js-freenas.dispatcher
 
 USES=		python
 USE_PYTHON=	py3kplist
@@ -47,7 +46,7 @@ checksum:
 	${ECHO_CMD} ${.TARGET} not needed because building direct
 
 fetch:
-	${MAKE} -C ${WRKSRC}/client/javascript fetch
+	:
 
 extract:
 	:

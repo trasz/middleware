@@ -1,5 +1,6 @@
 PREFIX ?= /usr/local
 PYTHON ?= python
+BROWSERIFY_BUNDLE= ${PREFIX}/share/js-freenas-dispatcher/middleware.js
 
 install:
 	install etc/dispatcher ${STAGEDIR}${PREFIX}/etc/rc.d/
@@ -17,4 +18,4 @@ install:
 	cp -R pydev/ ${STAGEDIR}${PREFIX}/lib/dispatcher/pydev/
 	cp -R libexec/ ${STAGEDIR}${PREFIX}/libexec/dispatcher/
 	${PYTHON} setup.py install --install-lib=${STAGEDIR}${PREFIX}/lib/dispatcher/src/lib/
-	cd client/javascript && make install BROWSERIFY_BUNDLE=${STAGEDIR}${PREFIX}/lib/dispatcher/src/frontend/static/middleware.js
+	cp ${BROWSERIFY_BUNDLE} ${STAGEDIR}${PREFIX}/lib/dispatcher/src/frontend/static/middleware.js
