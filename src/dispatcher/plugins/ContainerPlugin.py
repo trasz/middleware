@@ -274,8 +274,8 @@ class DownloadImageTask(ProgressTask):
                     dst.write(chunk)
 
 
-@query('template')
-class TemplateProvider(Provider):
+@query('vm_template')
+class VMTemplateProvider(Provider):
     def query(self, filter=None, params=None):
         templates_dir = self.dispatcher.call_sync('system_dataset.request_directory', 'vm-templates')
         templates = []
@@ -287,11 +287,11 @@ class TemplateProvider(Provider):
         return templates
 
     def get_one(self, name):
-        templates = self.dispatcher.call_sync('template.query')
+        templates = self.dispatcher.call_sync('vm_template.query')
         return first_or_default(lambda t: t['template']['name'] == name, templates)
 
 
-class TemplateFetchTask(ProgressTask):
+class VMTemplateFetchTask(ProgressTask):
     def verify(self):
         return []
 
@@ -420,7 +420,7 @@ def _init(dispatcher, plugin):
     plugin.register_task_handler('container.stop', ContainerStopTask)
     plugin.register_task_handler('container.download_image', DownloadImageTask)
 
-    plugin.register_provider('template', TemplateProvider)
-    plugin.register_task_handler('template.fetch', TemplateFetchTask)
+    plugin.register_provider('vm_template', VMTemplateProvider)
+    plugin.register_task_handler('vm_template.fetch', VMTemplateFetchTask)
 
     plugin.register_event_type('container.changed')
