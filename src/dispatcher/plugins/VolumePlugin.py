@@ -544,6 +544,7 @@ class VolumeAutoCreateTask(Task):
 
         if len(disks) == 1:
             ltype = 'disk'
+            ndisks = 1
 
         for chunk in chunks(disks, ndisks):
             if len(chunk) != ndisks:
