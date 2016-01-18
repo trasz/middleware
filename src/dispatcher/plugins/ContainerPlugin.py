@@ -44,8 +44,8 @@ from freenas.dispatcher.rpc import SchemaHelper as h, description, accepts, retu
 from freenas.utils import first_or_default, normalize, deep_update
 
 
-@query('container')
 class ContainerProvider(Provider):
+    @query('container')
     def query(self, filter=None, params=None):
         def extend(obj):
             obj['status'] = self.dispatcher.call_sync('containerd.management.get_status', obj['id'])
@@ -277,8 +277,8 @@ class DownloadImageTask(ProgressTask):
                     dst.write(chunk)
 
 
-@query('vm_template')
 class VMTemplateProvider(Provider):
+    @query('container')
     def query(self, filter=None, params=None):
         templates_dir = self.dispatcher.call_sync('system_dataset.request_directory', 'vm-templates')
         templates = []
