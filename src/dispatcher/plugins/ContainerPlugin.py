@@ -42,6 +42,7 @@ from task import Provider, Task, ProgressTask, VerifyException, TaskException, q
 from freenas.dispatcher.rpc import RpcException
 from freenas.dispatcher.rpc import SchemaHelper as h, description, accepts, returns, private
 from freenas.utils import first_or_default, normalize, deep_update
+from freenas.utils.query import wrap
 
 
 class ContainerProvider(Provider):
@@ -160,7 +161,9 @@ class ContainerCreateTask(ContainerBaseTask):
 
     def run(self, container):
         if container.get('template'):
-            template = self.dispatcher.call_sync('vm_template.get_one', container['template'].get('name'))
+            template = self.dispatcher.call_sync('vm_template.query',
+                                                 [('name', '=', container['template'].get('name'))],
+                                                 {'single': True})
             deep_update(container, template)
         else:
             normalize(container, {
@@ -287,11 +290,7 @@ class VMTemplateProvider(Provider):
                 with open(os.path.join(root, 'template.json'), encoding='utf-8') as template:
                     templates.append(json.loads(template.read()))
 
-        return templates
-
-    def get_one(self, name):
-        templates = self.dispatcher.call_sync('vm_template.query')
-        return first_or_default(lambda t: t['template']['name'] == name, templates)
+        return wrap(templates).query(filter, params)
 
 
 class VMTemplateFetchTask(ProgressTask):
