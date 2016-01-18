@@ -154,6 +154,11 @@ class CreateInterfaceTask(Task):
         except RpcException as e:
             raise TaskException(errno.ENXIO, 'Cannot reconfigure network: {0}'.format(str(e)))
 
+        self.dispatcher.dispatch_event('network.interface.changed', {
+            'operation': 'create',
+            'ids': [name]
+        })
+
         return name
 
 
@@ -176,6 +181,11 @@ class DeleteInterfaceTask(Task):
             self.dispatcher.call_sync('networkd.configuration.configure_network')
         except RpcException as e:
             raise TaskException(errno.ENXIO, 'Cannot reconfigure network: {0}'.format(str(e)))
+
+        self.dispatcher.dispatch_event('network.interface.changed', {
+            'operation': 'delete',
+            'ids': [name]
+        })
 
 
 @description("Alters network interface configuration")
