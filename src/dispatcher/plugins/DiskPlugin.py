@@ -769,7 +769,7 @@ def info_from_device(devname):
     }
 
     # TODO, fix this to deal with above generated args for interface
-    dev_smart_info = Device(os.path.join('/dev/', devname))
+    dev_smart_info = Device(os.path.join('/dev/', devname), abridged=True)
     disk_info['is_ssd'] = dev_smart_info.is_ssd
     disk_info['smart_capable'] = dev_smart_info.smart_capable
     disk_info['serial'] = dev_smart_info.serial
