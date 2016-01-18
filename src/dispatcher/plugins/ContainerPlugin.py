@@ -321,17 +321,6 @@ class VMTemplateFetchTask(ProgressTask):
         self.set_progress(100, 'Templates downloaded')
 
 
-def try_get_template(search_path, template_name):
-    for i in search_path:
-        try:
-            with urllib.request.urlopen(urllib.parse.urljoin(i, template_name + '.json')) as f:
-                return json.loads(f.read().decode('utf-8'))
-        except urllib.error.HTTPError:
-            continue
-
-    raise RpcException(errno.ENOENT, 'Template {0} not found')
-
-
 def _init(dispatcher, plugin):
     plugin.register_schema_definition('container', {
         'type': 'object',
