@@ -290,7 +290,7 @@ class VMTemplateProvider(Provider):
                 with open(os.path.join(root, 'template.json'), encoding='utf-8') as template:
                     templates.append(json.loads(template.read()))
 
-        return wrap(templates).query(filter, params)
+        return wrap(templates).query(*(filter or []), **(params or {}))
 
 
 class VMTemplateFetchTask(ProgressTask):
