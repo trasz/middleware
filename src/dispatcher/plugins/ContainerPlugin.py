@@ -151,14 +151,17 @@ class ContainerCreateTask(ContainerBaseTask):
         if not self.dispatcher.call_sync('volume.query', [('name', '=', container['target'])], {'single': True}):
             raise VerifyException(errno.ENXIO, 'Volume {0} doesn\'t exist'.format(container['target']))
 
+        if container.get('template'):
+            template = self.dispatcher.call_sync('vm_template.get_one', container['template'].get('name'))
+            if template is None:
+                raise VerifyException(errno.ENOENT, 'Template {0} not found'.format(container['template'].get('name')))
+
         return ['zpool:{0}'.format(container['target'])]
 
     def run(self, container):
         if container.get('template'):
-            deep_update(container, try_get_template(
-                self.configstore.get('container.template.search_path'),
-                container['template'].get('name')
-            ))
+            template = self.dispatcher.call_sync('vm_template.get_one', container['template'].get('name'))
+            deep_update(container, template)
         else:
             normalize(container, {
                 'config': {},
