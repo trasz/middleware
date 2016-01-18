@@ -275,6 +275,8 @@ class DiskEraseTask(Task):
         diskinfo = self.dispatcher.call_sync('disk.get_disk_config', disk)
         try:
             system('/sbin/zpool', 'labelclear', '-f', disk)
+            self.dispatcher.call_sync('disk.update_disk_cache', disk, timeout=120)
+            diskinfo = self.dispatcher.call_sync('disk.get_disk_config', disk)
             if diskinfo.get('partitions'):
                 system('/sbin/gpart', 'destroy', '-F', disk)
         except SubprocessException as err:
