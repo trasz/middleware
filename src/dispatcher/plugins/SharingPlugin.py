@@ -81,11 +81,8 @@ class SharesProvider(Provider):
     def get_dependencies(self, path):
         result = []
         for i in self.datastore.query('shares', ('enabled', '=', True)):
-            if i['target_type'] != 'DATASET':
-                # non-filesystem share
-                continue
-
-            if i['target_path'].startswith(path):
+            target_path = self.translate_path(i['id'])
+            if target_path.startswith(path):
                 result.append(i)
 
         return result
@@ -300,6 +297,12 @@ def _init(dispatcher, plugin):
         }
     })
 
+    def volume_pre_destroy(args):
+        path = dispatcher.call_sync('volume.resolve_path', args['name'], '')
+        dispatcher.call_task_sync('share.delete_dependent', path)
+        dispatcher.call_task_sync('share.delete_dependent', os.path.join('/dev/zvol', args['name']))
+        return True
+
     dispatcher.require_collection('share', 'string')
     plugin.register_provider('share', SharesProvider)
     plugin.register_task_handler('share.create', CreateShareTask)
@@ -307,3 +310,5 @@ def _init(dispatcher, plugin):
     plugin.register_task_handler('share.delete', DeleteShareTask)
     plugin.register_task_handler('share.delete_dependent', DeleteDependentShares)
     plugin.register_event_type('share.changed')
+    plugin.attach_hook('volume.pre_destroy', volume_pre_destroy)
+    plugin.attach_hook('volume.pre_detach', volume_pre_destroy)

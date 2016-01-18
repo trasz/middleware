@@ -181,7 +181,7 @@ class DeleteiSCSIShareTask(Task):
                 i['extents'] = list(filter(lambda e: e['name'] != share['name'], i['extents']))
                 subtasks.append(self.run_subtask('share.iscsi.target.update', i['id'], i))
 
-        self.join_subtasks(subtasks)
+        self.join_subtasks(*subtasks)
 
         self.datastore.delete('shares', id)
         self.dispatcher.call_sync('etcd.generation.generate_group', 'ctl')
