@@ -299,24 +299,48 @@ class VMTemplateFetchTask(ProgressTask):
         return []
 
     def run(self):
-        templates_dir = self.dispatcher.call_sync('system_dataset.request_directory', 'vm-templates')
-        self.set_progress(0, 'Removing old templates')
-        try:
-            shutil.rmtree(templates_dir)
-        except shutil.Error:
-            raise TaskException(errno.EACCES, 'Cannot remove templates directory: {0}'.format(templates_dir))
-        except FileNotFoundError:
-            pass
+        def clean_clone(url, path):
+            try:
+                shutil.rmtree(path)
+            except shutil.Error:
+                raise TaskException(errno.EACCES, 'Cannot remove templates directory: {0}'.format(path))
+            except FileNotFoundError:
+                pass
+            pygit2.clone_repository(url, path)
 
-        progress = 10
+        templates_dir = self.dispatcher.call_sync('system_dataset.request_directory', 'vm-templates')
+
+        progress = 0
         self.set_progress(progress, 'Downloading templates')
         template_sources = self.datastore.query('container.template_sources')
 
         if len(template_sources):
-            progress_per_source = 90 / len(template_sources)
+            progress_per_source = 100 / len(template_sources)
             for source in template_sources:
                 if source.get('driver', '') == 'git':
-                    pygit2.clone_repository(source['url'], os.path.join(templates_dir, source['id']))
+                    source_path = os.path.join(templates_dir, source['id'])
+
+                    if os.path.exists(os.path.join(source_path, '.git')):
+                        repo = pygit2.init_repository(source_path, False)
+
+                        for remote in repo.remotes:
+                            if remote.name == 'origin':
+                                remote.fetch()
+                                remote_master_id = repo.lookup_reference('refs/remotes/origin/master').target
+                                merge_result, _ = repo.merge_analysis(remote_master_id)
+
+                                if merge_result & pygit2.GIT_MERGE_ANALYSIS_UP_TO_DATE:
+                                    continue
+                                elif merge_result & pygit2.GIT_MERGE_ANALYSIS_FASTFORWARD:
+                                    repo.checkout_tree(repo.get(remote_master_id))
+                                    master_ref = repo.lookup_reference('refs/heads/master')
+                                    master_ref.set_target(remote_master_id)
+                                    repo.head.set_target(remote_master_id)
+                                else:
+                                    clean_clone(source['url'], source_path)
+                    else:
+                        clean_clone(source['url'], source_path)
+
                 self.set_progress(progress + progress_per_source, 'Finished operation for {0}'.format(source['id']))
 
         self.set_progress(100, 'Templates downloaded')
