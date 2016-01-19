@@ -312,11 +312,12 @@ class VMTemplateFetchTask(ProgressTask):
         self.set_progress(progress, 'Downloading templates')
         template_sources = self.datastore.query('container.template_sources')
 
-        progress_per_source = 90 / len(template_sources)
-        for source in template_sources:
-            if source.get('driver', '') == 'git':
-                pygit2.clone_repository(source['url'], os.path.join(templates_dir, source['id']))
-            self.set_progress(progress + progress_per_source, 'Finished operation for {0}'.format(source['id']))
+        if len(template_sources):
+            progress_per_source = 90 / len(template_sources)
+            for source in template_sources:
+                if source.get('driver', '') == 'git':
+                    pygit2.clone_repository(source['url'], os.path.join(templates_dir, source['id']))
+                self.set_progress(progress + progress_per_source, 'Finished operation for {0}'.format(source['id']))
 
         self.set_progress(100, 'Templates downloaded')
 
