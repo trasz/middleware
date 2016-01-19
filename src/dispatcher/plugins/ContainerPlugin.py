@@ -153,7 +153,9 @@ class ContainerCreateTask(ContainerBaseTask):
             raise VerifyException(errno.ENXIO, 'Volume {0} doesn\'t exist'.format(container['target']))
 
         if container.get('template'):
-            template = self.dispatcher.call_sync('vm_template.get_one', container['template'].get('name'))
+            template = self.dispatcher.call_sync('vm_template.query',
+                                                 [('name', '=', container['template'].get('name'))],
+                                                 {'single': True})
             if template is None:
                 raise VerifyException(errno.ENOENT, 'Template {0} not found'.format(container['template'].get('name')))
 
