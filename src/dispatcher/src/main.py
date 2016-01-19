@@ -51,6 +51,7 @@ import pty
 import struct
 import termios
 import cgi
+import pwd
 
 import gevent
 from gevent import monkey, Greenlet
@@ -1408,6 +1409,11 @@ class ShellConnection(WebSocketApplication, EventEmitter):
         env = os.environ.copy()
         env['TERM'] = 'xterm'
 
+        uinfo = pwd.getpwnam(user)
+        if not uinfo:
+            self.ws.close()
+            return
+
         def preexec():
             try:
                 fd = os.open("/dev/tty", os.O_RDWR | os.O_NOCTTY)
@@ -1422,6 +1428,7 @@ class ShellConnection(WebSocketApplication, EventEmitter):
 
             os.setsid()
             fcntl.ioctl(0, termios.TIOCSCTTY)
+            os.seteuid(uinfo.pw_uid)
 
         def read_worker():
             while True:
@@ -1436,7 +1443,7 @@ class ShellConnection(WebSocketApplication, EventEmitter):
                 tp_write(self.master, i)
 
         self.proc = Popen(
-            ['/usr/bin/su', '-m', user, '-c', shell],
+            ['/bin/sh', '-c', shell],
             stdout=self.slave,
             stderr=self.slave,
             stdin=self.slave,
