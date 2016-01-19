@@ -158,7 +158,7 @@ class ContainerCreateTask(ContainerBaseTask):
         if container.get('template'):
             self.join_subtasks(self.run_subtask('vm_template.fetch'))
             template = self.dispatcher.call_sync('vm_template.query',
-                                                 [('name', '=', container['template'].get('name'))],
+                                                 [('template.name', '=', container['template'].get('name'))],
                                                  {'single': True})
             if template is None:
                 raise TaskException(errno.ENOENT, 'Template {0} not found'.format(container['template'].get('name')))
