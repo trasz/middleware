@@ -884,7 +884,9 @@ def _init(dispatcher, plugin):
     plugin.register_resource(Resource(update_resource_string), ['system'])
 
     # Get the Update Cache (if any) at system boot (and hence in init here)
-    generate_update_cache(dispatcher)
+    # Do this in parallel so that a failed cache generation does not take the
+    # entire dispatcher start/restart with it (See Ticket: #12892)
+    gevent.spawn(generate_update_cache, dispatcher)
 
     # Schedule a task to check/dowload for updates
     plugin.register_event_handler('plugin.service_resume', nightly_update_check)
