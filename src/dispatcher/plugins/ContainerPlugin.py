@@ -161,6 +161,7 @@ class ContainerCreateTask(ContainerBaseTask):
 
     def run(self, container):
         if container.get('template'):
+            self.join_subtasks(self.run_subtask('vm_template.fetch'))
             template = self.dispatcher.call_sync('vm_template.query',
                                                  [('name', '=', container['template'].get('name'))],
                                                  {'single': True})
