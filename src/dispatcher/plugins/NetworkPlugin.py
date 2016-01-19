@@ -470,7 +470,7 @@ class DeleteRouteTask(Task):
 
         self.dispatcher.dispatch_event('network.route.changed', {
             'operation': 'delete',
-            'ids': [None]
+            'ids': [name]
         })
 
 
