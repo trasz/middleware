@@ -176,9 +176,6 @@ class ContainerCreateTask(ContainerBaseTask):
 
         self.init_dataset(container)
         for res in container['devices']:
-            if 'id' not in res:
-                res['id'] = str(uuid.uuid4())
-
             self.create_device(container, res)
 
         self.datastore.insert('containers', container)
