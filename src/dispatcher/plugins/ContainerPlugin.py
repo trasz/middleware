@@ -73,6 +73,19 @@ class ContainerProvider(Provider):
         return self.configstore.get('container.default_nic')
 
 
+class VMTemplateProvider(Provider):
+    @query('container')
+    def query(self, filter=None, params=None):
+        templates_dir = self.dispatcher.call_sync('system_dataset.request_directory', 'vm-templates')
+        templates = []
+        for root, dirs, files in os.walk(templates_dir):
+            if 'template.json' in files:
+                with open(os.path.join(root, 'template.json'), encoding='utf-8') as template:
+                    templates.append(json.loads(template.read()))
+
+        return wrap(templates).query(*(filter or []), **(params or {}))
+
+
 class ContainerBaseTask(Task):
     def init_dataset(self, container):
         pool = container['target']
@@ -178,7 +191,13 @@ class ContainerCreateTask(ContainerBaseTask):
         for res in container['devices']:
             self.create_device(container, res)
 
-        self.datastore.insert('containers', container)
+        id = self.datastore.insert('containers', container)
+        self.dispatcher.dispatch_event('container.changed', {
+            'operation': 'create',
+            'ids': [id]
+        })
+
+        return id
 
 
 @accepts(str, h.ref('container'))
@@ -202,6 +221,10 @@ class ContainerUpdateTask(ContainerBaseTask):
 
         container.update(updated_params)
         self.datastore.update('containers', id, container)
+        self.dispatcher.dispatch_event('container.changed', {
+            'operation': 'update',
+            'ids': [id]
+        })
 
 
 @accepts(str)
@@ -225,6 +248,10 @@ class ContainerDeleteTask(Task):
                 raise err
 
         self.datastore.delete('containers', id)
+        self.dispatcher.dispatch_event('container.changed', {
+            'operation': 'delete',
+            'ids': [id]
+        })
 
 
 @accepts(str)
@@ -234,6 +261,10 @@ class ContainerStartTask(Task):
 
     def run(self, id):
         self.dispatcher.call_sync('containerd.management.start_container', id)
+        self.dispatcher.dispatch_event('container.changed', {
+            'operation': 'update',
+            'ids': [id]
+        })
 
 
 @accepts(str)
@@ -243,6 +274,10 @@ class ContainerStopTask(Task):
 
     def run(self, id):
         self.dispatcher.call_sync('containerd.management.stop_container', id)
+        self.dispatcher.dispatch_event('container.changed', {
+            'operation': 'update',
+            'ids': [id]
+        })
 
 
 @accepts(str, str)
@@ -273,19 +308,6 @@ class DownloadImageTask(ProgressTask):
             with gzip.open(path, 'rb') as src:
                 for chunk in iter(lambda: src.read(self.BLOCKSIZE), b""):
                     dst.write(chunk)
-
-
-class VMTemplateProvider(Provider):
-    @query('container')
-    def query(self, filter=None, params=None):
-        templates_dir = self.dispatcher.call_sync('system_dataset.request_directory', 'vm-templates')
-        templates = []
-        for root, dirs, files in os.walk(templates_dir):
-            if 'template.json' in files:
-                with open(os.path.join(root, 'template.json'), encoding='utf-8') as template:
-                    templates.append(json.loads(template.read()))
-
-        return wrap(templates).query(*(filter or []), **(params or {}))
 
 
 class VMTemplateFetchTask(ProgressTask):
