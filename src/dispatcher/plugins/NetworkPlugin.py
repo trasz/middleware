@@ -133,7 +133,7 @@ class CreateInterfaceTask(Task):
         if type == 'VLAN':
             iface['vlan'] = {
                 'parent': None,
-                'tag': None
+                'tag': 0
             }
 
         if type == 'LAGG':
