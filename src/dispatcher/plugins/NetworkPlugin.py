@@ -515,7 +515,7 @@ def _init(dispatcher, plugin):
                 'type': 'object',
                 'additionalProperties': False,
                 'properties': {
-                    'parent': {'type': 'string'},
+                    'parent': {'type': ['string', 'null']},
                     'tag': {'type': 'integer'}
                 }
             },
