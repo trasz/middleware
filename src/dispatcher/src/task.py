@@ -27,7 +27,7 @@
 
 import errno
 import logging
-from freenas.dispatcher.rpc import RpcService, RpcException
+from freenas.dispatcher.rpc import RpcService, RpcException, RpcWarning
 from datastore.config import ConfigStore
 import collections
 
@@ -62,6 +62,9 @@ class Task(object):
     def get_status(self):
         return TaskStatus(50, 'Executing...')
 
+    def add_warning(self, warning):
+        return self.dispatcher.add_warning(warning)
+
     def verify_subtask(self, classname, *args):
         return self.dispatcher.verify_subtask(self, classname, args)
 
@@ -95,6 +98,10 @@ class TaskException(RpcException):
 
 
 class TaskAbortException(TaskException):
+    pass
+
+
+class TaskWarning(RpcWarning):
     pass
 
 

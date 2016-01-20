@@ -36,11 +36,10 @@ import traceback
 import logging
 import queue
 from threading import Event
-from freenas.dispatcher.client import Client, ClientType
-from freenas.dispatcher.rpc import RpcService, RpcException
+from freenas.dispatcher.client import Client
+from freenas.dispatcher.rpc import RpcService, RpcException, RpcWarning
 from datastore import get_default_datastore
 from datastore.config import ConfigStore
-from task import TaskException
 
 
 def serialize_error(err):
@@ -50,7 +49,7 @@ def serialize_error(err):
         'stacktrace': traceback.format_exc()
     }
 
-    if isinstance(err, RpcException):
+    if isinstance(err, (RpcException, RpcWarning)):
         ret['code'] = err.code
         ret['message'] = err.message
         if err.extra:
@@ -77,6 +76,9 @@ class DispatcherWrapper(object):
     def __join_subtasks(self, *tasks):
         return self.dispatcher.call_sync('task.join_subtasks', tasks, timeout=None)
 
+    def __add_warning(self, warning):
+        self.dispatcher.call_sync('task.put_warning', serialize_error(warning))
+
     def __getattr__(self, item):
         if item == 'dispatch_event':
             return self.dispatcher.emit_event
@@ -92,6 +94,9 @@ class DispatcherWrapper(object):
 
         if item == 'join_subtasks':
             return self.__join_subtasks
+
+        if item == 'add_warning':
+            return self.__add_warning
 
         return getattr(self.dispatcher, item)
 

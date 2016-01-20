@@ -75,6 +75,9 @@ def dump_task(ds, task):
     print("Started at: {0}".format(task['started_at']))
     print("Started by: {0}".format(task['user']))
     print("Resources assigned: {0}".format(', '.join(task['resources'])))
+    print("Warnings:")
+    for warn in task['warnings']:
+        print("  {0}: {!}".format(warn['code'], warn['message']))
     print("Arguments:")
     for idx, arg in enumerate(task['args']):
         arg_indented(idx, json.dumps(arg, default=json_util.default, indent=4))

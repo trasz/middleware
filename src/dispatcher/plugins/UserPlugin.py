@@ -32,7 +32,7 @@ import os
 import random
 import string
 import re
-from task import Provider, Task, TaskException, ValidationException, VerifyException, query
+from task import Provider, Task, TaskException, TaskWarning, ValidationException, VerifyException, query
 from freenas.dispatcher.rpc import RpcException, description, accepts, returns, SchemaHelper as h
 from datastore import DuplicateKeyException, DatastoreException
 from lib.system import SubprocessException, system
@@ -321,6 +321,13 @@ class UserDeleteTask(Task):
 
     def run(self, uid):
         try:
+            user = self.datastore.get_by_id('users', uid)
+            if user['group'] == uid:
+                self.add_warning(TaskWarning(
+                    errno.EBUSY,
+                    'Group {0} left behind, you need to delete it separately'.format(uid))
+                )
+
             self.datastore.delete('users', uid)
             self.dispatcher.call_sync('etcd.generation.generate_group', 'accounts')
         except DatastoreException as e:

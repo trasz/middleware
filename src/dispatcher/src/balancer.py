@@ -112,6 +112,9 @@ class TaskExecutor(object):
                 extra=error.get('extra')
             ))
 
+    def put_warning(self, warning):
+        self.task.add_warning(warning)
+
     def run(self, task):
         self.result = AsyncResult()
         self.task = task
@@ -211,6 +214,7 @@ class Task(object):
         self.state = TaskState.CREATED
         self.progress = None
         self.resources = []
+        self.warnings = []
         self.thread = None
         self.instance = None
         self.parent = None
@@ -237,6 +241,7 @@ class Task(object):
             "output": self.output,
             "rusage": self.rusage,
             "error": self.error,
+            "warnings": self.warnings,
             "debugger": self.debugger
         }
 
@@ -330,6 +335,14 @@ class Task(object):
     def set_output(self, output):
         self.output = output
         self.dispatcher.datastore.update('tasks', self.id, self)
+
+    def add_warning(self, warning):
+        self.warnings.append(warning)
+        self.dispatcher.datastore.update('tasks', self.id, self)
+        self.dispatcher.dispatch_event('task.changed', {
+            'operation': 'update',
+            'ids': [self.id]
+        })
 
     def progress_watcher(self):
         while True:
