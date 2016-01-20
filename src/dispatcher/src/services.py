@@ -30,8 +30,10 @@ import gc
 import traceback
 import errno
 import subprocess
+import gevent
 from gevent.event import Event
 from gevent.lock import Semaphore
+from gevent.backdoor import BackdoorServer
 from freenas.dispatcher.rpc import RpcService, RpcException, pass_sender, private
 from auth import ShellToken
 from task import TaskState
@@ -87,6 +89,11 @@ class ManagementService(RpcService):
 
 
 class DebugService(RpcService):
+    def __init__(self):
+        super(DebugService, self).__init__()
+        self.dispatcher = None
+        self.backdoor_server = None
+
     def initialize(self, context):
         self.dispatcher = context.dispatcher
 
@@ -127,6 +134,24 @@ class DebugService(RpcService):
     def cancel_tasks_debug(self):
         self.dispatcher.balancer.debugger = None
         self.dispatcher.balancer.debugged_tasks = None
+
+    @private
+    def start_backdoor(self):
+        self.backdoor_server = BackdoorServer(
+            ('127.0.0.1', 9999),
+            banner='DebugService backdoor server',
+            locals={
+                'dispatcher': self.dispatcher
+            }
+        )
+
+        gevent.spawn(self.backdoor_server.serve_forever)
+
+    @private
+    def stop_backdoor(self):
+        if self.backdoor_server:
+            self.backdoor_server.close()
+            self.backdoor_server = None
 
 
 class EventService(RpcService):
