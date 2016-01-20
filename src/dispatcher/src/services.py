@@ -362,6 +362,15 @@ class TaskService(RpcService):
 
     @private
     @pass_sender
+    def put_warning(self, warning, sender):
+        executor = self.__balancer.get_executor_by_sender(sender)
+        if not executor:
+            raise RpcException(errno.EPERM, 'Not authorized')
+
+        executor.put_warning(warning)
+
+    @private
+    @pass_sender
     def run_hook(self, hook, args, sender):
         executor = self.__balancer.get_executor_by_sender(sender)
         if not executor:
@@ -443,7 +452,6 @@ class LockService(RpcService):
 
 
 class ShellService(RpcService):
-
     def initialize(self, context):
         self.dispatcher = context.dispatcher
 
