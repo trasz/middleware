@@ -43,7 +43,7 @@ def run(context):
         [('status.smart_capable', '=', True)]
     )
     for single_disk in all_disks_info:
-        device_smart_handle = Device(single_disk['path'])
+        device_smart_handle = Device(single_disk['path'], abridged=True)
         # Check if the disk's smart enabled value is the same as that in the database
         # if not try to DTRT it
         if single_disk['smart'] != device_smart_handle.smart_enabled:
