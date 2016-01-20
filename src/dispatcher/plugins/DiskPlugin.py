@@ -53,7 +53,7 @@ from freenas.dispatcher.rpc import SchemaHelper as h
 
 # Note the following monkey patch is required for pySMART to work correctly
 gevent.monkey.patch_subprocess()
-from pySMART import Device
+from pySMART import Device, smart_health_assement
 
 
 EXPIRE_TIMEOUT = timedelta(hours=24)
@@ -771,7 +771,10 @@ def info_from_device(devname):
     }
 
     # TODO, fix this to deal with above generated args for interface
+    # whilst obtaining disk info, get smart health assessment via a greenlet
+    health_assessment_greenlet = gevent.spawn(smart_health_assement, devname)
     dev_smart_info = Device(os.path.join('/dev/', devname), abridged=True)
+    health_assessment_greenlet.join()
     disk_info['is_ssd'] = dev_smart_info.is_ssd
     disk_info['smart_capable'] = dev_smart_info.smart_capable
     disk_info['serial'] = dev_smart_info.serial
@@ -781,7 +784,7 @@ def info_from_device(devname):
         disk_info['interface'] = dev_smart_info.interface
         disk_info['smart_enabled'] = dev_smart_info.smart_enabled
         if dev_smart_info.smart_enabled:
-            disk_info['smart_status'] = dev_smart_info.assessment
+            disk_info['smart_status'] = health_assessment_greenlet.value
 
     return disk_info
 
