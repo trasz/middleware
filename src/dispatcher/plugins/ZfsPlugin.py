@@ -58,7 +58,7 @@ class ZpoolProvider(Provider):
     @accepts()
     @returns(h.array(h.ref('zfs-pool')))
     def find(self):
-        zfs = libzfs.ZFS(history=True, history_prefix="[DISPATCHER TASK]")
+        zfs = get_zfs()
         return list([p.__getstate__() for p in zfs.find_import()])
 
     @accepts()
@@ -129,7 +129,7 @@ class ZpoolProvider(Provider):
     @returns()
     def ensure_resilvered(self, name):
         try:
-            zfs = libzfs.ZFS(history=True, history_prefix="[DISPATCHER TASK]")
+            zfs = get_zfs()
             pool = zfs.get(name)
 
             self.dispatcher.test_or_wait_for_event(
@@ -158,7 +158,7 @@ class ZfsDatasetProvider(Provider):
     ))
     def get_dependencies(self, dataset_name):
         try:
-            zfs = libzfs.ZFS(history=True, history_prefix="[DISPATCHER TASK]")
+            zfs = get_zfs()
             ds = zfs.get_dataset(dataset_name)
             deps = list(ds.dependents)
             return deps
@@ -172,7 +172,7 @@ class ZfsDatasetProvider(Provider):
     @returns(h.array(h.ref('zfs-snapshot')))
     def get_snapshots(self, dataset_name):
         try:
-            zfs = libzfs.ZFS(history=True, history_prefix="[DISPATCHER TASK]")
+            zfs = get_zfs()
             ds = zfs.get_dataset(dataset_name)
             snaps = list(ds.snapshots)
             snaps.sort(key=lambda s: int(s.properties['creation'].rawvalue))
@@ -186,7 +186,7 @@ class ZfsDatasetProvider(Provider):
     @returns(int)
     def estimate_send_size(self, dataset_name, snapshot_name, anchor_name=None):
         try:
-            zfs = libzfs.ZFS(history=True, history_prefix="[DISPATCHER TASK]")
+            zfs = get_zfs()
             ds = zfs.get_object('{0}@{1}'.format(dataset_name, snapshot_name))
             if anchor_name:
                 return ds.get_send_space('{0}@{1}'.format(dataset_name, anchor_name))
@@ -226,7 +226,7 @@ class ZpoolScrubTask(Task):
         return "Scrubbing pool {0}".format(pool)
 
     def verify(self, pool, threshold=None):
-        zfs = libzfs.ZFS(history=True, history_prefix="[DISPATCHER TASK]")
+        zfs = get_zfs()
         pool = zfs.get(pool)
         return get_disk_names(self.dispatcher, pool)
 
@@ -237,7 +237,7 @@ class ZpoolScrubTask(Task):
         self.finish_event.clear()
 
         try:
-            zfs = libzfs.ZFS(history=True, history_prefix="[DISPATCHER TASK]")
+            zfs = get_zfs()
             pool = zfs.get(self.pool)
             # Skip in case a scrub did already run in the last `threshold` days
             if threshold:
@@ -256,7 +256,7 @@ class ZpoolScrubTask(Task):
 
     def abort(self):
         try:
-            zfs = libzfs.ZFS(history=True, history_prefix="[DISPATCHER TASK]")
+            zfs = get_zfs()
             pool = zfs.get(self.pool)
             pool.stop_scrub()
         except libzfs.ZFSException as err:
@@ -273,7 +273,7 @@ class ZpoolScrubTask(Task):
             return TaskStatus(0, "Waiting to start...")
 
         try:
-            zfs = libzfs.ZFS(history=True, history_prefix="[DISPATCHER TASK]")
+            zfs = get_zfs()
             pool = zfs.get(self.pool)
             scrub = pool.scrub
         except libzfs.ZFSException as err:
@@ -313,7 +313,7 @@ class ZpoolCreateTask(Task):
         return ['disk:{0}'.format(d) for d in result]
 
     def verify(self, name, topology, params=None):
-        zfs = libzfs.ZFS(history=True, history_prefix="[DISPATCHER TASK]")
+        zfs = get_zfs()
         if name in zfs.pools:
             raise VerifyException(errno.EEXIST, 'Pool with same name already exists')
 
@@ -321,7 +321,7 @@ class ZpoolCreateTask(Task):
 
     def run(self, name, topology, params=None):
         params = params or {}
-        zfs = libzfs.ZFS(history=True, history_prefix="[DISPATCHER TASK]")
+        zfs = get_zfs()
         mountpoint = params.get('mountpoint')
 
         if not mountpoint:
@@ -360,7 +360,7 @@ class ZpoolBaseTask(Task):
     def verify(self, *args, **kwargs):
         name = args[0]
         try:
-            zfs = libzfs.ZFS(history=True, history_prefix="[DISPATCHER TASK]")
+            zfs = get_zfs()
             pool = zfs.get(name)
         except libzfs.ZFSException:
             raise VerifyException(errno.ENOENT, "Pool {0} not found".format(name))
@@ -375,7 +375,7 @@ class ZpoolConfigureTask(ZpoolBaseTask):
 
     def run(self, pool, updated_props):
         try:
-            zfs = libzfs.ZFS(history=True, history_prefix="[DISPATCHER TASK]")
+            zfs = get_zfs()
             pool = zfs.get(pool)
             for name, value in updated_props:
                 prop = pool.properties[name]
@@ -388,7 +388,7 @@ class ZpoolConfigureTask(ZpoolBaseTask):
 class ZpoolDestroyTask(ZpoolBaseTask):
     def run(self, name):
         try:
-            zfs = libzfs.ZFS(history=True, history_prefix="[DISPATCHER TASK]")
+            zfs = get_zfs()
             zfs.destroy(name)
         except libzfs.ZFSException as err:
             raise TaskException(errno.EFAULT, str(err))
@@ -414,7 +414,7 @@ class ZpoolExtendTask(ZpoolBaseTask):
     def run(self, pool, new_vdevs, updated_vdevs):
         try:
             self.pool = pool
-            zfs = libzfs.ZFS(history=True, history_prefix="[DISPATCHER TASK]")
+            zfs = get_zfs()
             pool = zfs.get(pool)
 
             if new_vdevs:
@@ -449,7 +449,7 @@ class ZpoolExtendTask(ZpoolBaseTask):
             return TaskStatus(0, "Waiting to start...")
 
         try:
-            zfs = libzfs.ZFS(history=True, history_prefix="[DISPATCHER TASK]")
+            zfs = get_zfs()
             pool = zfs.get(self.pool)
             scrub = pool.scrub
         except libzfs.ZFSException as err:
@@ -467,7 +467,7 @@ class ZpoolExtendTask(ZpoolBaseTask):
 class ZpoolDetachTask(ZpoolBaseTask):
     def run(self, pool, guid):
         try:
-            zfs = libzfs.ZFS(history=True, history_prefix="[DISPATCHER TASK]")
+            zfs = get_zfs()
             pool = zfs.get(pool)
             vdev = pool.vdev_by_guid(int(guid))
             if not vdev:
@@ -482,7 +482,7 @@ class ZpoolDetachTask(ZpoolBaseTask):
 class ZpoolReplaceTask(ZpoolBaseTask):
     def run(self, pool, guid, vdev):
         try:
-            zfs = libzfs.ZFS(history=True, history_prefix="[DISPATCHER TASK]")
+            zfs = get_zfs()
             pool = zfs.get(pool)
             ovdev = pool.vdev_by_guid(int(guid))
             if not vdev:
@@ -499,7 +499,7 @@ class ZpoolReplaceTask(ZpoolBaseTask):
 class ZpoolOfflineDiskTask(ZpoolBaseTask):
     def run(self, pool, guid, temporary=False):
         try:
-            zfs = libzfs.ZFS(history=True, history_prefix="[DISPATCHER TASK]")
+            zfs = get_zfs()
             pool = zfs.get(pool)
             vdev = pool.vdev_by_guid(int(guid))
             if not vdev:
@@ -514,7 +514,7 @@ class ZpoolOfflineDiskTask(ZpoolBaseTask):
 class ZpoolOnlineDiskTask(ZpoolBaseTask):
     def run(self, pool, guid):
         try:
-            zfs = libzfs.ZFS(history=True, history_prefix="[DISPATCHER TASK]")
+            zfs = get_zfs()
             pool = zfs.get(pool)
             vdev = pool.vdev_by_guid(int(guid))
             if not vdev:
@@ -529,7 +529,7 @@ class ZpoolOnlineDiskTask(ZpoolBaseTask):
 class ZpoolUpgradeTask(ZpoolBaseTask):
     def run(self, pool):
         try:
-            zfs = libzfs.ZFS(history=True, history_prefix="[DISPATCHER TASK]")
+            zfs = get_zfs()
             pool = zfs.get(pool)
             pool.upgrade()
         except libzfs.ZFSException as err:
@@ -539,7 +539,7 @@ class ZpoolUpgradeTask(ZpoolBaseTask):
 @accepts(str, str, h.object())
 class ZpoolImportTask(Task):
     def verify(self, guid, name=None, properties=None):
-        zfs = libzfs.ZFS(history=True, history_prefix="[DISPATCHER TASK]")
+        zfs = get_zfs()
         pool = first_or_default(lambda p: str(p.guid) == guid, zfs.find_import())
         if not pool:
             raise VerifyException(errno.ENOENT, 'Pool with GUID {0} not found'.format(guid))
@@ -547,7 +547,7 @@ class ZpoolImportTask(Task):
         return get_disk_names(self.dispatcher, pool)
 
     def run(self, guid, name=None, properties=None):
-        zfs = libzfs.ZFS(history=True, history_prefix="[DISPATCHER TASK]")
+        zfs = get_zfs()
         opts = properties or {}
         try:
             pool = first_or_default(lambda p: str(p.guid) == guid, zfs.find_import())
@@ -562,7 +562,7 @@ class ZpoolExportTask(ZpoolBaseTask):
         super(ZpoolExportTask, self).verify(name)
 
     def run(self, name):
-        zfs = libzfs.ZFS(history=True, history_prefix="[DISPATCHER TASK]")
+        zfs = get_zfs()
         try:
             pool = zfs.get(name)
             zfs.export_pool(pool)
@@ -574,7 +574,7 @@ class ZfsBaseTask(Task):
     def verify(self, *args, **kwargs):
         path = args[0]
         try:
-            zfs = libzfs.ZFS(history=True, history_prefix="[DISPATCHER TASK]")
+            zfs = get_zfs()
             dataset = zfs.get_object(path)
         except libzfs.ZFSException as err:
             raise TaskException(errno.ENOENT, str(err))
@@ -586,7 +586,7 @@ class ZfsBaseTask(Task):
 class ZfsDatasetMountTask(ZfsBaseTask):
     def run(self, name, recursive=False):
         try:
-            zfs = libzfs.ZFS(history=True, history_prefix="[DISPATCHER TASK]")
+            zfs = get_zfs()
             dataset = zfs.get_dataset(name)
             if dataset.mountpoint:
                 logger.warning('{0} dataset already mounted at {1}'.format(name, dataset.mountpoint))
@@ -604,7 +604,7 @@ class ZfsDatasetMountTask(ZfsBaseTask):
 class ZfsDatasetUmountTask(ZfsBaseTask):
     def run(self, name):
         try:
-            zfs = libzfs.ZFS(history=True, history_prefix="[DISPATCHER TASK]")
+            zfs = get_zfs()
             dataset = zfs.get_dataset(name)
             dataset.umount()
         except libzfs.ZFSException as err:
@@ -636,7 +636,7 @@ class ZfsDatasetCreateTask(Task):
                 sparse = True
                 del params['sparse']
 
-            zfs = libzfs.ZFS(history=True, history_prefix="[DISPATCHER TASK]")
+            zfs = get_zfs()
             pool = zfs.get(pool_name)
             pool.create(path, params, fstype=self.type, sparse_vol=sparse)
         except libzfs.ZFSException as err:
@@ -650,7 +650,7 @@ class ZfsSnapshotCreateTask(ZfsBaseTask):
             params = {k: v['value'] for k, v in params.items()}
 
         try:
-            zfs = libzfs.ZFS(history=True, history_prefix="[DISPATCHER TASK]")
+            zfs = get_zfs()
             ds = zfs.get_dataset(path)
             ds.snapshot('{0}@{1}'.format(path, snapshot_name), recursive=recursive, fsopts=params)
         except libzfs.ZFSException as err:
@@ -661,7 +661,7 @@ class ZfsSnapshotCreateTask(ZfsBaseTask):
 class ZfsSnapshotDeleteTask(ZfsBaseTask):
     def run(self, pool_name, path, snapshot_name, recursive=False):
         try:
-            zfs = libzfs.ZFS(history=True, history_prefix="[DISPATCHER TASK]")
+            zfs = get_zfs()
             snap = zfs.get_snapshot('{0}@{1}'.format(path, snapshot_name))
             snap.delete(recursive)
         except libzfs.ZFSException as err:
@@ -672,7 +672,7 @@ class ZfsSnapshotDeleteTask(ZfsBaseTask):
 class ZfsSnapshotDeleteMultipleTask(ZfsBaseTask):
     def run(self, pool_name, path, snapshot_names, recursive=False):
         try:
-            zfs = libzfs.ZFS(history=True, history_prefix="[DISPATCHER TASK]")
+            zfs = get_zfs()
             for i in snapshot_names:
                 snap = zfs.get_snapshot('{0}@{1}'.format(path, i))
                 snap.delete(recursive)
@@ -683,7 +683,7 @@ class ZfsSnapshotDeleteMultipleTask(ZfsBaseTask):
 class ZfsConfigureTask(ZfsBaseTask):
     def run(self, pool_name, name, properties):
         try:
-            zfs = libzfs.ZFS(history=True, history_prefix="[DISPATCHER TASK]")
+            zfs = get_zfs()
             dataset = zfs.get_dataset(name)
             for k, v in list(properties.items()):
                 if k in dataset.properties:
@@ -701,7 +701,7 @@ class ZfsConfigureTask(ZfsBaseTask):
 class ZfsDestroyTask(ZfsBaseTask):
     def run(self, name):
         try:
-            zfs = libzfs.ZFS(history=True, history_prefix="[DISPATCHER TASK]")
+            zfs = get_zfs()
             dataset = zfs.get_object(name)
             dataset.delete()
         except libzfs.ZFSException as err:
@@ -712,7 +712,7 @@ class ZfsDestroyTask(ZfsBaseTask):
 class ZfsRenameTask(ZfsBaseTask):
     def run(self, name, new_name):
         try:
-            zfs = libzfs.ZFS(history=True, history_prefix="[DISPATCHER TASK]")
+            zfs = get_zfs()
             dataset = zfs.get_object(name)
             dataset.rename(new_name)
         except libzfs.ZFSException as err:
@@ -723,7 +723,7 @@ class ZfsRenameTask(ZfsBaseTask):
 class ZfsCloneTask(ZfsBaseTask):
     def run(self, path):
         try:
-            zfs = libzfs.ZFS(history=True, history_prefix="[DISPATCHER TASK]")
+            zfs = get_zfs()
             dataset = zfs.get_dataset(path)
             dataset.delete()
         except libzfs.ZFSException as err:
@@ -758,7 +758,7 @@ def convert_topology(zfs, topology):
 
 def pool_exists(pool):
     try:
-        zfs = libzfs.ZFS(history=True, history_prefix="[DISPATCHER TASK]")
+        zfs = get_zfs()
         return zfs.get(pool) is not None
     except libzfs.ZFSException:
         return False
@@ -790,7 +790,7 @@ def get_disk_names(dispatcher, pool):
 
 
 def sync_zpool_cache(dispatcher, pool, guid=None):
-    zfs = libzfs.ZFS(history=True, history_prefix="[DISPATCHER TASK]")
+    zfs = get_zfs()
     try:
         zfspool = wrap(zfs.get(pool).__getstate__())
         pools.put(pool, zfspool)
@@ -805,7 +805,7 @@ def sync_zpool_cache(dispatcher, pool, guid=None):
 
 
 def sync_dataset_cache(dispatcher, dataset, old_dataset=None):
-    zfs = libzfs.ZFS(history=True, history_prefix="[DISPATCHER TASK]")
+    zfs = get_zfs()
     pool = dataset.split('/')[0]
     sync_zpool_cache(dispatcher, pool)
     try:
@@ -830,7 +830,7 @@ def sync_dataset_cache(dispatcher, dataset, old_dataset=None):
 
 
 def sync_snapshot_cache(dispatcher, snapshot, old_snapshot=None):
-    zfs = libzfs.ZFS(history=True, history_prefix="[DISPATCHER TASK]")
+    zfs = get_zfs()
     try:
         if old_snapshot:
             snapshots.rename(old_snapshot, snapshot)
@@ -849,7 +849,7 @@ def zpool_sync_resources(dispatcher, name):
     res_name = 'zpool:{0}'.format(name)
 
     try:
-        zfs = libzfs.ZFS(history=True, history_prefix="[DISPATCHER TASK]")
+        zfs = get_zfs()
         pool = zfs.get(name)
     except libzfs.ZFSException:
         dispatcher.unregister_resource(res_name)
@@ -866,13 +866,17 @@ def zpool_sync_resources(dispatcher, name):
 
 
 def zpool_try_clear(name, vdev):
-    zfs = libzfs.ZFS(history=True, history_prefix="[DISPATCHER TASK]")
+    zfs = get_zfs()
     pool = zfs.get(name)
     if pool.clear():
         logger.info('Device {0} reattached successfully to pool {1}'.format(vdev['path'], name))
         return
 
     logger.warning('Device {0} reattach to pool {1} failed'.format(vdev['path'], name))
+
+
+def get_zfs():
+    return libzfs.ZFS(history=True, history_prefix="[DISPATCHER TASK]")
 
 
 def _depends():
@@ -1319,7 +1323,7 @@ def _init(dispatcher, plugin):
         global datasets
         global snapshots
 
-        zfs = libzfs.ZFS(history=True, history_prefix="[DISPATCHER TASK]")
+        zfs = get_zfs()
         logger.info("Syncing ZFS pools...")
         pools = EventCacheStore(dispatcher, 'zfs.pool')
         for i in zfs.pools:
@@ -1342,7 +1346,7 @@ def _init(dispatcher, plugin):
         logger.error("Cannot sync ZFS caches: {0}".format(str(err)))
 
     try:
-        zfs = libzfs.ZFS(history=True, history_prefix="[DISPATCHER TASK]")
+        zfs = get_zfs()
         # Try to reimport Pools into the system after upgrade, this checks
         # for any non-imported pools in the system via the python binding
         # analogous of `zpool import` and then tries to verify its guid with
