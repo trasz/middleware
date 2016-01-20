@@ -520,7 +520,7 @@ class Main(object):
                 self.client.login_service('containerd')
                 self.client.enable_server()
                 self.client.register_service('containerd.management', ManagementService(self))
-                self.client.register_service('containerd.debug', DebugService(gevent=True))
+                self.client.register_service('containerd.debug', DebugService(gevent=True, builtins={"context": self}))
                 self.client.resume_service('containerd.management')
                 self.client.resume_service('containerd.debug')
 
