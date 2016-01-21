@@ -325,9 +325,10 @@ class VMTemplateFetchTask(ProgressTask):
             try:
                 pygit2.clone_repository(url, path)
             except pygit2.GitError:
-                raise TaskWarning(
+                self.add_warning(TaskWarning(
                     errno.EACCES,
-                    'Cannot update template cache. Result is outdated. Check networking.')
+                    'Cannot update template cache. Result is outdated. Check networking.'))
+                return
 
         templates_dir = self.dispatcher.call_sync('system_dataset.request_directory', 'vm-templates')
 
@@ -361,9 +362,10 @@ class VMTemplateFetchTask(ProgressTask):
                                     else:
                                         clean_clone(source['url'], source_path)
                         except pygit2.GitError:
-                            raise TaskWarning(
+                            self.add_warning(TaskWarning(
                                 errno.EACCES,
-                                'Cannot update template cache. Result is outdated. Check networking.')
+                                'Cannot update template cache. Result is outdated. Check networking.'))
+                            return
                     else:
                         clean_clone(source['url'], source_path)
 
