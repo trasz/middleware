@@ -38,7 +38,7 @@ import urllib.request
 import urllib.parse
 import urllib.error
 import shutil
-from task import Provider, Task, ProgressTask, VerifyException, TaskException, query
+from task import Provider, Task, ProgressTask, VerifyException, TaskException, query, TaskWarning
 from freenas.dispatcher.rpc import RpcException
 from freenas.dispatcher.rpc import SchemaHelper as h, description, accepts, returns, private
 from freenas.utils import first_or_default, normalize, deep_update
@@ -322,7 +322,12 @@ class VMTemplateFetchTask(ProgressTask):
                 raise TaskException(errno.EACCES, 'Cannot remove templates directory: {0}'.format(path))
             except FileNotFoundError:
                 pass
-            pygit2.clone_repository(url, path)
+            try:
+                pygit2.clone_repository(url, path)
+            except pygit2.GitError:
+                raise TaskWarning(
+                    errno.EACCES,
+                    'Cannot updated template cache. Result is outdated. Check networking.')
 
         templates_dir = self.dispatcher.call_sync('system_dataset.request_directory', 'vm-templates')
 
@@ -337,23 +342,28 @@ class VMTemplateFetchTask(ProgressTask):
                     source_path = os.path.join(templates_dir, source['id'])
 
                     if os.path.exists(os.path.join(source_path, '.git')):
-                        repo = pygit2.init_repository(source_path, False)
+                        try:
+                            repo = pygit2.init_repository(source_path, False)
 
-                        for remote in repo.remotes:
-                            if remote.name == 'origin':
-                                remote.fetch()
-                                remote_master_id = repo.lookup_reference('refs/remotes/origin/master').target
-                                merge_result, _ = repo.merge_analysis(remote_master_id)
+                            for remote in repo.remotes:
+                                if remote.name == 'origin':
+                                    remote.fetch()
+                                    remote_master_id = repo.lookup_reference('refs/remotes/origin/master').target
+                                    merge_result, _ = repo.merge_analysis(remote_master_id)
 
-                                if merge_result & pygit2.GIT_MERGE_ANALYSIS_UP_TO_DATE:
-                                    continue
-                                elif merge_result & pygit2.GIT_MERGE_ANALYSIS_FASTFORWARD:
-                                    repo.checkout_tree(repo.get(remote_master_id))
-                                    master_ref = repo.lookup_reference('refs/heads/master')
-                                    master_ref.set_target(remote_master_id)
-                                    repo.head.set_target(remote_master_id)
-                                else:
-                                    clean_clone(source['url'], source_path)
+                                    if merge_result & pygit2.GIT_MERGE_ANALYSIS_UP_TO_DATE:
+                                        continue
+                                    elif merge_result & pygit2.GIT_MERGE_ANALYSIS_FASTFORWARD:
+                                        repo.checkout_tree(repo.get(remote_master_id))
+                                        master_ref = repo.lookup_reference('refs/heads/master')
+                                        master_ref.set_target(remote_master_id)
+                                        repo.head.set_target(remote_master_id)
+                                    else:
+                                        clean_clone(source['url'], source_path)
+                        except pygit2.GitError:
+                            raise TaskWarning(
+                                errno.EACCES,
+                                'Cannot updated template cache. Result is outdated. Check networking.')
                     else:
                         clean_clone(source['url'], source_path)
 
