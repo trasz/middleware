@@ -130,7 +130,9 @@ def main():
     logger.info('Database directory: {0}'.format(dsconfig['dbdir']))
 
     signal.signal(signal.SIGTERM, sigterm)
-    threading.Thread(target=check_health, args=(dsconfig['dsn'],)).start()
+    t = threading.Thread(target=check_health, args=(dsconfig['dsn'],))
+    t.daemon = True
+    t.start()
 
     while True:
         args = {

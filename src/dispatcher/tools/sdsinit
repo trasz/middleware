@@ -70,8 +70,7 @@ def init_datastore(filename, alt):
         dsn = 'dsn-alt' if alt else 'dsn'
         ds = datastore.get_datastore(
             conf['datastore']['driver'],
-            conf['datastore'][dsn],
-            conf['datastore'].get('database', 'freenas')
+            conf['datastore'][dsn]
         )
 
         cs = ConfigStore(ds)
