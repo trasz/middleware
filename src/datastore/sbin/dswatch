@@ -154,8 +154,9 @@ def main():
 
         if ret != 0:
             logger.warning('MongoDB exited with return code {0}'.format(ret))
-            logger.warning('wiping out database directory')
-            recreate(dbdir)
+            if ret == 100:
+                logger.warning('wiping out database directory')
+                recreate(dbdir)
 
 
 if __name__ == '__main__':
