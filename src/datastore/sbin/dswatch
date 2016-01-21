@@ -1,0 +1,127 @@
+#!/usr/local/bin/python3
+#
+# Copyright 2016 iXsystems, Inc.
+# All rights reserved
+#
+# Redistribution and use in source and binary forms, with or without
+# modification, are permitted providing that the following conditions
+# are met:
+# 1. Redistributions of source code must retain the above copyright
+#    notice, this list of conditions and the following disclaimer.
+# 2. Redistributions in binary form must reproduce the above copyright
+#    notice, this list of conditions and the following disclaimer in the
+#    documentation and/or other materials provided with the distribution.
+#
+# THIS SOFTWARE IS PROVIDED BY THE AUTHOR ``AS IS'' AND ANY EXPRESS OR
+# IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+# WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+# ARE DISCLAIMED.  IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY
+# DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+# DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS
+# OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
+# HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
+# STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING
+# IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+# POSSIBILITY OF SUCH DAMAGE.
+#
+#####################################################################
+
+import os
+import sys
+import json
+import argparse
+import urllib.parse
+import subprocess
+import time
+import logging
+import setproctitle
+import shutil
+from string import Template
+
+
+DEFAULT_CONFIGFILE = '/usr/local/etc/middleware.conf'
+MONGOD_ARGS = [
+    '/usr/local/bin/mongod',
+    '--config', '/usr/local/lib/datastore/drivers/mongodb/mongod.conf',
+    '--dbpath', '${dbdir}',
+    '--logpath', '${dbdir}/mongod.log',
+    '--quiet',
+    '--port', '${port}'
+]
+
+
+logger = logging.getLogger('dswatch')
+
+
+def expand(arr, **kwargs):
+    return [Template(a).substitute(**kwargs) for a in arr]
+
+
+def read_config(filename):
+    try:
+        f = open(filename)
+        conf = json.load(f)
+        f.close()
+    except IOError as err:
+        print("Cannot read config file: {0}".format(str(err)), file=sys.stderr)
+        sys.exit(1)
+    except ValueError as err:
+        print("Cannot read config file: {0}".format(str(err)), file=sys.stderr)
+        sys.exit(1)
+
+    return conf
+
+
+def recreate(dbdir):
+    shutil.rmtree(dbdir)
+    os.mkdir(dbdir)
+
+
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('-c', metavar='CONFIG', default=DEFAULT_CONFIGFILE, help='Config file name')
+    parser.add_argument('name', metavar='NAME', help='Datastore name')
+    args = parser.parse_args()
+    config = read_config(args.c)
+
+    logging.basicConfig(level=logging.DEBUG)
+
+    dsconfig = config.get(args.name)
+    if not dsconfig:
+        logger.error('Cannot find datastore configuration for {0}'.format(args.name))
+        sys.exit(1)
+
+    dbdir = dsconfig['dbdir']
+    url = urllib.parse.urlparse(dsconfig['dsn'])
+
+    setproctitle.setproctitle('dswatch: {0}'.format(args.name))
+    logger.info('Datastore name: {0}'.format(args.name))
+    logger.info('Database directory: {0}'.format(dsconfig['dbdir']))
+
+    while True:
+        args = {
+            'dbdir': dbdir,
+            'port': url.port
+        }
+
+        if not os.path.isdir(dbdir):
+            logger.warning('Database directory doesn\'t exist: retrying in 5 seconds')
+            time.sleep(5)
+            continue
+
+        proc = subprocess.Popen(expand(MONGOD_ARGS, **args))
+        logger.info('Started MongoDB as PID {0}'.format(proc.pid))
+
+        try:
+            ret = proc.wait()
+        except KeyboardInterrupt:
+            logger.warning('Interrupted')
+            sys.exit(1)
+
+        if ret != 0:
+            logger.warning('MongoDB exited with return code {0}'.format(ret))
+            logger.warning('wiping out database directory')
+            recreate(dbdir)
+
+if __name__ == '__main__':
+    main()
