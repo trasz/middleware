@@ -322,7 +322,7 @@ class UserDeleteTask(Task):
     def run(self, uid):
         try:
             user = self.datastore.get_by_id('users', uid)
-            if user['group'] == uid:
+            if user['group'] == uid and self.datastore.exists('groups', ('id', '=', uid)):
                 self.add_warning(TaskWarning(
                     errno.EBUSY,
                     'Group {0} left behind, you need to delete it separately'.format(uid))
