@@ -28,6 +28,7 @@
 import errno
 import ipaddress
 import logging
+import os
 from freenas.dispatcher.rpc import RpcException, description, accepts, returns
 from freenas.dispatcher.rpc import SchemaHelper as h
 from datastore.config import ConfigNode
@@ -421,6 +422,18 @@ class AddRouteTask(Task):
         if route['netmask'] not in range(1, 31):
             raise VerifyException(errno.EINVAL, 'Netmask value {0} is not valid. Allowed values are 1-30 (CIDR).'
                                   .format(route['netmask']))
+
+        try:
+            network = ipaddress.ip_network(os.path.join(route['network'], route['netmask']))
+        except ValueError:
+            raise VerifyException(errno.EINVAL,
+                                  '{0} would have host bits set. Change network or netmask to represent a valid network'
+                                  .format(os.path.join(route['network'], route['netmask'])))
+
+        if ipaddress.ip_address(route['gateway']) not in network:
+            raise VerifyException(errno.EINVAL, 'Gateway {0} does not belong to {1} network.'
+                                  .format(route['gateway'], network.exploded))
+
         return ['system']
 
     def run(self, route):
