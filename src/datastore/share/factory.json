@@ -970,9 +970,7 @@
                         "samba4": {}
                     }
                 },
-                "log-db": {
-                    "link": "/data/freenas.db/freenas-log"
-                },
+                "freenas-log+db": {},
                 "samba": {
                     "link": "/var/db/samba4",
                     "children": {
