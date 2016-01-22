@@ -418,6 +418,9 @@ class AddRouteTask(Task):
                     and (r['netmask'] == route['netmask']) and (r['gateway'] == route['gateway']):
                 raise VerifyException(errno.EINVAL, 'Cannot create two identical routes differing only in name.')
 
+        if route['netmask'] not in range(1, 31):
+            raise VerifyException(errno.EINVAL, 'Netmask value {0} is not valid. Allowed values are 1-30 (CIDR).'
+                                  .format(route['netmask']))
         return ['system']
 
     def run(self, route):
