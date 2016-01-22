@@ -8,7 +8,7 @@ from django.db import models
 from bsd import geom
 from lxml import etree
 
-from datastore import get_default_datastore
+from datastore import get_datastore
 from freenasUI.middleware.notifier import notifier
 
 
@@ -94,7 +94,7 @@ class Migration(DataMigration):
         if 'FREENAS_INSTALL' in os.environ:
             return
 
-        ds = get_default_datastore()
+        ds = get_datastore()
 
         for disk in orm['storage.Disk'].objects.all():
             dev = self.identifier_to_device(disk.disk_identifier)

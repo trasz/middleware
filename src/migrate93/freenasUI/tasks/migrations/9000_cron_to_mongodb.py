@@ -6,7 +6,7 @@ from south.v2 import DataMigration
 from django.db import models
 
 from apscheduler.triggers.cron.expressions import WEEKDAYS
-from datastore import get_default_datastore
+from datastore import get_datastore
 
 
 class Migration(DataMigration):
@@ -17,7 +17,7 @@ class Migration(DataMigration):
         if 'FREENAS_INSTALL' in os.environ:
             return
 
-        ds = get_default_datastore()
+        ds = get_datastore()
 
         for cron in orm['tasks.CronJob'].objects.all():
 

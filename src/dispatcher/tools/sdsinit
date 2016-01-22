@@ -30,7 +30,6 @@ import argparse
 import time
 import os
 import sys
-import json
 import shutil
 import errno
 import logging
@@ -52,27 +51,7 @@ def init_datastore(filename, alt):
     global cs
 
     try:
-        f = open(filename)
-        conf = json.load(f)
-        f.close()
-    except IOError as err:
-        print("Cannot read config file: {0}".format(str(err)), file=sys.stderr)
-        sys.exit(1)
-    except ValueError as err:
-        print("Cannot read config file: {0}".format(str(err)), file=sys.stderr)
-        sys.exit(1)
-
-    if 'datastore' not in conf:
-        print("Cannot initialize datastore: configuration not found", file=sys.stderr)
-        sys.exit(1)
-
-    try:
-        dsn = 'dsn-alt' if alt else 'dsn'
-        ds = datastore.get_datastore(
-            conf['datastore']['driver'],
-            conf['datastore'][dsn]
-        )
-
+        ds = datastore.get_datastore(filename, alt=alt)
         cs = ConfigStore(ds)
     except datastore.DatastoreException as err:
         print("Cannot initialize datastore: {0}".format(str(err)), file=sys.stderr)
@@ -81,6 +60,7 @@ def init_datastore(filename, alt):
 
 def link_directories():
     for name, d in cs.get('system.dataset.layout').items():
+        name = name.replace('+', '.')
         target = os.path.join(SYSTEM_DIR, name)
         if not os.path.isdir(target):
             try:

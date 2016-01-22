@@ -313,7 +313,9 @@ class Dispatcher(object):
         self.rpc = None
         self.balancer = None
         self.datastore = None
+        self.configfile = None
         self.configstore = None
+        self.config = None
         self.auth = None
         self.ws_servers = []
         self.http_servers = []
@@ -331,13 +333,9 @@ class Dispatcher(object):
         self.logger.info('Starting log database')
         self.start_logdb()
 
-        self.datastore = get_datastore(
-            self.config['datastore']['driver'],
-            self.config['datastore']['dsn'],
-            self.config['datastore-log']['dsn']
-        )
-
+        self.datastore = get_datastore(self.configfile)
         self.configstore = ConfigStore(self.datastore)
+
         self.logger.info('Connected to datastore')
         self.require_collection('events', 'serial', type='log')
         self.require_collection('sessions', 'serial', type='log')
@@ -386,6 +384,7 @@ class Dispatcher(object):
         except (IOError, ValueError):
             raise
 
+        self.configfile = file
         self.config = data
         self.plugin_dirs = data['dispatcher']['plugin-dirs']
         self.pidfile = data['dispatcher']['pidfile']

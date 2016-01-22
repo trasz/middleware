@@ -5,7 +5,7 @@ from south.db import db
 from south.v2 import DataMigration
 from django.db import models
 
-from datastore import get_default_datastore
+from datastore import get_datastore
 
 
 def bsdusr_sshpubkey(user):
@@ -27,7 +27,7 @@ class Migration(DataMigration):
         if 'FREENAS_INSTALL' in os.environ:
             return
 
-        ds = get_default_datastore()
+        ds = get_datastore()
 
         for g in orm['account.bsdGroups'].objects.filter(bsdgrp_builtin=False):
             ds.insert('groups', {

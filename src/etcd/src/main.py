@@ -136,6 +136,7 @@ class Main(object):
     def __init__(self):
         self.logger = logging.getLogger('etcd')
         self.root = None
+        self.configfile = None
         self.config = None
         self.datastore = None
         self.configstore = None
@@ -146,7 +147,7 @@ class Main(object):
 
     def init_datastore(self):
         try:
-            self.datastore = datastore.get_datastore(self.config['datastore']['driver'], self.config['datastore']['dsn'])
+            self.datastore = datastore.get_datastore(self.configfile)
         except datastore.DatastoreException as err:
             self.logger.error('Cannot initialize datastore: %s', str(err))
             sys.exit(1)
@@ -192,7 +193,7 @@ class Main(object):
         except IOError as err:
             self.logger.error('Cannot read config file: %s', err.message)
             sys.exit(1)
-        except ValueError as err:
+        except ValueError:
             self.logger.error('Config file has unreadable format (not valid JSON)')
             sys.exit(1)
 
@@ -246,6 +247,7 @@ class Main(object):
 
         setproctitle.setproctitle('etcd')
         self.root = args.mountpoint
+        self.configfile = args.c
         self.parse_config(args.c)
         self.scan_plugins()
         self.init_renderers()

@@ -38,7 +38,7 @@ import queue
 from threading import Event
 from freenas.dispatcher.client import Client
 from freenas.dispatcher.rpc import RpcService, RpcException, RpcWarning
-from datastore import get_default_datastore
+from datastore import get_datastore
 from datastore.config import ConfigStore
 
 
@@ -154,7 +154,7 @@ class Context(object):
         key = sys.argv[1]
         logging.basicConfig(level=logging.DEBUG)
 
-        self.datastore = get_default_datastore()
+        self.datastore = get_datastore()
         self.configstore = ConfigStore(self.datastore)
         self.conn = Client()
         self.conn.connect('unix:')

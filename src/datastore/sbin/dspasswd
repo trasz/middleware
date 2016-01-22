@@ -26,11 +26,8 @@
 #
 #####################################################################
 
-
-
 import argparse
 import binascii
-import json
 import os
 import crypt
 import sys
@@ -42,22 +39,7 @@ DEFAULT_CONFIGFILE = '/usr/local/etc/middleware.conf'
 
 def init_datastore(filename):
     try:
-        f = open(filename)
-        conf = json.load(f)
-        f.close()
-    except IOError as err:
-        print("Cannot read config file: {0}".format(str(err)), file=sys.stderr)
-        sys.exit(1)
-    except ValueError as err:
-        print("Cannot read config file: {0}".format(str(err)), file=sys.stderr)
-        sys.exit(1)
-
-    if 'datastore' not in conf:
-        print("Cannot initialize datastore: configuration not found", file=sys.stderr)
-        sys.exit(1)
-
-    try:
-        ds = datastore.get_datastore(conf['datastore']['driver'], conf['datastore']['dsn'])
+        ds = datastore.get_datastore(filename, log=False)
     except datastore.DatastoreException as err:
         print("Cannot initialize datastore: {0}".format(str(err)), file=sys.stderr)
         sys.exit(1)
