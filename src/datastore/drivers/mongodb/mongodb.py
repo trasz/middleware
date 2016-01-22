@@ -50,7 +50,7 @@ def auto_retry(fn):
 
             try:
                 return fn(*args, **kwargs)
-            except (pymongo.errors.AutoReconnect, pymongo.errors.ConnectionFailure):
+            except (pymongo.errors.AutoReconnect, pymongo.errors.ConnectionFailure, pymongo.errors.OperationFailure):
                 time.sleep(1)
 
         raise DatastoreException('Cannot connect to MongoDB instance')
