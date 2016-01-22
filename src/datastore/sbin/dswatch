@@ -62,9 +62,12 @@ proc = None
 def sigterm(signo, frame):
     if proc:
         logger.info('Terminating on SIGTERM')
-        proc.terminate()
+        try:
+            proc.terminate()
+        except ProcessLookupError:
+            pass
 
-    sys.exit(0)
+    os._exit(0)
 
 
 def expand(arr, **kwargs):
@@ -92,6 +95,7 @@ def recreate(dbdir):
 
 
 def check_health(dsn):
+    signal.pthread_sigmask(signal.SIG_BLOCK, [signal.SIGTERM])
     while True:
         if proc and proc.poll() is None:
             try:
@@ -101,6 +105,8 @@ def check_health(dsn):
                 if sum(result['asserts'].values()) > 0:
                     logger.warning('Found errors reported by MongoDB instance, restarting')
                     proc.terminate()
+
+                conn.close()
             except:
                 logger.warning('Cannot connect to MongoDB, restarting')
                 proc.terminate()
@@ -145,7 +151,7 @@ def main():
             time.sleep(HEALTH_CHECK_INTERVAL)
             continue
 
-        proc = subprocess.Popen(expand(MONGOD_ARGS, **args))
+        proc = subprocess.Popen(expand(MONGOD_ARGS, **args), close_fds=True)
         logger.info('Started MongoDB as PID {0}'.format(proc.pid))
 
         try:
