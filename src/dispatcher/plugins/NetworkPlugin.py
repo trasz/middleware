@@ -413,6 +413,11 @@ class AddRouteTask(Task):
         if self.datastore.exists('network.routes', ('id', '=', route['id'])):
             raise VerifyException(errno.EEXIST, 'Route {0} exists'.format(route['id']))
 
+        for r in self.dispatcher.call_sync('network.route.query'):
+            if (r['network'] == route['network'])\
+                    and (r['netmask'] == route['netmask']) and (r['gateway'] == route['gateway']):
+                raise VerifyException(errno.EINVAL, 'Cannot create two identical routes differing only in name.')
+
         return ['system']
 
     def run(self, route):
