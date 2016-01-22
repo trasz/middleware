@@ -34,6 +34,7 @@ from datetime import datetime
 from pymongo import MongoClient
 import pymongo
 import pymongo.errors
+import pymongo.cursor
 from six import string_types
 from datastore import DatastoreException, DuplicateKeyException
 from freenas.utils.query import wrap
@@ -42,6 +43,11 @@ from freenas.utils.query import wrap
 def auto_retry(fn):
     def wrapped(*args, **kwargs):
         for i in range(0, 15):
+            self = args[0]
+            if not self.connected:
+                time.sleep(1)
+                continue
+
             try:
                 return fn(*args, **kwargs)
             except (pymongo.errors.AutoReconnect, pymongo.errors.ConnectionFailure):
@@ -58,6 +64,7 @@ class MongodbDatastore(object):
         self.conn_log = None
         self.db = None
         self.log_db = None
+        self.connected = False
         self.operators_table = {
             '>': '$gt',
             '<': '$lt',
@@ -140,14 +147,15 @@ class MongodbDatastore(object):
 
         return self.db[collection]
 
-    @auto_retry
     def connect(self, dsn, dsn_log, database='freenas'):
         self.conn_db = MongoClient(dsn)
         self.db = self.conn_db[database]
 
         if dsn_log:
-            self.conn_log = MongoClient(dsn_log)
+            self.conn_log = MongoClient(dsn_log, connect=False)
             self.log_db = self.conn_log[database]
+
+        self.connected = True
 
     @auto_retry
     def collection_create(self, name, pkey_type='uuid', attributes=None):
@@ -312,7 +320,10 @@ class MongodbDatastore(object):
 
     @auto_retry
     def listen(self, collection, *args, **kwargs):
-        return self._get_db(collection).find(self._build_query(args), tailable=True, await_data=True)
+        return self._get_db(collection).find(
+            self._build_query(args),
+            cursor_type=pymongo.cursor.CursorType.TAILABLE_AWAIT
+        )
 
     @auto_retry
     def tail(self, cur):
@@ -427,8 +438,16 @@ class MongodbDatastore(object):
         db = self._get_db(collection)
         db.remove(pkey)
 
-    def lock(self):
-        self.conn_db.fsync(lock=True)
+    def lock(self, data=True, log=False):
+        if data:
+            self.conn_db.fsync(lock=True)
 
-    def unlock(self):
-        self.conn_db.unlock()
+        if log:
+            self.conn_log.fsync(lock=True)
+
+    def unlock(self, data=True, log=False):
+        if data:
+            self.conn_db.unlock()
+
+        if log:
+            self.conn_log.unlock()
