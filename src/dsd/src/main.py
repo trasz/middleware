@@ -220,8 +220,6 @@ class DSDConfigurationService(RpcService):
         self.modules[DS_TYPE_LDAP].context = None
 
     def load_directoryservices(self):
-        self.datastore.collection_create(
-            'directoryservices', pkey_type='name')
         directoryservices = self.datastore.query('directoryservices')
         for ds in directoryservices:
             self.directoryservices[ds['type']] = ds
