@@ -456,6 +456,30 @@ class UpdateRouteTask(Task):
         if not self.datastore.exists('network.routes', ('id', '=', name)):
             raise VerifyException(errno.ENOENT, 'Route {0} does not exist'.format(name))
 
+        route = self.datastore.get_one('network.routes', ('id', '=', name))
+        net = updated_fields['network'] if 'network' in updated_fields else route['network']
+        netmask = updated_fields['netmask'] if 'network' in updated_fields else route['netmask']
+        gateway = updated_fields['gateway'] if 'network' in updated_fields else route['gateway']
+
+        for r in self.dispatcher.call_sync('network.route.query'):
+            if (r['network'] == net)\
+                    and (r['netmask'] == netmask) and (r['gateway'] == gateway):
+                raise VerifyException(errno.EINVAL, 'Cannot create two identical routes differing only in name.')
+
+        if netmask not in range(1, 31):
+            raise VerifyException(errno.EINVAL, 'Netmask value {0} is not valid. Allowed values are 1-30 (CIDR).'
+                                  .format(netmask))
+
+        try:
+            network = ipaddress.ip_network(os.path.join(net, netmask))
+        except ValueError:
+            raise VerifyException(errno.EINVAL,
+                                  '{0} would have host bits set. Change network or netmask to represent a valid network'
+                                  .format(os.path.join(net, netmask)))
+
+        if ipaddress.ip_address(gateway) not in network:
+            raise VerifyException(errno.EINVAL, 'Gateway {0} does not belong to {1} network.'
+                                  .format(gateway, network.exploded))
         return ['system']
 
     def run(self, name, updated_fields):
