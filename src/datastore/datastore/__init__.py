@@ -27,7 +27,6 @@
 
 import imp
 import os
-import sys
 import json
 
 
@@ -43,32 +42,34 @@ class DuplicateKeyException(DatastoreException):
     pass
 
 
-def get_datastore(type, dsn, database='freenas'):
-    mod = imp.load_source(type, os.path.join(DRIVERS_LOCATION, type, type + '.py'))
+def parse_config(path):
+    try:
+        f = open(path, 'r')
+        config = json.load(f)
+        f.close()
+    except IOError as err:
+        raise DatastoreException('Cannot read config file: {0}'.format(err.message))
+    except ValueError:
+        raise DatastoreException('Config file has unreadable format (not valid JSON)')
+
+    return config
+
+
+def get_datastore(filename=None, log=True, alt=False, database='freenas'):
+    conf = parse_config(filename or DEFAULT_CONFIGFILE)
+    driver = conf['datastore']['driver']
+    mod = imp.load_source(driver, os.path.join(DRIVERS_LOCATION, driver, driver + '.py'))
     if mod is None:
         raise DatastoreException('Datastore driver not found')
 
-    cls = getattr(mod, '{0}Datastore'.format(type.title()))
+    cls = getattr(mod, '{0}Datastore'.format(driver.title()))
     if cls is None:
         raise DatastoreException('Datastore driver not found')
 
+    dsn_name = 'dsn-alt' if alt else 'dsn'
+    dsn = conf['datastore'][dsn_name]
+    dsn_log = conf['datastore-log'][dsn_name]
+
     instance = cls()
-    instance.connect(dsn, database)
+    instance.connect(dsn, dsn_log if log else None, database)
     return instance
-
-
-def get_default_datastore():
-    def parse_config(filename):
-        try:
-            f = open(filename, 'r')
-            config = json.load(f)
-            f.close()
-        except IOError as err:
-            raise DatastoreException('Cannot read config file: {0}'.format(err.message))
-        except ValueError:
-            raise DatastoreException('Config file has unreadable format (not valid JSON)')
-
-        return config
-
-    conf = parse_config(DEFAULT_CONFIGFILE)
-    return get_datastore(conf['datastore']['driver'], conf['datastore']['dsn'])
