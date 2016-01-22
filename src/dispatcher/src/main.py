@@ -749,6 +749,7 @@ class Dispatcher(object):
     def stop_logdb(self):
         if self.logdb_proc:
             self.logdb_proc.terminate()
+            self.logdb_proc.wait()
 
 
 class ServerRpcContext(RpcContext):
