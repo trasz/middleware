@@ -87,6 +87,12 @@ class ManagementService(RpcService):
     def die_you_gravy_sucking_pig_dog(self):
         self.dispatcher.die()
 
+    def start_logdb(self):
+        self.dispatcher.start_logdb()
+
+    def stop_logdb(self):
+        self.dispatcher.stop_logdb()
+
 
 class DebugService(RpcService):
     def __init__(self):
