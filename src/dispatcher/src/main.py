@@ -1643,7 +1643,7 @@ class DownloadRequestHandler(object):
 
 def run(d, args):
     setproctitle.setproctitle('dispatcher')
-    monkey.patch_all(thread=False)
+    monkey.patch_all()
 
     # Signal handlers
     gevent.signal(signal.SIGQUIT, d.die)
