@@ -37,10 +37,13 @@ import re
 import tempfile
 from resources import Resource
 from cache import CacheStore
-from freenas.dispatcher.rpc import RpcException, description, accepts, returns, private, SchemaHelper as h
+from freenas.dispatcher.rpc import (
+    RpcException, description, accepts, returns, private, SchemaHelper as h
+)
 from gevent import subprocess
-from task import Provider, Task, ProgressTask, TaskException, VerifyException
-
+from task import (
+    Provider, Task, ProgressTask, MasterProgressTask, TaskException, VerifyException
+)
 if '/usr/local/lib' not in sys.path:
     sys.path.append('/usr/local/lib')
 from freenasOS import Configuration, Train
@@ -727,7 +730,7 @@ class UpdateVerifyTask(ProgressTask):
     None,
 ))
 @returns(bool)
-class CheckFectchUpdateTask(ProgressTask):
+class CheckFetchUpdateTask(MasterProgressTask):
     def describe(self):
         return "Checks for updates from the update server and downloads them if available. " +\
                "Returns Ture if updates were found and applied else False"
@@ -744,10 +747,10 @@ class CheckFectchUpdateTask(ProgressTask):
 
     def run(self, mail=False):
         self.set_progress(0, 'Checking for new updates from update server...')
-        self.join_subtasks(self.run_subtask('update.check'))
+        self.run_and_join_progress_subtask('update.check', weight=0.1)
         if self.dispatcher.call_sync('update.is_update_available'):
-            self.set_progress(20, 'New updates found. Downloading them now...')
-            self.join_subtasks(self.run_subtask('update.download'))
+            self.set_progress(10, 'New updates found. Downloading them now...')
+            self.run_and_join_progress_subtask('update.download', weight=0.9)
 
             if mail:
                 changelog = self.dispatcher.call_sync('update.obtain_changelog')
@@ -874,7 +877,7 @@ def _init(dispatcher, plugin):
     plugin.register_task_handler("update.manual", UpdateManualTask)
     plugin.register_task_handler("update.update", UpdateApplyTask)
     plugin.register_task_handler("update.verify", UpdateVerifyTask)
-    plugin.register_task_handler("update.checkfetch", CheckFectchUpdateTask)
+    plugin.register_task_handler("update.checkfetch", CheckFetchUpdateTask)
 
     # Register Event Types
     plugin.register_event_type('update.in_progress', schema=h.ref('update-progress'))
