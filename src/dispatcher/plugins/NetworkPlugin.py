@@ -461,11 +461,6 @@ class UpdateRouteTask(Task):
         netmask = updated_fields['netmask'] if 'network' in updated_fields else route['netmask']
         gateway = updated_fields['gateway'] if 'network' in updated_fields else route['gateway']
 
-        for r in self.dispatcher.call_sync('network.route.query'):
-            if (r['network'] == net)\
-                    and (r['netmask'] == netmask) and (r['gateway'] == gateway):
-                raise VerifyException(errno.EINVAL, 'Cannot create two identical routes differing only in name.')
-
         if netmask not in range(1, 31):
             raise VerifyException(errno.EINVAL, 'Netmask value {0} is not valid. Allowed values are 1-30 (CIDR).'
                                   .format(netmask))
