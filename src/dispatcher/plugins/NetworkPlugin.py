@@ -458,8 +458,8 @@ class UpdateRouteTask(Task):
 
         route = self.datastore.get_one('network.routes', ('id', '=', name))
         net = updated_fields['network'] if 'network' in updated_fields else route['network']
-        netmask = updated_fields['netmask'] if 'network' in updated_fields else route['netmask']
-        gateway = updated_fields['gateway'] if 'network' in updated_fields else route['gateway']
+        netmask = updated_fields['netmask'] if 'netmask' in updated_fields else route['netmask']
+        gateway = updated_fields['gateway'] if 'gateway' in updated_fields else route['gateway']
 
         if netmask not in range(1, 31):
             raise VerifyException(errno.EINVAL, 'Netmask value {0} is not valid. Allowed values are 1-30 (CIDR).'
