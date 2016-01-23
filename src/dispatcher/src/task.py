@@ -82,7 +82,7 @@ class ProgressTask(Task):
     def __init__(self, dispatcher, datastore):
         super(ProgressTask, self).__init__(dispatcher, datastore)
         self.progress = 0
-        self.message = 'Executing...'
+        self.message = 'EXECUTING...'
 
     def get_status(self):
         return TaskStatus(self.progress, self.message)
@@ -91,6 +91,22 @@ class ProgressTask(Task):
         self.progress = percentage
         if message:
             self.message = message
+
+
+class MasterProgressTask(ProgressTask):
+
+    def __init__(self, dispatcher, datastore):
+        super(MasterProgressTask, self).__init__(dispatcher, datastore)
+        self.progress_subtask_id = None
+        self.progress_subtask_weight = 1  # Can take any value in range: [0.0, 1.0]
+
+    def run_and_join_progress_subtask(self, classname, *args, **kwargs):
+        if 'weight' in kwargs and kwargs['weight'] >= 0.0 and kwargs['weight'] <= 1.0:
+            self.progress_subtask_weight = kwargs.pop('weight')
+        self.progress_subtask_id = self.dispatcher.run_subtask(self, classname, args)
+        subtask_result = self.dispatcher.join_subtasks(self.progress_subtask_id)
+        self.progress_subtask_id = None
+        return subtask_result[0]
 
 
 class TaskException(RpcException):

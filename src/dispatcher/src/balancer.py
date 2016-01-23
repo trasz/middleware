@@ -44,7 +44,10 @@ from gevent.event import Event, AsyncResult
 from gevent.subprocess import Popen
 from freenas.utils import first_or_default
 from resources import Resource
-from task import TaskException, TaskAbortException, VerifyException, TaskStatus, TaskState
+from task import (
+    TaskException, TaskAbortException, VerifyException,
+    TaskStatus, TaskState, MasterProgressTask
+)
 import collections
 
 
@@ -84,9 +87,27 @@ class TaskExecutor(object):
         try:
             st = TaskStatus(0)
             st.__setstate__(self.conn.call_client_sync('taskproxy.get_status'))
+            if issubclass(self.task.clazz, MasterProgressTask):
+                progress_subtask_info = self.conn.call_client_sync(
+                    'taskproxy.get_progress_subtask_info'
+                )
+                if progress_subtask_info['id'] is not None:
+                    subtask_status = self.balancer.get_task(
+                        progress_subtask_info['id']
+                    ).executor.get_status()
+                    st.__setstate__({
+                        'percentage':
+                            st.percentage +
+                            int(progress_subtask_info['weight'] * subtask_status.percentage),
+                        'message': subtask_status.message,
+                        'extra': subtask_status.extra
+                    })
             return st
+
         except RpcException as err:
-            self.balancer.logger.error("Cannot obtain status from task #{0}: {1}".format(self.task.id, str(err)))
+            self.balancer.logger.error(
+                "Cannot obtain status from task #{0}: {1}".format(self.task.id, str(err))
+            )
             self.proc.terminate()
 
     def put_status(self, status):

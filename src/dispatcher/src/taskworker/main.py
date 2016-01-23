@@ -109,6 +109,12 @@ class TaskProxyService(RpcService):
         self.context.running.wait()
         return self.context.instance.get_status()
 
+    def get_progress_subtask_info(self):
+        return {
+            'id': self.context.instance.progress_subtask_id,
+            'weight': self.context.instance.progress_subtask_weight
+        }
+
     def abort(self):
         if not hasattr(self.context.instance, 'abort'):
             raise RpcException(errno.ENOTSUP, 'Abort not supported')
