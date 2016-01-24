@@ -665,6 +665,8 @@ class VolumeUpdateTask(Task):
             # Configure newly imported volume
             self.join_subtasks(self.run_subtask('zfs.configure', new_name, new_name, {}))
 
+            self.join_subtasks(self.run_subtask('zfs.mount', new_name))
+
             volume['name'] = new_name
             self.datastore.update('volumes', volume['id'], volume)
 
