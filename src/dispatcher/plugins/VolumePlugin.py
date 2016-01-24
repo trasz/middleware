@@ -670,6 +670,10 @@ class VolumeUpdateTask(Task):
 
             volume['name'] = new_name
             self.datastore.update('volumes', volume['id'], volume)
+            self.dispatcher.run_hook('volume.post_rename', {'name': name,
+                                                            'mountpoint': '{0}/{1}'.format(VOLUMES_ROOT, name),
+                                                            'new_name': new_name,
+                                                            'new_mountpoint': '{0}/{1}'.format(VOLUMES_ROOT, new_name)})
 
         if 'topology' in updated_params:
             new_vdevs = {}
@@ -1763,6 +1767,7 @@ def _init(dispatcher, plugin):
     plugin.register_hook('volume.pre_attach')
 
     plugin.register_hook('volume.pre_rename')
+    plugin.register_hook('volume.post_rename')
 
     plugin.register_event_handler('entity-subscriber.zfs.pool.changed', on_pool_change)
     plugin.register_event_handler('fs.zfs.vdev.removed', on_vdev_remove)

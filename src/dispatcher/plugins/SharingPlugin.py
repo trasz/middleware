@@ -303,6 +303,22 @@ def _init(dispatcher, plugin):
         dispatcher.call_task_sync('share.delete_dependent', os.path.join('/dev/zvol', args['name']))
         return True
 
+    def volume_rename(args):
+        for share in dispatcher.call_sync('share.query'):
+            new_path = share['target_path']
+            if share['target_path'].startswith(args['name']):
+                new_path = new_path.replace(args['name'], args['new_name'], 1)
+
+            elif share['target_type'] in ('DIRECTORY', 'FILE'):
+                if share['target_path'].startswith(args['mountpoint']):
+                    new_path = new_path.replace(args['mountpoint'], args['new_mountpoint'], 1)
+
+            if new_path is not share['target_path']:
+                dispatcher.call_task_sync('share.update',
+                                          share['id'],
+                                          {'target_path': new_path})
+        return True
+
     dispatcher.require_collection('share', 'string')
     plugin.register_provider('share', SharesProvider)
     plugin.register_task_handler('share.create', CreateShareTask)
@@ -312,3 +328,4 @@ def _init(dispatcher, plugin):
     plugin.register_event_type('share.changed')
     plugin.attach_hook('volume.pre_destroy', volume_pre_destroy)
     plugin.attach_hook('volume.pre_detach', volume_pre_destroy)
+    plugin.attach_hook('volume.post_rename', volume_rename)
