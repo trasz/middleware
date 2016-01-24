@@ -247,6 +247,7 @@ def _init(dispatcher, plugin):
     plugin.register_event_handler('volume.changed', on_volumes_changed)
     plugin.attach_hook('volume.pre_destroy', volume_pre_destroy)
     plugin.attach_hook('volume.pre_detach', volume_pre_destroy)
+    plugin.attach_hook('volume.pre_rename', volume_pre_destroy)
     plugin.register_provider('system_dataset', SystemDatasetProvider)
     plugin.register_task_handler('system_dataset.configure', SystemDatasetConfigure)
 

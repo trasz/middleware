@@ -654,6 +654,7 @@ class VolumeUpdateTask(Task):
         if 'name' in updated_params:
             # Renaming pool. Need to export and import again using different name
             new_name = updated_params['name']
+            self.dispatcher.run_hook('volume.pre_rename', {'name': name, 'new_name': new_name})
             # Rename mountpoint
             self.join_subtasks(self.run_subtask('zfs.configure', name, name, {
                 'mountpoint': {'value': '{0}/{1}'.format(VOLUMES_ROOT, new_name)}
@@ -1760,6 +1761,8 @@ def _init(dispatcher, plugin):
     plugin.register_hook('volume.pre_detach')
     plugin.register_hook('volume.pre_create')
     plugin.register_hook('volume.pre_attach')
+
+    plugin.register_hook('volume.pre_rename')
 
     plugin.register_event_handler('entity-subscriber.zfs.pool.changed', on_pool_change)
     plugin.register_event_handler('fs.zfs.vdev.removed', on_vdev_remove)
