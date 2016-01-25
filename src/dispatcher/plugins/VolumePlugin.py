@@ -432,6 +432,8 @@ class VolumeCreateTask(ProgressTask):
             os.path.join(VOLUMES_ROOT, volume['name'])
         )
         encryption = params.pop('encryption', False)
+
+        self.dispatcher.run_hook('volume.pre_create', {'name': name})
         if encryption:
             key = base64.b64encode(os.urandom(64)).decode('utf-8')
             if password is not None:
@@ -873,6 +875,8 @@ class VolumeImportTask(Task):
     def run(self, id, new_name, params=None, enc_params=None, password=None):
         if enc_params is None:
             enc_params = {}
+
+        self.dispatcher.run_hook('volume.pre_attach', {'name': new_name})
         with self.dispatcher.get_lock('volumes'):
             key = enc_params.get('key', None)
             if key is not None:
@@ -997,6 +1001,8 @@ class VolumeDetachTask(Task):
         return ['disk:{0}'.format(d) for d in self.dispatcher.call_sync('volume.get_volume_disks', name)]
 
     def run(self, name):
+
+        self.dispatcher.run_hook('volume.pre_detach', {'name': name})
         vol = self.datastore.get_one('volumes', ('name', '=', name))
         disks = self.dispatcher.call_sync('volume.get_volume_disks', name)
         self.join_subtasks(self.run_subtask('zfs.umount', name))
