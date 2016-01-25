@@ -260,7 +260,7 @@ class VolumeProvider(Provider):
 
         return result
 
-    @accepts(str)
+    @accepts(str, str)
     @returns(str)
     def resolve_path(self, volname, path):
         volume = self.query([('name', '=', volname)], {'single': True})
