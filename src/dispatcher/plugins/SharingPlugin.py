@@ -87,6 +87,18 @@ class SharesProvider(Provider):
 
         return result
 
+    @description("Get shares related to provided filesystem path. Includes disabled shares")
+    @accepts(str)
+    @returns(h.array('share'))
+    def get_related(self, path):
+        result = []
+        for i in self.datastore.query('shares'):
+            target_path = self.translate_path(i['id'])
+            if target_path.startswith(path):
+                result.append(i)
+
+        return result
+
     @private
     def translate_path(self, share_id):
         root = self.dispatcher.call_sync('volume.get_volumes_root')
@@ -259,6 +271,20 @@ class DeleteDependentShares(Task):
         self.join_subtasks(*subtasks)
 
 
+@description("Updates all shares related to specified volume/dataset")
+@accepts(str, h.ref('share'))
+class UpdateRelatedShares(Task):
+    def verify(self, path, updated_fields):
+        return ['system']
+
+    def run(self, path, updated_fields):
+        subtasks = []
+        for i in self.dispatcher.call_sync('share.get_related', path):
+            subtasks.append(self.run_subtask('share.update', i['id'], updated_fields))
+
+        self.join_subtasks(*subtasks)
+
+
 def _depends():
     return ['VolumePlugin']
 
@@ -317,13 +343,28 @@ def _init(dispatcher, plugin):
                                           {'target_path': new_path})
         return True
 
+    def set_related_enabled(name, enabled):
+        path = dispatcher.call_sync('volume.resolve_path', name, '')
+        dispatcher.call_task_sync('share.update_related', path, {'enabled': enabled})
+        dispatcher.call_task_sync('share.update_related', os.path.join('/dev/zvol', name), {'enabled': enabled})
+
+    def volume_detach(args):
+        set_related_enabled(args['name'], False)
+        return True
+
+    def volume_attach(args):
+        set_related_enabled(args['name'], True)
+        return True
+
     dispatcher.require_collection('share', 'string')
     plugin.register_provider('share', SharesProvider)
     plugin.register_task_handler('share.create', CreateShareTask)
     plugin.register_task_handler('share.update', UpdateShareTask)
     plugin.register_task_handler('share.delete', DeleteShareTask)
     plugin.register_task_handler('share.delete_dependent', DeleteDependentShares)
+    plugin.register_task_handler('share.update_related', UpdateRelatedShares)
     plugin.register_event_type('share.changed')
     plugin.attach_hook('volume.pre_destroy', volume_pre_destroy)
-    plugin.attach_hook('volume.pre_detach', volume_pre_destroy)
+    plugin.attach_hook('volume.pre_detach', volume_detach)
+    plugin.attach_hook('volume.post_attach', volume_attach)
     plugin.attach_hook('volume.post_rename', volume_rename)
