@@ -78,9 +78,8 @@ def main():
 
     if args.reset:
         try:
-            f = open(args.c, 'r')
-            config = json.load(f)
-            f.close()
+            with open(args.c, 'r') as f:
+                config = json.load(f)
         except IOError as err:
             print('Cannot read config file: {0}'.format(err.message), file=sys.stderr)
             sys.exit(1)
