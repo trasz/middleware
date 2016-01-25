@@ -21,12 +21,8 @@ prestart()
 {
     rc_flags="-P ${pidfile} /usr/local/sbin/crash-wrapper /usr/local/sbin/dispatcherd ${rc_flags}"
 
-    # mount .system dataset (or create it/fix links if needed)
-    /usr/local/sbin/sdsinit
-    /usr/local/sbin/dsmigrate \
-        -t log \
-        -f /usr/local/share/datastore/factory.json \
-        -d /usr/local/share/datastore/migrations
+   # mount .system dataset (or create it/fix links if needed)
+   /usr/local/sbin/sdsinit
 
    if [ -z "$(check_pidfile /var/run/devd.pid /sbin/devd)" ]; then
         /sbin/devd
