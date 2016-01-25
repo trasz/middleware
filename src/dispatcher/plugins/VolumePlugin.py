@@ -875,8 +875,6 @@ class VolumeImportTask(Task):
     def run(self, id, new_name, params=None, enc_params=None, password=None):
         if enc_params is None:
             enc_params = {}
-
-        self.dispatcher.run_hook('volume.pre_attach', {'name': new_name})
         with self.dispatcher.get_lock('volumes'):
             key = enc_params.get('key', None)
             if key is not None:
@@ -936,6 +934,7 @@ class VolumeImportTask(Task):
                 'operation': 'create',
                 'ids': [new_id]
             })
+        self.dispatcher.run_hook('volume.post_attach', {'name': new_name})
 
 
 @description("Imports non-ZFS disk contents info existing volume")
@@ -1770,7 +1769,7 @@ def _init(dispatcher, plugin):
     plugin.register_hook('volume.pre_destroy')
     plugin.register_hook('volume.pre_detach')
     plugin.register_hook('volume.pre_create')
-    plugin.register_hook('volume.pre_attach')
+    plugin.register_hook('volume.post_attach')
 
     plugin.register_hook('volume.pre_rename')
     plugin.register_hook('volume.post_rename')
