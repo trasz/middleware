@@ -1091,6 +1091,7 @@ class VolumeLockTask(Task):
         return ['disk:{0}'.format(d) for d in self.dispatcher.call_sync('volume.get_volume_disks', name)]
 
     def run(self, name):
+        self.dispatcher.run_hook('volume.pre_detach', {'name': name})
         with self.dispatcher.get_lock('volumes'):
             vol = self.dispatcher.call_sync('volume.query', [('name', '=', name)], {'single': True})
             self.join_subtasks(self.run_subtask('zfs.umount', name))
@@ -1174,6 +1175,8 @@ class VolumeUnlockTask(Task):
                 'operation': 'update',
                 'ids': [vol['id']]
             })
+
+        self.dispatcher.run_hook('volume.post_attach', {'name': name})
 
 
 @description("Generates and sets new key for encrypted ZFS volume")
