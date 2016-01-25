@@ -457,6 +457,18 @@ def _init(dispatcher, plugin):
         }
     })
 
+    def volume_pre_detach(args):
+        for vm in dispatcher.call_sync('container.query'):
+            if vm['target'] == args['name']:
+                dispatcher.call_task_sync('container.stop', vm['id'])
+        return True
+
+    def volume_pre_destroy(args):
+        for vm in dispatcher.call_sync('container.query'):
+            if vm['target'] == args['name']:
+                dispatcher.call_task_sync('container.delete', vm['id'])
+        return True
+
     plugin.register_provider('container', ContainerProvider)
     plugin.register_task_handler('container.create', ContainerCreateTask)
     plugin.register_task_handler('container.update', ContainerUpdateTask)
@@ -467,5 +479,8 @@ def _init(dispatcher, plugin):
 
     plugin.register_provider('vm_template', VMTemplateProvider)
     plugin.register_task_handler('vm_template.fetch', VMTemplateFetchTask)
+
+    plugin.attach_hook('volume.pre_destroy', volume_pre_destroy)
+    plugin.attach_hook('volume.pre_detach', volume_pre_detach)
 
     plugin.register_event_type('container.changed')
