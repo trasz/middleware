@@ -146,6 +146,8 @@ def move_system_dataset(dispatcher, dsid, services, src_pool, dst_pool):
     for s in services:
         dispatcher.call_sync('service.ensure_stopped', s)
 
+    dispatcher.call_sync('management.stop_logdb')
+
     try:
         copytree(SYSTEM_DIR, tmpath)
     except shutil.Error as err:
@@ -157,6 +159,8 @@ def move_system_dataset(dispatcher, dsid, services, src_pool, dst_pool):
     umount_system_dataset(dispatcher, dsid, src_pool)
     mount_system_dataset(dispatcher, dsid, dst_pool, SYSTEM_DIR)
     remove_system_dataset(dispatcher, dsid, src_pool)
+
+    dispatcher.call_sync('management.start_logdb')
 
     for s in services:
         dispatcher.call_sync('service.ensure_started', s, timeout=20)

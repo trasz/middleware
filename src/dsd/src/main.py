@@ -220,8 +220,6 @@ class DSDConfigurationService(RpcService):
         self.modules[DS_TYPE_LDAP].context = None
 
     def load_directoryservices(self):
-        self.datastore.collection_create(
-            'directoryservices', pkey_type='name')
         directoryservices = self.datastore.query('directoryservices')
         for ds in directoryservices:
             self.directoryservices[ds['type']] = ds
@@ -582,22 +580,9 @@ class Main(object):
         self.configstore = None
         self.logger = logging.getLogger('dsd')
 
-    def parse_config(self, filename):
-        try:
-            f = open(filename, 'r')
-            self.config = json.load(f)
-            f.close()
-        except IOError as err:
-            self.logger.error('Cannot read config file: %s', err.message)
-            sys.exit(1)
-        except ValueError as err:
-            self.logger.error('Config file has unreadable format (not valid JSON)')
-            sys.exit(1)
-
     def init_datastore(self, resume=False):
         try:
-            self.datastore = get_datastore(self.config['datastore']['driver'],
-                self.config['datastore']['dsn'])
+            self.datastore = get_datastore(self.config)
         except DatastoreException as err:
             self.logger.error('Cannot initialize datastore: %s', str(err))
             sys.exit(1)
@@ -665,7 +650,7 @@ class Main(object):
         args = parser.parse_args()
         configure_logging('/var/log/dsd.log', 'DEBUG')
         setproctitle.setproctitle('dsd')
-        self.parse_config(args.c)
+        self.config = args.c
         self.init_datastore()
         self.init_dispatcher()
         self.client.resume_service('dsd.configuration')

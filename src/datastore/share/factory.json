@@ -970,9 +970,7 @@
                         "samba4": {}
                     }
                 },
-                "log-db": {
-                    "link": "/data/freenas.db/freenas-log"
-                },
+                "freenas-log+db": {},
                 "samba": {
                     "link": "/var/db/samba4",
                     "children": {
@@ -1996,7 +1994,19 @@
         "data": {
         }
     },
-        {
+    {
+        "metadata": {
+            "name": "directoryservices",
+            "migration": "keep",
+            "pkey-type": "native",
+            "attributes": {
+                "type": "config"
+            }
+        },
+        "data": {
+        }
+    },
+    {
          "metadata": {
             "name": "directoryservice.ldap",
             "migration": "keep",

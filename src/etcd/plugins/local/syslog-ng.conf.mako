@@ -49,8 +49,8 @@ destination allusers { usertty("*"); };
 
 destination mongodb {
     mongodb(
-        servers("127.0.0.1:27017"),
-        database("freenas-log"),
+        servers("127.0.0.1:27018"),
+        database("freenas"),
         collection("syslog"),
         value-pairs(
             pair("_id", "$(uuid)"),

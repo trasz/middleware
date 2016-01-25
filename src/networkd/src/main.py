@@ -739,21 +739,9 @@ class Main:
         for i in self.datastore.query('network.interfaces', ('id', 'nin', existing), ('cloned', '=', False)):
             self.datastore.delete('network.interfaces', i['id'])
 
-    def parse_config(self, filename):
-        try:
-            f = open(filename, 'r')
-            self.config = json.load(f)
-            f.close()
-        except IOError as err:
-            self.logger.error('Cannot read config file: %s', err.message)
-            sys.exit(1)
-        except ValueError as err:
-            self.logger.error('Config file has unreadable format (not valid JSON)')
-            sys.exit(1)
-
     def init_datastore(self):
         try:
-            self.datastore = get_datastore(self.config['datastore']['driver'], self.config['datastore']['dsn'])
+            self.datastore = get_datastore(self.config)
         except DatastoreException as err:
             self.logger.error('Cannot initialize datastore: %s', str(err))
             sys.exit(1)
@@ -858,7 +846,7 @@ class Main:
         args = parser.parse_args()
         configure_logging('/var/log/networkd.log', 'DEBUG')
         setproctitle.setproctitle('networkd')
-        self.parse_config(args.c)
+        self.config = args.c
         self.init_datastore()
         self.init_dispatcher()
         self.scan_interfaces()

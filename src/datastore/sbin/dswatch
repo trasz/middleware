@@ -36,9 +36,14 @@ import time
 import logging
 import setproctitle
 import shutil
+import signal
+import threading
+import pymongo
 from string import Template
+from freenas.utils import configure_logging
 
 
+HEALTH_CHECK_INTERVAL = 5
 DEFAULT_CONFIGFILE = '/usr/local/etc/middleware.conf'
 MONGOD_ARGS = [
     '/usr/local/bin/mongod',
@@ -51,6 +56,18 @@ MONGOD_ARGS = [
 
 
 logger = logging.getLogger('dswatch')
+proc = None
+
+
+def sigterm(signo, frame):
+    if proc:
+        logger.info('Terminating on SIGTERM')
+        try:
+            proc.terminate()
+        except ProcessLookupError:
+            pass
+
+    os._exit(0)
 
 
 def expand(arr, **kwargs):
@@ -77,16 +94,36 @@ def recreate(dbdir):
     os.mkdir(dbdir)
 
 
+def check_health(dsn):
+    signal.pthread_sigmask(signal.SIG_BLOCK, [signal.SIGTERM])
+    while True:
+        if proc and proc.poll() is None:
+            try:
+                conn = pymongo.MongoClient(dsn)
+                result = conn['freenas'].command({'serverStatus': 1})
+
+                if sum(result['asserts'].values()) > 0:
+                    logger.warning('Found errors reported by MongoDB instance, restarting')
+                    proc.terminate()
+
+                conn.close()
+            except:
+                logger.warning('Cannot connect to MongoDB, restarting')
+                proc.terminate()
+
+        time.sleep(HEALTH_CHECK_INTERVAL)
+
+
 def main():
+    global proc
     parser = argparse.ArgumentParser()
     parser.add_argument('-c', metavar='CONFIG', default=DEFAULT_CONFIGFILE, help='Config file name')
     parser.add_argument('name', metavar='NAME', help='Datastore name')
     args = parser.parse_args()
     config = read_config(args.c)
-
-    logging.basicConfig(level=logging.DEBUG)
-
+    configure_logging('/var/tmp/dswatch.{0}.log'.format(args.name), 'DEBUG')
     dsconfig = config.get(args.name)
+
     if not dsconfig:
         logger.error('Cannot find datastore configuration for {0}'.format(args.name))
         sys.exit(1)
@@ -98,6 +135,11 @@ def main():
     logger.info('Datastore name: {0}'.format(args.name))
     logger.info('Database directory: {0}'.format(dsconfig['dbdir']))
 
+    signal.signal(signal.SIGTERM, sigterm)
+    t = threading.Thread(target=check_health, args=(dsconfig['dsn'],))
+    t.daemon = True
+    t.start()
+
     while True:
         args = {
             'dbdir': dbdir,
@@ -106,10 +148,10 @@ def main():
 
         if not os.path.isdir(dbdir):
             logger.warning('Database directory doesn\'t exist: retrying in 5 seconds')
-            time.sleep(5)
+            time.sleep(HEALTH_CHECK_INTERVAL)
             continue
 
-        proc = subprocess.Popen(expand(MONGOD_ARGS, **args))
+        proc = subprocess.Popen(expand(MONGOD_ARGS, **args), close_fds=True)
         logger.info('Started MongoDB as PID {0}'.format(proc.pid))
 
         try:
@@ -120,8 +162,10 @@ def main():
 
         if ret != 0:
             logger.warning('MongoDB exited with return code {0}'.format(ret))
-            logger.warning('wiping out database directory')
-            recreate(dbdir)
+            if ret == 100:
+                logger.warning('wiping out database directory')
+                recreate(dbdir)
+
 
 if __name__ == '__main__':
     main()

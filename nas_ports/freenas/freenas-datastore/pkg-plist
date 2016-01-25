@@ -28,5 +28,6 @@ sbin/dspasswd
 sbin/dsprinttask
 sbin/dsmigrate
 sbin/dsinit
+sbin/dswatch
 @dir /data/freenas.db
 @dir /data

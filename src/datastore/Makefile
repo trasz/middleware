@@ -12,6 +12,7 @@ install:
 	install sbin/dsmigrate ${STAGEDIR}${PREFIX}/sbin/
 	install sbin/dspasswd ${STAGEDIR}${PREFIX}/sbin/
 	install sbin/dsinit ${STAGEDIR}${PREFIX}/sbin/
+	install sbin/dswatch ${STAGEDIR}${PREFIX}/sbin/
 	install etc/datastore ${STAGEDIR}${PREFIX}/etc/rc.d/
 	install share/factory.json ${STAGEDIR}${PREFIX}/share/datastore/
 	cp -R share/migrations ${STAGEDIR}${PREFIX}/share/datastore/

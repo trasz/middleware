@@ -5,7 +5,7 @@ from south.db import db
 from south.v2 import DataMigration
 from django.db import models
 
-from datastore import get_default_datastore
+from datastore import get_datastore
 
 class Migration(DataMigration):
 
@@ -15,7 +15,7 @@ class Migration(DataMigration):
         if 'FREENAS_INSTALL' in os.environ:
             return
 
-        ds = get_default_datastore()
+        ds = get_datastore()
 
         # If we are migrating delete all entries in mongodb
         # because we don't know what the user changed/has in 9.3

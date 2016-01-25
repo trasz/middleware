@@ -34,16 +34,37 @@ from datetime import datetime
 from pymongo import MongoClient
 import pymongo
 import pymongo.errors
+import pymongo.cursor
 from six import string_types
 from datastore import DatastoreException, DuplicateKeyException
 from freenas.utils.query import wrap
 
 
+def auto_retry(fn):
+    def wrapped(*args, **kwargs):
+        for i in range(0, 15):
+            self = args[0]
+            if not self.connected:
+                time.sleep(1)
+                continue
+
+            try:
+                return fn(*args, **kwargs)
+            except (pymongo.errors.AutoReconnect, pymongo.errors.ConnectionFailure, pymongo.errors.OperationFailure):
+                time.sleep(1)
+
+        raise DatastoreException('Cannot connect to MongoDB instance')
+
+    return wrapped
+
+
 class MongodbDatastore(object):
     def __init__(self):
-        self.conn = None
+        self.conn_db = None
+        self.conn_log = None
         self.db = None
         self.log_db = None
+        self.connected = False
         self.operators_table = {
             '>': '$gt',
             '<': '$lt',
@@ -69,7 +90,11 @@ class MongodbDatastore(object):
 
     @property
     def client(self):
-        return self.conn
+        return self.conn_db
+
+    @property
+    def client_log(self):
+        return self.conn_log
 
     def _predicate(self, *args):
         if len(args) == 2:
@@ -122,11 +147,17 @@ class MongodbDatastore(object):
 
         return self.db[collection]
 
-    def connect(self, dsn, database='freenas'):
-        self.conn = MongoClient(dsn)
-        self.db = self.conn[database]
-        self.log_db = self.conn[database + '-log']
+    def connect(self, dsn, dsn_log, database='freenas'):
+        self.conn_db = MongoClient(dsn)
+        self.db = self.conn_db[database]
 
+        if dsn_log:
+            self.conn_log = MongoClient(dsn_log, connect=False)
+            self.log_db = self.conn_log[database]
+
+        self.connected = True
+
+    @auto_retry
     def collection_create(self, name, pkey_type='uuid', attributes=None):
         attributes = attributes or {}
         ttl_index = attributes.get('ttl_index')
@@ -159,34 +190,42 @@ class MongodbDatastore(object):
 
         self.db[name].create_index([('$**', pymongo.TEXT)])
 
+    @auto_retry
     def collection_exists(self, name):
         return self.db['collections'].find_one({"_id": name}) is not None
 
+    @auto_retry
     def collection_get_attrs(self, name):
         item = self.db['collections'].find_one({"_id": name})
         return item['attributes']
 
+    @auto_retry
     def collection_set_attrs(self, name):
         item = self.db['collections'].find_one({"_id": name})
         return item['attributes']
 
+    @auto_retry
     def collection_get_migrations(self, name):
         item = self.db['collections'].find_one({"_id": name})
         return item.get('migrations', [])
 
+    @auto_retry
     def collection_has_migration(self, name, migration_name):
         item = self.db['collections'].find_one({"_id": name})
         return migration_name in item.get('migrations', [])
 
+    @auto_retry
     def collection_record_migration(self, name, migration_name):
         item = self.db['collections'].find_one({"_id": name})
         migs = item.setdefault('migrations', [])
         migs.append(migration_name)
         self.db['collections'].update({'_id': name}, item)
 
+    @auto_retry
     def collection_list(self):
         return [x['_id'] for x in self.db['collections'].find()]
 
+    @auto_retry
     def collection_delete(self, name):
         if not self.db['collections'].find_one({"_id": name}):
             return
@@ -194,10 +233,12 @@ class MongodbDatastore(object):
         self._get_db(name).drop()
         self.db['collections'].remove({'_id': name})
 
+    @auto_retry
     def collection_get_pkey_type(self, name):
         item = self.db['collections'].find_one({"_id": name})
         return item['pkey-type']
 
+    @auto_retry
     def collection_get_next_pkey(self, name, prefix):
         counter = 0
         while True:
@@ -207,6 +248,7 @@ class MongodbDatastore(object):
 
             counter += 1
 
+    @auto_retry
     def query(self, collection, *args, **kwargs):
         sort = kwargs.pop('sort', None)
         limit = kwargs.pop('limit', None)
@@ -276,9 +318,14 @@ class MongodbDatastore(object):
 
         return result
 
+    @auto_retry
     def listen(self, collection, *args, **kwargs):
-        return self._get_db(collection).find(self._build_query(args), tailable=True, await_data=True)
+        return self._get_db(collection).find(
+            self._build_query(args),
+            cursor_type=pymongo.cursor.CursorType.TAILABLE_AWAIT
+        )
 
+    @auto_retry
     def tail(self, cur):
         try:
             for i in cur:
@@ -287,6 +334,7 @@ class MongodbDatastore(object):
         except pymongo.errors.OperationFailure as err:
             raise DatastoreException(str(err))
 
+    @auto_retry
     def get_one(self, collection, *args, **kwargs):
         db = self._get_db(collection)
         obj = db.find_one(self._build_query(args))
@@ -296,6 +344,7 @@ class MongodbDatastore(object):
         obj['id'] = obj.pop('_id')
         return obj
 
+    @auto_retry
     def get_by_id(self, collection, pkey):
         db = self._get_db(collection)
         obj = db.find_one({'_id': pkey})
@@ -305,9 +354,11 @@ class MongodbDatastore(object):
         obj['id'] = obj.pop('_id')
         return obj
 
+    @auto_retry
     def exists(self, collection, *args, **kwargs):
         return self.get_one(collection, *args, **kwargs) is not None
 
+    @auto_retry
     def insert(self, collection, obj, pkey=None, timestamp=True, config=False):
         if hasattr(obj, '__getstate__'):
             obj = obj.__getstate__()
@@ -349,6 +400,7 @@ class MongodbDatastore(object):
 
             return pkey
 
+    @auto_retry
     def update(self, collection, pkey, obj, upsert=False, timestamp=True, config=False):
         if hasattr(obj, '__getstate__'):
             obj = obj.__getstate__()
@@ -381,12 +433,21 @@ class MongodbDatastore(object):
     def upsert(self, collection, pkey, obj, config=False):
         return self.update(collection, pkey, obj, upsert=True, config=config)
 
+    @auto_retry
     def delete(self, collection, pkey):
         db = self._get_db(collection)
         db.remove(pkey)
 
-    def lock(self):
-        self.conn.fsync(lock=True)
+    def lock(self, data=True, log=False):
+        if data:
+            self.conn_db.fsync(lock=True)
 
-    def unlock(self):
-        self.conn.unlock()
+        if log:
+            self.conn_log.fsync(lock=True)
+
+    def unlock(self, data=True, log=False):
+        if data:
+            self.conn_db.unlock()
+
+        if log:
+            self.conn_log.unlock()

@@ -52,6 +52,7 @@ import struct
 import termios
 import cgi
 import pwd
+import subprocess
 
 import gevent
 from gevent import monkey, Greenlet
@@ -312,6 +313,9 @@ class Dispatcher(object):
         self.rpc = None
         self.balancer = None
         self.datastore = None
+        self.configfile = None
+        self.configstore = None
+        self.config = None
         self.auth = None
         self.ws_servers = []
         self.http_servers = []
@@ -322,15 +326,16 @@ class Dispatcher(object):
         self.ready = Event()
         self.port = 0
         self.file_ws_connectios = None
+        self.logdb_proc = None
 
     def init(self):
         self.logger.info('Initializing')
-        self.datastore = get_datastore(
-            self.config['datastore']['driver'],
-            self.config['datastore']['dsn']
-        )
+        self.logger.info('Starting log database')
+        self.start_logdb()
 
+        self.datastore = get_datastore(self.configfile)
         self.configstore = ConfigStore(self.datastore)
+
         self.logger.info('Connected to datastore')
         self.require_collection('events', 'serial', type='log')
         self.require_collection('sessions', 'serial', type='log')
@@ -379,6 +384,7 @@ class Dispatcher(object):
         except (IOError, ValueError):
             raise
 
+        self.configfile = file
         self.config = data
         self.plugin_dirs = data['dispatcher']['plugin-dirs']
         self.pidfile = data['dispatcher']['pidfile']
@@ -730,11 +736,20 @@ class Dispatcher(object):
             'description': 'Server is shutting down.',
         })
 
+        self.stop_logdb()
         self.balancer.dispose_executors()
         gevent.killall(self.threads)
         self.logger.warning('Unloading plugins')
         self.unload_plugins()
         sys.exit(0)
+
+    def start_logdb(self):
+        self.logdb_proc = subprocess.Popen(['/usr/local/sbin/dswatch', 'datastore-log'])
+
+    def stop_logdb(self):
+        if self.logdb_proc:
+            self.logdb_proc.terminate()
+            self.logdb_proc.wait()
 
 
 class ServerRpcContext(RpcContext):
@@ -1628,7 +1643,7 @@ class DownloadRequestHandler(object):
 
 def run(d, args):
     setproctitle.setproctitle('dispatcher')
-    monkey.patch_all(thread=False)
+    monkey.patch_all()
 
     # Signal handlers
     gevent.signal(signal.SIGQUIT, d.die)
