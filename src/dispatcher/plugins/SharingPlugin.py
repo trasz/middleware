@@ -253,10 +253,8 @@ class DeleteDependentShares(Task):
 
     def run(self, path):
         subtasks = []
-        ids = []
         for i in self.dispatcher.call_sync('share.get_dependencies', path):
             subtasks.append(self.run_subtask('share.delete', i['id']))
-            ids.append(i['id'])
 
         self.join_subtasks(*subtasks)
 
