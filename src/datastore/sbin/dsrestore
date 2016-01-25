@@ -26,14 +26,17 @@
 #
 #####################################################################
 
+import os
 import sys
 import argparse
 import json
+import shutil
 import datastore
 import datastore.restore
 
 
 DEFAULT_CONFIGFILE = '/usr/local/etc/middleware.conf'
+DEFAULT_FACTORY_FILE = '/usr/local/share/datastore/factory.json'
 ds = None
 
 
@@ -51,8 +54,9 @@ def main():
     global ds
     parser = argparse.ArgumentParser()
     parser.add_argument('-c', metavar='CONFIG', default=DEFAULT_CONFIGFILE, help='Config file name')
-    parser.add_argument('-f', metavar='FILE', help='Input file name')
+    parser.add_argument('-f', metavar='FILE', default=DEFAULT_FACTORY_FILE, help='Input file name')
     parser.add_argument('-t', metavar='TYPE', default='', help='Collection types to restore')
+    parser.add_argument('--reset', action='store_true')
     parser.add_argument('--alt', action='store_true', help='Use alternate DSN')
 
     args = parser.parse_args()
@@ -71,6 +75,22 @@ def main():
 
     def print_progress(name):
         print("Restored collection {0}".format(name), file=sys.stderr)
+
+    if args.reset:
+        try:
+            f = open(args.c, 'r')
+            config = json.load(f)
+            f.close()
+        except IOError as err:
+            print('Cannot read config file: {0}'.format(err.message), file=sys.stderr)
+            sys.exit(1)
+        except ValueError:
+            print('Config file has unreadable format (not valid JSON)', file=sys.stderr)
+            sys.exit(1)
+
+        dbdir = config['datastore']['dbdir']
+        shutil.rmtree(dbdir)
+        os.mkdir(dbdir)
 
     datastore.restore.restore_db(ds, dump, types, print_progress)
 
