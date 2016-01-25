@@ -98,7 +98,7 @@ def do_check_dbdirs(driver_name, db_dir):
                 shutil.move(j, perdb_dir)
 
         # Just in case, remove old lock file
-        os.unlink(os.path.join(db_dir, 'freenas.db/mongod.lock'))
+        os.unlink(os.path.join(db_dir, 'mongod.lock'))
 
 
 def do_lock():
