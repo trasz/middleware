@@ -98,11 +98,14 @@ class ContainerBaseTask(Task):
                 'pool': pool,
                 'name': root_ds
             }))
-
-        self.join_subtasks(self.run_subtask('volume.dataset.create', {
-            'pool': pool,
-            'name': container_ds
-        }))
+        try:
+            self.join_subtasks(self.run_subtask('volume.dataset.create', {
+                'pool': pool,
+                'name': container_ds
+            }))
+        except RpcException:
+            raise TaskException(errno.EACCES,
+                                'Dataset of the same name as {0} already exists. If you would like to import a VM, please try an \'import\' command.'.format(container_ds))
 
     def create_device(self, container, res):
         if res['type'] == 'DISK':
@@ -158,6 +161,22 @@ class ContainerBaseTask(Task):
                 True
             ))
 
+    def save_config(self, container):
+        container_conf = self.dispatcher.call_sync('volume.resolve_path',
+                                                   container['target'],
+                                                   os.path.join('vm', container['name'], 'config.json'))
+
+        with open(container_conf, 'w', encoding='utf-8') as conf_file:
+            conf_file.write(json.dumps(container))
+
+    def load_config(self, name, volume):
+        container_conf = self.dispatcher.call_sync('volume.resolve_path',
+                                                   volume,
+                                                   os.path.join('vm', name, 'config.json'))
+
+        with open(container_conf, 'r', encoding='utf-8') as conf_file:
+            return json.loads(conf_file.read())
+
 
 @accepts(h.ref('container'))
 class ContainerCreateTask(ContainerBaseTask):
@@ -196,6 +215,30 @@ class ContainerCreateTask(ContainerBaseTask):
             'operation': 'create',
             'ids': [id]
         })
+        self.save_config(container)
+
+        return id
+
+
+@accepts(str, str)
+class ContainerImportTask(ContainerBaseTask):
+    def verify(self, name, volume):
+        if not self.dispatcher.call_sync('volume.query', [('name', '=', volume)], {'single': True}):
+            raise VerifyException(errno.ENXIO, 'Volume {0} doesn\'t exist'.format(volume))
+
+        return ['zpool:{0}'.format(volume)]
+
+    def run(self, name, volume):
+        try:
+            container = self.load_config(name, volume)
+        except FileNotFoundError:
+            raise TaskException(errno.ENOENT, 'There is no {0} on {1} volume to be imported.'. format(name, volume))
+
+        id = self.datastore.insert('containers', container)
+        self.dispatcher.dispatch_event('container.changed', {
+            'operation': 'create',
+            'ids': [id]
+        })
 
         return id
 
@@ -225,6 +268,7 @@ class ContainerUpdateTask(ContainerBaseTask):
             'operation': 'update',
             'ids': [id]
         })
+        self.save_config(container)
 
 
 @accepts(str)
@@ -471,6 +515,7 @@ def _init(dispatcher, plugin):
 
     plugin.register_provider('container', ContainerProvider)
     plugin.register_task_handler('container.create', ContainerCreateTask)
+    plugin.register_task_handler('container.import', ContainerImportTask)
     plugin.register_task_handler('container.update', ContainerUpdateTask)
     plugin.register_task_handler('container.delete', ContainerDeleteTask)
     plugin.register_task_handler('container.start', ContainerStartTask)
