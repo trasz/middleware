@@ -1267,7 +1267,7 @@ class ServerConnection(WebSocketApplication, EventEmitter):
     def open_session(self):
         client_addr, client_port = self.real_client_address[:2]
         self.session_id = self.dispatcher.datastore.insert('sessions', {
-            'started-at': time.time(),
+            'started_at': datetime.datetime.now(),
             'address': client_addr,
             'port': client_port,
             'resource': self.resource,
@@ -1277,10 +1277,12 @@ class ServerConnection(WebSocketApplication, EventEmitter):
 
     def close_session(self):
         client_addr, client_port = self.real_client_address[:2]
-        session = self.dispatcher.datastore.get_by_id('sessions', self.session_id)
-        session['active'] = False
-        session['ended-at'] = time.time()
-        self.dispatcher.datastore.update('sessions', self.session_id, session)
+
+        if self.session_id:
+            session = self.dispatcher.datastore.get_by_id('sessions', self.session_id)
+            session['active'] = False
+            session['ended_at'] = datetime.datetime.now()
+            self.dispatcher.datastore.update('sessions', self.session_id, session)
 
         if isinstance(self.user, User):
             self.dispatcher.dispatch_event('server.client_logout', {
