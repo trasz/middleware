@@ -33,6 +33,8 @@ import re
 import time
 import netif
 import bsd
+import logging
+import gevent
 
 from bsd import devinfo
 from datastore import DatastoreException
@@ -46,7 +48,7 @@ from freenas.dispatcher.rpc import (
     returns,
     private
 )
-from lib.system import SubprocessException, system, system_bg
+from lib.system import SubprocessException, system
 from lib.freebsd import get_sysctl
 from task import Provider, Task, TaskException
 
@@ -57,6 +59,7 @@ from freenasOS import Configuration
 KEYMAPS_INDEX = "/usr/share/syscons/keymaps/INDEX.keymaps"
 ZONEINFO_DIR = "/usr/share/zoneinfo"
 VERSION_FILE = "/etc/version"
+logger = logging.getLogger('SystemInfoPlugin')
 
 
 @description("Provides informations about the running system")
@@ -442,24 +445,35 @@ class SystemTimeConfigureTask(Task):
 
 
 @accepts(h.any_of(int, None))
-@description("Reboots the System after delay of 10 seconds")
+@description("Reboots the System")
 class SystemRebootTask(Task):
-    def describe(self, delay=10):
+    def describe(self):
         return "System Reboot"
 
-    def verify(self, delay=10):
+    def verify(self):
         return ['root']
 
-    def run(self, delay=10):
+    def reboot_now(self):
+        try:
+            system('/sbin/shutdown', '-r', 'now')
+        except SubprocessException as err:
+            # Is the task even alive to raise a taskexception?
+            # If not what can be done???
+            raise TaskException(
+                errno.EIO,
+                'Shutdown failed with returncode: {0}, error: {1}'.format(err.code, err.err)
+            )
+
+    def run(self):
         self.dispatcher.dispatch_event('power.changed', {
-            'operation': 'reboot',
+            'operation': 'REBOOT',
             })
-        system_bg("/bin/sleep %s && /sbin/shutdown -r now &" % delay,
-                  shell=True)
+        reboot_greenlet = gevent.spawn(self.reboot_now)
+        reboot_greenlet.join(timeout=2)
 
 
 @accepts(h.any_of(int, None))
-@description("Shuts the system down after a delay of 10 seconds")
+@description("Shuts the system down")
 class SystemHaltTask(Task):
     def describe(self):
         return "System Shutdown"
@@ -467,12 +481,23 @@ class SystemHaltTask(Task):
     def verify(self):
         return ['root']
 
-    def run(self, delay=10):
+    def shutdown_now(self):
+        try:
+            system('/sbin/shutdown', '-p', 'now')
+        except SubprocessException as err:
+            # Is the task even alive to raise a taskexception?
+            # If not what can be done???
+            raise TaskException(
+                errno.EIO,
+                'Shutdown failed with returncode: {0}, error: {1}'.format(err.code, err.err)
+            )
+
+    def run(self):
         self.dispatcher.dispatch_event('power.changed', {
-            'operation': 'shutdown',
-            })
-        system_bg("/bin/sleep %s && /sbin/shutdown -p now &" % delay,
-                  shell=True)
+            'operation': 'SHUTDOWN',
+        })
+        shutdown_greenlet = gevent.spawn(self.shutdown_now)
+        shutdown_greenlet.join(timeout=1)
 
 
 def _init(dispatcher, plugin):
@@ -554,8 +579,19 @@ def _init(dispatcher, plugin):
         }
     })
 
+    plugin.register_schema_definition('power_changed', {
+        'type': 'object',
+        'additionalProperties': False,
+        'properties': {
+            'operation': {'type': 'string', 'enum': ['SHUTDOWN', 'REBOOT']},
+        }
+    })
+
     # Register event handler
     plugin.register_event_handler('system.hostname.change', on_hostname_change)
+
+    # Register Event Types
+    plugin.register_event_type('power.changed', schema=h.ref('power_changed'))
 
     # Register providers
     plugin.register_provider("system.advanced", SystemAdvancedProvider)
