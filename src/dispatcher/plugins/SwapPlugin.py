@@ -97,7 +97,7 @@ def get_swap_info(dispatcher):
 
 
 def configure_dumpdev(path):
-    if os.path.exists('/dev/dumpdev'):
+    if os.path.lexists('/dev/dumpdev'):
         os.unlink('/dev/dumpdev')
 
     os.symlink(path, '/dev/dumpdev')
