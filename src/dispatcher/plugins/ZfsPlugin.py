@@ -252,7 +252,7 @@ class ZpoolScrubTask(Task):
 
         self.finish_event.wait()
         if self.abort_flag:
-            raise TaskAbortException(errno.EINTR, str("User invoked Task.abort()"))
+            raise TaskAbortException(errno.EINTR, "User invoked Task.abort()")
 
     def abort(self):
         try:
