@@ -2,12 +2,14 @@
 
 PORTNAME=	rclone
 PORTVERSION=	1.26
-PORTREVISION=   1
 DISTVERSIONPREFIX=      v
+PORTREVISION=   1
 CATEGORIES=	sysutils
 
 MAINTAINER=     jmaloney@pcbsd.org
-COMMENT=        Sync files to and from Google Drive, S3, Swift, Cloudfiles, Dropbox and Google Cloud Storage
+COMMENT=        Sync files to and from various cloud services
+
+LICENSE=	MIT
 
 BUILD_DEPENDS=  ${LOCALBASE}/bin/go:${PORTSDIR}/lang/go
 
@@ -59,6 +61,5 @@ do-build:
 	@cd ${WRKSRC}/src/github.com/${GH_ACCOUNT}/${PORTNAME}; ${SETENV} GOPATH=${WRKSRC} go build rclone.go redirect_stderr.go
 do-install:
 	${INSTALL_PROGRAM} ${WRKSRC}/src/github.com/${GH_ACCOUNT}/${PORTNAME}/${PORTNAME} ${STAGEDIR}${PREFIX}/bin/${PORTNAME}
-
 
 .include <bsd.port.mk>
