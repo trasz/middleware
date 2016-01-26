@@ -68,9 +68,10 @@ from geventwebsocket import (WebSocketServer, WebSocketApplication, Resource,
                              WebSocketError)
 
 from datastore import get_datastore
+from datastore.migrate import migrate_db, MigrationException
 from datastore.config import ConfigStore
 from freenas.dispatcher.jsonenc import loads, dumps
-from freenas.dispatcher.rpc import RpcContext, RpcException, ServerLockProxy, convert_schema
+from freenas.dispatcher.rpc import RpcContext, RpcException, ServerLockProxy
 from resources import ResourceGraph
 from services import ManagementService, DebugService, EventService, TaskService, PluginService, ShellService, LockService
 from schemas import register_general_purpose_schemas
@@ -335,6 +336,8 @@ class Dispatcher(object):
 
         self.datastore = get_datastore(self.configfile)
         self.configstore = ConfigStore(self.datastore)
+
+        self.migrate_logdb()
 
         self.logger.info('Connected to datastore')
         self.require_collection('events', 'serial', type='log')
@@ -745,6 +748,23 @@ class Dispatcher(object):
 
     def start_logdb(self):
         self.logdb_proc = subprocess.Popen(['/usr/local/sbin/dswatch', 'datastore-log'])
+
+    def migrate_logdb(self):
+        FACTORY_FILE = '/usr/local/share/datastore/factory.json'
+        MIGRATIONS_DIR = '/usr/local/share/datastore/migrations'
+
+        self.logger.info('Migrating log database')
+
+        try:
+            with open(FACTORY_FILE, 'r') as fd:
+                dump = json.load(fd)
+                migrate_db(self.datastore, dump, MIGRATIONS_DIR, ['log'])
+        except IOError as err:
+            self.logger.warning('Cannot open factory.json: {0}'.format(str(err)))
+        except ValueError as err:
+            self.logger.warning('Cannot parse factory.json: {0}'.format(str(err)))
+        except MigrationException as err:
+            self.logger.warning('Log database migration failed: {0}'.format(str(err)))
 
     def stop_logdb(self):
         if self.logdb_proc:
