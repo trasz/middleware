@@ -73,7 +73,8 @@ class TaskExecutor(object):
         self.key = str(uuid.uuid4())
         self.checked_in = Event()
         self.result = AsyncResult()
-        gevent.spawn(self.executor)
+        self.exiting = False
+        self.thread = gevent.spawn(self.executor)
 
     def checkin(self, conn):
         self.balancer.logger.debug('Check-in of worker #{0} (key {1})'.format(self.index, self.key))
@@ -159,10 +160,13 @@ class TaskExecutor(object):
                     e
                 )
 
-            self.task.error = serialize_error(e)
-            self.task.set_state(TaskState.FAILED, TaskStatus(0, str(e), extra={
-                "stacktrace": traceback.format_exc()
-            }))
+            if isinstance(e, TaskAbortException):
+                self.task.set_state(TaskState.ABORTED, TaskStatus(0, 'aborted'))
+            else:
+                self.task.error = serialize_error(e)
+                self.task.set_state(TaskState.FAILED, TaskStatus(0, str(e), extra={
+                    "stacktrace": traceback.format_exc()
+                }))
 
             self.task.ended.set()
             self.balancer.task_exited(self.task)
@@ -186,7 +190,7 @@ class TaskExecutor(object):
             self.proc.terminate()
 
     def executor(self):
-        while True:
+        while not self.exiting:
             try:
                 self.proc = Popen(
                     [TASKWORKER_PATH, self.key],
@@ -209,8 +213,11 @@ class TaskExecutor(object):
             self.proc.wait()
 
             if self.proc.returncode == -signal.SIGTERM:
-                self.balancer.logger.info('Executor process with PID {0} was terminated gracefully'
-                                          .format(self.proc.pid))
+                self.balancer.logger.info(
+                    'Executor process with PID {0} was terminated gracefully'.format(
+                        self.proc.pid
+                    )
+                )
             else:
                 self.balancer.logger.error('Executor process with PID {0} died abruptly with exit code {1}'.format(
                     self.proc.pid,
@@ -222,6 +229,7 @@ class TaskExecutor(object):
             gevent.sleep(1)
 
     def die(self):
+        self.exiting = True
         if self.proc:
             self.proc.terminate()
 
