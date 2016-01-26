@@ -35,6 +35,7 @@ import fnmatch
 import inspect
 import subprocess
 import bsd
+import signal
 from datetime import datetime
 from freenas.dispatcher import validator
 from freenas.dispatcher.rpc import RpcException
@@ -206,12 +207,18 @@ class TaskExecutor(object):
                     self.task.output += line
 
             self.proc.wait()
-            self.balancer.logger.error('Executor process with PID {0} died abruptly with exit code {1}'.format(
-                self.proc.pid,
-                self.proc.returncode)
-            )
 
-            self.result.set_exception(TaskException(errno.EFAULT, 'Task executor died'))
+            if self.proc.returncode == -signal.SIGTERM:
+                self.balancer.logger.info('Executor process with PID {0} was terminated gracefully'
+                                          .format(self.proc.pid))
+            else:
+                self.balancer.logger.error('Executor process with PID {0} died abruptly with exit code {1}'.format(
+                    self.proc.pid,
+                    self.proc.returncode)
+                )
+
+                self.result.set_exception(TaskException(errno.EFAULT, 'Task executor died'))
+
             gevent.sleep(1)
 
     def die(self):
