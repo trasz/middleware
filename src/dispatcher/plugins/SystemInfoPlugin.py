@@ -469,7 +469,10 @@ class SystemRebootTask(Task):
             'operation': 'REBOOT',
             })
         reboot_greenlet = gevent.spawn(self.reboot_now)
-        reboot_greenlet.join(timeout=2)
+        # I need to join, even if just for a while since
+        # otherwise the task exits and the task executor
+        # kills the process and the greenlet dies with it
+        reboot_greenlet.join(timeout=1)
 
 
 @accepts(h.any_of(int, None))
@@ -497,6 +500,9 @@ class SystemHaltTask(Task):
             'operation': 'SHUTDOWN',
         })
         shutdown_greenlet = gevent.spawn(self.shutdown_now)
+        # I need to join, even if just for a while since
+        # otherwise the task exits and the task executor
+        # kills the process and the greenlet dies with it
         shutdown_greenlet.join(timeout=1)
 
 
