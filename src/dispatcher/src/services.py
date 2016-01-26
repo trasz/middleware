@@ -36,7 +36,7 @@ from gevent.lock import Semaphore
 from gevent.backdoor import BackdoorServer
 from freenas.dispatcher.rpc import RpcService, RpcException, pass_sender, private
 from auth import ShellToken
-from task import TaskState
+from task import TaskState, query
 from utils import first_or_default
 
 
@@ -363,6 +363,7 @@ class TaskService(RpcService):
 
         return result
 
+    @query('task')
     def query(self, filter=None, params=None):
         def extend(t):
             task = self.__balancer.get_task(t['id'])

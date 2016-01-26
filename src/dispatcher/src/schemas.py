@@ -59,3 +59,33 @@ def register_general_purpose_schemas(dispatcher):
         'type': 'string',
         'format': 'email'
     })
+
+    dispatcher.register_schema_definition('task', {
+        'type': 'object',
+        'properties': {
+            'name': {'type': 'string'},
+            'args': {'type': 'object'},
+            'id': {'type': 'integer'},
+            'parent': {'type': ['integer', 'null']},
+            'debugger': {'type': ['object', 'null']},
+            'user': {'type': ['string', 'null']},
+            'session': {'type': ['integer', 'null']},
+            'resources': {'type': ['array', 'null']},
+            'created_at': {'type': ['object', 'null']},
+            'started_at': {'type': ['object', 'null']},
+            'updated_at': {'type': ['object', 'null']},
+            'finished_at': {'type': ['object', 'null']},
+            'state': {
+                'type': 'string',
+                'enum': ['CREATED', 'WAITING', 'EXECUTING', 'ROLLBACK', 'FINISHED', 'FAILED', 'ABORTED']
+            },
+            'result': {'type': ['object', 'null']},
+            'output': {'type': 'string'},
+            'warnings': {
+                'type': 'array',
+                'items': 'string'
+            },
+            'error': {'type': ['object', 'null']},
+            'rusage': {'type': ['object', 'null']}
+        }
+    })
