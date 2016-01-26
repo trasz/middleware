@@ -60,6 +60,38 @@ def register_general_purpose_schemas(dispatcher):
         'format': 'email'
     })
 
+    dispatcher.register_schema_definition('error', {
+        'type': 'object',
+        'properties': {
+            'type': {'type': 'string'},
+            'code': {'type': 'integer'},
+            'stacktrace': {'type': 'string'},
+            'message': {'type': 'string'}
+        }
+    })
+
+    dispatcher.register_schema_definition('rusage', {
+        'type': 'object',
+        'properties': {
+            'ru_oublock': {'type': 'number'},
+            'ru_msgsnd': {'type': 'number'},
+            'ru_stime': {'type': 'number'},
+            'ru_nsignals': {'type': 'number'},
+            'ru_nswap': {'type': 'number'},
+            'ru_utime': {'type': 'number'},
+            'ru_majflt': {'type': 'number'},
+            'ru_isrss': {'type': 'number'},
+            'ru_inblock': {'type': 'number'},
+            'ru_msgrcv': {'type': 'number'},
+            'ru_idrss': {'type': 'number'},
+            'ru_minflt': {'type': 'number'},
+            'ru_nivcsw': {'type': 'number'},
+            'ru_ixrss': {'type': 'number'},
+            'ru_maxrss': {'type': 'number'},
+            'ru_nvcsw': {'type': 'number'}
+        }
+    })
+
     dispatcher.register_schema_definition('task', {
         'type': 'object',
         'properties': {
@@ -67,25 +99,57 @@ def register_general_purpose_schemas(dispatcher):
             'args': {'type': 'object'},
             'id': {'type': 'integer'},
             'parent': {'type': ['integer', 'null']},
-            'debugger': {'type': ['object', 'null']},
+            'debugger': {
+                'oneOf': [
+                    {
+                        'type': 'array',
+                        'items': 'string'
+                    },
+                    {'type': 'null'}
+                ]
+            },
             'user': {'type': ['string', 'null']},
             'session': {'type': ['integer', 'null']},
             'resources': {'type': ['array', 'null']},
-            'created_at': {'type': ['object', 'null']},
-            'started_at': {'type': ['object', 'null']},
-            'updated_at': {'type': ['object', 'null']},
-            'finished_at': {'type': ['object', 'null']},
+            'created_at': {'$ref': 'iso-datetime'},
+            'started_at': {
+                'oneOf': [
+                    {'type': 'null'},
+                    {'$ref': 'iso-datetime'}
+                ]
+            },
+            'updated_at': {
+                'oneOf': [
+                    {'type': 'null'},
+                    {'$ref': 'iso-datetime'}
+                ]
+            },
+            'finished_at': {
+                'oneOf': [
+                    {'type': 'null'},
+                    {'$ref': 'iso-datetime'}
+                ]
+            },
             'state': {
                 'type': 'string',
                 'enum': ['CREATED', 'WAITING', 'EXECUTING', 'ROLLBACK', 'FINISHED', 'FAILED', 'ABORTED']
             },
-            'result': {'type': ['object', 'null']},
             'output': {'type': 'string'},
             'warnings': {
                 'type': 'array',
                 'items': 'string'
             },
-            'error': {'type': ['object', 'null']},
-            'rusage': {'type': ['object', 'null']}
+            'error': {
+                'oneOf': [
+                    {'$ref': 'error'},
+                    {'type': 'null'}
+                ]
+            },
+            'rusage':  {
+                'oneOf': [
+                    {'$ref': 'rusage'},
+                    {'type': 'null'}
+                ]
+            }
         }
     })
