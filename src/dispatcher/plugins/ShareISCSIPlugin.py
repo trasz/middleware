@@ -60,7 +60,7 @@ class ISCSISharesProvider(Provider):
 
     @returns(str)
     def generate_serial(self):
-        nic = wrap(self.dispatcher.call_sync('network.interfaces.query', [('type', '=', 'ETHER')], {'single': True}))
+        nic = wrap(self.dispatcher.call_sync('network.interface.query', [('type', '=', 'ETHER')], {'single': True}))
         laddr = nic['status.link_address'].replace(':', '')
         idx = 0
 
