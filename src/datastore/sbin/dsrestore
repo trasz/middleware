@@ -87,7 +87,11 @@ def main():
             print('Config file has unreadable format (not valid JSON)', file=sys.stderr)
             sys.exit(1)
 
-        dbdir = config['datastore']['dbdir']
+        try:
+            dbdir = config['datastore']['dbdir']
+        except KeyError:
+            print('Config file is not ours (no datastore dbdir)', file=sys.stderr)
+            sys.exit(1)
         shutil.rmtree(dbdir)
         os.mkdir(dbdir)
 
