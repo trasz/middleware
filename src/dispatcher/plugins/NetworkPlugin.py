@@ -235,6 +235,11 @@ class ConfigureInterfaceTask(Task):
                 if not i.get('broadcast'):
                     i['broadcast'] = str(calculate_broadcast(i['address'], i['netmask']))
 
+        if updated_fields.get('vlan'):
+            vlan = updated_fields['vlan']
+            if (not vlan['parent'] and vlan['tag']) or (vlan['parent'] and not vlan['tag']):
+                raise TaskException(errno.EINVAL, 'Can only set VLAN parent interface and tag at the same time')
+
         if 'enabled' in updated_fields:
             if entity['enabled'] and not updated_fields['enabled']:
                 task = 'networkd.configuration.down_interface'
