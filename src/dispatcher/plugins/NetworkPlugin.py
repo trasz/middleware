@@ -134,7 +134,7 @@ class CreateInterfaceTask(Task):
         if type == 'VLAN':
             iface['vlan'] = {
                 'parent': None,
-                'tag': 0
+                'tag': None
             }
 
         if type == 'LAGG':
@@ -556,7 +556,7 @@ def _init(dispatcher, plugin):
                 'additionalProperties': False,
                 'properties': {
                     'parent': {'type': ['string', 'null']},
-                    'tag': {'type': 'integer'}
+                    'tag': {'type': ['integer', 'null']}
                 }
             },
             'lagg': {
