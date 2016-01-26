@@ -1800,6 +1800,21 @@ def _init(dispatcher, plugin):
             if err.code != errno.EBUSY:
                 logger.warning('Cannot mount volume {0}: {1}'.format(vol['name'], str(err)))
 
+    for pool in dispatcher.call_sync('zfs.pool.query'):
+        if dispatcher.datastore.exists('volumes', ('id', '=', pool['guid'])):
+            continue
+
+        if pool['guid'] == boot_pool['guid']:
+            continue
+
+        logger.info('New volume {0} <{1}>'.format(pool['name'], pool['guid']))
+        dispatcher.datastore.insert('volumes', {
+            'id': pool['guid'],
+            'name': pool['name'],
+            'type': 'zfs',
+            'attributes': {}
+        })
+
     global snapshots
     snapshots = EventCacheStore(dispatcher, 'volume.snapshot')
     snapshots.populate(dispatcher.call_sync('zfs.snapshot.query'), callback=convert_snapshot)
