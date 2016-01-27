@@ -734,18 +734,22 @@ class Dispatcher(object):
 
     def die(self):
         self.logger.warning('Exiting from "die" command')
-
         self.dispatch_event('server.shutdown', {
             'description': 'Server is shutting down.',
         })
 
-        self.stop_logdb()
         self.balancer.dispose_executors()
-        gevent.killall(self.threads)
         self.logger.warning('Unloading plugins')
         self.unload_plugins()
 
+        self.logger.info('Killing server threads')
+        gevent.killall(self.threads)
+
+        self.logger.debug('Closing datastore connections')
         self.datastore.close()
+        self.stop_logdb()
+
+        self.logger.debug('Really exiting now')
         sys.exit(0)
 
     def start_logdb(self):
