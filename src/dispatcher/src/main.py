@@ -776,6 +776,7 @@ class Dispatcher(object):
         if self.logdb_proc:
             self.logdb_proc.terminate()
             self.logdb_proc.wait()
+            self.logger.debug('Log database server terminated with exit code {0}'.format(self.logdb_proc.returncode))
 
 
 class ServerRpcContext(RpcContext):
