@@ -565,7 +565,11 @@ def _init(dispatcher, plugin):
                 'additionalProperties': False,
                 'properties': {
                     'parent': {'type': ['string', 'null']},
-                    'tag': {'type': ['integer', 'null']}
+                    'tag': {
+                        'type': ['integer', 'null'],
+                        'minimum': 1,
+                        'maximum': 4095
+                    }
                 }
             },
             'lagg': {
