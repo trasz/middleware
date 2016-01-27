@@ -427,6 +427,16 @@ class AddRouteTask(Task):
         if route['netmask'] not in range(1, 31):
             raise VerifyException(errno.EINVAL, 'Netmask value {0} is not valid. Allowed values are 1-30 (CIDR).'
                                   .format(route['netmask']))
+        try:
+            network = ipaddress.ip_network(os.path.join(route['network'], str(route['netmask'])))
+        except ValueError:
+            raise VerifyException(errno.EINVAL,
+                                  '{0} would have host bits set. Change network or netmask to represent a valid network'
+                                  .format(os.path.join(route['network'], str(route['netmask']))))
+
+        if ipaddress.ip_address(route['gateway']) in network:
+            raise VerifyException(errno.EINVAL, 'Gateway {0} can\'t belong to {1} network.'
+                                  .format(route['gateway'], network.exploded))
 
         return ['system']
 
@@ -458,6 +468,16 @@ class UpdateRouteTask(Task):
         if netmask not in range(1, 31):
             raise VerifyException(errno.EINVAL, 'Netmask value {0} is not valid. Allowed values are 1-30 (CIDR).'
                                   .format(netmask))
+        try:
+            network = ipaddress.ip_network(os.path.join(net, str(netmask)))
+        except ValueError:
+            raise VerifyException(errno.EINVAL,
+                                  '{0} would have host bits set. Change network or netmask to represent a valid network'
+                                  .format(os.path.join(net, str(netmask))))
+
+        if ipaddress.ip_address(gateway) in network:
+            raise VerifyException(errno.EINVAL, 'Gateway {0} can\'t belong to {1} network.'
+                                  .format(gateway, network.exploded))
 
         return ['system']
 
