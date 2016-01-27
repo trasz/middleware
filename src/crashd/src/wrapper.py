@@ -47,10 +47,6 @@ def sigterm(signo, frame):
     if proc:
         proc.terminate()
 
-    null.close()
-    log.close()
-    sys.exit(0)
-
 
 def main():
     global proc, null, log
@@ -67,7 +63,7 @@ def main():
     proc = subprocess.Popen(sys.argv[1:], stdin=null, stdout=log, stderr=subprocess.STDOUT, close_fds=True)
     proc.wait()
 
-    if proc.returncode != 0:
+    if proc.returncode not in (0, -signal.SIGTERM):
         # Prepare error report
         log.seek(0, io.SEEK_SET)
         report = {
