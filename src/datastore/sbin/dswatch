@@ -40,11 +40,14 @@ import signal
 import threading
 import pymongo
 from string import Template
+from datastore import get_datastore
+from datastore.restore import restore_db
 from freenas.utils import configure_logging
 
 
 HEALTH_CHECK_INTERVAL = 5
 DEFAULT_CONFIGFILE = '/usr/local/etc/middleware.conf'
+DEFAULT_FACTORY_FILE = '/usr/local/share/datastore/factory.json'
 MONGOD_ARGS = [
     '/usr/local/bin/mongod',
     '--config', '/usr/local/lib/datastore/drivers/mongodb/mongod.conf',
@@ -92,6 +95,19 @@ def read_config(filename):
 def recreate(dbdir):
     shutil.rmtree(dbdir)
     os.mkdir(dbdir)
+
+
+def restore():
+    logger.info('Restoring factory collections layout')
+    try:
+        with open(DEFAULT_FACTORY_FILE, 'r') as fd:
+            dump = json.load(fd)
+            ds = get_datastore(log=True)
+            restore_db(ds, dump, ['log'])
+    except IOError as err:
+        logger.error("Cannot open input file: {0}".format(str(err)))
+    except ValueError as err:
+        logger.error("Cannot parse input file: {0}".format(str(err)))
 
 
 def check_health(dsn):
@@ -154,6 +170,9 @@ def main():
         proc = subprocess.Popen(expand(MONGOD_ARGS, **args), close_fds=True)
         logger.info('Started MongoDB as PID {0}'.format(proc.pid))
 
+        if not os.path.exists(os.path.join(dbdir, 'freenas/freenas.0')):
+            restore()
+
         try:
             ret = proc.wait()
         except KeyboardInterrupt:
@@ -162,7 +181,7 @@ def main():
 
         if ret != 0:
             logger.warning('MongoDB exited with return code {0}'.format(ret))
-            if ret == 100:
+            if ret in (100, -6, -11):
                 logger.warning('wiping out database directory')
                 recreate(dbdir)
 
