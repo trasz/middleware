@@ -83,7 +83,7 @@ def apply_migrations(ds, collection, directory, force=False):
                     mig_log('Object <id:{0}> fails probe() condition, skipping'.format(i['id']))
                     continue
             except:
-                mig_log('probe() failed on object <id:{0}>')
+                mig_log('probe() failed on object <id:{0}>'.format(i['id']))
                 log_indented(mig_log, traceback.format_exc())
                 raise MigrationException(traceback.format_exc())
 
