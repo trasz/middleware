@@ -157,6 +157,11 @@ class MongodbDatastore(object):
 
         self.connected = True
 
+    def close(self):
+        self.conn_db.close()
+        if self.conn_log:
+            self.conn_log.close()
+
     @auto_retry
     def collection_create(self, name, pkey_type='uuid', attributes=None):
         attributes = attributes or {}

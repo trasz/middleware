@@ -744,6 +744,8 @@ class Dispatcher(object):
         gevent.killall(self.threads)
         self.logger.warning('Unloading plugins')
         self.unload_plugins()
+
+        self.datastore.close()
         sys.exit(0)
 
     def start_logdb(self):
