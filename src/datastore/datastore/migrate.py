@@ -70,7 +70,7 @@ def apply_migrations(ds, collection, directory, force=False):
         migrated = 0
         total = 0
 
-        log("[{0}] Applying migration {0}".format(collection, name))
+        log("[{0}] Applying migration {1}".format(collection, name))
 
         if ds.collection_has_migration(collection, name) and not force:
             mig_log("Migration already applied")
