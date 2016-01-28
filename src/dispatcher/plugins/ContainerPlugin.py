@@ -164,7 +164,7 @@ class ContainerBaseTask(Task):
     def save_config(self, container):
         container_conf = self.dispatcher.call_sync('volume.resolve_path',
                                                    container['target'],
-                                                   os.path.join('vm', container['name'], 'config.json'))
+                                                   os.path.join('vm', container['name'], '.config.json'))
 
         with open(container_conf, 'w', encoding='utf-8') as conf_file:
             conf_file.write(json.dumps(container))
@@ -172,7 +172,7 @@ class ContainerBaseTask(Task):
     def load_config(self, name, volume):
         container_conf = self.dispatcher.call_sync('volume.resolve_path',
                                                    volume,
-                                                   os.path.join('vm', name, 'config.json'))
+                                                   os.path.join('vm', name, '.config.json'))
 
         with open(container_conf, 'r', encoding='utf-8') as conf_file:
             return json.loads(conf_file.read())
