@@ -188,10 +188,6 @@ class TaskExecutor(object):
             self.balancer.logger.warning("Failed to abort task #{0} gracefully: {1}".format(self.task.id, str(err)))
             self.balancer.logger.warning("Killing process {0}".format(self.pid))
             self.proc.terminate()
-            self.task.set_state(TaskState.ABORTED, TaskStatus(0, 'aborted'))
-            self.task.ended.set()
-            self.balancer.task_exited(self.task)
-            self.state = WorkerState.IDLE
 
     def executor(self):
         while not self.exiting:
