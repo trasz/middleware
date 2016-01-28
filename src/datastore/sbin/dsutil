@@ -94,13 +94,6 @@ def create(name, pkey='uuid', type='config'):
         sys.exit(1)
 
 
-def destroy(name):
-    try:
-        ds.collection_create(name, pkey_type=pkey, attributes={'type': type})
-    except datastore.DatastoreException as e:
-        print("Cannot destroy collection: {0}".format(str(e)), file=sys.stderr)
-        sys.exit(1)
-
 def list():
     global ds
     for coll in ds.collection_list():
