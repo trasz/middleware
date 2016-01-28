@@ -26,14 +26,12 @@
 #####################################################################
 
 import sys
-import json
 import time
 import logging
 import setproctitle
 import argparse
-import socket
-import uuid
 import pytz
+import errno
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.jobstores.mongodb import MongoDBJobStore
 from datastore import get_datastore, DatastoreException
@@ -88,6 +86,8 @@ class ManagementService(RpcService):
                 'name': job.args[0],
                 'args': job.args[1:],
                 'enabled': job.next_run_time is not None,
+                'hidden': job.kwargs['hidden'],
+                'protected': job.kwargs['protected'],
                 'status': {
                     'next_run_time': job.next_run_time,
                     'last_run_time': last_run['created_at'] if last_run else None,
@@ -114,7 +114,11 @@ class ManagementService(RpcService):
             trigger='cron',
             id=task_id,
             args=[task['name']] + task['args'],
-            kwargs={'id': task_id},
+            kwargs={
+                'id': task_id,
+                'hidden': task.get('hidden', False),
+                'protected': task.get('protected', False)
+            },
             **task['schedule']
         )
 
@@ -122,6 +126,10 @@ class ManagementService(RpcService):
 
     @private
     def delete(self, job_id):
+        job = self.context.scheduler.get_job(job_id)
+        if job.kwargs['protected']:
+            raise RpcException(errno.EPERM, 'Job {0} is protected from being deleted'.format(job_id))
+
         self.context.logger.info('Deleting job with ID {0}'.format(job_id))
         self.context.scheduler.remove_job(job_id)
 
@@ -209,6 +217,7 @@ class Context(object):
                 'description': {'type': 'string'},
                 'enabled': {'type': 'boolean'},
                 'hidden': {'type': 'boolean'},
+                'protected': {'type': 'boolean'},
                 'status': {'$ref': 'calendar-task-status'},
                 'schedule': {
                     'type': 'object',
