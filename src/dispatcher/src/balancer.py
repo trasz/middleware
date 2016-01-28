@@ -202,6 +202,7 @@ class TaskExecutor(object):
                 self.balancer.logger.debug('Started executor #{0} as PID {1}'.format(self.index, self.pid))
             except OSError:
                 self.result.set_exception(TaskException(errno.EFAULT, 'Cannot spawn task executor'))
+                self.balancer.logger.error('Cannot spawn task executor #{0}'.format(self.index))
                 return
 
             for line in self.proc.stdout:
