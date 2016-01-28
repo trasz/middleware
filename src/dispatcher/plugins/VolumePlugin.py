@@ -1041,18 +1041,19 @@ class VolumeUpgradeTask(Task):
         })
 
 
-@accepts(str, h.ref('zfs-vdev'))
+@accepts(str, h.ref('zfs-vdev'), h.one_of(str, None))
 class VolumeAutoReplaceTask(Task):
-    def verify(self, name, failed_vdev):
+    def verify(self, name, failed_vdev, password=None):
         if not self.datastore.exists('volumes', ('name', '=', name)):
             raise VerifyException(errno.ENOENT, 'Volume {0} not found'.format(name))
 
         return ['zpool:{0}'.format(name)]
 
-    def run(self, name, failed_vdev):
+    def run(self, name, failed_vdev, password=None):
         empty_disks = self.dispatcher.call_sync('disk.query', [('status.empty', '=', True)])
         vdev = self.dispatcher.call_sync('zfs.pool.vdev_by_guid', name, failed_vdev)
         minsize = vdev['stats']['size']
+        vol = self.dispatcher.call_sync('volume.query', [('name', '=', name)], {'single': True})
 
         if self.configstore.get('storage.hotsparing.strong_match'):
             pass
@@ -1063,6 +1064,28 @@ class VolumeAutoReplaceTask(Task):
             if disk:
                 self.join_subtasks(self.run_subtask('disk.format.gpt', disk['path'], 'freebsd-zfs', {'swapsize': 2048}))
                 disk = self.dispatcher.call_sync('disk.query', [('id', '=', disk['id'])], {'single': True})
+                if vol.get('encrypted', False):
+                    encryption = vol['encryption']
+                    self.join_subtasks(self.run_subtask('disk.geli.init', disk['path'], {
+                        'key': encryption['key'],
+                        'password': password
+                    }))
+
+                    if encryption['slot'] is not 0:
+                        self.join_subtasks(self.run_subtask('disk.geli.ukey.set', disk['path'], {
+                            'key': encryption['key'],
+                            'password': password,
+                            'slot': 1
+                        }))
+
+                        self.join_subtasks(self.run_subtask('disk.geli.ukey.del', disk['path'], 0))
+
+                    if vol.get('providers_presence', 'NONE') != 'NONE':
+                        self.join_subtasks(self.run_subtask('disk.geli.attach', disk['path'], {
+                            'key': encryption['key'],
+                            'password': password
+                        }))
+
                 self.join_subtasks(self.run_subtask('zfs.pool.replace', name, failed_vdev, {
                     'type': 'disk',
                     'path': disk['status']['data_partition_path']
