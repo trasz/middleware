@@ -495,8 +495,10 @@ class Balancer(object):
 
         task.set_state(TaskState.CREATED)
         self.task_list.append(task)
-        # Add it to the parent task's subtasks list too
-        parent.subtask_ids.append(task.id)
+        # If we actually have a non `None` parent task then, add
+        # the current subtask to the parent task's subtasks list too
+        if parent is not None:
+            parent.subtask_ids.append(task.id)
         task.start()
         return task
 
