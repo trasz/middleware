@@ -1683,12 +1683,23 @@ def _init(dispatcher, plugin):
             },
             'topology': {'$ref': 'zfs-topology'},
             'encrypted': {'type': 'boolean'},
+            'encryption': {'$ref': 'encryption'},
             'providers_presence': {
                 'type': 'string',
                 'enum': ['ALL', 'PART', 'NONE']
             },
             'params': {'type': 'object'},
             'attributes': {'type': 'object'}
+        }
+    })
+
+    plugin.register_schema_definition('encryption', {
+        'type': 'object',
+        'properties': {
+            'key': {'type': ['string', 'null']},
+            'hashed_password': {'type': ['string', 'null']},
+            'salt': {'type': ['string', 'null']},
+            'slot': {'type': ['integer', 'null']}
         }
     })
 
