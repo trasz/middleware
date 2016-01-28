@@ -42,6 +42,7 @@ from task import Provider, Task, ProgressTask, VerifyException, TaskException, q
 from freenas.dispatcher.rpc import RpcException
 from freenas.dispatcher.rpc import SchemaHelper as h, description, accepts, returns, private
 from freenas.utils import first_or_default, normalize, deep_update
+from utils import save_config, load_config
 from freenas.utils.query import wrap
 
 
@@ -161,22 +162,6 @@ class ContainerBaseTask(Task):
                 True
             ))
 
-    def save_config(self, container):
-        container_conf = self.dispatcher.call_sync('volume.resolve_path',
-                                                   container['target'],
-                                                   os.path.join('vm', container['name'], '.config.json'))
-
-        with open(container_conf, 'w', encoding='utf-8') as conf_file:
-            conf_file.write(json.dumps(container))
-
-    def load_config(self, name, volume):
-        container_conf = self.dispatcher.call_sync('volume.resolve_path',
-                                                   volume,
-                                                   os.path.join('vm', name, '.config.json'))
-
-        with open(container_conf, 'r', encoding='utf-8') as conf_file:
-            return json.loads(conf_file.read())
-
 
 @accepts(h.ref('container'))
 class ContainerCreateTask(ContainerBaseTask):
@@ -215,7 +200,13 @@ class ContainerCreateTask(ContainerBaseTask):
             'operation': 'create',
             'ids': [id]
         })
-        self.save_config(container)
+
+        save_config(
+            self.dispatcher,
+            os.path.join('vm', container['name'], '.config.json'),
+            container['target'],
+            container
+        )
 
         return id
 
@@ -230,7 +221,7 @@ class ContainerImportTask(ContainerBaseTask):
 
     def run(self, name, volume):
         try:
-            container = self.load_config(name, volume)
+            container = load_config(self.dispatcher, os.path.join('vm', name, '.config.json'), volume)
         except FileNotFoundError:
             raise TaskException(errno.ENOENT, 'There is no {0} on {1} volume to be imported.'. format(name, volume))
 
@@ -268,7 +259,13 @@ class ContainerUpdateTask(ContainerBaseTask):
             'operation': 'update',
             'ids': [id]
         })
-        self.save_config(container)
+
+        save_config(
+            self.dispatcher,
+            os.path.join('vm', container['name'], '.config.json'),
+            container['target'],
+            container
+        )
 
 
 @accepts(str)

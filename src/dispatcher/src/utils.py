@@ -25,6 +25,8 @@
 #
 #####################################################################
 
+import json
+
 
 def first_or_default(f, iterable, default=None):
     i = list(filter(f, iterable))
@@ -37,3 +39,17 @@ def first_or_default(f, iterable, default=None):
 def split_dataset(dataset_path):
     pool = dataset_path.split('/')[0]
     return pool, dataset_path
+
+
+def save_config(dispatcher, dataset, volume, entry):
+    conf_path = dispatcher.call_sync('volume.resolve_path', volume, dataset)
+
+    with open(conf_path, 'w', encoding='utf-8') as conf_file:
+        conf_file.write(json.dumps(entry))
+
+
+def load_config(dispatcher, dataset, volume):
+    conf_path = dispatcher.call_sync('volume.resolve_path', volume, dataset)
+
+    with open(conf_path, 'r', encoding='utf-8') as conf_file:
+        return json.loads(conf_file.read())
