@@ -294,35 +294,6 @@ class Task(object):
             "abortable": True if (hasattr(self.instance, 'abort') and isinstance(self.instance.abort, collections.Callable)) else False
         })
 
-    def run(self):
-        self.set_state(TaskState.EXECUTING)
-        try:
-            result = self.instance.run(*(copy.deepcopy(self.args)))
-        except TaskAbortException as e:
-            self.error = serialize_error(e)
-
-            self.progress = self.instance.get_status()
-            self.set_state(TaskState.ABORTED, TaskStatus(self.progress.percentage, "Aborted"))
-            self.ended.set()
-            self.dispatcher.balancer.task_exited(self)
-            self.dispatcher.balancer.logger.debug("Task ID: %d, Name: %s aborted by user", self.id, self.name)
-            return
-        except BaseException as e:
-            self.error = serialize_error(e)
-
-            self.set_state(TaskState.FAILED, TaskStatus(0, str(e), extra={
-                "stacktrace": traceback.format_exc()
-            }))
-            self.ended.set()
-
-            self.dispatcher.balancer.task_exited(self)
-            return
-
-        self.result = result
-        self.set_state(TaskState.FINISHED, TaskStatus(100, ''))
-        self.ended.set()
-        self.dispatcher.balancer.task_exited(self)
-
     def start(self):
         try:
             self.dispatcher.balancer.assign_executor(self)
