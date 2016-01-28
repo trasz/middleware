@@ -225,8 +225,7 @@ class TaskExecutor(object):
                     self.proc.returncode)
                 )
 
-                self.result.set_exception(TaskException(errno.EFAULT, 'Task executor died'))
-
+            self.result.set_exception(TaskException(errno.EFAULT, 'Task executor died'))
             gevent.sleep(1)
 
     def die(self):
