@@ -2085,7 +2085,7 @@ _echoonce()
 
 _emit_event()
 {
-	/usr/local/sbin/dispatcherctl emit $* 2> /dev/null
+	/usr/local/sbin/dispatcherctl --timeout 2 emit $* 2> /dev/null
 }
 
 fi # [ -z "${_rc_subr_loaded}" ]
