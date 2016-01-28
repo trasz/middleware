@@ -2031,6 +2031,18 @@
         }
     },
     {
+        "metadata": {
+            "name": "calendar_tasks",
+            "migration": "keep",
+            "pkey-type": "native",
+            "attributes": {
+                "type": "config"
+            }
+        },
+        "data": {
+        }
+    }
+    {
          "metadata": {
             "name": "containers",
             "migration": "keep",
