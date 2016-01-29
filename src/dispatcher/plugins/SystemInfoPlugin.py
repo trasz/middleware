@@ -255,6 +255,7 @@ class SystemGeneralConfigureTask(Task):
 
         if 'timezone' in props:
             self.configstore.set('system.timezone', props['timezone'])
+            os.putenv('TZ', props['timezone'])
 
         if 'console_keymap' in props:
             self.configstore.set(
