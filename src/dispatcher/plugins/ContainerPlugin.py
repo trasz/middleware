@@ -105,8 +105,10 @@ class ContainerBaseTask(Task):
                 'name': container_ds
             }))
         except RpcException:
-            raise TaskException(errno.EACCES,
-                                'Dataset of the same name as {0} already exists. If you would like to import a VM, please try an \'import\' command.'.format(container_ds))
+            raise TaskException(
+                errno.EACCES,
+                'Dataset of the same name as {0} already exists. Maybe you meant to import an VM?'.format(container_ds)
+            )
 
     def create_device(self, container, res):
         if res['type'] == 'DISK':
