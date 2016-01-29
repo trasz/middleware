@@ -111,8 +111,8 @@ RUN_DEPENDS+=		${PYTHON_PKGNAMEPREFIX}dnspython2>=1.9.4:${PORTSDIR}/dns/py-dnspy
 # Using the bundled versions. Will make this conditional later.
 
 # talloc
-BUILD_DEPENDS+=		talloc>=2.1.5:${PORTSDIR}/devel/talloc
-RUN_DEPENDS+=		talloc>=2.1.5:${PORTSDIR}/devel/talloc
+BUILD_DEPENDS+=		talloc>=2.1.3_1:${PORTSDIR}/devel/talloc
+RUN_DEPENDS+=		talloc>=2.1.3_1:${PORTSDIR}/devel/talloc
 SAMBA4_BUNDLED_LIBS+=	!talloc
 
 # tevent
@@ -121,8 +121,8 @@ RUN_DEPENDS+=		tevent>=0.9.25:${PORTSDIR}/devel/tevent
 SAMBA4_BUNDLED_LIBS+=	!tevent
 
 # tdb
-BUILD_DEPENDS+=		tdb>=1.3.8:${PORTSDIR}/databases/tdb
-RUN_DEPENDS+=		tdb>=1.3.8:${PORTSDIR}/databases/tdb
+BUILD_DEPENDS+=		tdb>=1.3.7_1:${PORTSDIR}/databases/tdb
+RUN_DEPENDS+=		tdb>=1.3.7_1:${PORTSDIR}/databases/tdb
 SAMBA4_BUNDLED_LIBS+=	!tdb
 
 # ntdb
@@ -131,8 +131,8 @@ RUN_DEPENDS+=		ntdb>=1.0:${PORTSDIR}/databases/ntdb
 SAMBA4_BUNDLED_LIBS+=	!ntdb
 
 # ldb
-BUILD_DEPENDS+=		ldb>=1.1.24:${PORTSDIR}/databases/ldb
-RUN_DEPENDS+=		ldb>=1.1.24:${PORTSDIR}/databases/ldb
+BUILD_DEPENDS+=		ldb>=1.1.21_1:${PORTSDIR}/databases/ldb
+RUN_DEPENDS+=		ldb>=1.1.21_1:${PORTSDIR}/databases/ldb
 SAMBA4_BUNDLED_LIBS+=	!ldb
 
 # Don't use external libcom_err
@@ -457,11 +457,6 @@ PLIST_SUB+=		MODULE_${module:tu}="@comment "
 
 .include <bsd.port.pre.mk>
 
-pre-fetch:
-.if exists(${DISTDIR}/${DISTFILES})
-	@rm -f ${DISTDIR}/${DISTFILES}
-.endif
-
 .if !defined(SAMBA4_SUBPORT)
 
 SAMBA4_SUB=		SAMBA4_LOGDIR="${SAMBA4_LOGDIR}" \
@@ -488,6 +483,15 @@ CFLAGS+=		-fno-color-diagnostics
 CONFIGURE_ENV+=		NOCOLOR=yes WAF_LOG_FORMAT='%(c1)s%(zone)s%(c2)s %(message)s'
 MAKE_ENV+=		NOCOLOR=yes WAF_LOG_FORMAT='%(c1)s%(zone)s%(c2)s %(message)s'
 
+#SAMBA_MAN1+=		dbwrap_tool.1 findsmb.1 gentest.1 locktest.1 \
+#			log2pcap.1 masktest.1 ndrdump.1 nmblookup.1 \
+#			nmblookup4.1 ntlm_auth.1 oLschema2ldif.1 \
+#			profiles.1 regdiff.1 regpatch.1 regshell.1 \
+#			regtree.1 rpcclient.1 sharesec.1 smbcacls.1 \
+#			smbclient.1 smbcontrol.1 smbcquotas.1 smbget.1 \
+#			smbstatus.1 smbtar.1 smbtorture.1 smbtree.1 \
+#			testparm.1 vfstest.1 wbinfo.1
+
 SAMBA_MAN1+=		ad2oLschema.1 dbwrap_tool.1 findsmb.1 gentest.1 \
 			ldbadd.1 ldbdel.1 ldbedit.1 ldbmodify.1 ldbrename.1 \
 			ldbsearch.1 locktest.1 log2pcap.1 masktest.1 \
@@ -498,10 +502,35 @@ SAMBA_MAN1+=		ad2oLschema.1 dbwrap_tool.1 findsmb.1 gentest.1 \
 			smbget.1 smbstatus.1 smbtar.1 smbtorture.1 smbtree.1 \
 			testparm.1 vfstest.1 wbinfo.1
 
+
+#SAMBA_MAN5+=		lmhosts.5 smbgetrc.5 smbpasswd.5 pam_winbind.conf.5 \
+#			smb.conf.5
+
 SAMBA_MAN5+=		lmhosts.5 pam_winbind.conf.5 smb.conf.5 smbgetrc.5 \
 			smbpasswd.5
 
+
+#SAMBA_MAN7+=		samba.7 winbind_krb5_locator.7
+
 SAMBA_MAN7+=		libsmbclient.7 samba.7 winbind_krb5_locator.7
+
+#SAMBA_MAN8+=		eventlogadm.8 idmap_ad.8 idmap_autorid.8 idmap_hash.8 \
+#			idmap_ldap.8 idmap_nss.8 idmap_rfc2307.8 idmap_rid.8 \
+#			idmap_tdb.8 idmap_tdb2.8 net.8 nmbd.8 pam_winbind.8 pdbedit.8 \
+#			samba-regedit.8 samba-tool.8 samba.8 smbd.8 smbpasswd.8 \
+#			smbspool.8 smbta-util.8 vfs_acl_tdb.8 vfs_acl_xattr.8 \
+#			vfs_aio_fork.8 vfs_aio_linux.8 vfs_aio_pthread.8 \
+#			vfs_audit.8 vfs_cacheprime.8 vfs_cap.8 vfs_catia.8 vfs_ceph.8 \
+#			vfs_commit.8 vfs_crossrename.8 vfs_default_quota.8 \
+#			vfs_dirsort.8 vfs_extd_audit.8 vfs_fake_perms.8 vfs_fileid.8 \
+#			vfs_fruit.8 vfs_full_audit.8 vfs_glusterfs.8 vfs_gpfs.8 vfs_media_harmony.8 \
+#			vfs_netatalk.8 vfs_notify_fam.8 vfs_prealloc.8 \
+#			vfs_preopen.8 vfs_readahead.8 vfs_readonly.8 \
+#			vfs_recycle.8 vfs_scannedonly.8 vfs_shadow_copy.8 \
+#			vfs_shadow_copy2.8 vfs_snapper.8 vfs_smb_traffic_analyzer.8 \
+#			vfs_streams_depot.8 vfs_streams_xattr.8 vfs_syncops.8 vfs_time_audit.8 \
+#			vfs_tsmsm.8 vfs_worm.8 vfs_xattr_tdb.8 winbindd.8 \
+#			vfs_linux_xfs_sgid.8 vfs_btrfs.8
 
 SAMBA_MAN8+=		eventlogadm.8 idmap_ad.8 idmap_autorid.8 idmap_hash.8 idmap_ldap.8 \
 			idmap_nss.8 idmap_rfc2307.8 idmap_rid.8 idmap_script.8 idmap_tdb.8 \
@@ -553,6 +582,32 @@ pre-configure:
 post-configure:
 	-${REINPLACE_CMD} -e 's|LINKFLAGS_PYEMBED.*|LINKFLAGS_PYEMBED = []|' \
 		${CONFIGURE_WRKSRC}/bin/c4che/default.cache.py
+
+#pre-build:
+#.if ! ${PORT_OPTIONS:MMANPAGES}
+#.	for man in	libcli/nbt/man/nmblookup4.1 \
+#			librpc/tools/ndrdump.1 \
+#			source4/lib/registry/man/regdiff.1 \
+#			source4/lib/registry/man/regpatch.1 \
+#			source4/lib/registry/man/regshell.1 \
+#			source4/lib/registry/man/regtree.1 \
+#			source4/torture/man/gentest.1 \
+#			source4/torture/man/locktest.1 \
+#			source4/torture/man/masktest.1 \
+#			source4/torture/man/smbtorture.1 \
+#			source4/utils/man/ntlm_auth4.1 \
+#			source4/utils/man/oLschemaldif.1 \
+#			source4/utils/man/oLschema2ldif.1
+#			-@${MKDIR} `dirname ${BUILD_WRKSRC}/bin/default/${man}`
+#			${INSTALL_MAN} ${FILESDIR}/man/`basename ${man}` ${BUILD_WRKSRC}/bin/default/${man}
+#			#@${INSTALL_MAN} ${FILESDIR}/man/`basename ${man}` ${BUILD_WRKSRC}/bin/default/${man}
+#.	endfor
+#			-@${MKDIR} ${BUILD_WRKSRC}/bin/default/docs-xml/manpages
+#.	for man in ${SAMBA_MAN1} ${SAMBA_MAN5} ${SAMBA_MAN7} ${SAMBA_MAN8}
+#			-${INSTALL_MAN} ${BUILD_WRKSRC}/docs/manpages/${man} ${BUILD_WRKSRC}/bin/default/docs-xml/manpages
+#			#-@${INSTALL_MAN} ${BUILD_WRKSRC}/docs/manpages/${man} ${BUILD_WRKSRC}/bin/default/docs-xml/manpages
+#.	endfor
+#.endif
 
 post-install:
 			@${LN} -sf smb.conf.5.gz ${STAGEDIR}${PREFIX}/man/man5/smb4.conf.5.gz
