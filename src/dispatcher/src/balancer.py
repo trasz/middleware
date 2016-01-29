@@ -321,11 +321,11 @@ class Task(object):
             self.error = error
 
         if state == TaskState.EXECUTING:
-            self.started_at = datetime.now()
+            self.started_at = datetime.utcnow()
             event['started_at'] = self.started_at
 
         if state == TaskState.FINISHED:
-            self.finished_at = datetime.now()
+            self.finished_at = datetime.utcnow()
             event['finished_at'] = self.finished_at
             event['result'] = self.result
 
@@ -458,7 +458,7 @@ class Balancer(object):
         task = Task(self.dispatcher, name)
         task.user = sender.user.name
         task.session_id = sender.session_id
-        task.created_at = datetime.now()
+        task.created_at = datetime.utcnow()
         task.clazz = self.dispatcher.tasks[name]
         task.args = copy.deepcopy(args)
 
@@ -480,7 +480,7 @@ class Balancer(object):
 
     def run_subtask(self, parent, name, args):
         task = Task(self.dispatcher, name)
-        task.created_at = datetime.now()
+        task.created_at = datetime.utcnow()
         task.clazz = self.dispatcher.tasks[name]
         task.args = args
         task.instance = task.clazz(self.dispatcher, self.dispatcher.datastore)

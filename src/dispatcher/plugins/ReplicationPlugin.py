@@ -178,10 +178,10 @@ class SnapshotDatasetTask(Task):
 
             delta = to_timedelta(match.group('lifetime'))
             creation = parse_datetime(snapshot['properties.creation.value'])
-            return creation + delta < datetime.now()
+            return creation + delta < datetime.utcnow()
 
         snapshots = list(filter(is_expired, wrap(self.dispatcher.call_sync('zfs.dataset.get_snapshots', dataset))))
-        snapname = '{0}-{1:%Y%m%d.%H%M}-{2}'.format(prefix, datetime.now(), lifetime)
+        snapname = '{0}-{1:%Y%m%d.%H%M}-{2}'.format(prefix, datetime.utcnow(), lifetime)
         params = {'org.freenas:replicate': {'value': 'yes'}} if replicable else None
         base_snapname = snapname
 

@@ -74,7 +74,7 @@ class AlertsProvider(Provider):
             )
 
         if 'when' not in alert:
-            alert['when'] = datetime.now().isoformat()
+            alert['when'] = datetime.utcnow()
 
         # Try to find the first matching namespace
         emitters = None

@@ -1136,7 +1136,7 @@ def purge_disk_cache(dispatcher, path):
     if delete:
         # Mark disk for auto-delete
         ds_disk = dispatcher.datastore.get_by_id('disks', disk['id'])
-        ds_disk['delete_at'] = datetime.now() + EXPIRE_TIMEOUT
+        ds_disk['delete_at'] = datetime.utcnow() + EXPIRE_TIMEOUT
         dispatcher.datastore.update('disks', ds_disk['id'], ds_disk)
 
     dispatcher.dispatch_event('disk.changed', {
@@ -1381,7 +1381,7 @@ def _init(dispatcher, plugin):
     # Start with marking all disks as unavailable
     for i in dispatcher.datastore.query('disks'):
         if not i.get('delete_at'):
-            i['delete_at'] = datetime.now() + EXPIRE_TIMEOUT
+            i['delete_at'] = datetime.utcnow() + EXPIRE_TIMEOUT
 
         dispatcher.datastore.update('disks', i['id'], i)
 

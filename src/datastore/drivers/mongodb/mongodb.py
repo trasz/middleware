@@ -389,7 +389,7 @@ class MongodbDatastore(object):
 
             obj['_id'] = pkey
             if timestamp:
-                t = datetime.now()
+                t = datetime.utcnow()
                 obj['updated_at'] = t
                 obj['created_at'] = t
 
@@ -426,7 +426,7 @@ class MongodbDatastore(object):
             del obj['id']
 
         if timestamp:
-            t = datetime.now()
+            t = datetime.utcnow()
             obj['updated_at'] = t
 
             if not self.get_by_id(collection, pkey):
