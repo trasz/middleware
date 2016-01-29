@@ -639,6 +639,8 @@ def _init(dispatcher, plugin):
         'type': 'object',
         'additionalProperties': False,
         'properties': {
+            'autoconfigure': {'type': 'boolean'},
+            'http_proxy': {'type': ['string', 'none']},
             'gateway': {
                 'type': 'object',
                 'additionalProperties': False,
