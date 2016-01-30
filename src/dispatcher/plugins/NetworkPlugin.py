@@ -423,7 +423,7 @@ class AddRouteTask(Task):
             if (r['network'] == route['network']) and (r['netmask'] == route['netmask']) and (r['gateway'] == route['gateway']):
                 raise VerifyException(errno.EINVAL, 'Cannot create two identical routes differing only in name.')
 
-        if 0 <= route['netmask'] <= 32:
+        if not (0 <= route['netmask'] <= 32):
             raise VerifyException(
                 errno.EINVAL, 'Netmask value {0} is not valid. Allowed values are 0-32 (CIDR).'.format(route['netmask'])
             )
@@ -470,7 +470,7 @@ class UpdateRouteTask(Task):
         net = updated_fields['network'] if 'network' in updated_fields else route['network']
         netmask = updated_fields['netmask'] if 'netmask' in updated_fields else route['netmask']
 
-        if 0 <= netmask <= 32:
+        if not (0 <= netmask <= 32):
             raise VerifyException(
                 errno.EINVAL, 'Netmask value {0} is not valid. Allowed values are 0-32 (CIDR).'.format(netmask)
             )
