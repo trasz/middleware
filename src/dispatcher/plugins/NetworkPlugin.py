@@ -33,7 +33,7 @@ from freenas.dispatcher.rpc import RpcException, description, accepts, returns
 from freenas.dispatcher.rpc import SchemaHelper as h
 from datastore.config import ConfigNode
 from gevent import hub
-from task import Provider, Task, TaskException, VerifyException, query
+from task import Provider, Task, TaskException, VerifyException, query, TaskWarning
 
 
 logger = logging.getLogger('NetworkPlugin')
@@ -428,21 +428,25 @@ class AddRouteTask(Task):
                 errno.EINVAL, 'Netmask value {0} is not valid. Allowed values are 1-30 (CIDR).'.format(route['netmask'])
             )
         try:
-            network = ipaddress.ip_network(os.path.join(route['network'], str(route['netmask'])))
+            ipaddress.ip_network(os.path.join(route['network'], str(route['netmask'])))
         except ValueError:
             raise VerifyException(
                 errno.EINVAL,
                 '{0} would have host bits set. Change network or netmask to represent a valid network'.format(os.path.join(route['network'], str(route['netmask'])))
             )
 
-        if ipaddress.ip_address(route['gateway']) in network:
-            raise VerifyException(
-                errno.EINVAL, 'Gateway {0} can\'t belong to {1} network.'.format(route['gateway'], network.exploded)
-            )
-
         return ['system']
 
     def run(self, route):
+        network = ipaddress.ip_network(os.path.join(route['network'], str(route['netmask'])))
+        if ipaddress.ip_address(route['gateway']) in network:
+            self.add_warning(
+                TaskWarning(
+                    errno.EINVAL,
+                    'Gateway {0} is in the destination network {1}.'.format(route['gateway'], network.exploded)
+                )
+            )
+
         self.datastore.insert('network.routes', route)
         try:
             self.dispatcher.call_sync('networkd.configuration.configure_routes')
@@ -465,28 +469,36 @@ class UpdateRouteTask(Task):
         route = self.datastore.get_one('network.routes', ('id', '=', name))
         net = updated_fields['network'] if 'network' in updated_fields else route['network']
         netmask = updated_fields['netmask'] if 'netmask' in updated_fields else route['netmask']
-        gateway = updated_fields['gateway'] if 'gateway' in updated_fields else route['gateway']
 
         if netmask not in range(1, 31):
             raise VerifyException(
                 errno.EINVAL, 'Netmask value {0} is not valid. Allowed values are 1-30 (CIDR).'.format(netmask)
             )
         try:
-            network = ipaddress.ip_network(os.path.join(net, str(netmask)))
+            ipaddress.ip_network(os.path.join(net, str(netmask)))
         except ValueError:
             raise VerifyException(
                 errno.EINVAL,
                 '{0} would have host bits set. Change network or netmask to represent a valid network'.format(os.path.join(net, str(netmask)))
             )
 
-        if ipaddress.ip_address(gateway) in network:
-            raise VerifyException(
-                errno.EINVAL, 'Gateway {0} can\'t belong to {1} network.'.format(gateway, network.exploded)
-            )
-
         return ['system']
 
     def run(self, name, updated_fields):
+        route = self.datastore.get_one('network.routes', ('id', '=', name))
+        gateway = updated_fields['gateway'] if 'gateway' in updated_fields else route['gateway']
+        net = updated_fields['network'] if 'network' in updated_fields else route['network']
+        netmask = updated_fields['netmask'] if 'netmask' in updated_fields else route['netmask']
+
+        network = ipaddress.ip_network(os.path.join(net, str(netmask)))
+        if ipaddress.ip_address(gateway) in network:
+            self.add_warning(
+                TaskWarning(
+                    errno.EINVAL,
+                    'Gateway {0} is in the destination network {1}.'.format(gateway, network.exploded)
+                )
+            )
+
         route = self.datastore.get_one('network.routes', ('id', '=', name))
         route.update(updated_fields)
         self.datastore.update('network.routes', name, route)
