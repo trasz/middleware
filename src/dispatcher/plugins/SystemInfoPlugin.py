@@ -35,6 +35,7 @@ import netif
 import bsd
 import logging
 import gevent
+import time
 
 from bsd import devinfo
 from datastore import DatastoreException
@@ -447,10 +448,10 @@ class SystemTimeConfigureTask(Task):
 @accepts(h.any_of(int, None))
 @description("Reboots the System")
 class SystemRebootTask(Task):
-    def describe(self):
+    def describe(self, delay):
         return "System Reboot"
 
-    def verify(self):
+    def verify(self, delay):
         return ['root']
 
     def reboot_now(self):
@@ -464,7 +465,8 @@ class SystemRebootTask(Task):
                 'Shutdown failed with returncode: {0}, error: {1}'.format(err.code, err.err)
             )
 
-    def run(self):
+    def run(self, delay):
+        time.sleep(delay)
         self.dispatcher.dispatch_event('power.changed', {
             'operation': 'REBOOT',
             })
