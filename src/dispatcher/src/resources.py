@@ -67,79 +67,65 @@ class ResourceGraph(object):
         return self.resources.nodes()
 
     def add_resource(self, resource, parents=None):
-        self.lock()
-
-        if not resource:
-            self.unlock()
-            raise ResourceError('Invalid resource')
-
-        if self.get_resource(resource.name):
-            self.unlock()
-            raise ResourceError('Resource {0} already exists'.format(resource.name))
-
-        self.resources.add_node(resource)
-        if not parents:
-            parents = ['root']
-
-        for p in parents:
-            node = self.get_resource(p)
-            if not node:
-                self.unlock()
-                raise ResourceError('Invalid parent resource {0}'.format(p))
-
-            self.resources.add_edge(node, resource)
-
-        self.unlock()
+        with self.mutex:
+            if not resource:
+                raise ResourceError('Invalid resource')
+    
+            if self.get_resource(resource.name):
+                raise ResourceError('Resource {0} already exists'.format(resource.name))
+    
+            self.resources.add_node(resource)
+            if not parents:
+                parents = ['root']
+    
+            for p in parents:
+                node = self.get_resource(p)
+                if not node:
+                    raise ResourceError('Invalid parent resource {0}'.format(p))
+    
+                self.resources.add_edge(node, resource)
 
     def remove_resource(self, name):
-        self.lock()
-        resource = self.get_resource(name)
-
-        if not resource:
-            self.unlock()
-            return
-
-        for i in nx.descendants(self.resources, resource):
-            self.resources.remove_node(i)
-
-        self.resources.remove_node(resource)
-        self.unlock()
-
-    def remove_resources(self, names):
-        self.lock()
-        for name in names:
+        with self.mutex:
             resource = self.get_resource(name)
-
+    
             if not resource:
                 self.unlock()
-                return
-
+    
             for i in nx.descendants(self.resources, resource):
                 self.resources.remove_node(i)
-
+    
             self.resources.remove_node(resource)
-        self.unlock()
+
+    def remove_resources(self, names):
+        with self.mutex:
+            for name in names:
+                resource = self.get_resource(name)
+    
+                if not resource:
+                    return
+    
+                for i in nx.descendants(self.resources, resource):
+                    self.resources.remove_node(i)
+    
+                self.resources.remove_node(resource)
 
     def update_resource(self, name, new_parents):
-        self.lock()
-        resource = self.get_resource(name)
-
-        if not resource:
-            self.unlock()
-            return
-
-        for i in self.resources.predecessors(resource):
-            self.resources.remove_edge(i, resource)
-
-        for p in new_parents:
-            node = self.get_resource(p)
-            if not node:
-                self.unlock()
-                raise ResourceError('Invalid parent resource {0}'.format(p))
-
-            self.resources.add_edge(node, resource)
-
-        self.unlock()
+        with self.mutex:
+            resource = self.get_resource(name)
+    
+            if not resource:
+                return
+    
+            for i in self.resources.predecessors(resource):
+                self.resources.remove_edge(i, resource)
+    
+            for p in new_parents:
+                node = self.get_resource(p)
+                if not node:
+                    raise ResourceError('Invalid parent resource {0}'.format(p))
+    
+                self.resources.add_edge(node, resource)
 
     def get_resource(self, name):
         f = [i for i in self.resources.nodes() if i.name == name]
@@ -151,51 +137,42 @@ class ResourceGraph(object):
             yield i.name
 
     def acquire(self, *names):
-        self.lock()
-        self.logger.debug('Acquiring following resources: %s', ','.join(names))
-
-        for name in names:
-            res = self.get_resource(name)
-            if not res:
-                raise ResourceError('Resource {0} not found'.format(name))
-
-            for i in nx.descendants(self.resources, res):
-                if i.busy:
-                    self.unlock()
-                    raise ResourceError('Cannot acquire, some of dependent resources are busy')
-
-            res.busy = True
-
-        self.unlock()
+        with self.mutex:
+            self.logger.debug('Acquiring following resources: %s', ','.join(names))
+    
+            for name in names:
+                res = self.get_resource(name)
+                if not res:
+                    raise ResourceError('Resource {0} not found'.format(name))
+    
+                for i in nx.descendants(self.resources, res):
+                    if i.busy:
+                        raise ResourceError('Cannot acquire, some of dependent resources are busy')
+    
+                res.busy = True
 
     def can_acquire(self, *names):
-        self.lock()
-        self.logger.debug('Trying to acquire following resources: %s', ','.join(names))
-
-        for name in names:
-            res = self.get_resource(name)
-            if not res:
-                self.unlock()
-                return False
-
-            if res.busy:
-                self.unlock()
-                return False
-
-            for i in nx.descendants(self.resources, res):
-                if i.busy:
-                    self.unlock()
+        with self.mutex:
+            self.logger.debug('Trying to acquire following resources: %s', ','.join(names))
+    
+            for name in names:
+                res = self.get_resource(name)
+                if not res:
                     return False
-
-        self.unlock()
-        return True
+    
+                if res.busy:
+                    return False
+    
+                for i in nx.descendants(self.resources, res):
+                    if i.busy:
+                        return False
+    
+            return True
 
     def release(self, *names):
-        self.lock()
-        self.logger.debug('Releasing following resources: %s', ','.join(names))
-
-        for name in names:
-            res = self.get_resource(name)
-            res.busy = False
-
-        self.unlock()
+        with self.mutex:
+            self.logger.debug('Releasing following resources: %s', ','.join(names))
+    
+            for name in names:
+                res = self.get_resource(name)
+                res.busy = False
