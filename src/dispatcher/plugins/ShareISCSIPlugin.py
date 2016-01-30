@@ -140,6 +140,8 @@ class CreateISCSIShareTask(Task):
             'ids': [id]
         })
 
+        return id
+
 
 @description("Updates existing iSCSI share")
 @accepts(str, h.ref('iscsi-share'))
