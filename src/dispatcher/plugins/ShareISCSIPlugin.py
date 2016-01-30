@@ -195,6 +195,19 @@ class DeleteiSCSIShareTask(Task):
         })
 
 
+@description("Imports existing iSCSI share")
+@accepts(h.ref('iscsi-share'))
+class ImportiSCSIShareTask(CreateISCSIShareTask):
+    def describe(self, share):
+        return "Importing iSCSI share {0}".format(share['name'])
+
+    def verify(self, share):
+        return super(ImportiSCSIShareTask, self).verify(share)
+
+    def run(self, share):
+        return super(ImportiSCSIShareTask, self).run(share)
+
+
 @accepts(h.ref('iscsi-target'))
 class CreateISCSITargetTask(Task):
     def verify(self, target):
@@ -521,6 +534,7 @@ def _init(dispatcher, plugin):
     plugin.register_task_handler("share.iscsi.create", CreateISCSIShareTask)
     plugin.register_task_handler("share.iscsi.update", UpdateISCSIShareTask)
     plugin.register_task_handler("share.iscsi.delete", DeleteiSCSIShareTask)
+    plugin.register_task_handler("share.iscsi.import", ImportiSCSIShareTask)
     plugin.register_task_handler("share.iscsi.target.create", CreateISCSITargetTask)
     plugin.register_task_handler("share.iscsi.target.update", UpdateISCSITargetTask)
     plugin.register_task_handler("share.iscsi.target.delete", DeleteISCSITargetTask)

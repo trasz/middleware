@@ -130,6 +130,19 @@ class DeleteAFPShareTask(Task):
         })
 
 
+@description("Imports existing AFP share")
+@accepts(h.ref('afp-share'))
+class ImportAFPShareTask(CreateAFPShareTask):
+    def describe(self, share):
+        return "Importing AFP share {0}".format(share['name'])
+
+    def verify(self, share):
+        return super(ImportAFPShareTask, self).verify(share)
+
+    def run(self, share):
+        return super(ImportAFPShareTask, self).run(share)
+
+
 def _depends():
     return ['AFPPlugin', 'SharingPlugin']
 
@@ -186,5 +199,6 @@ def _init(dispatcher, plugin):
     plugin.register_task_handler("share.afp.create", CreateAFPShareTask)
     plugin.register_task_handler("share.afp.update", UpdateAFPShareTask)
     plugin.register_task_handler("share.afp.delete", DeleteAFPShareTask)
+    plugin.register_task_handler("share.afp.import", ImportAFPShareTask)
     plugin.register_provider("share.afp", AFPSharesProvider)
     plugin.register_event_type('share.afp.changed')

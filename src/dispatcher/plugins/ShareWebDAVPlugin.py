@@ -141,6 +141,19 @@ class DeleteWebDAVShareTask(Task):
         })
 
 
+@description("Imports existing WebDAV share")
+@accepts(h.ref('webdav-share'))
+class ImportWebDAVShareTask(CreateWebDAVShareTask):
+    def describe(self, share):
+        return "Importing WebDAV share {0}".format(share['name'])
+
+    def verify(self, share):
+        return super(ImportWebDAVShareTask, self).verify(share)
+
+    def run(self, share):
+        return super(ImportWebDAVShareTask, self).run(share)
+
+
 def _metadata():
     return {
         'type': 'sharing',
@@ -167,5 +180,6 @@ def _init(dispatcher, plugin):
     plugin.register_task_handler("share.webdav.create", CreateWebDAVShareTask)
     plugin.register_task_handler("share.webdav.update", UpdateWebDAVShareTask)
     plugin.register_task_handler("share.webdav.delete", DeleteWebDAVShareTask)
+    plugin.register_task_handler("share.webdav.import", ImportWebDAVShareTask)
     plugin.register_provider("share.webdav", WebDAVSharesProvider)
     plugin.register_event_type('share.webdav.changed')

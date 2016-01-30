@@ -152,6 +152,19 @@ class DeleteSMBShareTask(Task):
         })
 
 
+@description("Imports existing SMB share")
+@accepts(h.ref('smb-share'))
+class ImportSMBShareTask(CreateSMBShareTask):
+    def describe(self, share):
+        return "Importing SMB share {0}".format(share['name'])
+
+    def verify(self, share):
+        return super(ImportSMBShareTask, self).verify(share)
+
+    def run(self, share):
+        return super(ImportSMBShareTask, self).run(share)
+
+
 def yesno(val):
     return 'yes' if val else 'no'
 
@@ -230,6 +243,7 @@ def _init(dispatcher, plugin):
     plugin.register_task_handler("share.smb.create", CreateSMBShareTask)
     plugin.register_task_handler("share.smb.update", UpdateSMBShareTask)
     plugin.register_task_handler("share.smb.delete", DeleteSMBShareTask)
+    plugin.register_task_handler("share.smb.import", ImportSMBShareTask)
     plugin.register_provider("share.smb", SMBSharesProvider)
     plugin.register_event_type('share.smb.changed')
 

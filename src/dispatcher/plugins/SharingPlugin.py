@@ -31,7 +31,7 @@ from freenas.dispatcher.rpc import description, accepts, returns, private
 from freenas.dispatcher.rpc import SchemaHelper as h
 from task import Task, TaskException, VerifyException, Provider, RpcException, query
 from freenas.utils import normalize
-from utils import split_dataset
+from utils import split_dataset, save_config, load_config
 
 
 class SharesProvider(Provider):
@@ -195,6 +195,10 @@ class CreateShareTask(Task):
             'ids': ids
         })
 
+        new_share = self.datastore.get_by_id('shares', ids[0])
+        path = self.dispatcher.call_sync('share.translate_path', new_share['id'])
+        save_config(path, new_share)
+
         return ids[0]
 
 
@@ -236,6 +240,47 @@ class UpdateShareTask(Task):
             'operation': 'update',
             'ids': [share['id']]
         })
+
+        updated_share = self.datastore.get_by_id('shares', id)
+        path = self.dispatcher.call_sync('share.translate_path', updated_share['id'])
+        save_config(path, updated_share)
+
+
+@description("Imports existing share")
+@accepts(str)
+class ImportShareTask(Task):
+    def verify(self, share_path):
+        try:
+            share = load_config(share_path)
+        except FileNotFoundError:
+            raise VerifyException(errno.ENOENT, 'There is no share at {0} to be imported.'. format(share_path))
+
+        if not self.dispatcher.call_sync('share.supported_types').get(share['type']):
+            raise VerifyException(errno.ENXIO, 'Unknown sharing type {0}'.format(share['type']))
+
+        if self.datastore.exists(
+            'shares',
+            ('type', '=', share['type']),
+            ('name', '=', share['name'])
+        ):
+            raise VerifyException(errno.EEXIST, 'Share {0} of type {1} already exists'.format(
+                share['name'],
+                share['type']
+            ))
+
+        return ['system']
+
+    def run(self, share_path):
+
+        share = load_config(share_path)
+
+        ids = self.join_subtasks(self.run_subtask('share.{0}.import'.format(share['type']), share))
+        self.dispatcher.dispatch_event('share.changed', {
+            'operation': 'create',
+            'ids': ids
+        })
+
+        return ids[0]
 
 
 @description("Deletes share")
@@ -361,6 +406,7 @@ def _init(dispatcher, plugin):
     plugin.register_task_handler('share.create', CreateShareTask)
     plugin.register_task_handler('share.update', UpdateShareTask)
     plugin.register_task_handler('share.delete', DeleteShareTask)
+    plugin.register_task_handler('share.import', ImportShareTask)
     plugin.register_task_handler('share.delete_dependent', DeleteDependentShares)
     plugin.register_task_handler('share.update_related', UpdateRelatedShares)
     plugin.register_event_type('share.changed')

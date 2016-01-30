@@ -137,6 +137,25 @@ class DeleteNFSShareTask(Task):
         })
 
 
+@description("Imports existing NFS share")
+@accepts(h.ref('nfs-share'))
+class ImportNFSShareTask(CreateNFSShareTask):
+    def describe(self, share):
+        properties = share['properties']
+
+        if (properties.get('maproot_user') or properties.get('maproot_group')) and \
+           (properties.get('mapall_user') or properties.get('mapall_group')):
+            raise VerifyException(errno.EINVAL, 'Cannot set maproot and mapall properties simultaneously')
+
+        return "Importing NFS share {0}".format(share['name'])
+
+    def verify(self, share):
+        return super(ImportNFSShareTask, self).verify(share)
+
+    def run(self, share):
+        return super(ImportNFSShareTask, self).run(share)
+
+
 def _metadata():
     return {
         'type': 'sharing',
@@ -178,5 +197,6 @@ def _init(dispatcher, plugin):
     plugin.register_task_handler("share.nfs.create", CreateNFSShareTask)
     plugin.register_task_handler("share.nfs.update", UpdateNFSShareTask)
     plugin.register_task_handler("share.nfs.delete", DeleteNFSShareTask)
+    plugin.register_task_handler("share.nfs.import", ImportNFSShareTask)
     plugin.register_provider("share.nfs", NFSSharesProvider)
     plugin.register_event_type('share.nfs.changed')
