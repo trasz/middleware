@@ -203,10 +203,13 @@ class ContainerCreateTask(ContainerBaseTask):
             'ids': [id]
         })
 
+        container = self.datastore.get_by_id('containers', id)
         save_config(
-            self.dispatcher,
-            os.path.join('vm', container['name'], '.config.json'),
-            container['target'],
+            self.dispatcher.call_sync(
+                'volume.resolve_path',
+                container['target'],
+                os.path.join('vm', container['name'])
+            ),
             container
         )
 
@@ -223,7 +226,13 @@ class ContainerImportTask(ContainerBaseTask):
 
     def run(self, name, volume):
         try:
-            container = load_config(self.dispatcher, os.path.join('vm', name, '.config.json'), volume)
+            container = load_config(
+                self.dispatcher.call_sync(
+                    'volume.resolve_path',
+                    volume,
+                    os.path.join('vm', name)
+                )
+            )
         except FileNotFoundError:
             raise TaskException(errno.ENOENT, 'There is no {0} on {1} volume to be imported.'. format(name, volume))
 
@@ -262,10 +271,13 @@ class ContainerUpdateTask(ContainerBaseTask):
             'ids': [id]
         })
 
+        container = self.datastore.get_by_id('containers', id)
         save_config(
-            self.dispatcher,
-            os.path.join('vm', container['name'], '.config.json'),
-            container['target'],
+            self.dispatcher.call_sync(
+                'volume.resolve_path',
+                container['target'],
+                os.path.join('vm', container['name'])
+            ),
             container
         )
 
