@@ -804,7 +804,7 @@ def sync_zpool_cache(dispatcher, pool, guid=None):
         logger.warning("Cannot read pool status from pool {0}".format(pool))
 
 
-def sync_dataset_cache(dispatcher, dataset, old_dataset=None):
+def sync_dataset_cache(dispatcher, dataset, old_dataset=None, recursive=False):
     zfs = get_zfs()
     pool = dataset.split('/')[0]
     sync_zpool_cache(dispatcher, pool)
@@ -813,10 +813,16 @@ def sync_dataset_cache(dispatcher, dataset, old_dataset=None):
             datasets.rename(old_dataset, dataset)
             return
 
-        if datasets.put(dataset, wrap(zfs.get_dataset(dataset).__getstate__(recursive=False))):
+        ds = zfs.get_dataset(dataset)
+
+        if datasets.put(dataset, wrap(ds.__getstate__(recursive=False))):
             dispatcher.register_resource(
                 Resource('zfs:{0}'.format(dataset)),
                 parents=['zpool:{0}'.format(pool)])
+
+        if recursive:
+            for i in ds.children:
+                sync_dataset_cache(dispatcher, i.name, recursive)
 
     except libzfs.ZFSException as e:
         if e.code == libzfs.Error.NOENT:
@@ -927,6 +933,12 @@ def _init(dispatcher, plugin):
         logger.info('New pool created: {0} <{1}>'.format(args['pool'], args['guid']))
         with dispatcher.get_lock('zfs-cache'):
             sync_zpool_cache(dispatcher, args['pool'], args['guid'])
+
+    def on_pool_import(args):
+        logger.info('New pool imported: {0} <{1}>'.format(args['pool'], args['guid']))
+        with dispatcher.get_lock('zfs-cache'):
+            sync_zpool_cache(dispatcher, args['pool'], args['guid'])
+            sync_dataset_cache(dispatcher, args['pool'], recursive=True)
 
     def on_pool_destroy(args):
         logger.info('Pool {0} <{1}> destroyed'.format(args['pool'], args['guid']))
@@ -1266,7 +1278,7 @@ def _init(dispatcher, plugin):
     })
 
     plugin.register_event_handler('fs.zfs.pool.created', on_pool_create)
-    plugin.register_event_handler('fs.zfs.pool.imported', on_pool_create)
+    plugin.register_event_handler('fs.zfs.pool.imported', on_pool_import)
     plugin.register_event_handler('fs.zfs.pool.destroyed', on_pool_destroy)
     plugin.register_event_handler('fs.zfs.pool.setprop', on_pool_changed)
     plugin.register_event_handler('fs.zfs.pool.reguid', on_pool_reguid)
