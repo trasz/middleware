@@ -105,6 +105,21 @@ class ResourceGraph(object):
         self.resources.remove_node(resource)
         self.unlock()
 
+    def remove_resources(self, names):
+        self.lock()
+        for name in names:
+            resource = self.get_resource(name)
+
+            if not resource:
+                self.unlock()
+                return
+
+            for i in nx.descendants(self.resources, resource):
+                self.resources.remove_node(i)
+
+            self.resources.remove_node(resource)
+        self.unlock()
+
     def update_resource(self, name, new_parents):
         self.lock()
         resource = self.get_resource(name)

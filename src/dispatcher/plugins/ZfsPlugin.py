@@ -798,7 +798,8 @@ def sync_zpool_cache(dispatcher, pool, guid=None):
     except libzfs.ZFSException as e:
         if e.code == libzfs.Error.NOENT:
             pools.remove(pool)
-            datasets.remove_predicate(lambda i: i['pool'] == pool)
+            names = datasets.remove_predicate(lambda i: i['pool'] == pool)
+            dispatcher.unregister_resources(['zfs:{0}'.format(i) for i in names])
             return
 
         logger.warning("Cannot read pool status from pool {0}".format(pool))
@@ -822,13 +823,16 @@ def sync_dataset_cache(dispatcher, dataset, old_dataset=None, recursive=False):
 
         if recursive:
             for i in ds.children:
-                sync_dataset_cache(dispatcher, i.name, recursive)
+                sync_dataset_cache(dispatcher, i.name, recursive=True)
 
     except libzfs.ZFSException as e:
         if e.code == libzfs.Error.NOENT:
             if datasets.remove(dataset):
-                datasets.remove_predicate(lambda i: i['name'].startswith(dataset + '/'))
-                dispatcher.unregister_resource('zfs:{0}'.format(dataset))
+                names = datasets.remove_predicate(lambda i: i['name'].startswith(dataset + '/'))
+                dispatcher.unregister_resources(
+                    ['zfs:{0}'.format(i) for i in names] +
+                    ['zfs:{0}'.format(dataset)]
+                )
 
             return
 

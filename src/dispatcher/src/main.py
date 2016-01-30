@@ -637,6 +637,11 @@ class Dispatcher(object):
         self.logger.debug('Resource removed: {0}'.format(name))
         self.resource_graph.remove_resource(name)
 
+    def unregister_resources(self, names):
+        if names:
+            self.logger.debug('Resources removed: {0}'.format(', '.join(names)))
+            self.resource_graph.remove_resources(names)
+
     def resource_exists(self, name):
         return self.resource_graph.get_resource(name) is not None
 
