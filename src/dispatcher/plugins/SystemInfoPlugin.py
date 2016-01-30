@@ -477,6 +477,27 @@ class SystemRebootTask(Task):
         reboot_greenlet.join(timeout=1)
 
 
+@accepts(None)
+@description("Aborts system reboot")
+class SystemAbortRebootTask(Task):
+    def describe(self):
+        return "Abort System Reboot"
+
+    def verify(self):
+        return ['root']
+
+    def run(self):
+        RUNNING_STATES = ['CREATED', 'WAITING', 'EXECUTING', 'ROLLBACK']
+
+        reboot_tasks = self.dispatcher.call_sync(
+            'task.query',
+            [('name', '=', 'system.reboot'), ('state', 'in', RUNNING_STATES)]
+        )
+
+        for task in reboot_tasks:
+            self.dispatcher.call_sync('task.abort', task['id'])
+
+
 @accepts(h.any_of(int, None))
 @description("Shuts the system down")
 class SystemHaltTask(Task):
@@ -614,6 +635,7 @@ def _init(dispatcher, plugin):
     plugin.register_task_handler("system.time.configure", SystemTimeConfigureTask)
     plugin.register_task_handler("system.shutdown", SystemHaltTask)
     plugin.register_task_handler("system.reboot", SystemRebootTask)
+    plugin.register_task_handler("system.reboot.abort", SystemAbortRebootTask)
 
     # Set initial hostname
     netif.set_hostname(dispatcher.configstore.get('system.hostname'))
