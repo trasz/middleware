@@ -156,7 +156,7 @@ def update(name, pkey, fields):
 def main():
     parser = argh.ArghParser()
     parser.add_argument('-c', metavar='CONFIG', default=DEFAULT_CONFIGFILE, help='Config file name')
-    parser.add_commands([create, destroy, list, get, query, update, config_list, config_get, config_set])
+    parser.add_commands([create, list, get, query, update, config_list, config_get, config_set])
     args = parser.parse_args()
     init_datastore(args.c)
     parser.dispatch()
