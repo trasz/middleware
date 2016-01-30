@@ -858,7 +858,7 @@ class UnixSocketServer(object):
                     if fd == -1:
                         return
 
-                    wait_write(fd, 0.1)
+                    wait_write(fd, 1)
                     self.fd.write(header)
                     self.fd.write(data)
                     self.fd.flush()
