@@ -36,7 +36,7 @@ import tempfile
 import libzfs
 from freenas.dispatcher.rpc import RpcException, accepts, returns, description, private
 from freenas.dispatcher.rpc import SchemaHelper as h
-from task import Task, Provider
+from task import Task, Provider, VerifyException
 from freenas.utils.copytree import copytree
 
 
@@ -166,6 +166,32 @@ def move_system_dataset(dispatcher, dsid, services, src_pool, dst_pool):
         dispatcher.call_sync('service.ensure_started', s, timeout=20)
 
 
+def import_system_dataset(dispatcher, services, src_pool, old_pool, old_id):
+    logger.warning('Importing system dataset from pool {0}'.format(src_pool))
+
+    system_dataset = dispatcher.call_sync(
+        'zfs.dataset.query',
+        [('pool', '=', src_pool), ('name', '~', '.system')],
+        {'single': True})
+    id = system_dataset['name'][-8:]
+
+    for s in services:
+        dispatcher.call_sync('service.ensure_stopped', s)
+
+    dispatcher.call_sync('management.stop_logdb')
+
+    umount_system_dataset(dispatcher, old_id, old_pool)
+    mount_system_dataset(dispatcher, id, src_pool, SYSTEM_DIR)
+    remove_system_dataset(dispatcher, old_id, old_pool)
+
+    dispatcher.call_sync('management.start_logdb')
+
+    for s in services:
+        dispatcher.call_sync('service.ensure_started', s, timeout=20)
+
+    return id
+
+
 class SystemDatasetProvider(Provider):
     @private
     @description("Initializes the .system dataset")
@@ -227,6 +253,36 @@ class SystemDatasetConfigure(Task):
         self.configstore.set('system.dataset.pool', pool)
 
 
+@description("Imports .system dataset from a volume")
+@accepts(str)
+class SystemDatasetImport(Task):
+    def verify(self, pool):
+        if not self.dispatcher.call_sync('zfs.dataset.query', [('pool', '=', pool), ('name', '~', '.system')], {'single': True}):
+            raise VerifyException('System dataset not found on pool {0}'.format(pool))
+
+        return ['system']
+
+    def run(self, pool):
+        status = self.dispatcher.call_sync('system_dataset.status')
+        services = self.configstore.get('system.dataset.services')
+        restart = [s for s in services if self.configstore.get('service.{0}.enable'.format(s))]
+
+        logger.warning('Services to be restarted: {0}'.format(', '.join(restart)))
+
+        if status['pool'] != pool:
+            new_id = import_system_dataset(
+                self.dispatcher,
+                restart,
+                pool,
+                status['pool'],
+                self.configstore.get('system.dataset.id')
+            )
+
+            self.configstore.set('system.dataset.pool', pool)
+            self.configstore.set('system.dataset.id', new_id)
+            logger.info('New system dataset ID: {0}'.format(new_id))
+
+
 def _depends():
     return ['ZfsPlugin', 'VolumePlugin']
 
@@ -254,6 +310,7 @@ def _init(dispatcher, plugin):
     plugin.attach_hook('volume.pre_rename', volume_pre_destroy)
     plugin.register_provider('system_dataset', SystemDatasetProvider)
     plugin.register_task_handler('system_dataset.configure', SystemDatasetConfigure)
+    plugin.register_task_handler('system_dataset.import', SystemDatasetImport)
 
     plugin.register_hook('system_dataset.pre_detach')
     plugin.register_hook('system_dataset.pre_attach')
