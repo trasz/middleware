@@ -25,7 +25,8 @@
 #
 #####################################################################
 
-import json
+import os
+from freenas.dispatcher.jsonenc import dumps, loads
 
 
 def first_or_default(f, iterable, default=None):
@@ -41,15 +42,11 @@ def split_dataset(dataset_path):
     return pool, dataset_path
 
 
-def save_config(dispatcher, dataset, volume, entry):
-    conf_path = dispatcher.call_sync('volume.resolve_path', volume, dataset)
-
-    with open(conf_path, 'w', encoding='utf-8') as conf_file:
-        conf_file.write(json.dumps(entry))
+def save_config(conf_path, entry):
+    with open(os.path.join(conf_path, '.config.json'), 'w', encoding='utf-8') as conf_file:
+        conf_file.write(dumps(entry))
 
 
-def load_config(dispatcher, dataset, volume):
-    conf_path = dispatcher.call_sync('volume.resolve_path', volume, dataset)
-
-    with open(conf_path, 'r', encoding='utf-8') as conf_file:
-        return json.loads(conf_file.read())
+def load_config(conf_path):
+    with open(os.path.join(conf_path, '.config.json'), 'r', encoding='utf-8') as conf_file:
+        return loads(conf_file.read())
