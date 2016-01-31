@@ -172,7 +172,8 @@ def import_system_dataset(dispatcher, services, src_pool, old_pool, old_id):
     system_dataset = dispatcher.call_sync(
         'zfs.dataset.query',
         [('pool', '=', src_pool), ('name', '~', '.system')],
-        {'single': True})
+        {'single': True}
+    )
     id = system_dataset['name'][-8:]
 
     for s in services:
