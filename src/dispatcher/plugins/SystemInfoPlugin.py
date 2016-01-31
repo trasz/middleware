@@ -448,10 +448,10 @@ class SystemTimeConfigureTask(Task):
 @accepts(h.any_of(int, None))
 @description("Reboots the System")
 class SystemRebootTask(Task):
-    def describe(self, delay):
+    def describe(self, delay=None):
         return "System Reboot"
 
-    def verify(self, delay):
+    def verify(self, delay=None):
         return ['root']
 
     def reboot_now(self):
@@ -465,8 +465,10 @@ class SystemRebootTask(Task):
                 'Shutdown failed with returncode: {0}, error: {1}'.format(err.code, err.err)
             )
 
-    def run(self, delay):
-        time.sleep(delay)
+    def run(self, delay=None):
+        if delay:
+            time.sleep(delay)
+
         self.dispatcher.dispatch_event('power.changed', {
             'operation': 'REBOOT',
             })
