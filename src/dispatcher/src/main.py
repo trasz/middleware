@@ -722,7 +722,7 @@ class Dispatcher(object):
                 return
 
         report = {
-            'timestamp': str(datetime.datetime.now()),
+            'timestamp': str(datetime.datetime.utcnow()),
             'type': 'exception',
             'application': 'dispatcher',
             'message': message,
@@ -1299,7 +1299,7 @@ class ServerConnection(WebSocketApplication, EventEmitter):
     def open_session(self):
         client_addr, client_port = self.real_client_address[:2]
         self.session_id = self.dispatcher.datastore.insert('sessions', {
-            'started_at': datetime.datetime.now(),
+            'started_at': datetime.datetime.utcnow(),
             'address': client_addr,
             'port': client_port,
             'resource': self.resource,
@@ -1313,7 +1313,7 @@ class ServerConnection(WebSocketApplication, EventEmitter):
         if self.session_id:
             session = self.dispatcher.datastore.get_by_id('sessions', self.session_id)
             session['active'] = False
-            session['ended_at'] = datetime.datetime.now()
+            session['ended_at'] = datetime.datetime.utcnow()
             self.dispatcher.datastore.update('sessions', self.session_id, session)
 
         if isinstance(self.user, User):
