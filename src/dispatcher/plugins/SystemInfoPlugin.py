@@ -30,7 +30,6 @@ import errno
 import os
 import psutil
 import re
-import time
 import netif
 import bsd
 import logging
