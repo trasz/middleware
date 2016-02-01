@@ -44,7 +44,9 @@ import netif
 import signal
 import select
 import tempfile
+import ipaddress
 from gevent.queue import Queue, Channel
+from gevent.event import Event
 from geventwebsocket import WebSocketServer, WebSocketApplication, Resource
 from geventwebsocket.exceptions import WebSocketError
 from pyee import EventEmitter
@@ -53,12 +55,18 @@ from datastore.config import ConfigStore
 from freenas.dispatcher.client import Client, ClientError
 from freenas.dispatcher.rpc import RpcService, RpcException, private
 from freenas.utils.debug import DebugService
-from freenas.utils import configure_logging, to_timedelta
+from freenas.utils import configure_logging
+from mgmt import ManagementNetwork
 
 
 gevent.monkey.patch_all(thread=False)
 
 
+VM_OUI = '00:a0:98'  # NetApp
+MGMT_ADDR = ipaddress.ip_interface('169.254.16.1/20')
+MGMT_INTERFACE = 'mgmt0'
+NAT_ADDR = ipaddress.ip_interface('169.254.32.1/20')
+NAT_INTERFACE = 'nat0'
 DEFAULT_CONFIGFILE = '/usr/local/etc/middleware.conf'
 SCROLLBACK_SIZE = 65536
 
@@ -95,7 +103,7 @@ class VirtualMachine(object):
         self.console_fd = None
         self.console_queues = []
         self.console_thread = None
-        self.tap_interfaces = []
+        self.tap_interfaces = {}
         self.logger = logging.getLogger('VM:{0}'.format(self.name))
 
     def build_args(self):
@@ -118,8 +126,12 @@ class VirtualMachine(object):
                 index += 1
 
             if i['type'] == 'NIC':
-                iface = self.init_tap(i['properties'])
-                args += ['-s', '{0}:0,virtio-net,{1}'.format(index, iface)]
+                mac = self.context.generate_mac()
+                iface = self.init_tap(i['name'], i['properties'], mac)
+                if not iface:
+                    continue
+
+                args += ['-s', '{0}:0,virtio-net,{1},mac={2}'.format(index, iface, mac)]
                 index += 1
 
         args += [
@@ -130,19 +142,29 @@ class VirtualMachine(object):
         self.logger.debug('bhyve args: {0}'.format(args))
         return args
 
-    def init_tap(self, tap):
+    def init_tap(self, name, nic, mac):
         try:
             iface = netif.get_interface(netif.create_interface('tap'))
-            iface.description = 'vm:{0}'.format(self.name)
+            iface.description = 'vm:{0}:{1}'.format(self.name, name)
             iface.up()
-            if tap['bridge']:
-                    bridge = netif.get_interface(tap['bridge'])
-                    bridge.add_member(iface.name)
 
-            self.tap_interfaces.append(iface)
+            if nic['type'] == 'BRIDGE':
+                if nic['bridge']:
+                        bridge = netif.get_interface(nic['bridge'])
+                        bridge.add_member(iface.name)
+
+            if nic['type'] == 'MANAGEMENT':
+                mgmt = netif.get_interface('mgmt0', bridge=True)
+                mgmt.add_member(iface.name)
+
+            if nic['type'] == 'NAT':
+                mgmt = netif.get_interface('nat0', bridge=True)
+                mgmt.add_member(iface.name)
+
+            self.tap_interfaces[iface] = mac
             return iface.name
         except (KeyError, OSError):
-                pass
+            return
 
     def cleanup_tap(self, iface):
         iface.down()
@@ -189,6 +211,7 @@ class VirtualMachine(object):
 
     def run(self):
         self.set_state(VirtualMachineState.BOOTLOADER)
+        self.context.vm_started.set()
         self.logger.debug('Starting bootloader...')
 
         if self.config['bootloader'] == 'GRUB':
@@ -297,7 +320,6 @@ class VirtualMachine(object):
         self.console_queues.remove(queue)
 
     def console_write(self, data):
-        self.logger.debug('Write: {0}'.format(data))
         try:
             self.console_fd.write(data)
             self.console_fd.flush()
@@ -316,6 +338,10 @@ class Jail(object):
 
     def stop(self):
         pass
+
+
+class Docker(object):
+    pass
 
 
 class ManagementService(RpcService):
@@ -448,13 +474,13 @@ class ConsoleConnection(WebSocketApplication, EventEmitter):
             if 'token' not in message:
                 return
 
-            token = self.context.tokens.get(message['token'])
-            if not token:
+            cid = self.context.tokens.get(message['token'])
+            if not cid:
                 self.ws.send(json.dumps({'status': 'failed'}))
                 return
 
             self.authenticated = True
-            self.vm = self.context.containers[token]
+            self.vm = self.context.containers[cid]
             self.console_queue = self.vm.console_register()
             self.ws.send(json.dumps({'status': 'ok'}))
             self.ws.send(self.vm.scrollback.read())
@@ -474,6 +500,8 @@ class Main(object):
         self.datastore = None
         self.configstore = None
         self.config = None
+        self.mgmt = None
+        self.vm_started = Event()
         self.containers = {}
         self.tokens = {}
         self.logger = logging.getLogger('containerd')
@@ -528,6 +556,25 @@ class Main(object):
         self.client.on_error(on_error)
         self.connect()
 
+    def init_mgmt(self):
+        self.mgmt = ManagementNetwork(self, MGMT_INTERFACE, MGMT_ADDR)
+        self.mgmt.up()
+        self.mgmt.bridge_if.add_address(netif.InterfaceAddress(
+            netif.AddressFamily.INET,
+            ipaddress.ip_interface('169.254.169.254/32')
+        ))
+
+    def vm_by_mgmt_mac(self, mac):
+        for i in self.containers.values():
+            for tapmac in i.tap_interfaces.values():
+                if tapmac == mac:
+                    return i
+
+        return None
+
+    def vm_by_mgmt_ip(self, ip):
+        pass
+
     def die(self):
         self.logger.warning('Exiting')
         for i in self.containers.values():
@@ -538,6 +585,9 @@ class Main(object):
 
     def generate_id(self):
         return ''.join([random.choice(string.ascii_letters + string.digits) for n in range(32)])
+
+    def generate_mac(self):
+        return VM_OUI + ':' + ':'.join('{0:02x}'.format(random.randint(0, 255)) for _ in range(0, 3))
 
     def dispatcher_error(self, error):
         self.die()
@@ -556,6 +606,7 @@ class Main(object):
         self.config = args.c
         self.init_datastore()
         self.init_dispatcher()
+        self.init_mgmt()
         self.init_bridge()
         self.logger.info('Started')
 
