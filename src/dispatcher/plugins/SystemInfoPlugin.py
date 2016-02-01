@@ -155,7 +155,7 @@ class SystemGeneralProvider(Provider):
         result = []
         for root, _, files in os.walk(ZONEINFO_DIR):
             for f in files:
-                if f == 'zone.tab':
+                if f in ('zone.tab', 'posixrules'):
                     continue
 
                 result.append(os.path.join(root, f).replace(ZONEINFO_DIR + '/', ''))
@@ -530,6 +530,14 @@ class SystemHaltTask(Task):
         shutdown_greenlet.join(timeout=1)
 
 
+class SleepTask(Task):
+    def verify(self):
+        return ['system']
+
+    def run(self):
+        time.sleep(60)
+
+
 def _init(dispatcher, plugin):
     def on_hostname_change(args):
         if 'hostname' not in args:
@@ -637,6 +645,8 @@ def _init(dispatcher, plugin):
     plugin.register_task_handler("system.shutdown", SystemHaltTask)
     plugin.register_task_handler("system.reboot", SystemRebootTask)
     plugin.register_task_handler("system.reboot.abort", SystemAbortRebootTask)
+
+    plugin.register_task_handler("dummy.sleep", SleepTask)
 
     # Set initial hostname
     netif.set_hostname(dispatcher.configstore.get('system.hostname'))
