@@ -35,7 +35,7 @@ import bsd
 import logging
 import time
 
-from threading import Event
+from threading import Event, Thread
 from bsd import devinfo
 from datastore import DatastoreException
 from datetime import datetime
@@ -457,6 +457,10 @@ class SystemRebootTask(Task):
     def verify(self, delay=None):
         return ['root']
 
+    def reboot_now(self):
+        time.sleep(1)
+        system('/sbin/shutdown', '-r', 'now')
+
     def run(self, delay=None):
         if delay:
             self.finish_event.wait(delay)
@@ -467,13 +471,8 @@ class SystemRebootTask(Task):
         self.dispatcher.dispatch_event('power.changed', {
             'operation': 'REBOOT',
             })
-        try:
-            system('/sbin/shutdown', '-r', 'now')
-        except SubprocessException as err:
-            raise TaskException(
-                errno.EIO,
-                'Shutdown failed with returncode: {0}, error: {1}'.format(err.returncode, err.err)
-            )
+        t = Thread(target=self.reboot_now, daemon=True)
+        t.start()
 
     def abort(self):
         self.abort_flag = True
@@ -511,17 +510,16 @@ class SystemHaltTask(Task):
     def verify(self):
         return ['root']
 
+    def shutdown_now(self):
+        time.sleep(1)
+        system('/sbin/shutdown', '-r', 'now')
+
     def run(self):
         self.dispatcher.dispatch_event('power.changed', {
             'operation': 'SHUTDOWN',
         })
-        try:
-            system('/sbin/shutdown', '-p', 'now')
-        except SubprocessException as err:
-            raise TaskException(
-                errno.EIO,
-                'Shutdown failed with returncode: {0}, error: {1}'.format(err.returncode, err.err)
-            )
+        t = Thread(target=self.shutdown_now, daemon=True)
+        t.start()
 
 
 class SleepTask(Task):
