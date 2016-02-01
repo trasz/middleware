@@ -408,6 +408,27 @@ class VolumeProvider(Provider):
     def get_volumes_root(self):
         return VOLUMES_ROOT
 
+    @accepts()
+    @returns(h.ref('volume-vdev-recommendations'))
+    def vdev_recommendations(self):
+        return {
+            "storage": {
+                "storage": {"drives": 9, "type": "raidz1"},
+                "redundancy": {"drives": 10, "type": "raidz2"},
+                "speed": {"drives": 7, "type": "raidz1"}
+            },
+            "redundancy": {
+                "storage": {"drives": 8, "type": "raidz2"},
+                "redundancy": {"drives": 4, "type": "raidz2"},
+                "speed": {"drives": 6, "type": "raidz1"}
+            },
+            "speed": {
+                "storage": {"drives": 3, "type": "raidz1" },
+                "redundancy": {"drives": 2, "type": "mirror"},
+                "speed": {"drives": 2, "type": "mirror"}
+            }
+        }
+
 
 class SnapshotProvider(Provider):
     def query(self, filter=None, params=None):
@@ -1778,6 +1799,49 @@ def _init(dispatcher, plugin):
                 'type': 'array',
                 'items': 'string'
             }
+        }
+    })
+
+    plugin.register_schema_definition('volume-vdev-recommendation', {
+        'type': 'object',
+        'additionalProperties': False,
+        'properties': {
+            'drives': {'type': 'integer'},
+            'type': {'type': 'string'}
+        }
+    })
+
+    plugin.register_schema_definition('volume-vdev-recommendations', {
+        'type': 'object',
+        'additionalProperties': False,
+        'properties': {
+            'storage': {
+                'type': 'object',
+                'additionalProperties': False,
+                'properties': {
+                    'storage': {'$ref': 'volume-vdev-recommendation'},
+                    'redundancy': {'$ref': 'volume-vdev-recommendation'},
+                    'speed': {'$ref': 'volume-vdev-recommendation'},
+                }
+            },
+            'redundancy': {
+                'type': 'object',
+                'additionalProperties': False,
+                'properties': {
+                    'storage': {'$ref': 'volume-vdev-recommendation'},
+                    'redundancy': {'$ref': 'volume-vdev-recommendation'},
+                    'speed': {'$ref': 'volume-vdev-recommendation'},
+                }
+            },
+            'speed': {
+                'type': 'object',
+                'additionalProperties': False,
+                'properties': {
+                    'storage': {'$ref': 'volume-vdev-recommendation'},
+                    'redundancy': {'$ref': 'volume-vdev-recommendation'},
+                    'speed': {'$ref': 'volume-vdev-recommendation'},
+                }
+            },
         }
     })
 
