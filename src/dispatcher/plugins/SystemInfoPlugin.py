@@ -33,7 +33,6 @@ import re
 import netif
 import bsd
 import logging
-import gevent
 import time
 
 from threading import Event
@@ -512,26 +511,17 @@ class SystemHaltTask(Task):
     def verify(self):
         return ['root']
 
-    def shutdown_now(self):
-        try:
-            system('/sbin/shutdown', '-p', 'now')
-        except SubprocessException as err:
-            # Is the task even alive to raise a taskexception?
-            # If not what can be done???
-            raise TaskException(
-                errno.EIO,
-                'Shutdown failed with returncode: {0}, error: {1}'.format(err.code, err.err)
-            )
-
     def run(self):
         self.dispatcher.dispatch_event('power.changed', {
             'operation': 'SHUTDOWN',
         })
-        shutdown_greenlet = gevent.spawn(self.shutdown_now)
-        # I need to join, even if just for a while since
-        # otherwise the task exits and the task executor
-        # kills the process and the greenlet dies with it
-        shutdown_greenlet.join(timeout=1)
+        try:
+            system('/sbin/shutdown', '-p', 'now')
+        except SubprocessException as err:
+            raise TaskException(
+                errno.EIO,
+                'Shutdown failed with returncode: {0}, error: {1}'.format(err.returncode, err.err)
+            )
 
 
 class SleepTask(Task):
