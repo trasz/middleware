@@ -792,6 +792,7 @@ def _init(dispatcher, plugin):
             'name': 'update.checkfetch',
             'args': [True],
             'hidden': True,
+            'protected': True,
             'description': 'Nightly update check',
         })
         caltask['schedule'].update({
