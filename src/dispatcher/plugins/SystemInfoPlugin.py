@@ -155,14 +155,12 @@ class SystemGeneralProvider(Provider):
         result = []
         for root, _, files in os.walk(ZONEINFO_DIR):
             for f in files:
-                if f in (
-                    'zone.tab',
-                ):
+                if f == 'zone.tab':
                     continue
-                result.append(os.path.join(root, f).replace(
-                    ZONEINFO_DIR + '/', '')
-                )
-        return result
+
+                result.append(os.path.join(root, f).replace(ZONEINFO_DIR + '/', ''))
+
+        return sorted(result)
 
     @private
     @accepts(str)
