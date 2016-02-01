@@ -423,7 +423,7 @@ class VolumeProvider(Provider):
                 "speed": {"drives": 6, "type": "raidz1"}
             },
             "speed": {
-                "storage": {"drives": 3, "type": "raidz1" },
+                "storage": {"drives": 3, "type": "raidz1"},
                 "redundancy": {"drives": 2, "type": "mirror"},
                 "speed": {"drives": 2, "type": "mirror"}
             }
