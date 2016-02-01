@@ -26,6 +26,7 @@
 #####################################################################
 
 import logging
+import errno
 import weakref
 import gevent
 import netif
@@ -54,8 +55,9 @@ class ManagementNetwork(object):
         # Destroy old bridge (if exists)
         try:
             netif.destroy_interface(self.ifname)
-        except OSError:
-            raise RuntimeError('Interface {0} seems to be busy'.format(self.ifname))
+        except OSError as err:
+            if err.errno != errno.ENXIO:
+                raise RuntimeError('Cannot destroy {0}: {1}'.format(self.ifname, str(err)))
 
         # Setup bridge
         self.bridge_if = netif.get_interface(netif.create_interface('bridge'))
