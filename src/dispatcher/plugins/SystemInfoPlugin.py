@@ -37,6 +37,7 @@ import logging
 import gevent
 import time
 
+from threading import Event
 from bsd import devinfo
 from datastore import DatastoreException
 from datetime import datetime
@@ -51,7 +52,7 @@ from freenas.dispatcher.rpc import (
 )
 from lib.system import SubprocessException, system
 from lib.freebsd import get_sysctl
-from task import Provider, Task, TaskException
+from task import Provider, Task, TaskException, TaskAbortException
 
 if '/usr/local/lib' not in sys.path:
     sys.path.append('/usr/local/lib')
@@ -447,35 +448,39 @@ class SystemTimeConfigureTask(Task):
 @accepts(h.any_of(int, None))
 @description("Reboots the System")
 class SystemRebootTask(Task):
+    def __init__(self, dispatcher, datastore):
+        super(SystemRebootTask, self).__init__(dispatcher, datastore)
+        self.finish_event = Event()
+        self.abort_flag = False
+
     def describe(self, delay=None):
         return "System Reboot"
 
     def verify(self, delay=None):
         return ['root']
 
-    def reboot_now(self):
-        try:
-            system('/sbin/shutdown', '-r', 'now')
-        except SubprocessException as err:
-            # Is the task even alive to raise a taskexception?
-            # If not what can be done???
-            raise TaskException(
-                errno.EIO,
-                'Shutdown failed with returncode: {0}, error: {1}'.format(err.code, err.err)
-            )
-
     def run(self, delay=None):
         if delay:
-            time.sleep(delay)
+            self.finish_event.wait(delay)
+
+        if self.abort_flag:
+            raise TaskAbortException(errno.EINTR, "User invoked task.abort or system.reboot.abort")
 
         self.dispatcher.dispatch_event('power.changed', {
             'operation': 'REBOOT',
             })
-        reboot_greenlet = gevent.spawn(self.reboot_now)
-        # I need to join, even if just for a while since
-        # otherwise the task exits and the task executor
-        # kills the process and the greenlet dies with it
-        reboot_greenlet.join(timeout=1)
+        try:
+            system('/sbin/shutdown', '-r', 'now')
+        except SubprocessException as err:
+            raise TaskException(
+                errno.EIO,
+                'Shutdown failed with returncode: {0}, error: {1}'.format(err.returncode, err.err)
+            )
+
+    def abort(self):
+        self.abort_flag = True
+        self.finish_event.set()
+        return True
 
 
 @accepts(None)
