@@ -156,6 +156,13 @@ if __name__ == '__main__':
         logger.info('New system dataset ID: {0}'.format(dsid))
 
     pool = cs.get('system.dataset.pool')
-    create_system_dataset(dsid, pool)
+    try:
+        create_system_dataset(dsid, pool)
+    except libzfs.ZFSException:
+        logger.warning('Pool {0} is not available. Using freenas-boot instead.'.format(pool))
+        cs.set('system.dataset.pool', 'freenas-boot')
+        logger.info('New system dataset pool: freenas-boot')
+        pool = cs.get('system.dataset.pool')
+        create_system_dataset(dsid, pool)
     mount_system_dataset(dsid, pool, SYSTEM_DIR)
     link_directories()
