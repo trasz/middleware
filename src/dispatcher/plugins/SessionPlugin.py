@@ -36,9 +36,7 @@ from freenas.dispatcher.rpc import (description, pass_sender, returns, accepts,
 class SessionProvider(Provider):
     @query('session')
     def query(self, filter=None, params=None):
-        return self.datastore.query('sessions',
-                                    *(filter or []),
-                                    **(params or {}))
+        return self.datastore.query('sessions', *(filter or []), **(params or {}))
 
     @accepts()
     @returns(h.array(h.ref('sessions')))
