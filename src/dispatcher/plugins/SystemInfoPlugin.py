@@ -512,7 +512,7 @@ class SystemHaltTask(Task):
 
     def shutdown_now(self):
         time.sleep(1)
-        system('/sbin/shutdown', '-r', 'now')
+        system('/sbin/shutdown', '-p', 'now')
 
     def run(self):
         self.dispatcher.dispatch_event('power.changed', {
