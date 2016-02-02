@@ -392,6 +392,10 @@ class ManagementService(RpcService):
         self.context.tokens[token] = id
         return token
 
+    @private
+    def get_mgmt_allocations(self):
+        return [i.__getstate__() for i in self.context.mgmt.allocations.values()]
+
 
 class ServerResource(Resource):
     def __init__(self, apps=None, context=None):
@@ -573,7 +577,9 @@ class Main(object):
         return None
 
     def vm_by_mgmt_ip(self, ip):
-        pass
+        for i in self.mgmt.allocations.values():
+            if i.lease.client_ip == ip:
+                return i.vm()
 
     def die(self):
         self.logger.warning('Exiting')

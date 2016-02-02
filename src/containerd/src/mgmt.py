@@ -39,6 +39,14 @@ class AddressAllocation(object):
         self.hostname = None
         self.lease = None
 
+    def __getstate__(self):
+        return {
+            'vm_id': self.vm.id if self.vm else None,
+            'vm_name': self.vm.name if self.vm else None,
+            'mac': self.lease.client_mac,
+            'lease': self.lease.__getstate__()
+        }
+
 
 class ManagementNetwork(object):
     def __init__(self, context, ifname, subnet):
@@ -110,7 +118,10 @@ class ManagementNetwork(object):
             allocation.vm = weakref.ref(vm)
             allocation.hostname = hostname
             allocation.lease = Lease()
+            allocation.lease.client_mac = mac
             allocation.lease.client_ip = self.pick_ip_address()
+            allocation.lease.client_mask = self.subnet.netmask
+            self.allocations[mac] = allocation
 
         return allocation
 
