@@ -108,6 +108,9 @@ class ManagementService(RpcService):
         else:
             task_id = task['id']
 
+        if not task.get('enabled'):
+            task['schedule']['next_run_time'] = None
+
         self.context.logger.info('Adding new job with ID {0}'.format(task_id))
         self.context.scheduler.add_job(
             job,
