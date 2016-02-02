@@ -1,5 +1,5 @@
 #+
-# Copyright 2014 iXsystems, Inc.
+# Copyright 2015 iXsystems, Inc.
 # All rights reserved
 #
 # Redistribution and use in source and binary forms, with or without
@@ -26,10 +26,9 @@
 #####################################################################
 
 import os
-import enum
 
 
-class ClientType(enum.Enum):
+class ClientType(object):
     THREADED = 1
     GEVENT = 2
 
@@ -38,15 +37,13 @@ if os.getenv("DISPATCHERCLIENT_TYPE") == "GEVENT":
     from gevent.greenlet import Greenlet
     _thread_type = ClientType.GEVENT
 else:
-    from threading import Thread
+    from .maskedthread import MaskedThread
     _thread_type = ClientType.THREADED
 
 
 def spawn_thread(*args, **kwargs):
-    daemon = kwargs.pop('daemon', False)
     if _thread_type == ClientType.THREADED:
-        thread = Thread(*args, **kwargs)
-        thread.setDaemon(daemon)
+        thread = MaskedThread(*args, **kwargs)
         return thread
 
     if _thread_type == ClientType.GEVENT:
