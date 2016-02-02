@@ -163,7 +163,8 @@ class VirtualMachine(object):
 
             self.tap_interfaces[iface] = mac
             return iface.name
-        except (KeyError, OSError):
+        except (KeyError, OSError) as err:
+            self.logger.warning('Cannot initialize NIC {0}: {1}'.format(i['name']), str(err))
             return
 
     def cleanup_tap(self, iface):
@@ -191,6 +192,7 @@ class VirtualMachine(object):
         if self.bhyve_process:
             try:
                 self.bhyve_process.terminate()
+                self.bhyve_process.wait()
             except ProcessLookupError:
                 self.logger.warning('bhyve process is already dead')
 
