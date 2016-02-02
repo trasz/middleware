@@ -57,12 +57,12 @@ from freenas.dispatcher.rpc import RpcService, RpcException, private
 from freenas.utils.debug import DebugService
 from freenas.utils import configure_logging
 from mgmt import ManagementNetwork
+from ec2 import EC2MetadataServer
 
 
 gevent.monkey.patch_all(thread=False)
 
 
-VM_OUI = '00:a0:98'  # NetApp
 MGMT_ADDR = ipaddress.ip_interface('169.254.16.1/20')
 MGMT_INTERFACE = 'mgmt0'
 NAT_ADDR = ipaddress.ip_interface('169.254.32.1/20')
@@ -126,7 +126,7 @@ class VirtualMachine(object):
                 index += 1
 
             if i['type'] == 'NIC':
-                mac = self.context.generate_mac()
+                mac = i['properties']['link_address']
                 iface = self.init_tap(i['name'], i['properties'], mac)
                 if not iface:
                     continue
@@ -568,6 +568,10 @@ class Main(object):
             ipaddress.ip_interface('169.254.169.254/32')
         ))
 
+    def init_ec2(self):
+        self.ec2 = EC2MetadataServer(self)
+        self.ec2.start()
+
     def vm_by_mgmt_mac(self, mac):
         for i in self.containers.values():
             for tapmac in i.tap_interfaces.values():
@@ -592,9 +596,6 @@ class Main(object):
     def generate_id(self):
         return ''.join([random.choice(string.ascii_letters + string.digits) for n in range(32)])
 
-    def generate_mac(self):
-        return VM_OUI + ':' + ':'.join('{0:02x}'.format(random.randint(0, 255)) for _ in range(0, 3))
-
     def dispatcher_error(self, error):
         self.die()
 
@@ -613,6 +614,7 @@ class Main(object):
         self.init_datastore()
         self.init_dispatcher()
         self.init_mgmt()
+        self.init_ec2()
         self.init_bridge()
         self.logger.info('Started')
 

@@ -28,7 +28,7 @@
 import ipaddress
 import errno
 import os
-import uuid
+import random
 import json
 import tempfile
 import hashlib
@@ -44,6 +44,9 @@ from freenas.dispatcher.rpc import SchemaHelper as h, description, accepts, retu
 from freenas.utils import first_or_default, normalize, deep_update
 from utils import save_config, load_config
 from freenas.utils.query import wrap
+
+
+VM_OUI = '00:a0:98'  # NetApp
 
 
 class ContainerProvider(Provider):
@@ -69,6 +72,9 @@ class ContainerProvider(Provider):
 
         if disk['type'] == 'CDROM':
             return disk['properties']['path']
+
+    def generate_mac(self):
+        return VM_OUI + ':' + ':'.join('{0:02x}'.format(random.randint(0, 255)) for _ in range(0, 3))
 
     def get_default_interface(self):
         return self.configstore.get('container.default_nic')
@@ -132,6 +138,11 @@ class ContainerBaseTask(Task):
                     os.path.join('/dev/zvol', ds_name)
                 ))
 
+        if res['type'] == 'NIC':
+            normalize(res['properties'], {
+                'link_address': self.dispatcher.call_sync('container.generate_mac')
+            })
+
         if res['type'] == 'VOLUME':
             mgmt_net = ipaddress.ip_interface(self.configstore.get('container.network.management'))
             container_ds = os.path.join(container['target'], 'vm', container['name'])
@@ -184,7 +195,7 @@ class ContainerCreateTask(ContainerBaseTask):
 
             if template is None:
                 raise TaskException(errno.ENOENT, 'Template {0} not found'.format(container['template'].get('name')))
-            
+
             deep_update(container, template)
         else:
             normalize(container, {
@@ -497,6 +508,7 @@ def _init(dispatcher, plugin):
                 'type': 'string',
                 'enum': ['BRIDGED', 'NAT', 'HOSTONLY', 'MANAGEMENT']
             },
+            'link_address': {'type': 'string'},
             'bridge': {'type': ['string', 'null']}
         }
     })
