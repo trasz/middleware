@@ -115,6 +115,7 @@ def restore():
 
 
 def check_health(dsn):
+    signal.pthread_sigmask(signal.SIG_BLOCK, [signal.SIGTERM])
     while not exiting:
         if proc and proc.poll() is None:
             try:
