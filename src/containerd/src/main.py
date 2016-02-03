@@ -104,6 +104,8 @@ class VirtualMachine(object):
         self.console_queues = []
         self.console_thread = None
         self.tap_interfaces = {}
+        self.thread = None
+        self.exiting = False
         self.logger = logging.getLogger('VM:{0}'.format(self.name))
 
     def build_args(self):
@@ -178,7 +180,7 @@ class VirtualMachine(object):
     def start(self):
         self.context.logger.info('Starting container {0} ({1})'.format(self.name, self.id))
         self.nmdm = self.get_nmdm()
-        gevent.spawn(self.run)
+        self.thread = gevent.spawn(self.run)
         self.console_thread = gevent.spawn(self.console_worker)
 
     def stop(self, force=False):
@@ -195,12 +197,10 @@ class VirtualMachine(object):
                     self.bhyve_process.kill()
                 else:
                     self.bhyve_process.terminate()
-                self.bhyve_process.wait()
             except ProcessLookupError:
                 self.logger.warning('bhyve process is already dead')
 
-        subprocess.call(['/usr/sbin/bhyvectl', '--destroy', '--vm={0}'.format(self.name)])
-        self.set_state(VirtualMachineState.STOPPED)
+        self.thread.join()
 
         # Clear console
         gevent.kill(self.console_thread)
@@ -278,7 +278,7 @@ class VirtualMachine(object):
         args = self.build_args()
         self.set_state(VirtualMachineState.RUNNING)
 
-        while True:
+        while not self.exiting:
             self.bhyve_process = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, close_fds=True)
             out, err = self.bhyve_process.communicate()
             self.logger.debug('bhyve: {0}'.format(out))
@@ -290,6 +290,7 @@ class VirtualMachine(object):
 
             break
 
+        subprocess.call(['/usr/sbin/bhyvectl', '--destroy', '--vm={0}'.format(self.name)])
         self.set_state(VirtualMachineState.STOPPED)
 
     def console_worker(self):
