@@ -164,7 +164,7 @@ class VirtualMachine(object):
             self.tap_interfaces[iface] = mac
             return iface.name
         except (KeyError, OSError) as err:
-            self.logger.warning('Cannot initialize NIC {0}: {1}'.format(i['name']), str(err))
+            self.logger.warning('Cannot initialize NIC {0}: {1}'.format(name, str(err)))
             return
 
     def cleanup_tap(self, iface):
