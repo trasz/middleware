@@ -215,82 +215,81 @@ class VirtualMachine(object):
         })
 
     def run(self):
-        self.set_state(VirtualMachineState.BOOTLOADER)
-        self.context.vm_started.set()
-        self.logger.debug('Starting bootloader...')
+        while not self.exiting:
+            self.set_state(VirtualMachineState.BOOTLOADER)
+            self.context.vm_started.set()
+            self.logger.debug('Starting bootloader...')
 
-        if self.config['bootloader'] == 'GRUB':
-            with tempfile.NamedTemporaryFile('w+', delete=False) as devmap:
-                hdcounter = 0
-                cdcounter = 0
-                bootname = ''
-                bootswitch = '-r'
-                for i in filter(lambda i: i['type'] in ('DISK', 'CDROM'), self.devices):
-                    path = self.context.client.call_sync('container.get_disk_path', self.id, i['name'])
+            if self.config['bootloader'] == 'GRUB':
+                with tempfile.NamedTemporaryFile('w+', delete=False) as devmap:
+                    hdcounter = 0
+                    cdcounter = 0
+                    bootname = ''
+                    bootswitch = '-r'
+                    for i in filter(lambda i: i['type'] in ('DISK', 'CDROM'), self.devices):
+                        path = self.context.client.call_sync('container.get_disk_path', self.id, i['name'])
 
-                    if i['type'] == 'DISK':
-                        name = 'hd{0}'.format(hdcounter)
-                        hdcounter += 1
+                        if i['type'] == 'DISK':
+                            name = 'hd{0}'.format(hdcounter)
+                            hdcounter += 1
 
-                    elif i['type'] == 'CDROM':
-                        name = 'cd{0}'.format(cdcounter)
-                        cdcounter += 1
+                        elif i['type'] == 'CDROM':
+                            name = 'cd{0}'.format(cdcounter)
+                            cdcounter += 1
 
-                    print('({0}) {1}'.format(name, path), file=devmap)
-                    if i['name'] == self.config['boot_device']:
-                        bootname = name
+                        print('({0}) {1}'.format(name, path), file=devmap)
+                        if i['name'] == self.config['boot_device']:
+                            bootname = name
 
-                if self.config.get('boot_partition'):
-                    bootname += ',{0}'.format(self.config['boot_partition'])
+                    if self.config.get('boot_partition'):
+                        bootname += ',{0}'.format(self.config['boot_partition'])
 
-                if self.config.get('boot_directory'):
-                    bootswitch = '-d'
-                    bootname = self.config['boot_directory']
+                    if self.config.get('boot_directory'):
+                        bootswitch = '-d'
+                        bootname = self.config['boot_directory']
 
-                devmap.flush()
+                    devmap.flush()
+                    self.bhyve_process = subprocess.Popen(
+                        [
+                            '/usr/local/sbin/grub-bhyve', '-M', str(self.config['memsize']),
+                            bootswitch, bootname, '-m', devmap.name, '-c', self.nmdm[0], self.name
+                        ],
+                        stdout=subprocess.PIPE,
+                        stderr=subprocess.STDOUT,
+                        close_fds=True
+                    )
+
+            if self.config['bootloader'] == 'BHYVELOAD':
+                path = self.context.client.call_sync('container.get_disk_path', self.id, self.config['boot_device'])
                 self.bhyve_process = subprocess.Popen(
                     [
-                        '/usr/local/sbin/grub-bhyve', '-M', str(self.config['memsize']),
-                        bootswitch, bootname, '-m', devmap.name, '-c', self.nmdm[0], self.name
+                        '/usr/sbin/bhyveload', '-c', self.nmdm[0], '-m', str(self.config['memsize']),
+                        '-d', path, self.name,
                     ],
                     stdout=subprocess.PIPE,
                     stderr=subprocess.STDOUT,
                     close_fds=True
                 )
 
-        if self.config['bootloader'] == 'BHYVELOAD':
-            path = self.context.client.call_sync('container.get_disk_path', self.id, self.config['boot_device'])
-            self.bhyve_process = subprocess.Popen(
-                [
-                    '/usr/sbin/bhyveload', '-c', self.nmdm[0], '-m', str(self.config['memsize']),
-                    '-d', path, self.name,
-                ],
-                stdout=subprocess.PIPE,
-                stderr=subprocess.STDOUT,
-                close_fds=True
-            )
+            out, err = self.bhyve_process.communicate()
+            self.bhyve_process.wait()
+            self.logger.debug('bhyveload: {0}'.format(out))
 
-        out, err = self.bhyve_process.communicate()
-        self.bhyve_process.wait()
-        self.logger.debug('bhyveload: {0}'.format(out))
+            self.logger.debug('Starting bhyve...')
+            args = self.build_args()
+            self.set_state(VirtualMachineState.RUNNING)
 
-        self.logger.debug('Starting bhyve...')
-        args = self.build_args()
-        self.set_state(VirtualMachineState.RUNNING)
-
-        while not self.exiting:
             self.bhyve_process = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, close_fds=True)
             out, err = self.bhyve_process.communicate()
             self.logger.debug('bhyve: {0}'.format(out))
             self.bhyve_process.wait()
 
+            subprocess.call(['/usr/sbin/bhyvectl', '--destroy', '--vm={0}'.format(self.name)])
             if self.bhyve_process.returncode == 0:
-                # reboot
                 continue
 
             break
 
-        subprocess.call(['/usr/sbin/bhyvectl', '--destroy', '--vm={0}'.format(self.name)])
         self.set_state(VirtualMachineState.STOPPED)
 
     def console_worker(self):
