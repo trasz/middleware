@@ -324,7 +324,7 @@ class ConfigurationService(RpcService):
             raise RpcException(errno.EINVAL, 'Invalid type: {0}'.format(type))
 
         ifaces = netif.list_interfaces()
-        for i in range(0, 999):
+        for i in range(2 if type == 'BRIDGE' else 0, 999):
             name = '{0}{1}'.format(type_map[type], i)
             if name not in list(ifaces.keys()) and not self.datastore.exists('network.interfaces', ('id', '=', name)):
                 return name
