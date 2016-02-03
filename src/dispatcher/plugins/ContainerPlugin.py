@@ -374,13 +374,13 @@ class ContainerStartTask(Task):
         })
 
 
-@accepts(str)
+@accepts(str, bool)
 class ContainerStopTask(Task):
-    def verify(self, id):
+    def verify(self, id, force=False):
         return ['system']
 
-    def run(self, id):
-        self.dispatcher.call_sync('containerd.management.stop_container', id)
+    def run(self, id, force=False):
+        self.dispatcher.call_sync('containerd.management.stop_container', id, force)
         self.dispatcher.dispatch_event('container.changed', {
             'operation': 'update',
             'ids': [id]
