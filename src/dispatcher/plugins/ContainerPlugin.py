@@ -258,6 +258,11 @@ class ContainerImportTask(ContainerBaseTask):
             )
         except FileNotFoundError:
             raise TaskException(errno.ENOENT, 'There is no {0} on {1} volume to be imported.'. format(name, volume))
+        except ValueError:
+            raise VerifyException(
+                errno.EINVAL,
+                'Cannot read configuration file. File is not a valid JSON file'
+            )
 
         id = self.datastore.insert('containers', container)
         self.dispatcher.dispatch_event('container.changed', {
