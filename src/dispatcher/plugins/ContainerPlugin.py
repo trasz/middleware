@@ -94,7 +94,10 @@ class VMTemplateProvider(Provider):
         for root, dirs, files in os.walk(templates_dir):
             if 'template.json' in files:
                 with open(os.path.join(root, 'template.json'), encoding='utf-8') as template:
-                    templates.append(json.loads(template.read()))
+                    try:
+                        templates.append(json.loads(template.read()))
+                    except ValueError:
+                        pass
 
         return wrap(templates).query(*(filter or []), **(params or {}))
 
