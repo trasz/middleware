@@ -864,14 +864,7 @@ class UnixSocketServer(object):
                     self.fd.flush()
                 except (OSError, ValueError, socket.timeout):
                     self.server.logger.info('Send failed; closing connection')
-                    self.conn.on_close('Bye bye')
-                    try:
-                        self.fd.close()
-                        self.connfd.close()
-                    except OSError:
-                        pass
-
-                    self.conn = None
+                    self.close()
 
         def handle_connection(self):
             self.conn = ServerConnection(self, self.dispatcher)
@@ -898,9 +891,12 @@ class UnixSocketServer(object):
 
                 self.conn.on_message(msg)
 
-            # self.conn might have been closed earlier by failed send().
+            self.close()
+
+        def close(self):
             if self.conn:
                 self.conn.on_close('Bye bye')
+                self.conn = None
                 try:
                     self.fd.close()
                     self.connfd.close()
