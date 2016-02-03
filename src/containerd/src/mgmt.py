@@ -110,7 +110,7 @@ class ManagementNetwork(object):
 
     def allocate_ip_address(self, mac, hostname):
         allocation = self.allocations.get(mac)
-        if not allocation:
+        if not allocation or not allocation.vm():
             vm = self.context.vm_by_mgmt_mac(mac)
             if not vm:
                 return None
@@ -132,6 +132,10 @@ class ManagementNetwork(object):
     def dhcp_request(self, mac, hostname):
         self.logger.info('DHCP request from {0} ({1})'.format(mac, hostname))
         allocation = self.allocate_ip_address(mac, hostname)
+        if not allocation:
+            self.logger.warning('Unknown MAC address {0}'.format(mac))
+            return None
+
         self.logger.info('Allocating IP address {0} to VM {1}'.format(allocation.lease.client_ip, allocation.vm().name))
         return allocation.lease
 
