@@ -247,6 +247,9 @@ class ContainerImportTask(ContainerBaseTask):
         if not self.dispatcher.call_sync('volume.query', [('name', '=', volume)], {'single': True}):
             raise VerifyException(errno.ENXIO, 'Volume {0} doesn\'t exist'.format(volume))
 
+        if self.datastore.exists('containers', ('name', '=', name)):
+            raise VerifyException(errno.EEXIST, 'Container {0} already exists'.format(name))
+
         return ['zpool:{0}'.format(volume)]
 
     def run(self, name, volume):
