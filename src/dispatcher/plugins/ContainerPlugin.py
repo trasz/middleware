@@ -79,6 +79,12 @@ class ContainerProvider(Provider):
     def get_default_interface(self):
         return self.configstore.get('container.default_nic')
 
+    @description("Returns list of supported container types")
+    def supported_types(self):
+        result = ['JAIL', 'VM', 'DOCKER']
+
+        return result
+
 
 class VMTemplateProvider(Provider):
     @query('container')
