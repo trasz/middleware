@@ -596,7 +596,7 @@ class Main(object):
     def die(self):
         self.logger.warning('Exiting')
         for i in self.containers.values():
-            i.stop()
+            i.stop(True)
 
         self.client.disconnect()
         sys.exit(0)
