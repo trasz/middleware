@@ -27,6 +27,7 @@
 
 import errno
 import os
+import re
 import logging
 import tempfile
 import shutil
@@ -41,11 +42,11 @@ import uuid
 from cache import EventCacheStore
 from lib.system import system, SubprocessException
 from lib.freebsd import fstyp
-from task import Provider, Task, ProgressTask, TaskException, VerifyException, query
+from task import Provider, Task, ProgressTask, TaskException, TaskWarning, VerifyException, query
 from freenas.dispatcher.rpc import (
     RpcException, description, accepts, returns, private, SchemaHelper as h
     )
-from utils import first_or_default
+from utils import first_or_default, load_config
 from datastore import DuplicateKeyException
 from freenas.utils import include, exclude, normalize, chunks
 from freenas.utils.query import wrap
@@ -1157,6 +1158,162 @@ class VolumeLockTask(Task):
             })
 
 
+@description("Imports containers, shares and system dataset from a volume")
+@accepts(
+    str,
+    h.enum(str, ['all', 'containers', 'shares', 'system'])
+)
+class VolumeAutoImportTask(Task):
+    def verify(self, volume, scope):
+        if not self.datastore.exists('volumes', ('name', '=', volume)):
+            raise VerifyException(errno.ENOENT, 'Volume {0} not found'.format(volume))
+
+        return ['zpool:{0}'.format(volume)]
+
+    def run(self, volume, scope):
+        with self.dispatcher.get_lock('volumes'):
+            vol = self.dispatcher.call_sync('volume.query', [('name', '=', volume)], {'single': True})
+            share_types = self.dispatcher.call_sync('share.supported_types')
+            container_types = self.dispatcher.call_sync('container.supported_types')
+            imported = {
+                'shares': [],
+                'containers': [],
+                'system': []
+            }
+
+            for root, dirs, files in os.walk(vol['mountpoint']):
+                for file in files:
+                    config_name = re.match('(\.config-)(.*)(\.json)', file)
+                    config_path = os.path.join(root, file)
+                    if config_name:
+                        try:
+                            config = load_config(root, config_name.group(2))
+                        except ValueError:
+                            self.add_warning(
+                                TaskWarning(
+                                    errno.EINVAL,
+                                    'Cannot read {0}. This file is not a valid JSON file'.format(config_path)
+                                )
+                            )
+                            continue
+
+                        item_type = config.get('type', '')
+                        if item_type != '':
+
+                            if item_type in share_types:
+                                if scope in ['all', 'shares']:
+                                    try:
+                                        self.join_subtasks(self.run_subtask(
+                                            'share.import',
+                                            root,
+                                            config.get('name', ''),
+                                            item_type
+                                        ))
+
+                                        imported['shares'].append(
+                                            {
+                                                'path': config_path,
+                                                'type': item_type,
+                                                'name': config.get('name', '')
+                                            }
+                                        )
+                                    except RpcException as err:
+                                        self.add_warning(
+                                            TaskWarning(
+                                                err.code,
+                                                'Share import from {0} failed. Message: {1}'.format(
+                                                    config_path,
+                                                    err.message
+                                                )
+                                            )
+                                        )
+                                        continue
+                                else:
+                                    self.add_warning(
+                                        TaskWarning(
+                                            errno.EINVAL,
+                                            'Share import from {0} failed because {1} is unsupported share type'.format(
+                                                config_path,
+                                                item_type
+                                            )
+                                        )
+                                    )
+                                    continue
+
+                            elif item_type in container_types:
+                                if scope in ['all', 'containers']:
+                                    try:
+                                        self.join_subtasks(self.run_subtask(
+                                            'container.import',
+                                            config.get('name', ''),
+                                            volume
+                                        ))
+
+                                        imported['containers'].append(
+                                            {
+                                                'type': item_type,
+                                                'name': config.get('name', '')
+                                            }
+                                        )
+                                    except RpcException as err:
+                                        self.add_warning(
+                                            TaskWarning(
+                                                err.code,
+                                                'Container import from {0} failed. Message: {1}'.format(
+                                                    config_path,
+                                                    err.message
+                                                )
+                                            )
+                                        )
+                                        continue
+                                else:
+                                    self.add_warning(
+                                        TaskWarning(
+                                            errno.EINVAL,
+                                            'Container import from {0} failed because {1} is unsupported container type'.format(
+                                                config_path,
+                                                item_type
+                                            )
+                                        )
+                                    )
+                                    continue
+                        else:
+                            self.add_warning(
+                                TaskWarning(
+                                    errno.EINVAL,
+                                    'Cannot read importable type from {0}.'.format(config_path)
+                                    )
+                            )
+                            continue
+
+            if scope in ['all', 'system']:
+                if self.dispatcher.call_sync('zfs.dataset.query', [('pool', '=', volume), ('name', '~', '.system')], {'single': True}):
+                    try:
+                        self.join_subtasks(self.run_subtask(
+                            'system_dataset.import',
+                            volume
+                        ))
+                        status = self.dispatcher.call_sync('system_dataset.status')
+                        imported['system'].append(
+                            {
+                                'id': status['id'],
+                                'pool': volume
+                            }
+                        )
+                    except RpcException as err:
+                        self.add_warning(
+                            TaskWarning(
+                                err.code,
+                                'System dataset import from {0} failed. Message: {1}'.format(
+                                    volume,
+                                    err.message
+                                )
+                            )
+                        )
+
+        return imported
+
+
 @description("Unlocks encrypted ZFS volume")
 @accepts(str, h.one_of(str, None), h.object())
 class VolumeUnlockTask(Task):
@@ -1852,6 +2009,7 @@ def _init(dispatcher, plugin):
     plugin.register_task_handler('volume.destroy', VolumeDestroyTask)
     plugin.register_task_handler('volume.import', VolumeImportTask)
     plugin.register_task_handler('volume.import_disk', VolumeDiskImportTask)
+    plugin.register_task_handler('volume.autoimport', VolumeAutoImportTask)
     plugin.register_task_handler('volume.detach', VolumeDetachTask)
     plugin.register_task_handler('volume.update', VolumeUpdateTask)
     plugin.register_task_handler('volume.upgrade', VolumeUpgradeTask)
