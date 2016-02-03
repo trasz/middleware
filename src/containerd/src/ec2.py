@@ -30,22 +30,29 @@ import ipaddress
 import logging
 import gevent
 from gevent.wsgi import WSGIServer
+from freenas.utils.query import wrap
 
 
 class EC2Metadata(object):
     def __init__(self, context, vm):
         self.context = context
-        self.vm = vm
+        self.vm = wrap(context.datastore.get_by_id('containers', vm.id))
 
     def __getitem__(self, item):
+        if not item:
+            return '\n'.join([
+                'instance-id',
+                'local-hostname'
+            ])
+
         if item == 'instance-id':
-            return str(self.vm.id)
+            return str(self.vm['id'])
 
         if item == 'local-hostname':
-            return self.vm.name
+            return self.vm['name']
 
         if item == 'user-data':
-            return self.vm.config['cloud_init']
+            return self.vm['config.cloud_init']
 
         return ''
 
