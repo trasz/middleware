@@ -25,6 +25,7 @@
 #
 #####################################################################
 
+import ipaddress
 import logging
 import errno
 import weakref
@@ -41,8 +42,8 @@ class AddressAllocation(object):
 
     def __getstate__(self):
         return {
-            'vm_id': self.vm.id if self.vm else None,
-            'vm_name': self.vm.name if self.vm else None,
+            'vm_id': self.vm().id if self.vm() else None,
+            'vm_name': self.vm().name if self.vm() else None,
             'mac': self.lease.client_mac,
             'lease': self.lease.__getstate__()
         }
@@ -121,6 +122,9 @@ class ManagementNetwork(object):
             allocation.lease.client_mac = mac
             allocation.lease.client_ip = self.pick_ip_address()
             allocation.lease.client_mask = self.subnet.netmask
+            allocation.lease.static_routes = [
+                (ipaddress.ip_network('169.254.169.254/32'), ipaddress.ip_address('169.254.16.1'))
+            ]
             self.allocations[mac] = allocation
 
         return allocation
