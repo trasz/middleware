@@ -197,7 +197,13 @@ class CreateShareTask(Task):
 
         new_share = self.datastore.get_by_id('shares', ids[0])
         path = self.dispatcher.call_sync('share.translate_path', new_share['id'])
-        save_config(path, new_share)
+        if new_share['target_type'] == 'FILE':
+            path = os.path.dirname(path)
+        save_config(
+            path,
+            '{0}-{1}'.format(new_share['type'], new_share['name']),
+            new_share
+        )
 
         return ids[0]
 
@@ -254,17 +260,37 @@ class UpdateShareTask(Task):
 
         updated_share = self.datastore.get_by_id('shares', id)
         path = self.dispatcher.call_sync('share.translate_path', updated_share['id'])
-        save_config(path, updated_share)
+        if updated_share['target_type'] == 'FILE':
+            path = os.path.dirname(path)
+        save_config(
+            path,
+            '{0}-{1}'.format(updated_share['type'], updated_share['name']),
+            updated_share
+        )
 
 
 @description("Imports existing share")
-@accepts(str)
+@accepts(str, str, str)
 class ImportShareTask(Task):
-    def verify(self, share_path):
+    def verify(self, config_path, name, type):
         try:
-            share = load_config(share_path)
+            share = load_config(config_path, '{0}-{1}'.format(type, name))
         except FileNotFoundError:
-            raise VerifyException(errno.ENOENT, 'There is no share at {0} to be imported.'. format(share_path))
+            raise VerifyException(
+                errno.ENOENT,
+                'There is no share {0} of type {1} at {2} to be imported.'.format(name, type, config_path)
+            )
+        except ValueError:
+            raise VerifyException(
+                errno.EINVAL,
+                'Cannot read configuration file. File is not a valid JSON file'
+            )
+
+        if share['type'] != type:
+            raise VerifyException(
+                errno.EINVAL,
+                'Share type {0} does not match configuration file entry type {1}'.format(type, share['type'])
+            )
 
         if not self.dispatcher.call_sync('share.supported_types').get(share['type']):
             raise VerifyException(errno.ENXIO, 'Unknown sharing type {0}'.format(share['type']))
@@ -281,9 +307,9 @@ class ImportShareTask(Task):
 
         return ['system']
 
-    def run(self, share_path):
+    def run(self, config_path, name, type):
 
-        share = load_config(share_path)
+        share = load_config(config_path, '{0}-{1}'.format(type, name))
 
         ids = self.join_subtasks(self.run_subtask('share.{0}.import'.format(share['type']), share))
         self.dispatcher.dispatch_event('share.changed', {
