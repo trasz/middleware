@@ -50,3 +50,7 @@ def save_config(conf_path, name_mod, entry):
 def load_config(conf_path, name_mod):
     with open(os.path.join(conf_path, '.config-{0}.json'.format(name_mod)), 'r', encoding='utf-8') as conf_file:
         return loads(conf_file.read())
+
+
+def delete_config(conf_path, name_mod):
+    os.remove(os.path.join(conf_path, '.config-{0}.json'.format(name_mod)))

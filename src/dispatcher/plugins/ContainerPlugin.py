@@ -42,7 +42,7 @@ from task import Provider, Task, ProgressTask, VerifyException, TaskException, q
 from freenas.dispatcher.rpc import RpcException
 from freenas.dispatcher.rpc import SchemaHelper as h, description, accepts, returns, private
 from freenas.utils import first_or_default, normalize, deep_update
-from utils import save_config, load_config
+from utils import save_config, load_config, delete_config
 from freenas.utils.query import wrap
 
 
@@ -278,6 +278,17 @@ class ContainerUpdateTask(ContainerBaseTask):
 
     def run(self, id, updated_params):
         container = self.datastore.get_by_id('containers', id)
+        try:
+            delete_config(
+                self.dispatcher.call_sync(
+                    'volume.resolve_path',
+                    container['target'],
+                    os.path.join('vm', container['name'])
+                ),
+                'vm-{0}'.format(container['name'])
+            )
+        except (RpcException, FileNotFoundError):
+            pass
 
         if 'devices' in updated_params:
             for res in updated_params['devices']:
@@ -316,6 +327,18 @@ class ContainerDeleteTask(Task):
 
     def run(self, id):
         container = self.datastore.get_by_id('containers', id)
+        try:
+            delete_config(
+                self.dispatcher.call_sync(
+                    'volume.resolve_path',
+                    container['target'],
+                    os.path.join('vm', container['name'])
+                ),
+                'vm-{0}'.format(container['name'])
+            )
+        except (RpcException, FileNotFoundError):
+            pass
+
         pool = container['target']
         root_ds = os.path.join(pool, 'vm')
         container_ds = os.path.join(root_ds, container['name'])

@@ -31,7 +31,7 @@ from freenas.dispatcher.rpc import description, accepts, returns, private
 from freenas.dispatcher.rpc import SchemaHelper as h
 from task import Task, TaskException, VerifyException, Provider, RpcException, query
 from freenas.utils import normalize
-from utils import split_dataset, save_config, load_config
+from utils import split_dataset, save_config, load_config, delete_config
 
 
 class SharesProvider(Provider):
@@ -215,6 +215,17 @@ class UpdateShareTask(Task):
     def run(self, id, updated_fields):
         share = self.datastore.get_by_id('shares', id)
 
+        path = self.dispatcher.call_sync('share.translate_path', share['id'])
+        if share['target_type'] == 'FILE':
+            path = os.path.dirname(path)
+        try:
+            delete_config(
+                path,
+                '{0}-{1}'.format(share['type'], share['name'])
+            )
+        except FileNotFoundError:
+            pass
+
         if 'type' in updated_fields:
             old_share_type = share['type']
             new_share_type = self.dispatcher.call_sync('share.supported_types').get(updated_fields['type'])
@@ -295,6 +306,18 @@ class DeleteShareTask(Task):
 
     def run(self, name):
         share = self.datastore.get_by_id('shares', name)
+
+        path = self.dispatcher.call_sync('share.translate_path', share['id'])
+        if share['target_type'] == 'FILE':
+            path = os.path.dirname(path)
+        try:
+            delete_config(
+                path,
+                '{0}-{1}'.format(share['type'], share['name'])
+            )
+        except FileNotFoundError:
+            pass
+
         self.join_subtasks(self.run_subtask('share.{0}.delete'.format(share['type']), name))
         self.dispatcher.dispatch_event('share.changed', {
             'operation': 'delete',
