@@ -74,7 +74,7 @@ class EC2MetadataServer(object):
             return []
 
         start_response('200 OK', [
-             ('Content-Type', 'text/plain')
+             ('Content-Type', 'text/cloud-config')
         ])
         return [content.encode('utf-8')]
 
