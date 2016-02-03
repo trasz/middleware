@@ -181,7 +181,7 @@ class VirtualMachine(object):
         gevent.spawn(self.run)
         self.console_thread = gevent.spawn(self.console_worker)
 
-    def stop(self):
+    def stop(self, force=False):
         self.logger.info('Stopping container {0} ({1})'.format(self.name, self.id))
         if self.state == VirtualMachineState.STOPPED:
             raise RuntimeError()
@@ -191,7 +191,10 @@ class VirtualMachine(object):
 
         if self.bhyve_process:
             try:
-                self.bhyve_process.terminate()
+                if force:
+                    self.bhyve_process.kill()
+                else:
+                    self.bhyve_process.terminate()
                 self.bhyve_process.wait()
             except ProcessLookupError:
                 self.logger.warning('bhyve process is already dead')
@@ -375,13 +378,16 @@ class ManagementService(RpcService):
             self.context.containers[id] = vm
 
     @private
-    def stop_container(self, id):
+    def stop_container(self, id, force=False):
         container = self.context.datastore.get_by_id('containers', id)
         self.context.logger.info('Stopping container {0} ({1})'.format(container['name'], id))
 
         if container['type'] == 'VM':
-            vm = self.context.containers[id]
-            vm.stop()
+            vm = self.context.containers.get(id)
+            if not vm:
+                raise RpcException(errno.ENOENT, 'Container {0} is not started'.format(container['name']))
+
+            vm.stop(force)
             del self.context.containers[id]
 
     @private
