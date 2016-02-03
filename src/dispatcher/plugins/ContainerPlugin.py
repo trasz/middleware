@@ -225,6 +225,7 @@ class ContainerCreateTask(ContainerBaseTask):
                 container['target'],
                 os.path.join('vm', container['name'])
             ),
+            'vm-{0}'.format(container['name']),
             container
         )
 
@@ -246,7 +247,8 @@ class ContainerImportTask(ContainerBaseTask):
                     'volume.resolve_path',
                     volume,
                     os.path.join('vm', name)
-                )
+                ),
+                'vm-{0}'.format(name)
             )
         except FileNotFoundError:
             raise TaskException(errno.ENOENT, 'There is no {0} on {1} volume to be imported.'. format(name, volume))
@@ -293,6 +295,7 @@ class ContainerUpdateTask(ContainerBaseTask):
                 container['target'],
                 os.path.join('vm', container['name'])
             ),
+            'vm-{0}'.format(container['name']),
             container
         )
 
