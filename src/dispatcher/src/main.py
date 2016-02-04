@@ -71,7 +71,7 @@ from datastore import get_datastore
 from datastore.migrate import migrate_db, MigrationException
 from datastore.config import ConfigStore
 from freenas.dispatcher.jsonenc import loads, dumps
-from freenas.dispatcher.rpc import RpcContext, RpcException, ServerLockProxy
+from freenas.dispatcher.rpc import RpcContext, RpcStreamingResponse, RpcException, ServerLockProxy
 from resources import ResourceGraph
 from services import ManagementService, DebugService, EventService, TaskService, PluginService, ShellService, LockService
 from schemas import register_general_purpose_schemas
@@ -347,6 +347,7 @@ class Dispatcher(object):
         self.balancer = Balancer(self)
         self.auth = PasswordAuthenticator(self)
         self.rpc = ServerRpcContext(self)
+        self.rpc.streaming_enabled = True
         register_general_purpose_schemas(self)
 
         self.rpc.register_service('management', ManagementService)
@@ -1269,13 +1270,46 @@ class ServerConnection(WebSocketApplication, EventEmitter):
                     }
                 })
             else:
-                self.send_json({
-                    "namespace": "rpc",
-                    "name": "response",
-                    "id": id,
-                    "timestamp": time.time(),
-                    "args": result
-                })
+                if isinstance(result, RpcStreamingResponse):
+                    try:
+                        for i in result:
+                            self.send_json({
+                                "namespace": "rpc",
+                                "name": "response_fragment",
+                                "id": id,
+                                "timestamp": time.time(),
+                                "args": i
+                            })
+                    except RpcException as err:
+                        self.send_json({
+                            "namespace": "rpc",
+                            "name": "error",
+                            "id": id,
+                            "timestamp": time.time(),
+                            "args": {
+                                "code": err.code,
+                                "message": err.message,
+                                "extra": err.extra
+                            }
+                        })
+
+                        return
+
+                    self.send_json({
+                        "namespace": "rpc",
+                        "name": "response_end",
+                        "id": id,
+                        "timestamp": time.time(),
+                        "args": None
+                    })
+                else:
+                    self.send_json({
+                        "namespace": "rpc",
+                        "name": "response",
+                        "id": id,
+                        "timestamp": time.time(),
+                        "args": result
+                    })
 
         if self.user is None:
             self.emit_rpc_error(id, errno.EACCES, 'Not logged in')
