@@ -178,13 +178,13 @@ def check_updates(dispatcher, configstore, cache_dir=None, check_now=False):
         changelog = None
 
     update_cache_put_value_dict = {
-            'updateAvailable': True if update else False,
-            'updateNotes': notes,
-            'updateNotice': notice,
-            'updateOperations': update_ops,
-            'changelog': changelog,
-            'downloaded': downloaded,
-        }
+        'updateAvailable': True if update else False,
+        'updateNotes': notes,
+        'updateNotice': notice,
+        'updateOperations': update_ops,
+        'changelog': changelog,
+        'downloaded': downloaded,
+    }
     dispatcher.call_sync('update.update_cache_putter', update_cache_put_value_dict)
 
 
