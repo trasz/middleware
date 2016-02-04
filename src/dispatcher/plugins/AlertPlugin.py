@@ -52,7 +52,7 @@ class AlertsProvider(Provider):
         )
 
     @description("Dismisses/Deletes an alert from the database")
-    @accepts(int)
+    @accepts(str)
     @returns()
     def dismiss(self, id):
         try:
@@ -238,7 +238,7 @@ def _init(dispatcher, plugin):
     plugin.register_schema_definition('alert', {
         'type': 'object',
         'properties': {
-            'id': {'type': 'integer'},
+            'id': {'type': 'string'},
             'name': {'type': 'string'},
             'description': {'type': 'string'},
             'severity': {'$ref': 'alert-severity'},
