@@ -840,17 +840,18 @@ class UnixSocketServer(object):
             import types
             self.dispatcher = dispatcher
             self.connfd = connfd
-            self.fd = connfd.makefile('rwb')
+            self.rfd = connfd.makefile('rb')
+            self.wfd = connfd.makefile('wb')
             self.address = address
             self.server = server
             self.handler = types.SimpleNamespace()
             self.handler.client_address = ("unix", 0)
             self.handler.server = server
             self.conn = None
-            self.rlock = RLock()
+            self.wlock = RLock()
 
         def send(self, message):
-            with self.rlock:
+            with self.wlock:
                 data = message.encode('utf-8')
                 header = struct.pack('II', 0xdeadbeef, len(data))
                 try:
@@ -859,12 +860,12 @@ class UnixSocketServer(object):
                         return
 
                     wait_write(fd, 1)
-                    self.fd.write(header)
-                    self.fd.write(data)
-                    self.fd.flush()
+                    self.wfd.write(header)
+                    self.wfd.write(data)
+                    self.wfd.flush()
                 except (OSError, ValueError, socket.timeout):
                     self.server.logger.info('Send failed; closing connection')
-                    self.close()
+                    self.connfd.close()
 
         def handle_connection(self):
             self.conn = ServerConnection(self, self.dispatcher)
@@ -872,7 +873,7 @@ class UnixSocketServer(object):
 
             while True:
                 try:
-                    header = self.fd.read(8)
+                    header = self.rfd.read(8)
                     if header == b'' or len(header) != 8:
                         break
 
@@ -881,7 +882,7 @@ class UnixSocketServer(object):
                         self.server.logger.info('Message with wrong magic dropped')
                         continue
 
-                    msg = self.fd.read(length)
+                    msg = self.rfd.read(length)
                     if msg == b'' or len(msg) != length:
                         self.server.logger.info('Message with wrong length dropped; closing connection')
                         break
@@ -898,7 +899,8 @@ class UnixSocketServer(object):
                 self.conn.on_close('Bye bye')
                 self.conn = None
                 try:
-                    self.fd.close()
+                    self.rfd.close()
+                    self.wfd.close()
                     self.connfd.close()
                 except OSError:
                     pass
