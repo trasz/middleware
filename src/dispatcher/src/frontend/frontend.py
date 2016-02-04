@@ -1,3 +1,6 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+
 #+
 # Copyright 2014 iXsystems, Inc.
 # All rights reserved
@@ -46,6 +49,14 @@ def index():
 @app.route('/events')
 def events():
     return render_template('events.html')
+
+@app.route('/base')
+def base():
+    return render_template('base.html')
+
+@app.route('/api_base')
+def api_base():
+    return render_template('api_base.html')
 
 
 @app.route('/rpc')
