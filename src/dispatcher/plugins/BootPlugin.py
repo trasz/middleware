@@ -49,7 +49,9 @@ class BootEnvironmentsProvider(Provider):
         return wrap(clones).query(*(filter or []), **(params or {}))
 
 
-@description("Creates a clone of the current Boot Environment or of the specified source (optional")
+@description(
+    "Creates a clone of the current Boot Environment or of the specified source (optional)"
+ )
 @accepts(str, h.any_of(str, None))
 class BootEnvironmentCreate(Task):
     def verify(self, newname, source=None):

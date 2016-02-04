@@ -51,6 +51,9 @@ class AlertsProvider(Provider):
             'alerts', *(filter or []), **(params or {})
         )
 
+    @description("Dismisses/Deletes an alert from the database")
+    @accepts(int)
+    @returns()
     def dismiss(self, id):
         try:
             self.datastore.delete('alerts', id)
@@ -64,7 +67,9 @@ class AlertsProvider(Provider):
                 'Cannot delete alert: {0}'.format(str(e))
             )
 
+    @description("Emits an event for the provided alert")
     @accepts(h.ref('alert'))
+    @returns()
     def emit(self, alert):
         alertprops = registered_alerts.get(alert['name'])
         if alertprops is None:
@@ -98,7 +103,7 @@ class AlertsProvider(Provider):
         alert['dismissed'] = False
         id = self.datastore.insert('alerts', alert)
         self.dispatcher.dispatch_event('alert.changed', {
-            'operation': 'create',
+                'operation': 'create',
             'ids': [id]
         })
 
@@ -111,11 +116,18 @@ class AlertsProvider(Provider):
             except RpcException:
                 logger.error('Failed to send email alert', exc_info=True)
 
-    @returns(h.array(str))
+    @description("Returns list of registered alerts")
+    @accepts()
+    @returns(h.array(h.ref('alert-registration')))
     def get_registered_alerts(self):
         return registered_alerts
 
-    @accepts(str, str)
+    @description("Registers an alert")
+    @accepts(h.all_of(
+        h.ref('alert-registration'),
+        h.required('name'),
+    ))
+    @returns()
     def register_alert(self, name, verbose_name=None):
         if name not in registered_alerts:
             registered_alerts[name] = {
@@ -134,6 +146,7 @@ class AlertsFiltersProvider(Provider):
         )
 
 
+@description("Creates an Alert Filter")
 @accepts(h.ref('alert-filter'))
 class AlertFilterCreateTask(Task):
     def describe(self, alertfilter):
@@ -151,6 +164,7 @@ class AlertFilterCreateTask(Task):
         })
 
 
+@description("Deletes the specified Alert Filter")
 @accepts(str)
 class AlertFilterDeleteTask(Task):
     def describe(self, id):
@@ -183,6 +197,7 @@ class AlertFilterDeleteTask(Task):
         })
 
 
+@description("Updates the specified Alert Filter")
 @accepts(str, h.ref('alert-filter'))
 class AlertFilterUpdateTask(Task):
     def describe(self, id, alertfilter):
@@ -249,6 +264,15 @@ def _init(dispatcher, plugin):
                     'enum': ['UI', 'EMAIL'],
                 },
             },
+        },
+        'additionalProperties': False,
+    })
+
+    plugin.register_schema_definition('alert-registration', {
+        'type': 'object',
+        'properties': {
+            'name': {'type': 'string'},
+            'verbose_name': {'type': 'string'},
         },
         'additionalProperties': False,
     })
