@@ -66,7 +66,7 @@ class ManagementService(RpcService):
     def get_connected_clients(self):
         return [
             inner
-            for outter in [list(s.clients.keys()) for s in self.dispatcher.ws_servers]
+            for outter in [list(s.connections) for s in self.dispatcher.ws_servers]
             for inner in outter
         ]
 
