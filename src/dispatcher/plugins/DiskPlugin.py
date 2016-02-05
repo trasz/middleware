@@ -49,7 +49,7 @@ from task import (
     query
 )
 from freenas.dispatcher.rpc import RpcException, accepts, returns, description, private
-from freenas.dispatcher.rpc import SchemaHelper as h
+from freenas.dispatcher.rpc import SchemaHelper as h, generator
 
 # Note the following monkey patch is required for pySMART to work correctly
 gevent.monkey.patch_subprocess()
@@ -79,6 +79,7 @@ class SelfTestType(enum.Enum):
 
 class DiskProvider(Provider):
     @query('disk')
+    @generator
     def query(self, filter=None, params=None):
         def extend(disk):
             if disk.get('delete_at'):

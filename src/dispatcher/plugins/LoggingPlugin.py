@@ -27,13 +27,15 @@
 
 import time
 from datetime import datetime
+from dispatcher.rpc import generator
 from event import EventSource
 from task import Provider
 
 
 class SyslogProvider(Provider):
+    @generator
     def query(self, filter=None, params=None):
-        return self.datastore.query('syslog', *(filter or []), **(params or {}))
+        yield from self.datastore.query_stream('syslog', *(filter or []), **(params or {}))
 
 
 class SyslogEventSource(EventSource):

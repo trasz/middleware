@@ -43,9 +43,7 @@ from cache import EventCacheStore
 from lib.system import system, SubprocessException
 from lib.freebsd import fstyp
 from task import Provider, Task, ProgressTask, TaskException, TaskWarning, VerifyException, query
-from freenas.dispatcher.rpc import (
-    RpcException, description, accepts, returns, private, SchemaHelper as h
-    )
+from freenas.dispatcher.rpc import RpcException, description, accepts, returns, private, SchemaHelper as h, generator
 from utils import first_or_default, load_config
 from datastore import DuplicateKeyException
 from freenas.utils import include, exclude, normalize, chunks
@@ -90,6 +88,7 @@ snapshots = None
 @description("Provides access to volumes information")
 class VolumeProvider(Provider):
     @query('volume')
+    @generator
     def query(self, filter=None, params=None):
         def is_upgraded(pool):
             if pool['properties.version.value'] != '-':
@@ -195,7 +194,7 @@ class VolumeProvider(Provider):
 
             return vol
 
-        return self.datastore.query('volumes', *(filter or []), callback=extend, **(params or {}))
+        yield from self.datastore.query_stream('volumes', *(filter or []), callback=extend, **(params or {}))
 
     @description("Finds volumes available for import")
     @accepts()

@@ -122,6 +122,7 @@ class UserProvider(Provider):
 class GroupProvider(Provider):
     @description("Lists groups present in the system")
     @query('group')
+    @generator
     def query(self, filter=None, params=None):
         def extend(group):
             group['members'] = [x['id'] for x in self.datastore.query(
@@ -133,7 +134,7 @@ class GroupProvider(Provider):
             )]
             return group
 
-        return self.datastore.query('groups', *(filter or []), callback=extend, **(params or {}))
+        yield from self.datastore.query_stream('groups', *(filter or []), callback=extend, **(params or {}))
 
     @description("Retrieve the next GID available")
     @returns(int)
