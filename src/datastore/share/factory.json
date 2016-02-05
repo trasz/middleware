@@ -924,6 +924,7 @@
             "middleware.token_lifetime": 600,
             "middleware.parallel_disk_format": true,
             "middleware.executors_count": 4,
+            "middleware.streaming_burst_size": 16,
             "system.console.keymap": "us.iso",
             "system.syslog_server": null,
             "system.timezone": "America/Los_Angeles",
