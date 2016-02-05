@@ -34,6 +34,7 @@ from freenas.utils import normalize
 from utils import split_dataset, save_config, load_config, delete_config
 
 
+@description("Provides information on shares")
 class SharesProvider(Provider):
     @query('share')
     def query(self, filter=None, params=None):
@@ -78,7 +79,7 @@ class SharesProvider(Provider):
 
     @description("Get shares dependent on provided filesystem path")
     @accepts(str)
-    @returns(h.array('share'))
+    @returns(h.array(h.ref('share')))
     def get_dependencies(self, path):
         result = []
         for i in self.datastore.query('shares', ('enabled', '=', True)):
@@ -90,7 +91,7 @@ class SharesProvider(Provider):
 
     @description("Get shares related to provided filesystem path. Includes disabled shares")
     @accepts(str)
-    @returns(h.array('share'))
+    @returns(h.array(h.ref('share')))
     def get_related(self, path):
         result = []
         for i in self.datastore.query('shares'):
@@ -464,14 +465,32 @@ def _init(dispatcher, plugin):
         return True
 
     dispatcher.require_collection('share', 'string')
+
+    # Register providers
     plugin.register_provider('share', SharesProvider)
+
+    # Register task handlers
     plugin.register_task_handler('share.create', CreateShareTask)
     plugin.register_task_handler('share.update', UpdateShareTask)
     plugin.register_task_handler('share.delete', DeleteShareTask)
     plugin.register_task_handler('share.import', ImportShareTask)
     plugin.register_task_handler('share.delete_dependent', DeleteDependentShares)
     plugin.register_task_handler('share.update_related', UpdateRelatedShares)
-    plugin.register_event_type('share.changed')
+
+    # Register Event Types
+    plugin.register_event_type(
+        'share.changed',
+        schema={
+            'type': 'object',
+            'properties': {
+                'operation': {'type': 'string', 'enum': ['create', 'delete', 'update']},
+                'ids': {'type': 'array', 'items': 'string'},
+            },
+            'additionalProperties': False
+        }
+    )
+
+    # Register Hooks
     plugin.attach_hook('volume.pre_destroy', volume_pre_destroy)
     plugin.attach_hook('volume.pre_detach', volume_detach)
     plugin.attach_hook('volume.post_attach', volume_attach)
