@@ -758,7 +758,7 @@ class Dispatcher(object):
         sys.exit(0)
 
     def start_logdb(self):
-        self.logdb_proc = subprocess.Popen(['/usr/local/sbin/dswatch', 'datastore-log'])
+        self.logdb_proc = subprocess.Popen(['/usr/local/sbin/dswatch', 'datastore-log'], preexec_fn=os.setpgrp)
 
     def migrate_logdb(self):
         FACTORY_FILE = '/usr/local/share/datastore/factory.json'
