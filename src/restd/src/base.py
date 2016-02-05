@@ -39,6 +39,15 @@ class ItemResource(object):
          entry = self.dispatcher.call_sync('{0}.query'.format(self.namespace), [('id', '=', int(id))], {'single': True})
          if entry is None:
              raise falcon.HTTPNotFound
+         result = self.dispatcher.call_task_sync('{0}.delete'.format(self.namespace), int(id))
+         if result['state'] != 'FINISHED':
+             if result['error']:
+                 title = result['error']['type']
+                 message = result['error']['message']
+             else:
+                 title = 'UnknownError'
+                 message = 'Failed to delete, check task #{0}'.format(result['id'])
+             raise falcon.HTTPBadRequest(title, message)
 
 
 class CRUDBase(object):
