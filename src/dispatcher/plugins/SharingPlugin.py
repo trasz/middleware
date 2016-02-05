@@ -53,7 +53,8 @@ class SharesProvider(Provider):
         return self.datastore.query('shares', *(filter or []), callback=extend, **(params or {}))
 
     @description("Returns list of supported sharing providers")
-    @returns(h.array(str))
+    @accepts()
+    @returns(h.ref('share-types'))
     def supported_types(self):
         result = {}
         for p in list(self.dispatcher.plugins.values()):
@@ -412,6 +413,18 @@ def _init(dispatcher, plugin):
             'extra': {
                 'type': 'object'
             }
+        }
+    })
+
+    plugin.register_schema_definition('share-types', {
+        'type': 'object',
+        'additionalProperties': {
+            'type': 'object',
+            'properties': {
+                'subtype': {'type': 'string'},
+                'perm_type': {'type': 'string'}
+            },
+            'additionalProperties': False
         }
     })
 
