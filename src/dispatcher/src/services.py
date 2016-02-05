@@ -37,7 +37,7 @@ from gevent.backdoor import BackdoorServer
 from freenas.dispatcher.rpc import RpcService, RpcException, pass_sender, private, generator
 from auth import ShellToken
 from task import TaskState, query
-from utils import first_or_default
+from freenas.utils import first_or_default
 
 
 class ManagementService(RpcService):
@@ -373,7 +373,7 @@ class TaskService(RpcService):
 
             return t
 
-        return self.__datastore.query_stream('tasks', *(filter or []), callback=extend, **(params or {}))
+        yield from self.__datastore.query_stream('tasks', *(filter or []), callback=extend, **(params or {}))
 
     @private
     @pass_sender
