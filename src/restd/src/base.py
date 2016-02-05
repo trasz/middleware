@@ -1,6 +1,8 @@
 import falcon
 import json
 
+from freenas.dispatcher.rpc import RpcException
+
 
 class EntityResource(object):
 
@@ -39,7 +41,10 @@ class ItemResource(object):
          entry = self.dispatcher.call_sync('{0}.query'.format(self.namespace), [('id', '=', int(id))], {'single': True})
          if entry is None:
              raise falcon.HTTPNotFound
-         result = self.dispatcher.call_task_sync('{0}.delete'.format(self.namespace), int(id))
+         try:
+             result = self.dispatcher.call_task_sync('{0}.delete'.format(self.namespace), [int(id)])
+         except RpcException as e:
+             raise falcon.HTTPBadRequest(e.message, str(e))
          if result['state'] != 'FINISHED':
              if result['error']:
                  title = result['error']['type']
