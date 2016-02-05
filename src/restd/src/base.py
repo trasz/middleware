@@ -20,6 +20,20 @@ class EntityResource(object):
              result.append(entry)
          resp.body = json.dumps(result)
 
+     def on_post(self, req, resp):
+         try:
+             result = self.dispatcher.call_task_sync('{0}.create'.format(self.namespace), [req.context])
+         except RpcException as e:
+             raise falcon.HTTPBadRequest(e.message, str(e))
+         if result['state'] != 'FINISHED':
+             if result['error']:
+                 title = result['error']['type']
+                 message = result['error']['message']
+             else:
+                 title = 'UnknownError'
+                 message = 'Failed to create, check task #{0}'.format(result['id'])
+             raise falcon.HTTPBadRequest(title, message)
+
 
 class ItemResource(object):
 
