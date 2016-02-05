@@ -348,6 +348,7 @@ class Dispatcher(object):
         self.auth = PasswordAuthenticator(self)
         self.rpc = ServerRpcContext(self)
         self.rpc.streaming_enabled = True
+        self.rpc.streaming_burst = self.configstore.get('middleware.streaming_burst_size') or 1
         register_general_purpose_schemas(self)
 
         self.rpc.register_service('management', ManagementService)
