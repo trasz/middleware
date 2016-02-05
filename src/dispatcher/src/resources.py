@@ -90,7 +90,7 @@ class ResourceGraph(object):
             resource = self.get_resource(name)
     
             if not resource:
-                self.unlock()
+                return
     
             for i in nx.descendants(self.resources, resource):
                 self.resources.remove_node(i)
