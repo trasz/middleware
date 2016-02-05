@@ -6,7 +6,7 @@ import sys
 from freenas.dispatcher.client import Client
 from gevent.wsgi import WSGIServer
 
-from base import CRUDBase, EntityResource, ItemResource
+from base import CRUDBase
 
 
 # TODO: Some sort of plugins loading?

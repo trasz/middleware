@@ -1,3 +1,4 @@
+import falcon
 import json
 
 
@@ -26,11 +27,18 @@ class ItemResource(object):
 
      def on_get(self, req, resp, id):
          entry = self.dispatcher.call_sync('{0}.query'.format(self.namespace), [('id', '=', int(id))], {'single': True})
+         if entry is None:
+             raise falcon.HTTPNotFound
          if 'created_at' in entry:
              entry['created_at'] = str(entry['created_at'])
          if 'updated_at' in entry:
              entry['updated_at'] = str(entry['created_at'])
          resp.body = json.dumps(entry)
+
+     def on_delete(self, req, resp, id):
+         entry = self.dispatcher.call_sync('{0}.query'.format(self.namespace), [('id', '=', int(id))], {'single': True})
+         if entry is None:
+             raise falcon.HTTPNotFound
 
 
 class CRUDBase(object):
