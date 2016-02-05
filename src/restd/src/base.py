@@ -22,7 +22,7 @@ class EntityResource(object):
 
      def on_post(self, req, resp):
          try:
-             result = self.dispatcher.call_task_sync('{0}.create'.format(self.namespace), [req.context])
+             result = self.dispatcher.call_task_sync('{0}.create'.format(self.namespace), req.context)
          except RpcException as e:
              raise falcon.HTTPBadRequest(e.message, str(e))
          if result['state'] != 'FINISHED':

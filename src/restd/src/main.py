@@ -1,4 +1,5 @@
 import falcon
+import json
 import gevent
 import signal
 import sys
@@ -14,11 +15,38 @@ class UserCRUD(CRUDBase):
      namespace = 'user'
 
 
+class JSONTranslator(object):
+
+    def process_request(self, req, resp):
+        if req.content_length in (None, 0):
+            # Nothing to do
+            return
+
+        body = req.stream.read()
+        if not body:
+            return
+
+        if 'application/json' not in req.content_type:
+            return
+
+        try:
+            req.context = json.loads(body.decode('utf-8'))
+
+        except (ValueError, UnicodeDecodeError):
+            raise falcon.HTTPError(falcon.HTTP_753,
+                                   'Malformed JSON',
+                                   'Could not decode the request body. The '
+                                   'JSON was incorrect or not encoded as '
+                                   'UTF-8.')
+
+
 class RESTApi(object):
 
     def __init__(self):
         self._threads = []
-        self.api = falcon.API()
+        self.api = falcon.API(middleware=[
+            JSONTranslator(),
+        ])
         self.dispatcher = Client()
         self.dispatcher.connect('unix:')
         self.dispatcher.login_service('restd')
