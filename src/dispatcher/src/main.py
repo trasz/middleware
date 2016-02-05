@@ -861,12 +861,12 @@ class UnixSocketServer(object):
                     if fd == -1:
                         return
 
-                    wait_write(fd, 1)
+                    wait_write(fd, 5)
                     self.wfd.write(header)
                     self.wfd.write(data)
                     self.wfd.flush()
-                except (OSError, ValueError, socket.timeout):
-                    self.server.logger.info('Send failed; closing connection')
+                except (OSError, ValueError, socket.timeout) as err:
+                    self.server.logger.info('Send failed: {0}, closing connectiom'.format(str(err)))
                     self.connfd.close()
 
         def handle_connection(self):
