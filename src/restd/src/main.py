@@ -6,6 +6,13 @@ import sys
 from freenas.dispatcher.client import Client
 from gevent.wsgi import WSGIServer
 
+from base import CRUDBase, EntityResource, ItemResource
+
+
+# TODO: Some sort of plugins loading?
+class UserCRUD(CRUDBase):
+     namespace = 'user'
+
 
 class RESTApi(object):
 
@@ -15,6 +22,8 @@ class RESTApi(object):
         self.dispatcher = Client()
         self.dispatcher.connect('unix:')
         self.dispatcher.login_service('restd')
+
+        UserCRUD(self, self.dispatcher)
 
         gevent.signal(signal.SIGINT, self.die)
 
