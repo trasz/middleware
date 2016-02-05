@@ -33,7 +33,7 @@ import random
 import string
 import re
 from task import Provider, Task, TaskException, TaskWarning, ValidationException, VerifyException, query
-from freenas.dispatcher.rpc import RpcException, description, accepts, returns, SchemaHelper as h
+from freenas.dispatcher.rpc import RpcException, description, accepts, returns, SchemaHelper as h, generator
 from datastore import DuplicateKeyException, DatastoreException
 from lib.system import SubprocessException, system
 from freenas.utils import normalize
@@ -81,6 +81,7 @@ def crypted_password(cleartext):
 class UserProvider(Provider):
     @description("Lists users present in the system")
     @query('user')
+    @generator
     def query(self, filter=None, params=None):
         def extend(user):
             # If there's no 'attributes' property, put empty dict in that place
@@ -93,7 +94,7 @@ class UserProvider(Provider):
 
             return user
 
-        return self.datastore.query('users', *(filter or []), callback=extend, **(params or {}))
+        yield from self.datastore.query_stream('users', *(filter or []), callback=extend, **(params or {}))
 
     def get_profile_picture(self, uid):
         pass
