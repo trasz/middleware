@@ -33,6 +33,15 @@ class EntityResource(object):
                  title = 'UnknownError'
                  message = 'Failed to create, check task #{0}'.format(result['id'])
              raise falcon.HTTPBadRequest(title, message)
+         if result['result']:
+             entry = self.dispatcher.call_sync('{0}.query'.format(self.namespace), [('id', '=', result['result'])], {'single': True})
+             if entry is None:
+                 raise falcon.HTTPNotFound
+             if 'created_at' in entry:
+                 entry['created_at'] = str(entry['created_at'])
+             if 'updated_at' in entry:
+                 entry['updated_at'] = str(entry['updated_at'])
+             resp.body = json.dumps(entry)
 
 
 class ItemResource(object):
@@ -48,7 +57,7 @@ class ItemResource(object):
          if 'created_at' in entry:
              entry['created_at'] = str(entry['created_at'])
          if 'updated_at' in entry:
-             entry['updated_at'] = str(entry['created_at'])
+             entry['updated_at'] = str(entry['updated_at'])
          resp.body = json.dumps(entry)
 
      def on_delete(self, req, resp, id):
