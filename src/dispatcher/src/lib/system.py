@@ -26,7 +26,7 @@
 #####################################################################
 
 import logging
-from gevent import subprocess
+import subprocess
 
 logger = logging.getLogger('system')
 
