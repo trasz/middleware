@@ -50,13 +50,28 @@ class RESTApi(object):
         self.api = falcon.API(middleware=[
             JSONTranslator(),
         ])
-        self.dispatcher = Client()
-        self.dispatcher.connect('unix:')
-        self.dispatcher.login_service('restd')
-
-        UserCRUD(self, self.dispatcher)
 
         gevent.signal(signal.SIGINT, self.die)
+
+    def init_dispatcher(self):
+        def on_error(reason, **kwargs):
+            if reason in (ClientError.CONNECTION_CLOSED, ClientError.LOGOUT):
+                self.logger.warning('Connection to dispatcher lost')
+                self.connect()
+
+        self.dispatcher = Client()
+        self.dispatcher.on_error(on_error)
+        self.connect()
+
+    def connect(self):
+        while True:
+            try:
+                self.dispatcher.connect('unix:')
+                self.dispatcher.login_service('restd')
+                return
+            except (OSError, RpcException) as err:
+                self.logger.warning('Cannot connect to dispatcher: {0}, retrying in 1 second'.format(str(err)))
+                time.sleep(1)
 
     def __call__(self, environ, start_response):
         if 'HTTP_X_REAL_IP' in environ:
@@ -64,6 +79,9 @@ class RESTApi(object):
         return self.api.__call__(environ, start_response)
 
     def run(self):
+        self.init_dispatcher()
+        UserCRUD(self, self.dispatcher)
+
         server4 = WSGIServer(('', 8889), self)
         self._threads = [gevent.spawn(server4.serve_forever)]
         gevent.joinall(self._threads)
