@@ -1,7 +1,10 @@
 import falcon
 import gevent
+import glob
+import importlib.machinery
 import json
 import logging
+import os
 import signal
 import sys
 import time
@@ -12,11 +15,6 @@ from freenas.utils import configure_logging
 from gevent.wsgi import WSGIServer
 
 from base import CRUDBase
-
-
-# TODO: Some sort of plugins loading?
-class UserCRUD(CRUDBase):
-    namespace = 'user'
 
 
 class JSONTranslator(object):
@@ -65,6 +63,13 @@ class RESTApi(object):
         self.dispatcher.on_error(on_error)
         self.connect()
 
+    def load_plugins(self):
+        pluginsdir = os.path.realpath(os.path.join(os.path.dirname(__file__), '..', 'plugins'))
+        for i in glob.glob1(pluginsdir, "*.py"):
+            loader = importlib.machinery.SourceFileLoader(i.split('.')[0], os.path.join(pluginsdir, i))
+            mod = loader.load_module()
+            mod._init(self)
+
     def connect(self):
         while True:
             try:
@@ -80,9 +85,12 @@ class RESTApi(object):
             environ['PATH_INFO'] = environ.get('PATH_INFO', '').replace('/api/v2.0', '', 1)
         return self.api.__call__(environ, start_response)
 
+    def register_crud(self, klass):
+        klass(self, self.dispatcher)
+
     def run(self):
         self.init_dispatcher()
-        UserCRUD(self, self.dispatcher)
+        self.load_plugins()
 
         server4 = WSGIServer(('', 8889), self)
         self._threads = [gevent.spawn(server4.serve_forever)]
