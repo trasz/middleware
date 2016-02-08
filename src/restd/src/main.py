@@ -4,8 +4,10 @@ import json
 import logging
 import signal
 import sys
+import time
 
-from freenas.dispatcher.client import Client
+from freenas.dispatcher.client import Client, ClientError
+from freenas.dispatcher.rpc import RpcException
 from freenas.utils import configure_logging
 from gevent.wsgi import WSGIServer
 
@@ -14,7 +16,7 @@ from base import CRUDBase
 
 # TODO: Some sort of plugins loading?
 class UserCRUD(CRUDBase):
-     namespace = 'user'
+    namespace = 'user'
 
 
 class JSONTranslator(object):
