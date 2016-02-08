@@ -27,7 +27,6 @@
 #####################################################################
 
 import os
-import sys
 import json
 import enum
 import logging
@@ -122,6 +121,9 @@ class Main(object):
         self.observer = Observer()
         self.observer.schedule(Handler(self), path=REPORTS_PATH, recursive=False)
         self.observer.start()
+
+        if not os.path.isdir(REPORTS_PATH):
+            os.mkdir(REPORTS_PATH)
 
         while True:
             for i in os.listdir(REPORTS_PATH):
