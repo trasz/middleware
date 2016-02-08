@@ -1,10 +1,12 @@
 import falcon
-import json
 import gevent
+import json
+import logging
 import signal
 import sys
 
 from freenas.dispatcher.client import Client
+from freenas.utils import configure_logging
 from gevent.wsgi import WSGIServer
 
 from base import CRUDBase
@@ -43,6 +45,7 @@ class JSONTranslator(object):
 class RESTApi(object):
 
     def __init__(self):
+        self.logger = logging.getLogger('restd')
         self._threads = []
         self.api = falcon.API(middleware=[
             JSONTranslator(),
@@ -71,6 +74,9 @@ class RESTApi(object):
 
 
 def main():
+
+    configure_logging('/var/log/restd.log', 'DEBUG')
+
     api = RESTApi()
     api.run()
 
