@@ -56,6 +56,8 @@ class RESTApi(object):
         gevent.signal(signal.SIGINT, self.die)
 
     def __call__(self, environ, start_response):
+        if 'HTTP_X_REAL_IP' in environ:
+            environ['PATH_INFO'] = environ.get('PATH_INFO', '').replace('/api/v2.0', '', 1)
         return self.api.__call__(environ, start_response)
 
     def run(self):
