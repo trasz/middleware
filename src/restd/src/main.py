@@ -47,9 +47,6 @@ class JSONTranslator(object):
 
 class AuthMiddleware(object):
 
-    def __init__(self, rest):
-        self.rest = rest
-
     def process_request(self, req, resp):
         auth = req.get_header("Authorization")
 
@@ -87,7 +84,7 @@ class RESTApi(object):
         self.logger = logging.getLogger('restd')
         self._threads = []
         self.api = falcon.API(middleware=[
-            AuthMiddleware(self),
+            AuthMiddleware(),
             JSONTranslator(),
         ])
 
