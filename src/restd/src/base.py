@@ -12,7 +12,7 @@ class EntityResource(object):
 
      def on_get(self, req, resp):
          result = []
-         for entry in self.dispatcher.call_sync('{0}.query'.format(self.namespace)):
+         for entry in req.context['client'].call_sync('{0}.query'.format(self.namespace)):
              if 'created_at' in entry:
                  entry['created_at'] = str(entry['created_at'])
              if 'updated_at' in entry:
@@ -22,7 +22,7 @@ class EntityResource(object):
 
      def on_post(self, req, resp):
          try:
-             result = self.dispatcher.call_task_sync('{0}.create'.format(self.namespace), req.context)
+             result = req.context['client'].call_task_sync('{0}.create'.format(self.namespace), req.context)
          except RpcException as e:
              raise falcon.HTTPBadRequest(e.message, str(e))
          if result['state'] != 'FINISHED':
@@ -34,7 +34,7 @@ class EntityResource(object):
                  message = 'Failed to create, check task #{0}'.format(result['id'])
              raise falcon.HTTPBadRequest(title, message)
          if result['result']:
-             entry = self.dispatcher.call_sync('{0}.query'.format(self.namespace), [('id', '=', result['result'])], {'single': True})
+             entry = req.context['client'].call_sync('{0}.query'.format(self.namespace), [('id', '=', result['result'])], {'single': True})
              if entry is None:
                  raise falcon.HTTPNotFound
              if 'created_at' in entry:
@@ -51,7 +51,7 @@ class ItemResource(object):
          self.namespace = namespace
 
      def on_get(self, req, resp, id):
-         entry = self.dispatcher.call_sync('{0}.query'.format(self.namespace), [('id', '=', int(id))], {'single': True})
+         entry = req.context['client'].call_sync('{0}.query'.format(self.namespace), [('id', '=', int(id))], {'single': True})
          if entry is None:
              raise falcon.HTTPNotFound
          if 'created_at' in entry:
@@ -61,11 +61,11 @@ class ItemResource(object):
          resp.body = json.dumps(entry)
 
      def on_delete(self, req, resp, id):
-         entry = self.dispatcher.call_sync('{0}.query'.format(self.namespace), [('id', '=', int(id))], {'single': True})
+         entry = req.context['client'].call_sync('{0}.query'.format(self.namespace), [('id', '=', int(id))], {'single': True})
          if entry is None:
              raise falcon.HTTPNotFound
          try:
-             result = self.dispatcher.call_task_sync('{0}.delete'.format(self.namespace), [int(id)])
+             result = req.context['client'].call_task_sync('{0}.delete'.format(self.namespace), [int(id)])
          except RpcException as e:
              raise falcon.HTTPBadRequest(e.message, str(e))
          if result['state'] != 'FINISHED':
