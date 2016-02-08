@@ -387,7 +387,7 @@ class Main(object):
 
         # Signal handlers
         gevent.signal(signal.SIGQUIT, self.die)
-        gevent.signal(signal.SIGQUIT, self.die)
+        gevent.signal(signal.SIGTERM, self.die)
         gevent.signal(signal.SIGINT, self.die)
 
         self.server = InputServer(self)
