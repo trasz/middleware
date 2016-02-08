@@ -1,3 +1,6 @@
+import base64
+import binascii
+import errno
 import falcon
 import gevent
 import glob
@@ -42,12 +45,49 @@ class JSONTranslator(object):
                                    'UTF-8.')
 
 
+class AuthMiddleware(object):
+
+    def __init__(self, rest):
+        self.rest = rest
+
+    def process_request(self, req, resp):
+        auth = req.get_header("Authorization")
+
+        if auth is None or not auth.startswith('Basic '):
+            raise falcon.HTTPUnauthorized(
+                'Authorization token required',
+                'Provide a Basic Authentication header'
+            )
+        try:
+            username, password = base64.b64decode(auth[6:]).decode('utf8').split(':', 1)
+        except binascii.Error:
+            raise
+            raise falcon.HTTPUnauthorized(
+                'Invalid Authorization token',
+                'Provide a valid Basic Authentication header',
+            )
+
+        try:
+            client = Client()
+            client.connect('unix:')
+            client.login_user(username, password)
+            req.context['client'] = client
+        except RpcException as e:
+            if e.code == errno.EACCES:
+                raise falcon.HTTPUnauthorized(
+                    'Invalid credentials',
+                    'Verify your credentials and try again.',
+                )
+            raise falcon.HTTPUnauthorized('Unknown authentication error', str(e))
+
+
 class RESTApi(object):
 
     def __init__(self):
         self.logger = logging.getLogger('restd')
         self._threads = []
         self.api = falcon.API(middleware=[
+            AuthMiddleware(self),
             JSONTranslator(),
         ])
 
