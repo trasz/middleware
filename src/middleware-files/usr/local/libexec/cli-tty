@@ -1,4 +1,5 @@
 #!/bin/sh
+sleep 1
 /usr/sbin/vidcontrol -s 2
 while true; do
 	sleep 100
