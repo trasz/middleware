@@ -1176,16 +1176,17 @@ class ServerConnection(WebSocketApplication, EventEmitter):
         username = data['username']
         password = data['password']
         lifetime = self.dispatcher.configstore.get("middleware.token_lifetime")
-        self.resource = data.get('resource', None)
+        check_password = data.get('check_password', False)
         client_addr, client_port = self.real_client_address[:2]
 
+        self.resource = data.get('resource', None)
         user = self.dispatcher.auth.get_user(username)
 
         if user is None:
             self.emit_rpc_error(id, errno.EACCES, "Incorrect username or password")
             return
 
-        if client_addr in ('127.0.0.1', '::1', 'unix') or self.has_external_transport:
+        if (client_addr in ('127.0.0.1', '::1', 'unix') or self.has_external_transport) and not check_password:
             # If client is connecting from localhost, omit checking password
             # and instead verify his username using sockstat(1). Also make
             # token lifetime None for such users (as we do not want their
