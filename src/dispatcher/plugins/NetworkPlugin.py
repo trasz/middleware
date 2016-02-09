@@ -423,10 +423,16 @@ class AddRouteTask(Task):
             if (r['network'] == route['network']) and (r['netmask'] == route['netmask']) and (r['gateway'] == route['gateway']):
                 raise VerifyException(errno.EINVAL, 'Cannot create two identical routes differing only in name.')
 
-        if not (0 <= route['netmask'] <= 32):
+        if route['type'] == 'INET':
+            max_cidr = 32
+        else:
+            max_cidr = 128
+        if not (0 <= route['netmask'] <= max_cidr):
             raise VerifyException(
-                errno.EINVAL, 'Netmask value {0} is not valid. Allowed values are 0-32 (CIDR).'.format(route['netmask'])
+                errno.EINVAL,
+                'Netmask value {0} is not valid. Allowed values are 0-{1} (CIDR).'.format(route['netmask'], max_cidr)
             )
+
         try:
             ipaddress.ip_network(os.path.join(route['network'], str(route['netmask'])))
         except ValueError:
@@ -469,11 +475,18 @@ class UpdateRouteTask(Task):
         route = self.datastore.get_one('network.routes', ('id', '=', name))
         net = updated_fields['network'] if 'network' in updated_fields else route['network']
         netmask = updated_fields['netmask'] if 'netmask' in updated_fields else route['netmask']
+        type = updated_fields['type'] if 'type' in updated_fields else route['type']
 
-        if not (0 <= netmask <= 32):
+        if type == 'INET':
+            max_cidr = 32
+        else:
+            max_cidr = 128
+        if not (0 <= netmask <= max_cidr):
             raise VerifyException(
-                errno.EINVAL, 'Netmask value {0} is not valid. Allowed values are 0-32 (CIDR).'.format(netmask)
+                errno.EINVAL,
+                'Netmask value {0} is not valid. Allowed values are 0-{1} (CIDR).'.format(route['netmask'], max_cidr)
             )
+
         try:
             ipaddress.ip_network(os.path.join(net, str(netmask)))
         except ValueError:
