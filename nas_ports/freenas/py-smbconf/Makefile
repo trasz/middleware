@@ -12,7 +12,7 @@ MAINTAINER=	dev@ixsystems.com
 COMMENT=	Python wrapper around Samba libsmbconf.
 
 BUILD_DEPENDS=  ${LOCALBASE}/bin/cython:${PORTSDIR}/lang/cython \
-		talloc>=2.1.2:${PORTSDIR}/devel/talloc \
+		talloc>=2.1.5:${PORTSDIR}/devel/talloc \
 		samba43>=0:${PORTSDIR}/net/samba43
 
 USES=		python
