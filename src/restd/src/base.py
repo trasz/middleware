@@ -105,6 +105,15 @@ class ItemResource(object):
                      }
                  }
              },
+             'parameters': [
+                 {
+                     'name': 'id',
+                     'in': 'path',
+                     'required': True,
+                     'type': 'integer',
+                     'format': 'int64',
+                 },
+             ],
          }
 
      def on_get(self, req, resp, id):
