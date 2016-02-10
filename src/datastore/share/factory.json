@@ -1763,6 +1763,18 @@
         }
     },
     {
+        "metadata": {
+            "name": "statd.alerts",
+            "migration": "replace",
+            "pkey-type": "native",
+            "attributes": {
+                "type": "config"
+            }
+        },
+        "data": {
+        }
+    },
+    {
         "data": {
             "7FE7115B-10EA-43AE-BE29-54549C15AFC0": {
                 "prefer": false,
