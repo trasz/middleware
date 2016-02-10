@@ -26,7 +26,11 @@ class EntityResource(object):
                          'description': 'entries to be returned',
                          'schema': normalize_schema(get['result-schema']) if get else None,
                      }
-                 }
+                 },
+                 'produces': [
+                     'application/xml',
+                     'application/json'
+                 ],
              },
              'post': {
                  'description': post['description'] if post else 'Create a new entry',
@@ -35,7 +39,11 @@ class EntityResource(object):
                          'description': 'new entry returned',
                          'schema': normalize_schema(post['schema']) if post else None,
                      }
-                 }
+                 },
+                 'produces': [
+                     'application/xml',
+                     'application/json'
+                 ],
              },
          }
 
@@ -94,7 +102,11 @@ class ItemResource(object):
                          'description': 'entries to be returned',
                          'schema': normalize_schema(get['result-schema']['anyOf'][-1]) if get else None,
                      }
-                 }
+                 },
+                 'produces': [
+                     'application/xml',
+                     'application/json'
+                 ],
              },
              'delete': {
                  'description': delete['description'] if delete else 'Delete the entry',
