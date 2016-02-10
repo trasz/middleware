@@ -18,6 +18,7 @@ from freenas.utils import configure_logging
 from gevent.wsgi import WSGIServer
 
 from base import CRUDBase
+from swagger import SwaggerResource
 
 
 class JSONTranslator(object):
@@ -84,10 +85,14 @@ class RESTApi(object):
         self.logger = logging.getLogger('restd')
         self._cruds = []
         self._threads = []
+        self._rpcs = {}
+        self._schemas = {}
+        self._tasks = {}
         self.api = falcon.API(middleware=[
             AuthMiddleware(),
             JSONTranslator(),
         ])
+        self.api.add_route('/', SwaggerResource(self))
 
         gevent.signal(signal.SIGINT, self.die)
 
@@ -100,6 +105,13 @@ class RESTApi(object):
         self.dispatcher = Client()
         self.dispatcher.on_error(on_error)
         self.connect()
+
+    def init_metadata(self):
+        self._tasks = self.dispatcher.call_sync('discovery.get_tasks')
+        self._schemas = self.dispatcher.call_sync('discovery.get_schema')
+        for service in self.dispatcher.call_sync('discovery.get_services'):
+            for method in self.dispatcher.call_sync('discovery.get_methods', service):
+                self._rpcs['{0}.{1}'.format(service, method['name'])] = method
 
     def load_plugins(self):
         pluginsdir = os.path.realpath(os.path.join(os.path.dirname(__file__), '..', 'plugins'))
@@ -132,6 +144,7 @@ class RESTApi(object):
 
     def run(self):
         self.init_dispatcher()
+        self.init_metadata()
         self.load_plugins()
 
         server4 = WSGIServer(('', 8889), self)

@@ -6,9 +6,37 @@ from freenas.dispatcher.rpc import RpcException
 
 class EntityResource(object):
 
-     def __init__(self, dispatcher, namespace):
+     def __init__(self, rest, dispatcher, namespace):
+         self.rest = rest
          self.dispatcher = dispatcher
          self.namespace = namespace
+
+     def get_path(self):
+         return '/{0}'.format(self.namespace)
+
+     def get_path_item(self):
+         get = self.rest._rpcs.get('{0}.query'.format(self.namespace))
+         post = self.rest._tasks.get('{0}.create'.format(self.namespace))
+         return {
+             'get': {
+                 'description': get['description'] if get else None,
+                 'responses': {
+                     '200': {
+                         'description': 'entries to be returned',
+                         'schema': get['result-schema'] if get else None,
+                     }
+                 }
+             },
+             'post': {
+                 'description': post['description'] if post else 'Create a new entry',
+                 'responses': {
+                     '200': {
+                         'description': 'new entry returned',
+                         'schema': post['schema'] if post else None,
+                     }
+                 }
+             },
+         }
 
      def on_get(self, req, resp):
          result = []
@@ -46,7 +74,7 @@ class EntityResource(object):
 
 class ItemResource(object):
 
-     def __init__(self, dispatcher, namespace):
+     def __init__(self, rest, dispatcher, namespace):
          self.dispatcher = dispatcher
          self.namespace = namespace
 
@@ -83,8 +111,13 @@ class CRUDBase(object):
     namespace = None
 
     def __init__(self, rest, dispatcher):
-        entity = EntityResource(dispatcher, self.namespace)
-        item = ItemResource(dispatcher, self.namespace)
+        self.entity = EntityResource(rest, dispatcher, self.namespace)
+        self.item = ItemResource(rest, dispatcher, self.namespace)
 
-        rest.api.add_route('/{0}'.format(self.namespace), entity)
-        rest.api.add_route('/{0}/{{id}}'.format(self.namespace), item)
+        rest.api.add_route(self.entity.get_path(), self.entity)
+        rest.api.add_route('/{0}/{{id}}'.format(self.namespace), self.item)
+
+    def get_paths(self):
+        return {
+            self.entity.get_path(): self.entity.get_path_item()
+        }
