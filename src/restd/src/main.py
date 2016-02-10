@@ -67,7 +67,7 @@ class AuthMiddleware(object):
         try:
             client = Client()
             client.connect('unix:')
-            client.login_user(username, password)
+            client.login_user(username, password, check_password=True)
             req.context['client'] = client
         except RpcException as e:
             if e.code == errno.EACCES:
