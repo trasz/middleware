@@ -173,9 +173,15 @@ class RoutingSocketEventSource(threading.Thread):
     def build_cache(self):
         # Build a cache of certain interface states so we'll later know what has changed
         for i in list(netif.list_interfaces().values()):
-            self.mtu_cache[i.name] = i.mtu
-            self.flags_cache[i.name] = i.flags
-            self.link_state_cache[i.name] = i.link_state
+            try:
+                self.mtu_cache[i.name] = i.mtu
+                self.flags_cache[i.name] = i.flags
+                self.link_state_cache[i.name] = i.link_state
+            except OSError:
+                # Apparently interface doesn't exist anymore
+                del self.mtu_cache[i.name]
+                del self.flags_cache[i.name]
+                del self.link_state_cache[i.name]
 
     def alias_added(self, message):
         pass
