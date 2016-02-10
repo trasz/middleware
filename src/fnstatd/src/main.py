@@ -166,7 +166,21 @@ class DataSource(object):
                 'nolog': True
             })
 
+        last_in_range = True
+        if self.last_value is not None:
+            if not (self.alert_low <= self.last_value <= self.alert_high):
+                last_in_range = False
+
         self.last_value = value
+
+        if value is not None:
+            if last_in_range:
+                if self.alert_high_enabled:
+                    if value > self.alert_high:
+                        self.emit_alert_high()
+                if self.alert_low_enabled:
+                    if value < self.alert_low:
+                        self.emit_alert_low()
 
     def persist(self, timestamp, buffer, bucket):
         count = bucket.interval.total_seconds() / self.config.buckets[0].interval.total_seconds()
@@ -189,6 +203,38 @@ class DataSource(object):
         df = df[start:end]
         df = df.resample(frequency, how='mean').interpolate()
         return df
+
+    def check_alerts(self):
+        if self.last_value is not None:
+            if self.alert_high_enabled:
+                if self.last_value > self.alert_high:
+                    self.emit_alert_high()
+
+            if self.alert_low_enabled:
+                if self.last_value < self.alert_low:
+                    self.emit_alert_low()
+
+    def emit_alert_high(self):
+        self.context.client.call_sync('alert.emit', {
+            'name': 'stat.{0}.too_high'.format(self.name),
+            'description': 'Value of {0} has exceeded maximum permissible value {1}. Current {2}'.format(
+                self.name,
+                self.alert_high,
+                self.last_value
+            ),
+            'severity': 'WARNING'
+        })
+
+    def emit_alert_low(self):
+        self.context.client.call_sync('alert.emit', {
+            'name': 'stat.{0}.too_high'.format(self.name),
+            'description': 'Value of {0} has gone under minimum permissible value {1}. Current {2}'.format(
+                self.name,
+                self.alert_low,
+                self.last_value
+            ),
+            'severity': 'WARNING'
+        })
 
 
 class InputServer(object):
