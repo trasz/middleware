@@ -1,4 +1,3 @@
-#!/usr/local/bin/python2.7
 #
 # Copyright 2015 iXsystems, Inc.
 # All rights reserved
