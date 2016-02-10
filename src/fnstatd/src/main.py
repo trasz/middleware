@@ -332,6 +332,40 @@ class OutputService(RpcService):
             }
 
 
+class AlertService(RpcService):
+    def __init__(self, context):
+        super(AlertService, self).__init__()
+        self.context = context
+
+    def set_high_enabled(self, name, enabled):
+        ds = self.context.data_sources[name]
+        ds.alert_high_enabled = enabled
+        alert_config = self.context.datastore.get_by_id('statd.alerts', name)
+        self.context.datastore.update('alert-filters', name, alert_config)
+        ds.check_alerts()
+
+    def set_low_enabled(self, name, enabled):
+        ds = self.context.data_sources[name]
+        ds.alert_low_enabled = enabled
+        alert_config = self.context.datastore.get_by_id('statd.alerts', name)
+        self.context.datastore.update('alert-filters', name, alert_config)
+        ds.check_alerts()
+
+    def set_high_value(self, name, value):
+        ds = self.context.data_sources[name]
+        ds.alert_high = value
+        alert_config = self.context.datastore.get_by_id('statd.alerts', name)
+        self.context.datastore.update('alert-filters', name, alert_config)
+        ds.check_alerts()
+
+    def set_low_value(self, name, value):
+        ds = self.context.data_sources[name]
+        ds.alert_low = value
+        alert_config = self.context.datastore.get_by_id('statd.alerts', name)
+        self.context.datastore.update('alert-filters', name, alert_config)
+        ds.check_alerts()
+
+
 class DataPoint(tables.IsDescription):
     timestamp = tables.Time32Col()
     value = tables.FloatCol()
@@ -445,8 +479,10 @@ class Main(object):
                 self.client.login_service('statd')
                 self.client.enable_server()
                 self.client.register_service('statd.output', OutputService(self))
+                self.client.register_service('statd.alert', AlertService(self))
                 self.client.register_service('statd.debug', DebugService(gevent=True))
                 self.client.resume_service('statd.output')
+                self.client.resume_service('statd.alert')
                 self.client.resume_service('statd.debug')
                 for i in list(self.data_sources.keys()):
                     self.client.call_sync('plugin.register_event_type', 'statd.output', 'statd.{0}.pulse'.format(i))
