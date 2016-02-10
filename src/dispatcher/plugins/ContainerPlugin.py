@@ -96,6 +96,7 @@ class VMTemplateProvider(Provider):
                 with open(os.path.join(root, 'template.json'), encoding='utf-8') as template:
                     try:
                         templates.append(json.loads(template.read()))
+                        templates[-1]['template']['path'] = root
                     except ValueError:
                         pass
 
@@ -499,7 +500,8 @@ def _init(dispatcher, plugin):
             'template': {
                 'type': ['object', 'none'],
                 'properties': {
-                    'name': {'type': 'string'}
+                    'name': {'type': 'string'},
+                    'path': {'type': 'string'}
                 }
             },
             'type': {
