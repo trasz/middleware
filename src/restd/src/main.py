@@ -103,9 +103,12 @@ class RESTApi(object):
     def load_plugins(self):
         pluginsdir = os.path.realpath(os.path.join(os.path.dirname(__file__), '..', 'plugins'))
         for i in glob.glob1(pluginsdir, "*.py"):
-            loader = importlib.machinery.SourceFileLoader(i.split('.')[0], os.path.join(pluginsdir, i))
-            mod = loader.load_module()
-            mod._init(self)
+            try:
+                loader = importlib.machinery.SourceFileLoader(i.split('.')[0], os.path.join(pluginsdir, i))
+                mod = loader.load_module()
+                mod._init(self)
+            except:
+                self.logger('Failed to load plugin %s', i, exc_info=True)
 
     def connect(self):
         while True:
