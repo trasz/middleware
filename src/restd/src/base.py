@@ -76,8 +76,36 @@ class EntityResource(object):
 class ItemResource(object):
 
      def __init__(self, rest, dispatcher, namespace):
+         self.rest = rest
          self.dispatcher = dispatcher
          self.namespace = namespace
+
+     def get_path(self):
+         return '/{0}/{{id}}'.format(self.namespace)
+
+     def get_path_item(self):
+         get = self.rest._rpcs.get('{0}.query'.format(self.namespace))
+         delete = self.rest._tasks.get('{0}.delete'.format(self.namespace))
+         return {
+             'get': {
+                 'description': get['description'] if get else None,
+                 'responses': {
+                     '200': {
+                         'description': 'entries to be returned',
+                         'schema': normalize_schema(get['result-schema']['anyOf'][-1]) if get else None,
+                     }
+                 }
+             },
+             'delete': {
+                 'description': delete['description'] if delete else 'Delete the entry',
+                 'responses': {
+                     '200': {
+                         'description': 'Entry has been deleted',
+                         'schema': normalize_schema(delete['schema']) if delete else None,
+                     }
+                 }
+             },
+         }
 
      def on_get(self, req, resp, id):
          entry = req.context['client'].call_sync('{0}.query'.format(self.namespace), [('id', '=', int(id))], {'single': True})
@@ -116,9 +144,10 @@ class CRUDBase(object):
         self.item = ItemResource(rest, dispatcher, self.namespace)
 
         rest.api.add_route(self.entity.get_path(), self.entity)
-        rest.api.add_route('/{0}/{{id}}'.format(self.namespace), self.item)
+        rest.api.add_route(self.item.get_path(), self.item)
 
     def get_paths(self):
         return {
-            self.entity.get_path(): self.entity.get_path_item()
+            self.entity.get_path(): self.entity.get_path_item(),
+            self.item.get_path(): self.item.get_path_item()
         }
