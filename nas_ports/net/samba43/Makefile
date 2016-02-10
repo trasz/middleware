@@ -111,18 +111,18 @@ RUN_DEPENDS+=		${PYTHON_PKGNAMEPREFIX}dnspython2>=1.9.4:${PORTSDIR}/dns/py-dnspy
 # Using the bundled versions. Will make this conditional later.
 
 # talloc
-BUILD_DEPENDS+=		talloc>=2.1.5:${PORTSDIR}/devel/talloc
-RUN_DEPENDS+=		talloc>=2.1.5:${PORTSDIR}/devel/talloc
+BUILD_DEPENDS+=		talloc>=2.1.3_1:${PORTSDIR}/devel/talloc
+RUN_DEPENDS+=		talloc>=2.1.3_1:${PORTSDIR}/devel/talloc
 SAMBA4_BUNDLED_LIBS+=	!talloc
 
 # tevent
-BUILD_DEPENDS+=		tevent>=0.9.26:${PORTSDIR}/devel/tevent
-RUN_DEPENDS+=		tevent>=0.9.26:${PORTSDIR}/devel/tevent
+BUILD_DEPENDS+=		tevent>=0.9.25:${PORTSDIR}/devel/tevent
+RUN_DEPENDS+=		tevent>=0.9.25:${PORTSDIR}/devel/tevent
 SAMBA4_BUNDLED_LIBS+=	!tevent
 
 # tdb
-BUILD_DEPENDS+=		tdb>=1.3.8:${PORTSDIR}/databases/tdb
-RUN_DEPENDS+=		tdb>=1.3.8:${PORTSDIR}/databases/tdb
+BUILD_DEPENDS+=		tdb>=1.3.7_1:${PORTSDIR}/databases/tdb
+RUN_DEPENDS+=		tdb>=1.3.7_1:${PORTSDIR}/databases/tdb
 SAMBA4_BUNDLED_LIBS+=	!tdb
 
 # ntdb
@@ -131,8 +131,8 @@ RUN_DEPENDS+=		ntdb>=1.0:${PORTSDIR}/databases/ntdb
 SAMBA4_BUNDLED_LIBS+=	!ntdb
 
 # ldb
-BUILD_DEPENDS+=		ldb>=1.1.24:${PORTSDIR}/databases/ldb
-RUN_DEPENDS+=		ldb>=1.1.24:${PORTSDIR}/databases/ldb
+BUILD_DEPENDS+=		ldb>=1.1.21_1:${PORTSDIR}/databases/ldb
+RUN_DEPENDS+=		ldb>=1.1.21_1:${PORTSDIR}/databases/ldb
 SAMBA4_BUNDLED_LIBS+=	!ldb
 
 # Don't use external libcom_err
