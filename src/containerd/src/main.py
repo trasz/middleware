@@ -25,6 +25,7 @@
 #
 #####################################################################
 
+import os
 import enum
 import sys
 import argparse
@@ -98,6 +99,7 @@ class VirtualMachine(object):
         self.state = VirtualMachineState.STOPPED
         self.config = None
         self.devices = []
+        self.files_root = None
         self.bhyve_process = None
         self.scrollback = BinaryRingBuffer(SCROLLBACK_SIZE)
         self.console_fd = None
@@ -126,6 +128,11 @@ class VirtualMachine(object):
                 path = self.context.client.call_sync('container.get_disk_path', self.id, i['name'])
                 args += ['-s', '{0}:0,ahci-cd,{1}'.format(index, path)]
                 index += 1
+
+            if i['type'] == 'VOLUME':
+                if i['properties']['type'] == '9P':
+                    args += ['-s', '{0}:0,virtio-9p,{1}={2}'.format(index, i['name'], i['properties']['destination'])]
+                    index + 1
 
             if i['type'] == 'NIC':
                 mac = i['properties']['link_address']
@@ -226,6 +233,7 @@ class VirtualMachine(object):
                     cdcounter = 0
                     bootname = ''
                     bootswitch = '-r'
+
                     for i in filter(lambda i: i['type'] in ('DISK', 'CDROM'), self.devices):
                         path = self.context.client.call_sync('container.get_disk_path', self.id, i['name'])
 
@@ -246,7 +254,7 @@ class VirtualMachine(object):
 
                     if self.config.get('boot_directory'):
                         bootswitch = '-d'
-                        bootname = self.config['boot_directory']
+                        bootname = os.path.join(self.files_root, self.config['boot_directory'])
 
                     devmap.flush()
                     self.bhyve_process = subprocess.Popen(
@@ -374,6 +382,11 @@ class ManagementService(RpcService):
             vm.name = container['name']
             vm.config = container['config']
             vm.devices = container['devices']
+            vm.files_root = self.context.client.call_sync(
+                'volume.get_dataset_path',
+                container['target'],
+                os.path.join(container['target'], 'vm', container['name'], 'files')
+            )
             vm.start()
             self.context.containers[id] = vm
 

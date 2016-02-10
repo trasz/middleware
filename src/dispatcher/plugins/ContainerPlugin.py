@@ -538,7 +538,7 @@ def _init(dispatcher, plugin):
             'name': {'type': 'string'},
             'type': {
                 'type': 'string',
-                'enum': ['DISK', 'CDROM', 'NIC']
+                'enum': ['DISK', 'CDROM', 'NIC', 'VOLUME']
             },
             'properties': {'type': 'object'}
         },
