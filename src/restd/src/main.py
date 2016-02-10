@@ -82,6 +82,7 @@ class RESTApi(object):
 
     def __init__(self):
         self.logger = logging.getLogger('restd')
+        self._cruds = []
         self._threads = []
         self.api = falcon.API(middleware=[
             AuthMiddleware(),
@@ -126,7 +127,8 @@ class RESTApi(object):
         return self.api.__call__(environ, start_response)
 
     def register_crud(self, klass):
-        klass(self, self.dispatcher)
+        ins = klass(self, self.dispatcher)
+        self._cruds.append(ins)
 
     def run(self):
         self.init_dispatcher()
