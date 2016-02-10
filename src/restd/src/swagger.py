@@ -1,4 +1,3 @@
-import json
 
 
 def normalize_schema(obj):
@@ -35,4 +34,4 @@ class SwaggerResource(object):
         for crud in self.rest._cruds:
             result['paths'].update(crud.get_paths())
 
-        resp.body = json.dumps(result)
+        req.context['result'] = result

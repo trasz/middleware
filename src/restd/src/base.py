@@ -1,5 +1,4 @@
 import falcon
-import json
 
 from freenas.dispatcher.rpc import RpcException
 
@@ -48,7 +47,7 @@ class EntityResource(object):
              if 'updated_at' in entry:
                  entry['updated_at'] = str(entry['created_at'])
              result.append(entry)
-         resp.body = json.dumps(result)
+         req.context['result'] = result
 
      def on_post(self, req, resp):
          try:
@@ -71,7 +70,7 @@ class EntityResource(object):
                  entry['created_at'] = str(entry['created_at'])
              if 'updated_at' in entry:
                  entry['updated_at'] = str(entry['updated_at'])
-             resp.body = json.dumps(entry)
+             req.context['result'] = entry
 
 
 class ItemResource(object):
@@ -88,7 +87,7 @@ class ItemResource(object):
              entry['created_at'] = str(entry['created_at'])
          if 'updated_at' in entry:
              entry['updated_at'] = str(entry['updated_at'])
-         resp.body = json.dumps(entry)
+         req.context['result'] = entry
 
      def on_delete(self, req, resp, id):
          entry = req.context['client'].call_sync('{0}.query'.format(self.namespace), [('id', '=', int(id))], {'single': True})
