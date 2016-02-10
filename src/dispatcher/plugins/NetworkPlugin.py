@@ -53,6 +53,7 @@ class NetworkProvider(Provider):
     def get_my_ips(self):
         ips = []
         ifaces = self.dispatcher.call_sync('networkd.configuration.query_interfaces')
+        ifaces.pop('mgmt0', None)
         for i, v in ifaces.items():
             if 'LOOPBACK' in v['flags']:
                 continue
