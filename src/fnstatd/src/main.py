@@ -339,6 +339,27 @@ class Main(object):
 
         return self.data_sources[name]
 
+    def register_schemas(self):
+        self.client.register_schema('stat', {
+            'type': 'object',
+            'additionalProperties': False,
+            'properties': {
+                'name': {'type': 'string'},
+                'last_value': {'type': ['integer', 'number', 'null']},
+                'alerts': {'$ref': 'stat-alert'},
+            }
+        })
+        self.client.register_schema('stat-alert', {
+            'type': 'object',
+            'additionalProperties': False,
+            'properties': {
+                'alert_high': {'type': ['integer', 'number']},
+                'alert_high_enagled': {'type': 'boolean'},
+                'alert_low': {'type': ['integer', 'number']},
+                'alert_low_enabled': {'type': 'boolean'}
+            }
+        })
+
     def connect(self):
         while True:
             try:
@@ -394,6 +415,7 @@ class Main(object):
         self.init_datastore()
         self.init_dispatcher()
         self.init_database()
+        self.register_schemas()
         self.server.start()
         self.logger.info('Started')
         self.client.wait_forever()
