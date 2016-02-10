@@ -25,6 +25,7 @@
 #
 #####################################################################
 
+import re
 import errno
 from freenas.dispatcher.rpc import RpcException, description, accepts, returns
 from freenas.dispatcher.rpc import SchemaHelper as h
@@ -36,6 +37,68 @@ class StatProvider(Provider):
     @query('stat')
     def query(self, filter=None, params=None):
         stats = self.dispatcher.call_sync('statd.output.get_current_state')
+        return wrap(stats).query(*(filter or []), **(params or {}))
+
+
+class CpuStatProvider(Provider):
+    @query('stat')
+    def query(self, filter=None, params=None):
+        stats = self.dispatcher.call_sync('stat.query', [('name', '~', 'cpu')])
+
+        for stat in stats:
+            type = stat['name'].split('.', 3)[2]
+            if 'aggregation' in stat['name']:
+                stat['short_name'] = 'aggregated-' + type
+            else:
+                stat['short_name'] = 'cpu-' + re.search(r'\d+', stat['name']).group() + '--' + type
+
+        return wrap(stats).query(*(filter or []), **(params or {}))
+
+
+class DiskStatProvider(Provider):
+    @query('stat')
+    def query(self, filter=None, params=None):
+        stats = self.dispatcher.call_sync('stat.query', [('name', '~', 'disk')])
+
+        for stat in stats:
+            split_name = stat['name'].split('.', 3)
+            stat['short_name'] = split_name[1] + '--' + split_name[3] + '-' + split_name[2].split('_', 2)[1]
+
+        return wrap(stats).query(*(filter or []), **(params or {}))
+
+
+class NetworkStatProvider(Provider):
+    @query('stat')
+    def query(self, filter=None, params=None):
+        stats = self.dispatcher.call_sync('stat.query', [('name', '~', 'interface')])
+
+        for stat in stats:
+            split_name = stat['name'].split('.', 3)
+            stat['short_name'] = split_name[1] + '--' + split_name[3] + '-' + split_name[2].split('_', 2)[1]
+
+        return wrap(stats).query(*(filter or []), **(params or {}))
+
+
+class SystemStatProvider(Provider):
+    @query('stat')
+    def query(self, filter=None, params=None):
+        stats = self.dispatcher.call_sync(
+            'stat.query',
+            [
+                ['or', [('name', '~', 'load'), ('name', '~', 'processes'), ('name', '~', 'memory'), ('name', '~', 'df')]],
+                ['nor', [('name', '~', 'zfs')]]
+            ]
+        )
+
+        for stat in stats:
+            split_name = stat['name'].split('.', 3)
+            if 'df' in stat['name']:
+                stat['short_name'] = split_name[1].split('-', 1)[1] + '--' + split_name[2].split('-', 1)[1]
+            elif 'load' in stat['name']:
+                stat['short_name'] = split_name[1] + '-' + split_name[3]
+            else:
+                stat['short_name'] = split_name[2]
+
         return wrap(stats).query(*(filter or []), **(params or {}))
 
 
@@ -66,6 +129,10 @@ class UpdateAlertTask(Task):
 
 def _init(dispatcher, plugin):
     plugin.register_provider('stat', StatProvider)
+    plugin.register_provider('stat.cpu', CpuStatProvider)
+    plugin.register_provider('stat.disk', DiskStatProvider)
+    plugin.register_provider('stat.network', NetworkStatProvider)
+    plugin.register_provider('stat.system', SystemStatProvider)
     plugin.register_task_handler('stat.alert_update', UpdateAlertTask)
     plugin.register_event_type('stat.changed')
 
