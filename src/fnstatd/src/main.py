@@ -299,6 +299,23 @@ class OutputService(RpcService):
     def get_data_sources(self):
         return list(self.context.data_sources.keys())
 
+    def get_current_state(self):
+        stats = []
+        for key, ds in self.context.data_sources.items():
+            stats.append({
+                    'name': ds.name,
+                    'last_value': ds.last_value,
+                    'alerts': {
+                        'alert_high': ds.alert_high,
+                        'alert_high_enabled': ds.alert_high_enabled,
+                        'alert_low': ds.alert_low,
+                        'alert_low_enabled': ds.alert_low_enabled
+                    }
+                }
+            )
+
+        return stats
+
     def query(self, data_source, params):
         start = parse_datetime(params.pop('start'))
         end = parse_datetime(params.pop('end'))
