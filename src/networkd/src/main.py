@@ -177,11 +177,14 @@ class RoutingSocketEventSource(threading.Thread):
                 self.mtu_cache[i.name] = i.mtu
                 self.flags_cache[i.name] = i.flags
                 self.link_state_cache[i.name] = i.link_state
-            except OSError:
+            except OSError as err:
                 # Apparently interface doesn't exist anymore
-                del self.mtu_cache[i.name]
-                del self.flags_cache[i.name]
-                del self.link_state_cache[i.name]
+                if err.errno == errno.ENXIO:
+                    del self.mtu_cache[i.name]
+                    del self.flags_cache[i.name]
+                    del self.link_state_cache[i.name]
+                else:
+                    self.context.logger.warn('Building interface cache for {0} failed: {1}'.format(i.name, str(err)))
 
     def alias_added(self, message):
         pass
