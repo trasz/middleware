@@ -471,7 +471,7 @@ class Main(object):
     def register_schemas(self):
         self.client.register_schema('stat', {
             'type': 'object',
-            'additionalProperties': False,
+            'additionalProperties': True,
             'properties': {
                 'name': {'type': 'string'},
                 'last_value': {'type': ['integer', 'number', 'null']},
