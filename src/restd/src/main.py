@@ -108,7 +108,7 @@ class RESTApi(object):
                 mod = loader.load_module()
                 mod._init(self)
             except:
-                self.logger('Failed to load plugin %s', i, exc_info=True)
+                self.logger.warn('Failed to load plugin %s', i, exc_info=True)
 
     def connect(self):
         while True:
