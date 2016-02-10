@@ -3,6 +3,8 @@ import json
 
 from freenas.dispatcher.rpc import RpcException
 
+from swagger import normalize_schema
+
 
 class EntityResource(object):
 
@@ -23,7 +25,7 @@ class EntityResource(object):
                  'responses': {
                      '200': {
                          'description': 'entries to be returned',
-                         'schema': get['result-schema'] if get else None,
+                         'schema': normalize_schema(get['result-schema']) if get else None,
                      }
                  }
              },
@@ -32,7 +34,7 @@ class EntityResource(object):
                  'responses': {
                      '200': {
                          'description': 'new entry returned',
-                         'schema': post['schema'] if post else None,
+                         'schema': normalize_schema(post['schema']) if post else None,
                      }
                  }
              },
