@@ -115,7 +115,7 @@ class DataSourceConfig(object):
 
 
 class DataSource(object):
-    def __init__(self, context, name, config):
+    def __init__(self, context, name, config, alert_config):
         self.context = context
         self.name = name
         self.config = config
@@ -125,6 +125,10 @@ class DataSource(object):
         self.primary_interval = self.config.buckets[0].interval
         self.last_value = 0
         self.events_enabled = False
+        self.alert_high = alert_config['alert_high']
+        self.alert_high_enabled = alert_config['alert_high_enabled']
+        self.alert_low = alert_config['alert_low']
+        self.alert_low_enabled = alert_config['alert_low_enabled']
 
         self.logger.debug('Created')
 
@@ -330,10 +334,38 @@ class Main(object):
         except Exception as e:
             self.logger.error(str(e))
 
+    def init_alert_config(self, name):
+        if self.datastore.exists('statd.alerts', ('id', '=', name)):
+            alert_config = self.datastore.get_by_id('statd.alerts', name)
+        else:
+            alert_config = {
+                'alert_high': 0,
+                'alert_high_enabled': False,
+                'alert_low': 0,
+                'alert_low_enabled': False,
+                'id': name
+            }
+            self.datastore.insert('statd.alerts', alert_config)
+
+        self.client.call_sync(
+            'alert.register_alert',
+            'stat.{0}.too_high'.format(name),
+            '{0} statistic value is too high'.format(name)
+        )
+
+        self.client.call_sync(
+            'alert.register_alert',
+            'stat.{0}.too_low'.format(name),
+            '{0} statistic value is too low'.format(name)
+        )
+
+        return alert_config
+
     def get_data_source(self, name):
         if name not in list(self.data_sources.keys()):
             config = DataSourceConfig(self.datastore, name)
-            ds = DataSource(self, name, config)
+            alert_config = self.init_alert_config(name)
+            ds = DataSource(self, name, config, alert_config)
             self.data_sources[name] = ds
             self.client.call_sync('plugin.register_event_type', 'statd.output', 'statd.{0}.pulse'.format(name))
 
