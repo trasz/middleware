@@ -37,7 +37,7 @@ class EntityResource(object):
                 'responses': {
                     '200': {
                         'description': 'new entry returned',
-                        'schema': normalize_schema(post['schema']) if post else None,
+                        'schema': normalize_schema(get['result-schema']['anyOf'][-1]) if post else None,
                     }
                 },
                 'produces': [
