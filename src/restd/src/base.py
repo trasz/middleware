@@ -120,16 +120,17 @@ class ItemResource(object):
             ],
         }
 
-    def on_get(self, req, resp, id):
+    def get_entry(self, id):
         entry = req.context['client'].call_sync(self.crud.get_retrieve_method_name(), [('id', '=', int(id))], {'single': True})
         if entry is None:
             raise falcon.HTTPNotFound
-        req.context['result'] = entry
+        return entry
+
+    def on_get(self, req, resp, id):
+        req.context['result'] = self.get_entry(id)
 
     def on_delete(self, req, resp, id):
-        entry = req.context['client'].call_sync(self.crud.get_retrieve_method_name(), [('id', '=', int(id))], {'single': True})
-        if entry is None:
-            raise falcon.HTTPNotFound
+        entry = self.get_entry(id)
         try:
             result = req.context['client'].call_task_sync(self.crud.get_delete_method_name(), [int(id)])
         except RpcException as e:
