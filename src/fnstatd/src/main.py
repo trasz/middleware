@@ -483,7 +483,7 @@ class Main(object):
             'additionalProperties': False,
             'properties': {
                 'alert_high': {'type': ['integer', 'number']},
-                'alert_high_enagled': {'type': 'boolean'},
+                'alert_high_enabled': {'type': 'boolean'},
                 'alert_low': {'type': ['integer', 'number']},
                 'alert_low_enabled': {'type': 'boolean'}
             }
