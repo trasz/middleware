@@ -1,0 +1,52 @@
+<div ng-init="init()">
+</div>
+<div class="row">
+  <div class="col-sm-2 col-md-2 sidebar">
+          <ul class="nav nav-sidebar">
+            <li class="active"><a href="#rpc">Services<span class="sr-only">(current)</span></a></li>
+          </ul>
+          <ul class="nav nav-sidebar">
+            <label>Search: <input ng-model="searchText" placeholder="input service name"></label>
+            <li ng-repeat='service_name in services | filter:searchText'>
+               <a href="" ng-click="getServiceList(service_name)" data-toggle="tooltip" title="click me for details"><span class="badge"></span>{{ service_name }}</a>
+            </li>
+          </ul>
+  </div>
+<div class="col-sm-10 col-sm-offset-3 col-md-10 col-md-offset-2 main">
+        <h1 class="page-header">Do a call</h1>
+
+        <div class="row placeholder">
+          <div class="form-group">
+            <label for="comment">Function:</label>
+            <textarea class="form-control" rows="5" id="method"></textarea>
+          </div> <!-- for form-group -->
+        </div>
+        <div class="row placeholder">
+          <span class="text-muted">Something else</span>
+          <div class="form-group">
+            <label for="comment">Comment:</label>
+            <textarea class="form-control" rows="5" id="args"></textarea>
+          </div> <!-- for form-group -->
+        </div>
+        <div class="row placeholder">
+          <span class="text-muted">Something else</span>
+          <div class="form-group">
+            <label for="comment">Result:</label>
+            <textarea class="form-control" rows="5" id="result"></textarea>
+          </div> <!-- for form-group -->
+          <button type="button" id="call" class="btn btn-default">Submit</button>
+        </div>
+
+        <h2 class="sub-header" value="section_title">{{ current_service }}</h2>
+        <div class="table-responsive">
+          <ul class="list-group nav">
+            <li class="list-group-item" ng-repeat='method in current_methods | filter:searchText'>
+              <a href="" ng-click="setInput(method)">{{ method }}</a>
+            </li>
+          </ul>
+        </div>
+</div>
+  <div class="col-sm-2 col-md-2">
+   ssss
+  </div>
+</div>
