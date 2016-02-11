@@ -36,4 +36,9 @@ post-install:
 		| ${AWK} '{print length, $$0}' | ${SORT} -rn \
 		| ${AWK} '{print "lib/etcd/"$$2 }' >> ${TMPPLIST})
 
+	(cd ${STAGEDIR}${PREFIX}/lib/etcd/plugins; ${FIND} . -type f \
+		| ${SED} -e 's,^\./,,g' \
+		| ${AWK} '{print length, $$0}' | ${SORT} -rn \
+		| ${AWK} '{print "lib/etcd/plugins/"$$2 }' >> ${TMPPLIST})
+
 .include <bsd.port.mk>
