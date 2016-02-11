@@ -457,6 +457,11 @@ PLIST_SUB+=		MODULE_${module:tu}="@comment "
 
 .include <bsd.port.pre.mk>
 
+pre-fetch:
+.if exists(${DISTDIR}/${DISTFILES})
+	@rm -f ${DISTDIR}/${DISTFILES}
+.endif
+
 .if !defined(SAMBA4_SUBPORT)
 
 SAMBA4_SUB=		SAMBA4_LOGDIR="${SAMBA4_LOGDIR}" \
