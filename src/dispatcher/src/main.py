@@ -1200,13 +1200,13 @@ class ServerConnection(WebSocketApplication, EventEmitter):
                     return
 
                 lifetime = None
-
-            if client_addr == 'unix':
-                lifetime = None
         else:
             if not user.check_password(password):
                 self.emit_rpc_error(id, errno.EACCES, "Incorrect username or password")
                 return
+
+        if client_addr == 'unix':
+            lifetime = None
 
         self.user = user
         self.token = self.dispatcher.token_store.issue_token(Token(
