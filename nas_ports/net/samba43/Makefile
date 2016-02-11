@@ -1,6 +1,6 @@
 PORTNAME?=		${SAMBA4_BASENAME}43
 PORTVERSION?=		${SAMBA4_VERSION}
-PORTREVISION?=		0
+PORTREVISION?=		1
 CATEGORIES?=		net
 MASTER_SITES=		https://github.com/freenas/samba/archive/
 
