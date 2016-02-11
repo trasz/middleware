@@ -16,8 +16,8 @@ class EntityResource(object):
         return self.crud.get_uri()
 
     def get_path_item(self):
-        get = self.rest._rpcs.get(self.crud.get_retrieve_task_name())
-        post = self.rest._tasks.get(self.crud.get_create_task_name())
+        get = self.rest._rpcs.get(self.crud.get_retrieve_method_name())
+        post = self.rest._tasks.get(self.crud.get_create_method_name())
         return {
             'get': {
                 'description': get['description'] if get else None,
@@ -49,7 +49,7 @@ class EntityResource(object):
 
     def on_get(self, req, resp):
         result = []
-        for entry in req.context['client'].call_sync(self.crud.get_retrieve_task_name()):
+        for entry in req.context['client'].call_sync(self.crud.get_retrieve_method_name()):
             if 'created_at' in entry:
                 entry['created_at'] = str(entry['created_at'])
             if 'updated_at' in entry:
@@ -59,7 +59,7 @@ class EntityResource(object):
 
     def on_post(self, req, resp):
         try:
-            result = req.context['client'].call_task_sync(self.crud.get_create_task_name(), req.context)
+            result = req.context['client'].call_task_sync(self.crud.get_create_method_name(), req.context)
         except RpcException as e:
             raise falcon.HTTPBadRequest(e.message, str(e))
         if result['state'] != 'FINISHED':
@@ -71,7 +71,7 @@ class EntityResource(object):
                 message = 'Failed to create, check task #{0}'.format(result['id'])
             raise falcon.HTTPBadRequest(title, message)
         if result['result']:
-            entry = req.context['client'].call_sync(self.crud.get_retrieve_task_name(), [('id', '=', result['result'])], {'single': True})
+            entry = req.context['client'].call_sync(self.crud.get_retrieve_method_name(), [('id', '=', result['result'])], {'single': True})
             if entry is None:
                 raise falcon.HTTPNotFound
             if 'created_at' in entry:
@@ -92,8 +92,8 @@ class ItemResource(object):
         return '{0}/{{id}}'.format(self.crud.get_uri())
 
     def get_path_item(self):
-        get = self.rest._rpcs.get(self.crud.get_retrieve_task_name())
-        delete = self.rest._tasks.get(self.crud.get_delete_task_name())
+        get = self.rest._rpcs.get(self.crud.get_retrieve_method_name())
+        delete = self.rest._tasks.get(self.crud.get_delete_method_name())
         return {
             'get': {
                 'description': get['description'] if get else None,
@@ -129,7 +129,7 @@ class ItemResource(object):
         }
 
     def on_get(self, req, resp, id):
-        entry = req.context['client'].call_sync(self.crud.get_retrieve_task_name(), [('id', '=', int(id))], {'single': True})
+        entry = req.context['client'].call_sync(self.crud.get_retrieve_method_name(), [('id', '=', int(id))], {'single': True})
         if entry is None:
             raise falcon.HTTPNotFound
         if 'created_at' in entry:
@@ -139,11 +139,11 @@ class ItemResource(object):
         req.context['result'] = entry
 
     def on_delete(self, req, resp, id):
-        entry = req.context['client'].call_sync(self.crud.get_retrieve_task_name(), [('id', '=', int(id))], {'single': True})
+        entry = req.context['client'].call_sync(self.crud.get_retrieve_method_name(), [('id', '=', int(id))], {'single': True})
         if entry is None:
             raise falcon.HTTPNotFound
         try:
-            result = req.context['client'].call_task_sync(self.crud.get_delete_task_name(), [int(id)])
+            result = req.context['client'].call_task_sync(self.crud.get_delete_method_name(), [int(id)])
         except RpcException as e:
             raise falcon.HTTPBadRequest(e.message, str(e))
         if result['state'] != 'FINISHED':
@@ -172,16 +172,16 @@ class CRUDBase(object):
     def get_uri(self):
         return '/{0}'.format(self.namespace)
 
-    def get_create_task_name(self):
+    def get_create_method_name(self):
         return '{0}.create'.format(self.namespace)
 
-    def get_retrieve_task_name(self):
+    def get_retrieve_method_name(self):
         return '{0}.query'.format(self.namespace)
 
-    def get_update_task_name(self):
+    def get_update_method_name(self):
         return '{0}.update'.format(self.namespace)
 
-    def get_delete_task_name(self):
+    def get_delete_method_name(self):
         return '{0}.delete'.format(self.namespace)
 
     def get_paths(self):
