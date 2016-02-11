@@ -865,6 +865,7 @@ class UnixSocketServer(object):
                     self.wfd.flush()
                 except (OSError, ValueError, socket.timeout):
                     self.server.logger.info('Send failed; closing connection')
+                    self.connfd.shutdown(socket.SHUT_RDWR)
                     self.connfd.close()
 
         def handle_connection(self):
@@ -901,6 +902,7 @@ class UnixSocketServer(object):
                 try:
                     self.rfd.close()
                     self.wfd.close()
+                    self.connfd.shutdown(socket.SHUT_RDWR)
                     self.connfd.close()
                 except OSError:
                     pass
