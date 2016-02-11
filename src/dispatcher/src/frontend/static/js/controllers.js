@@ -11,8 +11,6 @@ function RpcController($scope) {
     var sock = new middleware.DispatcherClient(document.domain);
     sock.connect();
     $scope.init = function () {
-
-        console.log("init func");
         sock.onError = function(err) {
             alert("Error: " + err.message);
         };
@@ -52,7 +50,6 @@ function RpcController($scope) {
         };
     }
     $scope.getServiceList = function(service_name){
-        console.log(service_name + " :  " + $scope.service_dict[service_name]);
         $scope.current_methods = $scope.service_dict[service_name];
         $scope.current_service = service_name;
     }
