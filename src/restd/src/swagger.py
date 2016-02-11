@@ -1,17 +1,17 @@
 
 
 def normalize_schema(obj):
-     if isinstance(obj, dict):
-         if '$ref' in obj:
-             ref = obj['$ref']
-             if not ref.startswith('#/definitions/'):
-                 obj['$ref'] = '#/definitions/{0}'.format(ref)
-         for key in obj:
-             normalize_schema(obj[key])
-     elif isinstance(obj, (list, tuple)):
-         for i in obj:
-             normalize_schema(i)
-     return obj
+    if isinstance(obj, dict):
+        if '$ref' in obj:
+            ref = obj['$ref']
+            if not ref.startswith('#/definitions/'):
+                obj['$ref'] = '#/definitions/{0}'.format(ref)
+        for key in obj:
+            normalize_schema(obj[key])
+    elif isinstance(obj, (list, tuple)):
+        for i in obj:
+            normalize_schema(i)
+    return obj
 
 
 class SwaggerResource(object):
@@ -27,6 +27,13 @@ class SwaggerResource(object):
                 'title': 'FreeNAS RESTful API',
                 'version': '1.0',
             },
+            'schemes': ['http', 'https'],
+            'consumes': [
+                'application/json',
+            ],
+            'produces': [
+                'application/json',
+            ],
             'paths': {},
             'definitions': normalize_schema(self.rest._schemas['definitions']),
         }
