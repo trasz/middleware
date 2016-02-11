@@ -85,6 +85,7 @@ class ItemResource(object):
 
     def get_path_item(self):
         get = self.rest._rpcs.get(self.crud.get_retrieve_method_name())
+        put = self.rest._tasks.get(self.crud.get_update_method_name())
         delete = self.rest._tasks.get(self.crud.get_delete_method_name())
         return {
             'get': {
@@ -99,6 +100,15 @@ class ItemResource(object):
                     'application/xml',
                     'application/json'
                 ],
+            },
+            'put': {
+                'description': put['description'] if put else 'Update the entry',
+                'responses': {
+                    '200': {
+                        'description': 'Entry has been updated',
+                        'schema': normalize_schema(put['schema']) if put else None,
+                    }
+                }
             },
             'delete': {
                 'description': delete['description'] if delete else 'Delete the entry',
