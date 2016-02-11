@@ -28,6 +28,7 @@ class SwaggerResource(object):
                 'version': '1.0',
             },
             'schemes': ['http', 'https'],
+            'basePath': '/api/v2.0',
             'consumes': [
                 'application/json',
             ],
