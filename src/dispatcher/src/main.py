@@ -866,7 +866,6 @@ class UnixSocketServer(object):
                 except (OSError, ValueError, socket.timeout):
                     self.server.logger.info('Send failed; closing connection')
                     self.connfd.shutdown(socket.SHUT_RDWR)
-                    self.connfd.close()
 
         def handle_connection(self):
             self.conn = ServerConnection(self, self.dispatcher)
