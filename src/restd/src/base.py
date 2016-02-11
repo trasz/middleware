@@ -50,10 +50,6 @@ class EntityResource(object):
     def on_get(self, req, resp):
         result = []
         for entry in req.context['client'].call_sync(self.crud.get_retrieve_method_name()):
-            if 'created_at' in entry:
-                entry['created_at'] = str(entry['created_at'])
-            if 'updated_at' in entry:
-                entry['updated_at'] = str(entry['created_at'])
             result.append(entry)
         req.context['result'] = result
 
@@ -74,10 +70,6 @@ class EntityResource(object):
             entry = req.context['client'].call_sync(self.crud.get_retrieve_method_name(), [('id', '=', result['result'])], {'single': True})
             if entry is None:
                 raise falcon.HTTPNotFound
-            if 'created_at' in entry:
-                entry['created_at'] = str(entry['created_at'])
-            if 'updated_at' in entry:
-                entry['updated_at'] = str(entry['updated_at'])
             req.context['result'] = entry
 
 
@@ -132,10 +124,6 @@ class ItemResource(object):
         entry = req.context['client'].call_sync(self.crud.get_retrieve_method_name(), [('id', '=', int(id))], {'single': True})
         if entry is None:
             raise falcon.HTTPNotFound
-        if 'created_at' in entry:
-            entry['created_at'] = str(entry['created_at'])
-        if 'updated_at' in entry:
-            entry['updated_at'] = str(entry['updated_at'])
         req.context['result'] = entry
 
     def on_delete(self, req, resp, id):

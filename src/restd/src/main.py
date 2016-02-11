@@ -17,7 +17,7 @@ from freenas.dispatcher.rpc import RpcException
 from freenas.utils import configure_logging
 from gevent.wsgi import WSGIServer
 
-from base import CRUDBase
+from serializers import JsonEncoder
 from swagger import SwaggerResource
 
 
@@ -44,6 +44,10 @@ class JSONTranslator(object):
                                    'Could not decode the request body. The '
                                    'JSON was incorrect or not encoded as '
                                    'UTF-8.')
+
+    def process_response(self, req, resp, resource):
+        if 'result' in req.context:
+            resp.body = JsonEncoder().encode(req.context['result'])
 
 
 class AuthMiddleware(object):
@@ -77,10 +81,6 @@ class AuthMiddleware(object):
                     'Verify your credentials and try again.',
                 )
             raise falcon.HTTPUnauthorized('Unknown authentication error', str(e))
-
-    def process_response(self, req, resp, resource):
-        if 'result' in req.context:
-            resp.body = json.dumps(req.context['result'])
 
 
 class RESTApi(object):
