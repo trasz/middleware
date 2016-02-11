@@ -117,6 +117,25 @@ class SharesProvider(Provider):
 
         raise RpcException(errno.EINVAL, 'Invalid share target type {0}'.format(share['target_type']))
 
+    @private
+    def get_directory_path(self, share_id):
+        root = self.dispatcher.call_sync('volume.get_volumes_root')
+        share = self.datastore.get_by_id('shares', share_id)
+
+        if share['target_type'] == 'DATASET':
+            return os.path.join(root, share['target_path'])
+
+        if share['target_type'] == 'ZVOL':
+            return os.path.dirname(os.path.join(root, share['target_path']))
+
+        if share['target_type'] == 'DIRECTORY':
+            return share['target_path']
+
+        if share['target_type'] == 'FILE':
+            return os.path.dirname(share['target_path'])
+
+        raise RpcException(errno.EINVAL, 'Invalid share target type {0}'.format(share['target_type']))
+
 
 @description("Creates new share")
 @accepts(h.all_of(
@@ -198,9 +217,7 @@ class CreateShareTask(Task):
         })
 
         new_share = self.datastore.get_by_id('shares', ids[0])
-        path = self.dispatcher.call_sync('share.translate_path', new_share['id'])
-        if new_share['target_type'] == 'FILE':
-            path = os.path.dirname(path)
+        path = self.dispatcher.call_sync('share.get_directory_path', new_share['id'])
         save_config(
             path,
             '{0}-{1}'.format(new_share['type'], new_share['name']),
@@ -223,9 +240,7 @@ class UpdateShareTask(Task):
     def run(self, id, updated_fields):
         share = self.datastore.get_by_id('shares', id)
 
-        path = self.dispatcher.call_sync('share.translate_path', share['id'])
-        if share['target_type'] == 'FILE':
-            path = os.path.dirname(path)
+        path = self.dispatcher.call_sync('share.get_directory_path', share['id'])
         try:
             delete_config(
                 path,
@@ -261,9 +276,7 @@ class UpdateShareTask(Task):
         })
 
         updated_share = self.datastore.get_by_id('shares', id)
-        path = self.dispatcher.call_sync('share.translate_path', updated_share['id'])
-        if updated_share['target_type'] == 'FILE':
-            path = os.path.dirname(path)
+        path = self.dispatcher.call_sync('share.get_directory_path', updated_share['id'])
         save_config(
             path,
             '{0}-{1}'.format(updated_share['type'], updated_share['name']),
@@ -335,9 +348,7 @@ class DeleteShareTask(Task):
     def run(self, name):
         share = self.datastore.get_by_id('shares', name)
 
-        path = self.dispatcher.call_sync('share.translate_path', share['id'])
-        if share['target_type'] == 'FILE':
-            path = os.path.dirname(path)
+        path = self.dispatcher.call_sync('share.get_directory_path', share['id'])
         try:
             delete_config(
                 path,
