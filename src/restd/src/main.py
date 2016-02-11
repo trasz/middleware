@@ -82,6 +82,10 @@ class AuthMiddleware(object):
                 )
             raise falcon.HTTPUnauthorized('Unknown authentication error', str(e))
 
+    def process_response(self, req, resp, resource):
+        if 'client' in req.context:
+            req.context['client'].disconnect()
+
 
 class RESTApi(object):
 
