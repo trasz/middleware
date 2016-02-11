@@ -64,9 +64,9 @@ from ec2 import EC2MetadataServer
 gevent.monkey.patch_all(thread=False)
 
 
-MGMT_ADDR = ipaddress.ip_interface('169.254.16.1/20')
+MGMT_ADDR = ipaddress.ip_interface('172.20.0.1/16')
 MGMT_INTERFACE = 'mgmt0'
-NAT_ADDR = ipaddress.ip_interface('169.254.32.1/20')
+NAT_ADDR = ipaddress.ip_interface('172.21.0.1/16')
 NAT_INTERFACE = 'nat0'
 DEFAULT_CONFIGFILE = '/usr/local/etc/middleware.conf'
 SCROLLBACK_SIZE = 65536
@@ -132,7 +132,7 @@ class VirtualMachine(object):
             if i['type'] == 'VOLUME':
                 if i['properties']['type'] == '9P':
                     args += ['-s', '{0}:0,virtio-9p,{1}={2}'.format(index, i['name'], i['properties']['destination'])]
-                    index + 1
+                    index += 1
 
             if i['type'] == 'NIC':
                 mac = i['properties']['link_address']
