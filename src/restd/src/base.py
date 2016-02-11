@@ -40,6 +40,14 @@ class EntityResource(object):
                         'schema': normalize_schema(get['result-schema']['anyOf'][-1]) if post else None,
                     }
                 },
+                'parameters': [
+                    {
+                        'name': 'data',
+                        'in': 'body',
+                        'required': True,
+                        'schema': normalize_schema(post['schema']),
+                    },
+                ],
                 'produces': [
                     'application/xml',
                     'application/json'
