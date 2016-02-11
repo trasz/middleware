@@ -36,7 +36,7 @@ class JSONTranslator(object):
             return
 
         try:
-            req.context = json.loads(body.decode('utf-8'))
+            req.context['doc'] = json.loads(body.decode('utf-8'))
 
         except (ValueError, UnicodeDecodeError):
             raise falcon.HTTPError(falcon.HTTP_753,

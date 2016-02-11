@@ -55,7 +55,7 @@ class EntityResource(object):
 
     def on_post(self, req, resp):
         try:
-            result = req.context['client'].call_task_sync(self.crud.get_create_method_name(), req.context)
+            result = req.context['client'].call_task_sync(self.crud.get_create_method_name(), req.context['doc'])
         except RpcException as e:
             raise falcon.HTTPBadRequest(e.message, str(e))
         if result['state'] != 'FINISHED':
@@ -128,6 +128,21 @@ class ItemResource(object):
 
     def on_get(self, req, resp, id):
         req.context['result'] = self.get_entry(id)
+
+    def on_put(self, req, resp, id):
+        entry = self.get_entry(id)
+        try:
+            result = req.context['client'].call_task_sync(self.crud.get_update_method_name(), [int(id), req.context['doc']])
+        except RpcException as e:
+            raise falcon.HTTPBadRequest(e.message, str(e))
+        if result['state'] != 'FINISHED':
+            if result['error']:
+                title = result['error']['type']
+                message = result['error']['message']
+            else:
+                title = 'UnknownError'
+                message = 'Failed to update, check task #{0}'.format(result['id'])
+            raise falcon.HTTPBadRequest(title, message)
 
     def on_delete(self, req, resp, id):
         entry = self.get_entry(id)
