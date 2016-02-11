@@ -118,15 +118,12 @@ class AlertsProvider(Provider):
 
     @description("Returns list of registered alerts")
     @accepts()
-    @returns(h.array(h.ref('alert-registration')))
+    @returns(h.ref('alert-registration'))
     def get_registered_alerts(self):
         return registered_alerts
 
     @description("Registers an alert")
-    @accepts(h.all_of(
-        h.ref('alert-registration'),
-        h.required('name'),
-    ))
+    @accepts(str, h.any_of(str, None))
     @returns()
     def register_alert(self, name, verbose_name=None):
         if name not in registered_alerts:
@@ -270,11 +267,14 @@ def _init(dispatcher, plugin):
 
     plugin.register_schema_definition('alert-registration', {
         'type': 'object',
-        'properties': {
-            'name': {'type': 'string'},
-            'verbose_name': {'type': 'string'},
-        },
-        'additionalProperties': False,
+        'additionalProperties': {
+            'type': 'object',
+            'properties': {
+                'name': {'type': 'string'},
+                'verbose_name': {'type': 'string'},
+            },
+            'additionalProperties': False,
+        }
     })
 
     # Register providers
@@ -287,5 +287,25 @@ def _init(dispatcher, plugin):
     plugin.register_task_handler('alert.filter.update', AlertFilterUpdateTask)
 
     # Register event types
-    plugin.register_event_type('alert.changed')
-    plugin.register_event_type('alert.filter.changed')
+    plugin.register_event_type(
+        'alert.changed',
+        schema={
+            'type': 'object',
+            'properties': {
+                'operation': {'type': 'string', 'enum': ['create', 'delete']},
+                'ids': {'type': 'array', 'items': 'integer'},
+            },
+            'additionalProperties': False
+        }
+    )
+    plugin.register_event_type(
+        'alert.filter.changed',
+        schema={
+            'type': 'object',
+            'properties': {
+                'operation': {'type': 'string', 'enum': ['create', 'delete', 'update']},
+                'ids': {'type': 'array', 'items': 'string'},
+            },
+            'additionalProperties': False
+        }
+    )

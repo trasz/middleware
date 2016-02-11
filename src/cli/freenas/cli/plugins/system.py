@@ -27,7 +27,7 @@
 
 from freenas.cli.namespace import (
     Namespace, ConfigNamespace, Command, CommandException, description,
-    RpcBasedLoadMixin, EntityNamespace, IndexCommand
+    RpcBasedLoadMixin, EntityNamespace
 )
 from freenas.cli.output import Table, Object, Sequence, ValueType, format_value
 from freenas.cli.descriptions import events
@@ -57,8 +57,8 @@ class RebootCommand(Command):
 
     Examples: reboot
               reboot delay=1:10.10 (1hour 10 minutes 10 seconds)
-              reboot delay=:10 (10 minutes)
-              reboot delay=:0.10 (10 seconds)
+              reboot delay=0:10 (10 minutes)
+              reboot delay=0:0.10 (10 seconds)
 
     Reboots the system.
     """
@@ -546,7 +546,6 @@ class ConfigDbNamespace(Namespace):
     def commands(self):
         return {
             'factory_restore': FactoryRestoreCommand(),
-            '?': IndexCommand(self)
         }
 
 
@@ -580,11 +579,11 @@ class SystemDatasetNamespace(ConfigNamespace):
         )
 
 
+@description("Replication info")
 class ReplicationNamespace(Namespace):
     def commands(self):
         return {
             'show_key': ShowReplicationKeyCommand(),
-            '?': IndexCommand(self)
         }
 
 

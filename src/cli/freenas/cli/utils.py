@@ -169,7 +169,7 @@ def netmask_to_cidr(entity, netmask):
     elif netmask.isdigit():
         cidr = int(netmask)
 
-    if not (0 <= cidr <= 32):
+    if not (0 <= cidr <= 128):
         raise ValueError(_("Invalid netmask: {0}".format(netmask)))
 
     entity['netmask'] = cidr
@@ -184,9 +184,6 @@ def parse_timedelta(s):
         sec = 0
     else:
         hr, min, sec = time
-
-    if hr == '':
-        hr = 0
 
     sec_delta = int(hr) * 60 * 60 + int(min) * 60 + int(sec)
     delta += timedelta(seconds=sec_delta)

@@ -1,6 +1,6 @@
 PORTNAME?=		${SAMBA4_BASENAME}43
 PORTVERSION?=		${SAMBA4_VERSION}
-PORTREVISION?=		0
+PORTREVISION?=		1
 CATEGORIES?=		net
 MASTER_SITES=		https://github.com/freenas/samba/archive/
 
@@ -456,6 +456,11 @@ PLIST_SUB+=		MODULE_${module:tu}="@comment "
 .endif
 
 .include <bsd.port.pre.mk>
+
+pre-fetch:
+.if exists(${DISTDIR}/${DISTFILES})
+	@rm -f ${DISTDIR}/${DISTFILES}
+.endif
 
 .if !defined(SAMBA4_SUBPORT)
 

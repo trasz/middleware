@@ -100,13 +100,7 @@ class Namespace(object):
                 continue
 
     def commands(self):
-        # lazy import to avoid circular import hell
-        # TODO: can this be avoided? If so please!
-        from .commands import HelpCommand
-        return {
-            '?': IndexCommand(self),
-            'help': HelpCommand(),
-        }
+        return {}
 
     def namespaces(self):
         return self.nslist
@@ -176,38 +170,6 @@ class CommandException(Exception):
             return '{0}'.format(self.message)
         else:
             return '{0}: {1}'.format(errno.errorcode[self.code], self.message)
-
-
-@description("Lists available commands or items in this namespace")
-class IndexCommand(Command):
-    """
-    Usage: ?
-
-    Lists all the possible commands and EntityNamespaces accessible form the
-    current namespace or the one supplied in the arguments. It also always lists
-    the globally avaible builtin set of commands.
-
-    Example:
-    ?
-    volumes ?
-    """
-    def __init__(self, target):
-        self.target = target
-
-    def run(self, context, args, kwargs, opargs):
-        nss = self.target.namespaces()
-        cmds = self.target.commands()
-
-        # Only display builtin items if in the RootNamespace
-        obj = context.ml.get_relative_object(self.exec_path[-1], args)
-        if obj.__class__.__name__ == 'RootNamespace':
-            output_msg('Builtin items:', attrs=['bold'])
-            output_list(sorted(list(context.ml.builtin_commands.keys())))
-
-        output_msg('Current namespace items:', attrs=['bold'])
-        out = sorted(list(cmds.keys()))
-        out += [ns.get_name() for ns in sorted(nss, key=lambda i: i.get_name())]
-        output_list(out)
 
 
 class LongIndexCommand(Command):
@@ -314,8 +276,7 @@ class ItemNamespace(Namespace):
             if len(args) != 0:
                 raise CommandException('Wrong arguments count')
 
-            cols = []
-            values = []
+            values = Object()
             entity = self.parent.entity
 
             for mapping in self.parent.property_mappings:
@@ -326,29 +287,28 @@ class ItemNamespace(Namespace):
                     if not mapping.condition(entity):
                         continue
 
-                value = {
-                    'name': mapping.name,
-                    'descr': mapping.descr,
-                    'value': format_value(mapping.do_get(entity), mapping.type),
-                    'editable': format_value(True if mapping.set and mapping.usersetable else False, ValueType.BOOLEAN)
-                }
+                if mapping.set and mapping.usersetable and self.parent.allow_edit:
+                    editable = True
+                else:
+                    editable = False
+
+                value = Object.Item(
+                    mapping.descr,
+                    mapping.name,
+                    mapping.do_get(entity),
+                    mapping.type,
+                    editable,
+                )
                 values.append(value)
-
-            cols.append(Table.Column("Property", 'name'))
-            cols.append(Table.Column("Description", 'descr'))
-            cols.append(Table.Column("Value", 'value'))
-            cols.append(Table.Column("Editable", 'editable'))
-
-            table = Table(values, cols)
 
             if self.parent.leaf_entity:
                 leaf_res = ListCommand(self.parent).run(context, args, kwargs, opargs, filtering)
                 return Sequence(
-                    table,
+                    values,
                     "-- {0} --".format(self.parent.leaf_ns.description),
                     leaf_res
                 )
-            return table
+            return values
 
     @description("Prints single item value")
     class GetEntityCommand(Command):
@@ -456,12 +416,18 @@ class ItemNamespace(Namespace):
         def complete(self, context):
             return [EnumComplete(0, [p.name for p in self.parent.property_mappings])]
 
-    class DeleteCurrentEntityCommand(Command):
+    @description("Deletes single entity")
+    class DeleteEntityCommand(Command):
+        """
+        Usage: delete
+
+        Deletes current entity
+        """
         def __init__(self, parent):
             self.parent = parent
 
         def run(self, context, args, kwargs, opargs):
-            pass
+            self.parent.parent.delete(self.parent, kwargs)
 
     def __init__(self, name):
         super(ItemNamespace, self).__init__(name)
@@ -478,6 +444,13 @@ class ItemNamespace(Namespace):
 
     def on_enter(self):
         self.load()
+
+    def literalize_value(self, value):
+        if isinstance(value, list):
+            value = [Literal(v, type(v)) for v in value]
+        if isinstance(value, dict):
+            value = {Literal(k, type(k)): Literal(v, type(v)) for k, v in value.items()}
+        return Literal(value, type(value))
 
     def on_leave(self):
         # if self.modified:
@@ -532,26 +505,20 @@ class ItemNamespace(Namespace):
 
     def commands(self):
         base = {
-            '?': IndexCommand(self),
             'get': self.GetEntityCommand(self),
             'show': self.ShowEntityCommand(self),
         }
 
         if self.allow_edit:
-            base.update({
-                'set': self.SetEntityCommand(self),
-            })
+            base['set'] = self.SetEntityCommand(self)
             if self.has_editable_string():
-                base.update({
-                    'edit': self.EditEntityCommand(self)
-                })
-
+                base['edit'] = self.EditEntityCommand(self)
 
         if self.commands is not None:
             base.update(self.subcommands)
 
         return base
-        
+
     def update_commands(self):
         pass
 
@@ -575,8 +542,8 @@ class ConfigNamespace(ItemNamespace):
             return CommandCall([
                 Symbol('set'),
                 BinaryParameter(
-                    Literal(prop.name), '=',
-                    Literal(value, type(value))
+                    prop.name, '=',
+                    self.literalize_value(value)
                 )
             ])
 
@@ -694,10 +661,10 @@ class SingleItemNamespace(ItemNamespace):
 
             value = mapping.do_get(self.entity)
 
-            if mapping.type == ValueType.SET:
+            if mapping.type == ValueType.SET and value is not None:
                 value = list(value)
 
-            ret.args.append(BinaryParameter(Literal(mapping.name, str), '=', Literal(value, type(value))))
+            ret.args.append(BinaryParameter(mapping.name, '=', self.literalize_value(value)))
 
         yield ret
 
@@ -719,8 +686,11 @@ class SingleItemNamespace(ItemNamespace):
             if self.leaf_ns.allow_create:
                 command_set.update({
                     'create': CreateEntityCommand(self),
-                    'delete': DeleteEntityCommand(self),
                 })
+
+        if self.parent.allow_create:
+            command_set['delete'] = self.DeleteEntityCommand(self)
+
         return command_set
 
     def namespaces(self):
@@ -738,7 +708,7 @@ class SingleItemNamespace(ItemNamespace):
 
 
 @description("Lists <entity>s")
-class ListCommand(FilteringCommand):
+class BaseListCommand(FilteringCommand):
     """
     Usage: show
 
@@ -816,6 +786,15 @@ class ListCommand(FilteringCommand):
             cols.append(Table.Column(col.descr, col.do_get, col.type))
 
         return Table(self.parent.query(params, options), cols)
+
+
+@description("Lists <entity>s")
+class ListCommand(BaseListCommand):
+    def run(self, context, args, kwargs, opargs, filtering=None):
+        if args or kwargs or opargs:
+            raise CommandException(_('"show" command doesn\'t take any arguments'))
+
+        return super(ListCommand, self).run(context, args, kwargs, opargs, filtering)
 
 
 @description("Creates new <entity>")
@@ -900,26 +879,6 @@ class CreateEntityCommand(Command):
         return [create_completer(x) for x in self.parent.property_mappings if x.set]
 
 
-@description("Removes <entity>")
-class DeleteEntityCommand(Command):
-    """
-    Usage: delete <primary-key>
-
-    Examples:
-        delete thisthing
-    """
-    def __init__(self, parent):
-        if hasattr(parent, 'leaf_entity') and parent.leaf_entity:
-            self.parent = parent.leaf_ns
-        else:
-            self.parent = parent
-
-    def run(self, context, args, kwargs, opargs):
-        if len(args) == 0:
-            raise CommandException(_("Please specify item to delete."))
-        self.parent.delete(args[0], kwargs)
-
-
 class EntityNamespace(Namespace):
     def __init__(self, name, context):
         super(EntityNamespace, self).__init__(name)
@@ -959,7 +918,6 @@ class EntityNamespace(Namespace):
 
     def commands(self):
         base = {
-            '?': IndexCommand(self),
             'show': ListCommand(self)
         }
 
@@ -968,8 +926,7 @@ class EntityNamespace(Namespace):
 
         if self.allow_create:
             base.update({
-                'create': CreateEntityCommand(self),
-                'delete': DeleteEntityCommand(self)
+                'create': CreateEntityCommand(self)
             })
 
         return base
@@ -1005,6 +962,15 @@ class EntitySubscriberBasedLoadMixin(object):
         self.primary_key_name = 'id'
         self.entity_subscriber_name = None
         self.extra_query_params = []
+
+    def on_enter(self, *args, **kwargs):
+        super(EntitySubscriberBasedLoadMixin, self).on_enter(*args, **kwargs)
+        self.context.entity_subscribers[self.entity_subscriber_name].on_delete = self.on_delete
+
+    def on_delete(self, entity):
+        cwd = self.context.ml.cwd
+        if isinstance(cwd, SingleItemNamespace) and cwd.parent == self and cwd.name == entity[self.primary_key_name]:
+            self.context.ml.cd_up()
 
     def query(self, params, options):
         if not params and not options:
@@ -1043,12 +1009,8 @@ class TaskBasedSaveMixin(object):
             this.get_diff(),
             callback=lambda s: post_save(this, s))
 
-    def delete(self, name, kwargs):
-        entity = self.get_one(name)
-        if entity:
-            self.context.submit_task(self.delete_task, entity[self.save_key_name])
-        else:
-            output_msg("Cannot delete {0}, item does not exist".format(name))
+    def delete(self, this, kwargs):
+        self.context.submit_task(self.delete_task, this.entity[self.save_key_name])
 
 
 class NestedObjectLoadMixin(object):
@@ -1083,9 +1045,9 @@ class NestedObjectSaveMixin(object):
 
         self.parent.save()
 
-    def delete(self, name, kwargs):
+    def delete(self, this, kwargs):
         self.parent.entity[self.parent_path] = list(filter(
-            lambda i: i[self.primary_key_name] != name,
+            lambda i: i[self.primary_key_name] != this.entity[self.primary_key_name],
             self.parent.entity[self.parent_path]
         ))
 

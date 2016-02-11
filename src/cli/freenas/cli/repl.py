@@ -46,7 +46,6 @@ import six
 import paramiko
 import inspect
 import re
-import itertools
 from six.moves.urllib.parse import urlparse
 from socket import gaierror as socket_error
 from freenas.cli.descriptions import events
@@ -58,13 +57,13 @@ from freenas.cli.namespace import (
     Namespace, RootNamespace, Command, FilteringCommand, PipeCommand, CommandException
 )
 from freenas.cli.parser import (
-    parse, Symbol, Literal, BinaryParameter, UnaryExpr, BinaryExpr, PipeExpr, AssignmentStatement,
+    parse, unparse, Symbol, Literal, BinaryParameter, UnaryExpr, BinaryExpr, PipeExpr, AssignmentStatement,
     IfStatement, ForStatement, WhileStatement, FunctionCall, CommandCall, Subscript,
-    ExpressionExpansion, FunctionDefinition, ReturnStatement, BreakStatement, UndefStatement,
-    Redirection, AnonymousFunction
+    ExpressionExpansion, CommandExpansion, FunctionDefinition, ReturnStatement, BreakStatement,
+    UndefStatement, Redirection, AnonymousFunction
 )
 from freenas.cli.output import (
-    ValueType, ProgressBar, output_lock, output_msg, read_value, format_value,
+    ValueType, ProgressBar, Sequence, output_lock, output_msg, read_value, format_value,
     format_output, output_msg_locked, refresh_prompt
 )
 from freenas.dispatcher.client import Client, ClientError
@@ -78,7 +77,7 @@ from freenas.cli.commands import (
     SaveenvCommand, EchoCommand, SourceCommand, MorePipeCommand, SearchPipeCommand,
     ExcludePipeCommand, SortPipeCommand, LimitPipeCommand, SelectPipeCommand,
     LoginCommand, DumpCommand, WhoamiCommand, PendingCommand, WaitCommand,
-    OlderThanPipeCommand, NewerThanPipeCommand
+    OlderThanPipeCommand, NewerThanPipeCommand, IndexCommand
 )
 import collections
 
@@ -328,6 +327,9 @@ class Context(object):
         self.builtin_operators = functions.operators
         self.builtin_functions = functions.functions
         self.global_env = Environment(self)
+        self.global_env['_cli_src_path'] = Environment.Variable(
+            os.path.dirname(os.path.realpath(__file__))
+        )
         self.user = None
         self.pending_tasks = QueryDict()
         self.session_id = None
@@ -472,9 +474,7 @@ class Context(object):
             if hasattr(sys, '_MEIPASS'):
                 plug_dirs = os.path.join(sys._MEIPASS, 'freenas/cli/plugins')
             else:
-                plug_dirs = os.path.join(
-                    os.path.dirname(os.path.realpath(__file__)), 'plugins'
-                )
+                plug_dirs = os.path.join(self.global_env.find('_cli_src_path').value, 'plugins')
             self.plugin_dirs += [plug_dirs]
 
     def discover_plugins(self):
@@ -764,7 +764,7 @@ class Environment(dict):
         if var in self:
             return self[var]
 
-        if self.outer:
+        if self.outer is not None:
             return self.outer.find(var)
 
         if var in self.context.builtin_functions:
@@ -786,6 +786,7 @@ class MainLoop(object):
         'newer_than': NewerThanPipeCommand()
     }
     base_builtin_commands = {
+        '?': IndexCommand(),
         'login': LoginCommand(),
         'exit': ExitCommand(),
         'setenv': SetenvCommand(),
@@ -817,6 +818,7 @@ class MainLoop(object):
         self.namespaces = []
         self.connection = None
         self.skip_prompt_print = False
+        self.saved_state = None
         self.cached_values = {
             'rel_cwd': None,
             'rel_tokens': None,
@@ -897,10 +899,21 @@ class MainLoop(object):
     def path_string(self):
         return ' '.join([str(x.get_name()) for x in self.path[1:]])
 
+    def input(self, prompt=None):
+        if not prompt:
+            prompt = self.__get_prompt()
+
+        line = six.moves.input(prompt).strip()
+
+        if line:
+            readline.remove_history_item(readline.get_current_history_length() - 1)
+
+        return line
+
     def repl(self):
         readline.parse_and_bind('tab: complete')
         readline.set_completer(self.complete)
-        readline.set_completer_delims(' \t\n`~!@#$%^&*()-=+[{]}\\|;:\',<>?')
+        readline.set_completer_delims(' \t\n`~!@#$%^&*()=+[{]}\\|;:\',<>?')
 
         self.greet()
         a = ShowUrlsCommand()
@@ -911,7 +924,7 @@ class MainLoop(object):
 
         while True:
             try:
-                line = six.moves.input(self.__get_prompt()).strip()
+                line = self.input()
             except EOFError:
                 six.print_()
                 return
@@ -998,6 +1011,9 @@ class MainLoop(object):
 
             if isinstance(token, UnaryExpr):
                 expr = self.eval(token.expr, env)
+                if token.op == '-':
+                    return -expr
+
                 return self.context.builtin_operators[token.op](expr)
 
             if isinstance(token, BinaryExpr):
@@ -1006,11 +1022,15 @@ class MainLoop(object):
                 return self.context.builtin_operators[token.op](left, right)
 
             if isinstance(token, Literal):
+
+                if token.type in six.string_types:
+                    return token.value.replace('\\\"', '"')
+
                 if token.type is list:
                     return [self.eval(i, env) for i in token.value]
 
                 if token.type is dict:
-                    return {k: self.eval(v, env) for k, v in token.value.items()}
+                    return {self.eval(k, env): self.eval(v, env) for k, v in token.value.items()}
 
                 return token.value
 
@@ -1035,7 +1055,7 @@ class MainLoop(object):
                 raise SyntaxError(_('{0} not found'.format(token.name)))
 
             if isinstance(token, AssignmentStatement):
-                expr = self.eval(token.expr, env)
+                expr = self.eval(token.expr, env, first=first)
 
                 try:
                     self.context.variables.variables[token.name]
@@ -1119,8 +1139,8 @@ class MainLoop(object):
                 del env[token.name]
                 return
 
-            if isinstance(token, ExpressionExpansion):
-                expr = self.eval(token.expr, env)
+            if isinstance(token, (ExpressionExpansion, CommandExpansion)):
+                expr = self.eval(token.expr, env, first=first)
                 return expr
 
             if isinstance(token, CommandCall):
@@ -1159,48 +1179,59 @@ class MainLoop(object):
                             self.start_from_root = True
                             return self.eval(token, env, path=path, dry_run=dry_run)
 
+                    if isinstance(top, ExpressionExpansion):
+                        top = Symbol(self.eval(top, env, path=path))
+
                     if isinstance(top, Literal):
-                        top = Symbol(top.value)
-
-                    item = self.eval(top, env, path=path)
-
-                    if isinstance(item, (six.string_types, int, bool)):
-                        item = self.eval(Symbol(item), env, path=path)
-
-                    if isinstance(item, Namespace):
-                        item.on_enter()
-                        return self.eval(token, env, path=path+[item], dry_run=dry_run)
-
-                    if isinstance(item, Command):
-                        completions = item.complete(self.context)
-                        token_args = convert_to_literals(token.args)
-                        args, kwargs, opargs = expand_wildcards(
-                            self.context,
-                            *sort_args([self.eval(i, env) for i in token_args]),
-                            completions=completions
+                        matching = list(map(
+                            lambda ns: Symbol(ns.get_name()),
+                            filter(lambda ns: re.match(str(top.value), str(ns.get_name())), cwd.namespaces()))
                         )
+                    else:
+                        matching = [top]
 
-                        item.exec_path = path if len(path) >= 1 else self.path
-                        if dry_run:
-                            return item, cwd, args, kwargs, opargs
+                    resultset = Sequence()
 
-                        if isinstance(item, PipeCommand):
-                            if first:
-                                raise CommandException(_('Invalid usage.\n{0}'.format(inspect.getdoc(item))))
-                            if serialize_filter:
-                                ret = item.serialize_filter(self.context, args, kwargs, opargs)
-                                if ret is not None:
-                                    if 'filter' in ret:
-                                        serialize_filter['filter'] += ret['filter']
+                    for i in matching:
+                        item = self.eval(i, env, path=path)
 
-                                    if 'params' in ret:
-                                        serialize_filter['params'].update(ret['params'])
+                        if isinstance(item, Namespace):
+                            item.on_enter()
+                            resultset.append_flat(self.eval(token, env, path=path+[item], dry_run=dry_run))
 
-                            result = item.run(self.context, args, kwargs, opargs, input=input_data)
-                            return PrintableNone.coerce(result) if not printable_none else result
+                        if isinstance(item, Command):
+                            completions = item.complete(self.context)
+                            token_args = convert_to_literals(token.args)
+                            args, kwargs, opargs = expand_wildcards(
+                                self.context,
+                                *sort_args([self.eval(i, env) for i in token_args]),
+                                completions=completions
+                            )
 
-                        result = item.run(self.context, args, kwargs, opargs)
-                        return PrintableNone.coerce(result) if not printable_none else result
+                            item.exec_path = path if len(path) >= 1 else self.path
+                            if dry_run:
+                                resultset.append((item, cwd, args, kwargs, opargs))
+                                continue
+
+                            if isinstance(item, PipeCommand):
+                                if first:
+                                    raise CommandException(_('Invalid usage.\n{0}'.format(inspect.getdoc(item))))
+                                if serialize_filter:
+                                    ret = item.serialize_filter(self.context, args, kwargs, opargs)
+                                    if ret is not None:
+                                        if 'filter' in ret:
+                                            serialize_filter['filter'] += ret['filter']
+
+                                        if 'params' in ret:
+                                            serialize_filter['params'].update(ret['params'])
+
+                                result = item.run(self.context, args, kwargs, opargs, input=input_data)
+                                resultset.append(PrintableNone.coerce(result) if not printable_none else result)
+
+                            result = item.run(self.context, args, kwargs, opargs)
+                            resultset.append(PrintableNone.coerce(result) if not printable_none else result)
+
+                    return resultset.unwind(dry_run)
                 except BaseException as err:
                     success = False
                     raise err
@@ -1217,7 +1248,9 @@ class MainLoop(object):
                     if isinstance(func, Environment.Variable):
                         func = func.value
 
-                    self.context.call_stack.append(CallStackEntry(func.name, args, token.file, token.line, token.column))
+                    self.context.call_stack.append(
+                        CallStackEntry(func.name, args, token.file, token.line, token.column)
+                    )
                     result = func(*args)
                     self.context.call_stack.pop()
                     return result
@@ -1242,26 +1275,31 @@ class MainLoop(object):
                     self.eval(token.right, env, path, serialize_filter=serialize_filter)
                     return
 
-                cmd, cwd, args, kwargs, opargs = self.eval(token.left, env, path, dry_run=True, first=first)
-                cwd.on_enter()
-                self.context.pipe_cwd = cwd
-                if isinstance(cmd, FilteringCommand):
-                    # Do serialize_filter pass
-                    filt = {"filter": [], "params": {}}
-                    self.eval(token.right, env, path, serialize_filter=filt)
-                    result = cmd.run(self.context, args, kwargs, opargs, filtering=filt)
-                elif isinstance(cmd, PipeCommand):
-                    result = cmd.run(self.context, args, kwargs, opargs, input=input_data)
-                else:
-                    result = cmd.run(self.context, args, kwargs, opargs)
+                cmds = self.eval(token.left, env, path, dry_run=True, first=first)
+                resultset = Sequence()
 
-                result = PrintableNone.coerce(result)
-                ret = self.eval(token.right, input_data=result)
-                self.context.pipe_cwd = None
-                if ret is None:
-                    return result
-                else:
-                    return ret
+                for cmd, cwd, args, kwargs, opargs in cmds:
+                    cwd.on_enter()
+                    self.context.pipe_cwd = cwd
+                    if isinstance(cmd, FilteringCommand):
+                        # Do serialize_filter pass
+                        filt = {"filter": [], "params": {}}
+                        self.eval(token.right, env, path, serialize_filter=filt)
+                        result = cmd.run(self.context, args, kwargs, opargs, filtering=filt)
+                    elif isinstance(cmd, PipeCommand):
+                        result = cmd.run(self.context, args, kwargs, opargs, input=input_data)
+                    else:
+                        result = cmd.run(self.context, args, kwargs, opargs)
+
+                    result = PrintableNone.coerce(result)
+                    ret = self.eval(token.right, input_data=result)
+                    self.context.pipe_cwd = None
+                    if ret is None:
+                        resultset.append(result)
+                    else:
+                        resultset.append(ret)
+
+                return resultset.unwind()
 
             if isinstance(token, Redirection):
                 with open(token.path, 'a+') as f:
@@ -1292,13 +1330,21 @@ class MainLoop(object):
             return
 
         try:
-            tokens = parse(line, '<stdin>')
+            try:
+                tokens = parse(line, '<stdin>')
+            except KeyboardInterrupt:
+                return
+
             if not tokens:
                 return
+
+            # Unparse AST to string and add to readline history
+            readline.add_history('; '.join(unparse(t, oneliner=True) for t in tokens))
 
             first = True
             for i in tokens:
                 try:
+                    self.context.call_stack = []
                     ret = self.eval(i, first=first, printable_none=True)
                     first = False
                 except SystemExit as err:
@@ -1378,78 +1424,85 @@ class MainLoop(object):
         return ptr
 
     def complete(self, text, state):
-        def find_arg(args, index):
-            positional_index = 0
-            for a in args:
-                if isinstance(a, (Literal, Symbol)):
-                    if a.column <= index <= a.column_end:
-                        return positional_index
+        if state == 0:
+            def find_arg(args, index):
+                positional_index = 0
+                for a in args:
+                    if isinstance(a, (Literal, Symbol)):
+                        if a.column <= index <= a.column_end:
+                            return positional_index
 
-                    positional_index += 1
+                        positional_index += 1
 
-                if isinstance(a, BinaryParameter):
-                    if a.column + len(a.left) + 1 <= index <= a.column_end:
-                        return a
+                    if isinstance(a, BinaryParameter):
+                        if a.column + len(a.left) + 1 <= index <= a.column_end:
+                            return a
 
-                    if a.column <= index <= a.column + len(a.left) + 1:
-                        return False
+                        if a.column <= index <= a.column + len(a.left) + 1:
+                            return False
 
-            return positional_index
+                return positional_index
 
-        try:
-            readline_buffer = readline.get_line_buffer()
-            token = None
-            append_space = False
-            args = []
-            builtin_command_set = list(self.base_builtin_commands.keys())
+            try:
+                readline_buffer = readline.get_line_buffer()
+                token = None
+                append_space = False
+                args = []
+                builtin_command_set = list(self.base_builtin_commands.keys())
+                self.saved_state = None
 
-            if len(readline_buffer.strip()) > 0:
-                tokens = parse(readline_buffer, '<stdin>', True)
-                if tokens:
-                    token = tokens.pop(-1)
-                    if isinstance(token, PipeExpr):
-                        token = token.right
-                        builtin_command_set = list(self.pipe_commands.keys())
+                if len(readline_buffer.strip()) > 0:
+                    tokens = parse(readline_buffer, '<stdin>', True)
+                    if tokens:
+                        token = tokens.pop(-1)
+                        if isinstance(token, PipeExpr):
+                            token = token.right
+                            builtin_command_set = list(self.pipe_commands.keys())
 
-                    args = token.args
+                        args = token.args
 
-            if isinstance(token, CommandCall) or not args:
-                obj = self.get_relative_object(self.cwd, args)
-            else:
-                return None
-
-            if issubclass(type(obj), Namespace):
-                choices = [str(i.get_name()) for i in obj.namespaces()]
-                choices += obj.commands().keys()
-                choices += builtin_command_set + ['..', '/', '-']
-                append_space = True
-            elif issubclass(type(obj), Command):
-                completions = obj.complete(self.context)
-                choices = [c.name for c in completions if isinstance(c.name, six.string_types)]
-                arg = find_arg(args, readline.get_begidx())
-
-                if arg is False:
-                    return None
-                elif isinstance(arg, six.integer_types):
-                    completion = first_or_default(lambda c: c.name == arg, completions)
-                    if completion:
-                        choices = completion.choices(self.context, None)
-                elif isinstance(arg, BinaryParameter):
-                    completion = first_or_default(lambda c: c.name == arg.left + '=', completions)
-                    if completion:
-                        choices = completion.choices(self.context, arg)
+                if isinstance(token, CommandCall) or not args:
+                    obj = self.get_relative_object(self.cwd, args)
                 else:
-                    raise AssertionError('Unknown arg returned by find_arg()')
-            else:
-                choices = []
+                    return None
 
-            options = [i + (' ' if append_space else '') for i in choices if i.startswith(text)]
-            if state < len(options):
-                return options[state]
-            else:
-                return None
-        except BaseException as err:
-            output_msg_locked(str(err))
+                if issubclass(type(obj), Namespace):
+                    choices = [str(i.get_name()) for i in obj.namespaces()]
+                    choices += obj.commands().keys()
+                    choices += builtin_command_set + ['..', '/', '-']
+                    append_space = True
+                elif issubclass(type(obj), Command):
+                    completions = obj.complete(self.context)
+                    choices = [c.name for c in completions if isinstance(c.name, six.string_types)]
+                    arg = find_arg(args, readline.get_begidx())
+
+                    if arg is False:
+                        return None
+                    elif isinstance(arg, six.integer_types):
+                        completion = first_or_default(lambda c: c.name == arg, completions)
+                        if completion:
+                            choices = completion.choices(self.context, None)
+                    elif isinstance(arg, BinaryParameter):
+                        completion = first_or_default(lambda c: c.name == arg.left + '=', completions)
+                        if completion:
+                            choices = completion.choices(self.context, arg)
+                    else:
+                        raise AssertionError('Unknown arg returned by find_arg()')
+                else:
+                    choices = []
+
+                options = [i + (' ' if append_space else '') for i in choices if i.startswith(text)]
+                self.saved_state = options
+                if options:
+                    return options[0]
+            except BaseException as err:
+                output_msg_locked(str(err))
+        else:
+            if self.saved_state:
+                if state < len(self.saved_state):
+                    return self.saved_state[state]
+                else:
+                    return None
 
     def sigint(self):
         pass

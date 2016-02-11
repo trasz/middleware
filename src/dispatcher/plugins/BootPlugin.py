@@ -29,14 +29,19 @@ import os
 import sys
 import errno
 from freenas.utils.query import wrap
-from task import Provider, Task, ProgressTask, VerifyException, TaskException
+from task import Provider, Task, ProgressTask, VerifyException, TaskException, query
 from freenas.dispatcher.rpc import accepts, returns, description, SchemaHelper as h
 
 sys.path.append('/usr/local/lib')
-from freenasOS.Update import ListClones, FindClone, RenameClone, ActivateClone, DeleteClone, CreateClone
+from freenasOS.Update import (
+    ListClones, FindClone, RenameClone, ActivateClone, DeleteClone, CreateClone
+)
 
 
+@description("Provides information on Boot Environments")
 class BootEnvironmentsProvider(Provider):
+
+    @query('boot-environment')
     def query(self, filter=None, params=None):
         def extend(obj):
             nr = obj['active']

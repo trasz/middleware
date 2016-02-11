@@ -28,6 +28,7 @@
 import os
 import copy
 import gettext
+import six
 from freenas.cli.namespace import (
     EntityNamespace, Command, CommandException, SingleItemNamespace,
     EntitySubscriberBasedLoadMixin, TaskBasedSaveMixin, description
@@ -398,17 +399,17 @@ class ImportFromVolumeCommand(Command):
 @description("Detaches given volume")
 class DetachVolumeCommand(Command):
     """
-    Usage: detach <name>
+    Usage: detach
 
     Example: detach mypool
 
     Detaches a volume.
     """
-    def run(self, context, args, kwargs, opargs):
-        if len(args) < 1:
-            raise CommandException('Not enough arguments passed')
+    def __init__(self, parent):
+        self.parent = parent
 
-        result = context.call_task_sync('volume.detach', args[0])
+    def run(self, context, args, kwargs, opargs):
+        result = context.call_task_sync('volume.detach', self.parent.name)
         if result.get('result', None) is not None:
             return Sequence("Detached volume {0} was encrypted!".format(args[0]),
                             "You must save user key listed below to be able to import volume in the future",
@@ -1076,7 +1077,7 @@ class CreateVolumeCommand(Command):
             raise CommandException(_("Please specify one or more disks using the disks property"))
         else:
             disks = kwargs.pop('disks')
-            if isinstance(disks, str):
+            if isinstance(disks, six.string_types):
                 disks = [disks]
 
         if read_value(kwargs.pop('encryption', False), ValueType.BOOLEAN) is True:
@@ -1088,9 +1089,13 @@ class CreateVolumeCommand(Command):
 
         cache_disks = kwargs.pop('cache', [])
         log_disks = kwargs.pop('log', [])
-        if isinstance(cache_disks, str):
+        if cache_disks is None:
+            cache_disks = []
+        if log_disks is None:
+            log_disks = []
+        if isinstance(cache_disks, six.string_types):
             cache_disks = [cache_disks]
-        if isinstance(log_disks, str):
+        if isinstance(log_disks, six.string_types):
             log_disks = [log_disks]
 
         ns = SingleItemNamespace(None, self.parent)
@@ -1242,8 +1247,8 @@ class VolumesNamespace(TaskBasedSaveMixin, EntitySubscriberBasedLoadMixin, Entit
             set=None)
 
         self.add_property(
-            descr='Providers presence',
-            name='providers_presence',
+            descr='Providers',
+            name='providers',
             get='providers_presence',
             type=ValueType.STRING,
             set=None)
@@ -1283,11 +1288,9 @@ class VolumesNamespace(TaskBasedSaveMixin, EntitySubscriberBasedLoadMixin, Entit
             'find': FindVolumesCommand(),
             'find_media': FindMediaCommand(),
             'import': ImportVolumeCommand(),
-            'detach': DetachVolumeCommand(),
         }
 
         self.entity_commands = self.get_entity_commands
-
         self.entity_namespaces = lambda this: [
             DatasetsNamespace('dataset', self.context, this),
             SnapshotsNamespace('snapshot', self.context, this)
@@ -1309,7 +1312,8 @@ class VolumesNamespace(TaskBasedSaveMixin, EntitySubscriberBasedLoadMixin, Entit
             'offline': OfflineVdevCommand(this),
             'online': OnlineVdevCommand(this),
             'extend_vdev': ExtendVdevCommand(this),
-            'import': ImportFromVolumeCommand(this)
+            'import': ImportFromVolumeCommand(this),
+            'detach': DetachVolumeCommand(this)
         }
 
         if this.entity is not None:

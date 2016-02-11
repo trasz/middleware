@@ -34,6 +34,7 @@ from freenas.utils import normalize
 from utils import split_dataset, save_config, load_config, delete_config
 
 
+@description("Provides information on shares")
 class SharesProvider(Provider):
     @query('share')
     def query(self, filter=None, params=None):
@@ -53,7 +54,8 @@ class SharesProvider(Provider):
         return self.datastore.query('shares', *(filter or []), callback=extend, **(params or {}))
 
     @description("Returns list of supported sharing providers")
-    @returns(h.array(str))
+    @accepts()
+    @returns(h.ref('share-types'))
     def supported_types(self):
         result = {}
         for p in list(self.dispatcher.plugins.values()):
@@ -77,7 +79,7 @@ class SharesProvider(Provider):
 
     @description("Get shares dependent on provided filesystem path")
     @accepts(str)
-    @returns(h.array('share'))
+    @returns(h.array(h.ref('share')))
     def get_dependencies(self, path):
         result = []
         for i in self.datastore.query('shares', ('enabled', '=', True)):
@@ -89,7 +91,7 @@ class SharesProvider(Provider):
 
     @description("Get shares related to provided filesystem path. Includes disabled shares")
     @accepts(str)
-    @returns(h.array('share'))
+    @returns(h.array(h.ref('share')))
     def get_related(self, path):
         result = []
         for i in self.datastore.query('shares'):
@@ -112,6 +114,25 @@ class SharesProvider(Provider):
 
         if share['target_type'] in ('DIRECTORY', 'FILE'):
             return share['target_path']
+
+        raise RpcException(errno.EINVAL, 'Invalid share target type {0}'.format(share['target_type']))
+
+    @private
+    def get_directory_path(self, share_id):
+        root = self.dispatcher.call_sync('volume.get_volumes_root')
+        share = self.datastore.get_by_id('shares', share_id)
+
+        if share['target_type'] == 'DATASET':
+            return os.path.join(root, share['target_path'])
+
+        if share['target_type'] == 'ZVOL':
+            return os.path.dirname(os.path.join(root, share['target_path']))
+
+        if share['target_type'] == 'DIRECTORY':
+            return share['target_path']
+
+        if share['target_type'] == 'FILE':
+            return os.path.dirname(share['target_path'])
 
         raise RpcException(errno.EINVAL, 'Invalid share target type {0}'.format(share['target_type']))
 
@@ -196,9 +217,7 @@ class CreateShareTask(Task):
         })
 
         new_share = self.datastore.get_by_id('shares', ids[0])
-        path = self.dispatcher.call_sync('share.translate_path', new_share['id'])
-        if new_share['target_type'] == 'FILE':
-            path = os.path.dirname(path)
+        path = self.dispatcher.call_sync('share.get_directory_path', new_share['id'])
         save_config(
             path,
             '{0}-{1}'.format(new_share['type'], new_share['name']),
@@ -221,9 +240,7 @@ class UpdateShareTask(Task):
     def run(self, id, updated_fields):
         share = self.datastore.get_by_id('shares', id)
 
-        path = self.dispatcher.call_sync('share.translate_path', share['id'])
-        if share['target_type'] == 'FILE':
-            path = os.path.dirname(path)
+        path = self.dispatcher.call_sync('share.get_directory_path', share['id'])
         try:
             delete_config(
                 path,
@@ -259,9 +276,7 @@ class UpdateShareTask(Task):
         })
 
         updated_share = self.datastore.get_by_id('shares', id)
-        path = self.dispatcher.call_sync('share.translate_path', updated_share['id'])
-        if updated_share['target_type'] == 'FILE':
-            path = os.path.dirname(path)
+        path = self.dispatcher.call_sync('share.get_directory_path', updated_share['id'])
         save_config(
             path,
             '{0}-{1}'.format(updated_share['type'], updated_share['name']),
@@ -333,9 +348,7 @@ class DeleteShareTask(Task):
     def run(self, name):
         share = self.datastore.get_by_id('shares', name)
 
-        path = self.dispatcher.call_sync('share.translate_path', share['id'])
-        if share['target_type'] == 'FILE':
-            path = os.path.dirname(path)
+        path = self.dispatcher.call_sync('share.get_directory_path', share['id'])
         try:
             delete_config(
                 path,
@@ -415,6 +428,18 @@ def _init(dispatcher, plugin):
         }
     })
 
+    plugin.register_schema_definition('share-types', {
+        'type': 'object',
+        'additionalProperties': {
+            'type': 'object',
+            'properties': {
+                'subtype': {'type': 'string'},
+                'perm_type': {'type': 'string'}
+            },
+            'additionalProperties': False
+        }
+    })
+
     def volume_pre_destroy(args):
         path = dispatcher.call_sync('volume.resolve_path', args['name'], '')
         dispatcher.call_task_sync('share.delete_dependent', path)
@@ -451,14 +476,32 @@ def _init(dispatcher, plugin):
         return True
 
     dispatcher.require_collection('share', 'string')
+
+    # Register providers
     plugin.register_provider('share', SharesProvider)
+
+    # Register task handlers
     plugin.register_task_handler('share.create', CreateShareTask)
     plugin.register_task_handler('share.update', UpdateShareTask)
     plugin.register_task_handler('share.delete', DeleteShareTask)
     plugin.register_task_handler('share.import', ImportShareTask)
     plugin.register_task_handler('share.delete_dependent', DeleteDependentShares)
     plugin.register_task_handler('share.update_related', UpdateRelatedShares)
-    plugin.register_event_type('share.changed')
+
+    # Register Event Types
+    plugin.register_event_type(
+        'share.changed',
+        schema={
+            'type': 'object',
+            'properties': {
+                'operation': {'type': 'string', 'enum': ['create', 'delete', 'update']},
+                'ids': {'type': 'array', 'items': 'string'},
+            },
+            'additionalProperties': False
+        }
+    )
+
+    # Register Hooks
     plugin.attach_hook('volume.pre_destroy', volume_pre_destroy)
     plugin.attach_hook('volume.pre_detach', volume_detach)
     plugin.attach_hook('volume.post_attach', volume_attach)

@@ -352,10 +352,15 @@ class Client(object):
             self.event_thread = spawn_thread(target=self.__event_emitter, args=())
             self.event_thread.start()
 
-    def login_user(self, username, password, timeout=None):
+    def login_user(self, username, password, timeout=None, check_password=False, resource=None):
         call = self.PendingCall(uuid.uuid4(), 'auth')
         self.pending_calls[str(call.id)] = call
-        self.__call(call, call_type='auth', custom_payload={'username': username, 'password': password})
+        self.__call(call, call_type='auth', custom_payload={
+            'username': username,
+            'password': password,
+            'check_password': check_password,
+            'resource': resource
+        })
         self.wait_for_call(call, timeout)
         if call.error:
             raise rpc.RpcException(obj=call.error)
@@ -383,6 +388,7 @@ class Client(object):
 
     def disconnect(self):
         debug_log('Closing connection, local address {0}', self.transport.address)
+        self.drop_pending_calls()
         self.transport.close()
 
     def enable_server(self):

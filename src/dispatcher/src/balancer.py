@@ -25,6 +25,7 @@
 #
 #####################################################################
 
+import os
 import gevent
 import logging
 import traceback
@@ -195,6 +196,7 @@ class TaskExecutor(object):
                 self.proc = Popen(
                     [TASKWORKER_PATH, self.key],
                     close_fds=True,
+                    preexec_fn=os.setpgrp,
                     stdout=subprocess.PIPE,
                     stderr=subprocess.STDOUT)
 

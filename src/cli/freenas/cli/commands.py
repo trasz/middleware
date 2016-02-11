@@ -379,6 +379,8 @@ class HelpCommand(Command):
                 if hasattr(obj, 'property_mappings'):
                     prop_dict_list = []
                     for prop in obj.property_mappings:
+                        if prop.condition and hasattr(obj, 'entity') and not prop.condition(obj.entity):
+                            continue
                         if prop.usage:
                             prop_usage = prop.usage
                         else:
@@ -392,7 +394,7 @@ class HelpCommand(Command):
                                 prop_usage = "{0}, accepts {1} values".format(prop.descr, prop_type)
                         prop_dict = {
                                 'propname': prop.name,
-                                'propusage': prop_usage
+                                'propusage': ' '.join(prop_usage.split())
                         }
                         prop_dict_list.append(prop_dict)
                 if len(prop_dict_list) > 0:
@@ -414,11 +416,7 @@ class HelpCommand(Command):
 
         if isinstance(obj, Namespace):
             # First listing the Current Namespace's commands
-            cmd_dict_list = [
-                {"cmd": "/", "description": "Go to the root namespace"},
-                {"cmd": "..", "description": "Go up one namespace"},
-                {"cmd": "-", "description": "Go back to previous namespace"}
-            ]
+            cmd_dict_list = []
             ns_cmds = obj.commands()
             for key, value in ns_cmds.items():
                 if hasattr(value,'description') and value.description is not None:
@@ -438,7 +436,7 @@ class HelpCommand(Command):
             for nss in obj.namespaces():
                 if not isinstance(nss, SingleItemNamespace):
                     if hasattr(nss,'description') and nss.description is not None:
-                        description = value.description
+                        description = nss.description
                     else:
                         description = nss.name
                     namespace_dict = {
@@ -448,7 +446,11 @@ class HelpCommand(Command):
                     cmd_dict_list.append(namespace_dict)
 
             # Finally listing the builtin cmds
-            builtin_cmd_dict_list = []
+            builtin_cmd_dict_list = [
+                {"cmd": "/", "description": "Go to the root namespace"},
+                {"cmd": "..", "description": "Go up one namespace"},
+                {"cmd": "-", "description": "Go back to previous namespace"}
+            ]
             for key, value in context.ml.builtin_commands.items():
                 if hasattr(value,'description') and value.description is not None:
                     description = value.description
@@ -481,6 +483,44 @@ class HelpCommand(Command):
                 help_message = obj.entity_doc()
             output_seq.append(help_message)
             return output_seq
+
+
+@description("Lists available commands or items in this namespace")
+class IndexCommand(Command):
+    """
+    Usage: ?
+
+    Lists all the possible commands and EntityNamespaces accessible form the
+    current namespace or the one supplied in the arguments. It also always lists
+    the globally avaible builtin set of commands.
+
+    Example:
+    ?
+    volumes ?
+    """
+
+    def run(self, context, args, kwargs, opargs):
+        obj = context.ml.get_relative_object(self.exec_path[-1], args)
+        nss = obj.namespaces()
+        cmds = obj.commands()
+
+        # Only display builtin items if in the RootNamespace
+        obj = context.ml.get_relative_object(self.exec_path[-1], args)
+        outseq = None
+        if obj.__class__.__name__ == 'RootNamespace':
+            outseq = Sequence(_("Builtin items"), sorted(list(context.ml.builtin_commands.keys())))
+
+        ns_seq = Sequence(
+            _("Current namespace items:"),
+            sorted(list(cmds.keys())) +
+            [ns.get_name() for ns in sorted(nss, key=lambda i: i.get_name())]
+        )
+        if outseq is not None:
+            outseq += ns_seq
+        else:
+            outseq = ns_seq
+
+        return outseq
 
 
 @description("Sends the user to the top level")
@@ -565,6 +605,7 @@ class SourceCommand(Command):
                                    inspect.getdoc(self))
         else:
             for arg in args:
+                arg = os.path.expanduser(arg)
                 if os.path.isfile(arg):
                     try:
                         with open(arg, 'r') as f:
@@ -584,10 +625,10 @@ class DumpCommand(Command):
     Diplay configuration of specified namespace or, when not specified,
     the current namespace. Optionally, specify the name of the file to
     send the output to.
-    
+
     Usage: <namespace> dump
            <namespace> dump <filename>
-    
+
     Examples:
     update dump
     dump | less
@@ -627,7 +668,7 @@ class EchoCommand(Command):
     (' ') characters and followed by a newline ('\\n') character, to the
     standard output. It also has the ability to expand and substitute
     variables in place using the '${variable_name}' syntax.
-  
+
     Usage: echo <string_to_display>
 
     Examples:
@@ -824,6 +865,7 @@ class SearchPipeCommand(PipeCommand):
         return {"filter": mapped_opargs}
 
 
+@description("Selects tasks started before or at time-delta")
 class OlderThanPipeCommand(PipeCommand):
     def run(self, context, args, kwargs, opargs, input=None):
         return input
@@ -835,12 +877,12 @@ class OlderThanPipeCommand(PipeCommand):
         ]}
 
 
+@description("Selects tasks started at or since time-delta")
 class NewerThanPipeCommand(PipeCommand):
     def run(self, context, args, kwargs, opargs, input=None):
         return input
 
     def serialize_filter(self, context, args, kwargs, opargs):
-        print(args)
         return {"filter": [
             ('started_at', '!=', None),
             ('started_at', '>=', datetime.now() - parse_timedelta(args[0]))

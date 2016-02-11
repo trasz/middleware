@@ -236,9 +236,10 @@ class SystemUIProvider(Provider):
         }
 
 
+@description("Configures general system settings")
 @accepts(h.ref('system-general'))
 class SystemGeneralConfigureTask(Task):
-    def describe(self):
+    def describe(self, props):
         return "System General Settings Configure"
 
     def verify(self, props):
@@ -282,10 +283,11 @@ class SystemGeneralConfigureTask(Task):
         })
 
 
+@description("Configures advanced system settings")
 @accepts(h.ref('system-advanced'))
 class SystemAdvancedConfigureTask(Task):
 
-    def describe(self):
+    def describe(self, props):
         return "System Advanced Settings Configure"
 
     def verify(self, props):
@@ -375,10 +377,11 @@ class SystemAdvancedConfigureTask(Task):
         })
 
 
+@description("Configures the System UI settings")
 @accepts(h.ref('system-ui'))
 class SystemUIConfigureTask(Task):
 
-    def describe(self):
+    def describe(self, props):
         return "System UI Settings Configure"
 
     def verify(self, props):
@@ -466,7 +469,7 @@ class SystemRebootTask(Task):
             self.finish_event.wait(delay)
 
         if self.abort_flag:
-            raise TaskAbortException(errno.EINTR, "User invoked task.abort or system.reboot.abort")
+            raise TaskAbortException(errno.EINTR, "User invoked task.abort")
 
         self.dispatcher.dispatch_event('power.changed', {
             'operation': 'REBOOT',
