@@ -89,7 +89,7 @@ class CpuStatProvider(Provider):
             if 'aggregation' in stat['name']:
                 stat['short_name'] = dash_to_underscore('aggregated-' + type)
             else:
-                stat['short_name'] = dash_to_underscore('cpu-' + re.search(r'\d+', stat['name']).group() + '--' + type)
+                stat['short_name'] = dash_to_underscore('cpu-' + re.search(r'\d+', stat['name']).group() + '-' + type)
 
             stat['unit'], stat['normalized_value'] = normalize(stat['name'], stat['last_value'])
 
@@ -104,7 +104,7 @@ class DiskStatProvider(Provider):
         for stat in stats:
             split_name = stat['name'].split('.', 3)
             stat['short_name'] = dash_to_underscore(
-                split_name[1] + '--' + split_name[3] + '-' + split_name[2].split('_', 2)[1]
+                split_name[1] + '-' + split_name[3] + '-' + split_name[2].split('_', 2)[1]
             )
 
             stat['unit'], stat['normalized_value'] = normalize(stat['name'], stat['last_value'])
@@ -120,7 +120,7 @@ class NetworkStatProvider(Provider):
         for stat in stats:
             split_name = stat['name'].split('.', 3)
             stat['short_name'] = dash_to_underscore(
-                split_name[1] + '--' + split_name[3] + '-' + split_name[2].split('_', 2)[1]
+                split_name[1] + '-' + split_name[3] + '-' + split_name[2].split('_', 2)[1]
             )
 
             stat['unit'], stat['normalized_value'] = normalize(stat['name'], stat['last_value'])
@@ -143,7 +143,7 @@ class SystemStatProvider(Provider):
             split_name = stat['name'].split('.', 3)
             if 'df' in stat['name']:
                 stat['short_name'] = dash_to_underscore(
-                    split_name[1].split('-', 1)[1] + '--' + split_name[2].split('-', 1)[1]
+                    split_name[1].split('-', 1)[1] + '-' + split_name[2].split('-', 1)[1]
                 )
             elif 'load' in stat['name']:
                 stat['short_name'] = dash_to_underscore(split_name[1] + '-' + split_name[3])
