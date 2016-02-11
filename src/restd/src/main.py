@@ -95,6 +95,7 @@ class RESTApi(object):
         self._threads = []
         self._rpcs = {}
         self._schemas = {}
+        self._services = {}
         self._tasks = {}
         self.api = falcon.API(middleware=[
             AuthMiddleware(),
@@ -118,7 +119,8 @@ class RESTApi(object):
         self._tasks = self.dispatcher.call_sync('discovery.get_tasks')
         self._schemas = self.dispatcher.call_sync('discovery.get_schema')
         for service in self.dispatcher.call_sync('discovery.get_services'):
-            for method in self.dispatcher.call_sync('discovery.get_methods', service):
+            self._services[service] = self.dispatcher.call_sync('discovery.get_methods', service)
+            for method in self._services[service]:
                 self._rpcs['{0}.{1}'.format(service, method['name'])] = method
 
     def load_plugins(self):
