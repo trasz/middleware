@@ -10,19 +10,24 @@
 
 <!-- Latest compiled and minified CSS -->
 <!-- <link rel="stylesheet" type="text/css" href="/static/css/jquery.toastmessage.css"> -->
+<!-- Latest compiled and minified CSS -->
+<link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.6/css/bootstrap.min.css" integrity="sha384-1q8mTJOASx8j1Au+a5WDVnPi2lkFfwwEAa8hDDdjZlpLegxhjVME1fgjWPGmkzs7" crossorigin="anonymous">
+<link rel="stylesheet" href="/static/css/dashboard.css" >
+<link rel="stylesheet" href="/static/css/messenger.css" >
+<link rel="stylesheet" href="/static/css/messenger-theme-future.css" >
 <style>
-	body { padding-top: 70px; }
-
+	body { padding-top: 51px; }
+}
 </style>
 
 </head>
 <body>
 	<nav class="navbar navbar-inverse navbar-fixed-top">
-	  <div class="container">
-        <nav id="navbar" class="collapse navbar-collapse" role="navigation">
+	<div class="container" >
+          <nav id="navbar" class="collapse navbar-collapse" role="navigation">
             <ul class="nav navbar-nav">
                 <li><a href="/#events">Events</a></li>
-                <li><a href="#rpc/">RPC</a></li>
+                <li><a href="#/rpc/">RPC</a></li>
                 <li><a href="/#tasks">Tasks</a></li>
                 <li><a href="/#term">Terminal</a></li>
                 <li><a href="/#stats">Stats</a></li>
@@ -33,35 +38,43 @@
                   <a href="#" class="dropdown-toggle" data-toggle="dropdown" role="button" aria-haspopup="true" aria-expanded="false">API Docs <span class="caret"></span></a>
                   <ul class="dropdown-menu">
                     <li><a href="#/doc/rpc">RPC Interface</a></li>
-                    <li><a href="#/doc/events">Events</a></li>
-                    <li><a href="#/doc/tasks">Tasks</a></li>
-                    <li><a href="#/doc/schemas">JSON Schemas</a></li>
+                    <li><a href="#">Events</a></li>
+                    <li><a href="#">Tasks</a></li>
+                    <li><a href="#">JSON Schemas</a></li>
                     <li role="separator" class="divider"></li>
                     <li><a href="#">Features upcoming</a></li>
                     <li role="separator" class="divider"></li>
-                    <li><a href="#">Other Features upcoming</a></li>
+                    <li><a href="#">One more separated link</a></li>
                   </ul>
                 </li>
             </ul>
-        </nav>
-	  </div>
+          <form class="navbar-form navbar-right">
+            <input type="text" class="form-control"  placeholder="Search...">
+          </form>
+          </nav>
+	</div>
 	</nav>
+        <!-- Sidebar -->
     <div class="container">
-      <div ng-view></div>   
-      <p>Nothing here {{'yet' + '!'}}</p>   
+      <!-- real view -->
+      <div ng-view></div>
     </div>
     <!-- ================================================== -->
     <!-- Placed at the end of the document so the pages load faster -->
-<link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.6/css/bootstrap.min.css" integrity="sha384-1q8mTJOASx8j1Au+a5WDVnPi2lkFfwwEAa8hDDdjZlpLegxhjVME1fgjWPGmkzs7" crossorigin="anonymous">
-
 <script src="https://ajax.googleapis.com/ajax/libs/jquery/1.11.3/jquery.min.js"></script>
 <!-- Latest compiled and minified JavaScript -->
 <script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.6/js/bootstrap.min.js" integrity="sha384-0mSbJDEHialfmuBBQP6A4Qrprq5OVfW37PRR3j5ELqxss1yVqOtnepnHVP9aJ7xS" crossorigin="anonymous"></script>
+
 <!-- Latest compiled and minified AngularJS -->
 <script src="https://ajax.googleapis.com/ajax/libs/angularjs/1.4.9/angular.min.js"></script>
+<script src="https://ajax.googleapis.com/ajax/libs/angularjs/1.4.9/angular-resource.min.js"></script>
 <script src="http://ajax.googleapis.com/ajax/libs/angularjs/1.4.9/angular-route.min.js"></script>
+
 <!-- Functions for Angular -->
-<script src="../static/js/app.js"></script>
-<script src="../static/js/controllers.js"></script>
+<script src="/static/middleware.js"></script>
+<script src="/static/js/app.js"></script>
+<script src="/static/js/controllers.js"></script>
+<script src="/static/js/messenger.min.js"></script>
+<script src="/static/js/messenger-theme-future.js"></script>
 </body>
 </html>
