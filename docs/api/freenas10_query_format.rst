@@ -31,6 +31,5 @@ Filter is an array that represents the filter to be applied to the array. Filter
     -  ``offset`` - skips first ``n`` found objects
     -  ``limit`` - limits query to ``n`` objects
     -  ``count`` - returns matched objects count
-    -  ``sort`` - name of field used to sort results
-    -  ``dir`` - sort order, either ``"asc"`` or ``"desc"``
+    -  ``sort`` - name of field used to sort results. It may be ``field`` or ``-field`` to sort in ascending or descending order respectively. Arrays of fields are also accepted, eg. ``["-field1", "field2", "-field3" ]``
     -  ``single`` - returns single object instead of array. If multiple objects were matched in the query, returns first one (in random order if ``sort`` was not specified).
