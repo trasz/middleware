@@ -168,30 +168,21 @@ class UpdateAlertTask(Task):
     def run(self, name, stat):
         updated_alerts = stat.get('alerts')
 
-        if 'alert_high' in updated_alerts:
-            self.dispatcher.call_sync(
-                'statd.alert.set_high_value',
-                name,
-                raw(name, updated_alerts['alert_high'])
-            )
-        if 'alert_high_enabled' in updated_alerts:
-            self.dispatcher.call_sync(
-                'statd.alert.set_high_enabled',
-                name,
-                raw(name, updated_alerts['alert_high_enabled'])
-            )
-        if 'alert_low' in updated_alerts:
-            self.dispatcher.call_sync(
-                'statd.alert.set_low_value',
-                name,
-                raw(name, updated_alerts['alert_low'])
-            )
-        if 'alert_low_enabled' in updated_alerts:
-            self.dispatcher.call_sync(
-                'statd.alert.set_low_enabled',
-                name,
-                raw(name, updated_alerts['alert_low_enabled'])
-            )
+        for field in updated_alerts:
+            if isinstance(updated_alerts[field], bool):
+                self.dispatcher.call_sync(
+                    'statd.alert.set_alert',
+                    name,
+                    field,
+                    updated_alerts[field]
+                )
+            elif field in ['alert_high', 'alert_low']:
+                self.dispatcher.call_sync(
+                    'statd.alert.set_alert',
+                    name,
+                    field,
+                    raw(name, updated_alerts[field])
+                )
 
         self.dispatcher.dispatch_event('stat.alert.changed', {
             'operation': 'update',
