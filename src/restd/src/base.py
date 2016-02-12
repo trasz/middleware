@@ -31,6 +31,24 @@ class Task(object):
         return result
 
 
+class RPC(object):
+
+    name = None
+
+    def __init__(self, resource, dispatcher, name=None):
+        if name is not None:
+            self.name = name
+        self.resouce = resource
+        self.dispatcher = dispatcher
+
+    def run(self, *args, **kwargs):
+        try:
+            result = self.dispatcher.call_sync(self.name, *args, **kwargs)
+        except RpcException as e:
+            raise falcon.HTTPBadRequest(e.message, str(e))
+        return result
+
+
 class Resource(object):
 
     name = None
@@ -84,7 +102,10 @@ class Resource(object):
 
         if type_ == 'task':
             t = Task(self, req.context['client'], name=name)
-            t.run(req.context['doc'])
+            return t.run(req.context['doc'])
+        else:
+            r = RPC(self, req.context['client'], name=name)
+            req.context['result'] = r.run()
 
 
 class EntityResource(object):
