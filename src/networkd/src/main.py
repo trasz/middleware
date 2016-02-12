@@ -31,7 +31,6 @@ import os
 import sys
 import argparse
 import logging
-import json
 import subprocess
 import errno
 import threading
@@ -47,7 +46,7 @@ from freenas.dispatcher.client import Client, ClientError
 from freenas.dispatcher.rpc import RpcService, RpcException, private
 from freenas.utils.query import wrap
 from freenas.utils.debug import DebugService
-from freenas.utils import configure_logging
+from freenas.utils import configure_logging, first_or_default
 from functools import reduce
 
 
@@ -340,12 +339,20 @@ class ConfigurationService(RpcService):
 
         raise RpcException(errno.EBUSY, 'No free interfaces left')
 
+    def get_default_interface(self):
+        routes = self.query_routes()
+        default = first_or_default(lambda r: r.netmask == '0.0.0.0', routes)
+        if default:
+            return default['interface']
+
+        return None
+
     def query_interfaces(self):
         return netif.list_interfaces()
 
     def query_routes(self):
         rtable = netif.RoutingTable()
-        return wrap(rtable.static_routes)
+        return wrap(rtable.routes)
 
     def configure_network(self):
         if self.config.get('network.autoconfigure'):
