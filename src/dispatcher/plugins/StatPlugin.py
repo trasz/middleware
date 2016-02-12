@@ -51,8 +51,8 @@ UNITS = {
     },
     'C': {
         'match': lambda x: re.match(r'(.*)(temperature)(.*)', x),
-        'normalize': lambda x: None if x == -1 else (x - 2732)/10,
-        'raw': lambda x: x * 10 + 2732
+        'normalize': lambda x: None if (x == -1) or (x is None) else (x - 2732)/10,
+        'raw': lambda x: None if x is None else x * 10 + 2732
     },
     'Jiffies': {
         'match': lambda x: re.match(r'(.*)(cpu-)(.*)', x),
