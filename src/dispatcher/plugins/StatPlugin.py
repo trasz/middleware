@@ -78,6 +78,9 @@ class StatProvider(Provider):
         stats = self.dispatcher.call_sync('statd.output.get_current_state')
         return wrap(stats).query(*(filter or []), **(params or {}))
 
+    def normalize(self, name, value):
+        return normalize(name, value)
+
 
 class CpuStatProvider(Provider):
     @query('stat')
