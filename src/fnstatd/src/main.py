@@ -471,11 +471,11 @@ class Main(object):
         })
         self.client.register_schema('stat-alert', {
             'type': 'object',
-            'additionalProperties': False,
+            'additionalProperties': True,
             'properties': {
-                'alert_high': {'type': ['integer', 'number']},
+                'alert_high': {'type': ['integer', 'number', 'null']},
                 'alert_high_enabled': {'type': 'boolean'},
-                'alert_low': {'type': ['integer', 'number']},
+                'alert_low': {'type': ['integer', 'number', 'null']},
                 'alert_low_enabled': {'type': 'boolean'}
             }
         })
