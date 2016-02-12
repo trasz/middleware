@@ -543,9 +543,6 @@ class Main(object):
 
         self.configstore = ConfigStore(self.datastore)
 
-    def init_bridge(self):
-        self.bridge_interface = netif.get_interface(self.configstore.get('container.bridge'))
-
     def allocate_nmdm(self):
         for i in range(0, 255):
             if i not in self.used_nmdms:
@@ -637,7 +634,6 @@ class Main(object):
         self.init_dispatcher()
         self.init_mgmt()
         self.init_ec2()
-        self.init_bridge()
         self.logger.info('Started')
 
         # WebSockets server
