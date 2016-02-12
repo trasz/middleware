@@ -58,7 +58,7 @@ function RpcController($scope) {
       // then set value ot #method tag
       // that's all
       clearInputText();
-      $("#method").val(method_name);
+      $("#method").val($("#current_service").html() + "." + method_name);
       setParams();
     }
     function setParams() {

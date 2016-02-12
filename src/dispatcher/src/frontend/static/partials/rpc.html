@@ -37,7 +37,7 @@
           <button type="button" id="call" class="btn btn-default">Submit</button>
         </div>
 
-        <h2 class="sub-header" value="section_title">{{ current_service }}</h2>
+        <h2 class="sub-header" value="{{current_service}}" id="current_service">{{ current_service }}</h2>
         <div class="table-responsive">
           <ul class="list-group nav">
             <li class="list-group-item" ng-repeat='method in current_methods | filter:searchText'>
