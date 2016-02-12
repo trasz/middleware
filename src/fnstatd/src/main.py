@@ -361,32 +361,26 @@ class AlertService(RpcService):
         super(AlertService, self).__init__()
         self.context = context
 
-    def set_high_enabled(self, name, enabled):
+    def set_alert(self, name, field, value):
         ds = self.context.data_sources[name]
-        ds.alert_high_enabled = enabled
-        alert_config = self.context.datastore.get_by_id('statd.alerts', name)
-        self.context.datastore.update('alert-filters', name, alert_config)
-        ds.check_alerts()
 
-    def set_low_enabled(self, name, enabled):
-        ds = self.context.data_sources[name]
-        ds.alert_low_enabled = enabled
-        alert_config = self.context.datastore.get_by_id('statd.alerts', name)
-        self.context.datastore.update('alert-filters', name, alert_config)
-        ds.check_alerts()
+        config_name = name if self.context.datastore.exists('statd.alerts', ('id', '=', name)) else 'default'
+        alert_config = ds.alerts
 
-    def set_high_value(self, name, value):
-        ds = self.context.data_sources[name]
-        ds.alert_high = value
-        alert_config = self.context.datastore.get_by_id('statd.alerts', name)
-        self.context.datastore.update('alert-filters', name, alert_config)
-        ds.check_alerts()
+        alert_config[field] = value
 
-    def set_low_value(self, name, value):
-        ds = self.context.data_sources[name]
-        ds.alert_low = value
-        alert_config = self.context.datastore.get_by_id('statd.alerts', name)
-        self.context.datastore.update('alert-filters', name, alert_config)
+        if alert_config['alert_high_enabled'] and (alert_config['alert_high'] is None):
+            alert_config['alert_high'] = 0
+        if alert_config['alert_low_enabled'] and (alert_config['alert_low'] is None):
+            alert_config['alert_low'] = 0
+
+        if config_name == 'default':
+            alert_config['id'] = name
+            self.context.datastore.insert('statd.alerts', alert_config)
+        else:
+            self.context.datastore.update('statd.alerts', name, alert_config)
+
+        ds.alerts = alert_config
         ds.check_alerts()
 
 
