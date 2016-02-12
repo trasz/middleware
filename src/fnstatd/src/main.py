@@ -432,17 +432,8 @@ class Main(object):
             self.logger.error(str(e))
 
     def init_alert_config(self, name):
-        if self.datastore.exists('statd.alerts', ('id', '=', name)):
-            alert_config = self.datastore.get_by_id('statd.alerts', name)
-        else:
-            alert_config = {
-                'alert_high': 0,
-                'alert_high_enabled': False,
-                'alert_low': 0,
-                'alert_low_enabled': False,
-                'id': name
-            }
-            self.datastore.insert('statd.alerts', alert_config)
+        config_name = name if self.datastore.exists('statd.alerts', ('id', '=', name)) else 'default'
+        alert_config = self.datastore.get_by_id('statd.alerts', config_name)
 
         self.client.call_sync(
             'alert.register_alert',
