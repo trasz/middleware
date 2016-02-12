@@ -163,11 +163,11 @@ class VirtualMachine(object):
                         bridge.add_member(iface.name)
 
             if nic['type'] == 'MANAGEMENT':
-                mgmt = netif.get_interface('mgmt0', bridge=True)
+                mgmt = netif.get_interface('mgmt0', force_type='bridge')
                 mgmt.add_member(iface.name)
 
             if nic['type'] == 'NAT':
-                mgmt = netif.get_interface('nat0', bridge=True)
+                mgmt = netif.get_interface('nat0', force_type='bridge')
                 mgmt.add_member(iface.name)
 
             self.tap_interfaces[iface] = mac
