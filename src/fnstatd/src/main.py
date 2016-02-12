@@ -313,10 +313,10 @@ class OutputService(RpcService):
                     'name': ds.name,
                     'last_value': ds.last_value,
                     'alerts': {
-                        'alert_high': ds.alert_high,
-                        'alert_high_enabled': ds.alert_high_enabled,
-                        'alert_low': ds.alert_low,
-                        'alert_low_enabled': ds.alert_low_enabled
+                        'alert_high': ds.alerts['alert_high'],
+                        'alert_high_enabled': ds.alerts['alert_high_enabled'],
+                        'alert_low': ds.alerts['alert_low'],
+                        'alert_low_enabled': ds.alerts['alert_low_enabled']
                     }
                 }
             )
