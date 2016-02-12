@@ -130,8 +130,9 @@ class VirtualMachine(object):
                 index += 1
 
             if i['type'] == 'VOLUME':
-                if i['properties']['type'] == '9P':
-                    args += ['-s', '{0}:0,virtio-9p,{1}={2}'.format(index, i['name'], i['properties']['destination'])]
+                if i['properties']['type'] == 'VT9P':
+                    path = self.context.client.call_sync('container.get_volume_path', self.id, i['name'])
+                    args += ['-s', '{0}:0,virtio-9p,{1}={2}'.format(index, i['name'], path)]
                     index += 1
 
             if i['type'] == 'NIC':
