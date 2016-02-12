@@ -410,9 +410,9 @@ class HelpCommand(Command):
                 hasattr(obj.parent, 'localdoc') and
                 command_name in obj.parent.localdoc.keys()
                ):
-                output_msg(textwrap.dedent(obj.parent.localdoc[command_name]))
+                output_msg(textwrap.dedent(obj.parent.localdoc[command_name]) + "\n")
             else:
-                output_msg(inspect.getdoc(obj))
+                output_msg(inspect.getdoc(obj) + "\n")
 
         if isinstance(obj, Namespace):
             # First listing the Current Namespace's commands
@@ -481,7 +481,10 @@ class HelpCommand(Command):
                 help_message = inspect.getdoc(obj)
             elif isinstance(obj, SingleItemNamespace):
                 help_message = obj.entity_doc()
-            output_seq.append(help_message)
+            if help_message != "":
+                output_seq.append("")
+                output_seq.append(help_message)
+            output_seq.append("")
             return output_seq
 
 
@@ -867,6 +870,15 @@ class SearchPipeCommand(PipeCommand):
 
 @description("Selects tasks started before or at time-delta")
 class OlderThanPipeCommand(PipeCommand):
+    """
+    Return all elements of a list that contains time values that are older than
+    the given time delta.
+
+    Usage: <command> | older_than <hh>:<mm>
+           <command> | older_than <hh>:<mm>:<ss>
+
+    Example: task show all | older_than 2:00
+    """
     def run(self, context, args, kwargs, opargs, input=None):
         return input
 
@@ -879,6 +891,15 @@ class OlderThanPipeCommand(PipeCommand):
 
 @description("Selects tasks started at or since time-delta")
 class NewerThanPipeCommand(PipeCommand):
+    """
+    Return all elements of a list that contains time values that are newer than
+    the given time delta.
+
+    Usage: <command> | newer_than <hh>:<mm>
+           <command> | newer_than <hh>:<mm>:<ss>
+
+    Example: task show all | newer_than 2:00
+    """
     def run(self, context, args, kwargs, opargs, input=None):
         return input
 
