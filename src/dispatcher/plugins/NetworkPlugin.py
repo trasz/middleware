@@ -109,17 +109,19 @@ class NetworkConfigureTask(Task):
             raise TaskException(errno.ENXIO, 'Cannot reconfigure interface: {0}'.format(str(e)))
 
 
-@accepts({
-    'type': 'string',
-    'enum': ['VLAN', 'BRIDGE', 'LAGG']
-},)
+@accepts(h.all_of(
+    h.ref('network-interface'),
+    h.required('type'),
+    h.forbidden('id', 'status')
+))
 class CreateInterfaceTask(Task):
-    def verify(self, type):
+    def verify(self, iface):
         return ['system']
 
-    def run(self, type):
+    def run(self, iface):
+        type = iface['type']
         name = self.dispatcher.call_sync('networkd.configuration.get_next_name', type)
-        iface = {
+        normalize(iface, {
             'id': name,
             'type': type,
             'cloned': True,
@@ -130,24 +132,27 @@ class CreateInterfaceTask(Task):
             'mtu': None,
             'media': None,
             'aliases': []
-        }
+        })
 
         if type == 'VLAN':
-            iface['vlan'] = {
+            iface.setdefault('vlan', {})
+            normalize(iface['vlan'], {
                 'parent': None,
                 'tag': None
-            }
+            })
 
         if type == 'LAGG':
-            iface['lagg'] = {
+            iface.setdefault('lagg', {})
+            normalize(iface['lagg'], {
                 'protocol': 'FAILOVER',
                 'ports': []
-            }
+            })
 
         if type == 'BRIDGE':
-            iface['bridge'] = {
+            iface.setdefault('bridge', {})
+            normalize(iface['bridge'], {
                 'members': []
-            }
+            })
 
         self.datastore.insert('network.interfaces', iface)
 
@@ -232,8 +237,11 @@ class ConfigureInterfaceTask(Task):
 
             # Add missing broadcast addresses and address family
             for i in updated_fields['aliases']:
-                i['type'] = i.get('type', 'INET')
-                if not i.get('broadcast'):
+                normalize(i, {
+                    'type': 'INET'
+                })
+
+                if not i.get('broadcast') and i['type'] == 'INET':
                     i['broadcast'] = str(calculate_broadcast(i['address'], i['netmask']))
 
         if updated_fields.get('vlan'):
