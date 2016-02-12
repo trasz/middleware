@@ -1772,6 +1772,13 @@
             }
         },
         "data": {
+            "default": {
+                "alert_high": null,
+                "alert_high_enabled": false,
+                "alert_low": null,
+                "alert_low_enabled": false,
+                "default_config": true
+            }
         }
     },
     {
