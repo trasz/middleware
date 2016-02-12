@@ -91,7 +91,7 @@ class CpuStatProvider(Provider):
             else:
                 stat['short_name'] = dash_to_underscore('cpu-' + re.search(r'\d+', stat['name']).group() + '-' + type)
 
-            stat['unit'], stat['normalized_value'] = normalize(stat['name'], stat['last_value'])
+            normalize_values(stat)
 
         return wrap(stats).query(*(filter or []), **(params or {}))
 
@@ -107,7 +107,7 @@ class DiskStatProvider(Provider):
                 split_name[1] + '-' + split_name[3] + '-' + split_name[2].split('_', 2)[1]
             )
 
-            stat['unit'], stat['normalized_value'] = normalize(stat['name'], stat['last_value'])
+            normalize_values(stat)
 
         return wrap(stats).query(*(filter or []), **(params or {}))
 
@@ -123,7 +123,7 @@ class NetworkStatProvider(Provider):
                 split_name[1] + '-' + split_name[3] + '-' + split_name[2].split('_', 2)[1]
             )
 
-            stat['unit'], stat['normalized_value'] = normalize(stat['name'], stat['last_value'])
+            normalize_values(stat)
 
         return wrap(stats).query(*(filter or []), **(params or {}))
 
@@ -150,7 +150,7 @@ class SystemStatProvider(Provider):
             else:
                 stat['short_name'] = dash_to_underscore(split_name[2])
 
-            stat['unit'], stat['normalized_value'] = normalize(stat['name'], stat['last_value'])
+            normalize_values(stat)
 
         return wrap(stats).query(*(filter or []), **(params or {}))
 
@@ -194,6 +194,12 @@ class UpdateAlertTask(Task):
             'operation': 'update',
             'ids': [name]
         })
+
+
+def normalize_values(stat):
+    stat['unit'], stat['normalized_value'] = normalize(stat['name'], stat['last_value'])
+    stat['unit'], stat['alerts']['normalized_alert_high'] = normalize(stat['name'], stat['alerts']['alert_high'])
+    stat['unit'], stat['alerts']['normalized_alert_low'] = normalize(stat['name'], stat['alerts']['alert_low'])
 
 
 def normalize(name, value):
