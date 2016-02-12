@@ -234,7 +234,8 @@ class Context(object):
                         'day_of_week': {'type': ['string', 'integer', 'null']},
                         'hour': {'type': ['string', 'integer', 'null']},
                         'minute': {'type': ['string', 'integer', 'null']},
-                        'second': {'type': ['string', 'integer', 'null']}
+                        'second': {'type': ['string', 'integer', 'null']},
+                        'timezone': {'type': ['string', 'null']}
                     }
                 }
             }
