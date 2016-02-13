@@ -188,6 +188,17 @@ class DevdEventSource(EventSource):
                 params["jid"] = int(args["jid"])
                 self.emit_event("system.hostname.change", **params)
 
+        if args["subsystem"] == "VFS":
+            if args["type"] == "MOUNT":
+                params = exclude(args, "system", "subsystem", "type")
+                params["description"] = "Filesystem {0} mounted".format(args["path"])
+                self.emit_event("system.fs.mounted", **params)
+
+            if args["type"] == "UNMOUNT":
+                params = exclude(args, "system", "subsystem", "type")
+                params["description"] = "Filesystem {0} unmounted".format(args["path"])
+                self.emit_event("system.fs.mounted", **params)
+
     def __process_zfs(self, args):
         event_mapping = {
             "misc.fs.zfs.scrub_start": ("fs.zfs.scrub.started", "Scrub on volume {0} started"),
