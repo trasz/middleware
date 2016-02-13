@@ -792,7 +792,7 @@ def get_disk_names(dispatcher, pool):
 def sync_zpool_cache(dispatcher, pool, guid=None):
     zfs = get_zfs()
     try:
-        zfspool = wrap(zfs.get(pool).__getstate__())
+        zfspool = wrap(zfs.get(pool).__getstate__(False))
         pools.put(pool, zfspool)
         zpool_sync_resources(dispatcher, pool)
     except libzfs.ZFSException as e:

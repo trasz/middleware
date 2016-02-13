@@ -158,10 +158,11 @@ class VolumeProvider(Provider):
                 })
 
                 if config['status'] != 'UNAVAIL':
+                    datasets = self.dispatcher.call_sync('zfs.dataset.query', [('pool', '=', vol['name'])])
                     vol.update({
                         'description': config.get('root_dataset.properties.org\\.freenas:description.value'),
                         'mountpoint': config['root_dataset.properties.mountpoint.value'],
-                        'datasets': list(map(extend_dataset, flatten_datasets(config['root_dataset']))),
+                        'datasets': list(map(extend_dataset, datasets)),
                         'upgraded': is_upgraded(config),
                     })
 
@@ -286,9 +287,9 @@ class VolumeProvider(Provider):
             raise RpcException(errno.EINVAL, 'Invalid path')
 
         volname = tokens[1]
-        config = self.get_config(volname)
-        if config:
-            datasets = [d['name'] for d in flatten_datasets(config['root_dataset'])]
+        vol = self.dispatcher.call_sync('volume.query', [('name', '=', 'volname')], {'single': True})
+        if vol:
+            datasets = [d['name'] for d in vol['datasets']]
         else:
             raise RpcException(errno.ENOENT, "Volume '{0}' does not exist".format(volname))
         n = len(tokens)
@@ -1683,15 +1684,6 @@ class SnapshotDeleteTask(Task):
             dataset_name,
             snapshot_name,
         ))
-
-
-def flatten_datasets(root):
-    for ds in root['children']:
-        for c in flatten_datasets(ds):
-            yield c
-
-    del root['children']
-    yield root
 
 
 def compare_vdevs(vd1, vd2):
