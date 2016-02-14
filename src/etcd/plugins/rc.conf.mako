@@ -226,5 +226,3 @@ ix_diagnose_enable="YES"
 % if adv_config.get('powerd'):
 powerd_enable="YES"
 % endif
-
-mount -t fdescfs null /dev/fd
