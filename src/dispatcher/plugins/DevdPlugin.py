@@ -197,7 +197,7 @@ class DevdEventSource(EventSource):
             if args["type"] == "UNMOUNT":
                 params = exclude(args, "system", "subsystem", "type")
                 params["description"] = "Filesystem {0} unmounted".format(args["path"])
-                self.emit_event("system.fs.mounted", **params)
+                self.emit_event("system.fs.unmounted", **params)
 
     def __process_zfs(self, args):
         event_mapping = {
