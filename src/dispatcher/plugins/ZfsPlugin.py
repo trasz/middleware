@@ -1005,6 +1005,15 @@ def _init(dispatcher, plugin):
             else:
                 sync_dataset_cache(dispatcher, args['ds'])
 
+    def on_vfs_mount_or_unmount(type, args):
+        ds = datasets.query(('properties.mountpoint.value', '=', args['path']), single=True)
+        if not ds:
+            return
+
+        with dispatcher.get_lock('zfs-cache'):
+            logger.info('Dataset {0} {1}ed'.format(ds['name'], type))
+            sync_dataset_cache(dispatcher, ds['name'])
+
     def on_device_attached(args):
         for p in pools.validvalues():
             if p['status'] not in ('DEGRADED', 'UNAVAIL'):
@@ -1293,6 +1302,8 @@ def _init(dispatcher, plugin):
     plugin.register_event_handler('fs.zfs.dataset.renamed', on_dataset_rename)
     plugin.register_event_handler('fs.zfs.dataset.setprop', on_dataset_setprop)
     plugin.register_event_handler('system.device.attached', on_device_attached)
+    plugin.register_event_handler('system.fs.mounted', lambda a: on_vfs_mount_or_unmount('mount', a))
+    plugin.register_event_handler('system.fs.unmounted', lambda a: on_vfs_mount_or_unmount('unmount', a))
 
     # Register Providers
     plugin.register_provider('zfs.pool', ZpoolProvider)

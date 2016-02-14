@@ -114,7 +114,8 @@ class VolumeProvider(Provider):
             return {
                 'name': ds['name'],
                 'type': ds['type'],
-                'mountpoint': ds['mountpoint'],
+                'mountpoint': ds.get('properties.mountpoint.value'),
+                'mounted': ds.get('properties.mounted.value'),
                 'volsize': ds.get('properties.volsize.rawvalue'),
                 'properties': include(
                     ds['properties'],
