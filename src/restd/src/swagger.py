@@ -39,7 +39,18 @@ class SwaggerResource(object):
             'definitions': normalize_schema(self.rest._schemas['definitions']),
         }
 
-        for crud in self.rest._cruds:
-            result['paths'].update(crud.get_paths())
+        look = []
+        for c in self.rest.api._router._roots:
+            look.append(('/{0}'.format(c.raw_segment), c))
+        while len(look) > 0:
+            path, current = look.pop()
+
+            for c in current.children:
+                look.append(('{0}/{1}'.format(path, c.raw_segment), c))
+
+            doc = getattr(current.resource, 'doc', None)
+            if doc is None:
+                continue
+            result['paths'][path] = doc()
 
         req.context['result'] = result
