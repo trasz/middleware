@@ -111,10 +111,13 @@ class Resource(object):
 
         if type_ == 'task':
             t = Task(self, req.context['client'], name=name)
-            return t.run(req, kwargs)
+            t.run(req, kwargs)
         else:
             r = RPC(self, req.context['client'], method, name=name)
             req.context['result'] = r.run(req, kwargs)
+
+        if method == 'post':
+            resp.status = falcon.HTTP_201
 
 
     def doc(self):
