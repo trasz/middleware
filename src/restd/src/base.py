@@ -208,7 +208,6 @@ class ItemResource(Resource):
     def run_get(self, req, kwargs):
         return [('id', '=', int(kwargs['id']))], {'single': True}
 
-
     def doc(self):
         rv = super(ItemResource, self).doc()
         for i in ('get', 'post', 'put', 'delete'):
@@ -238,18 +237,16 @@ class CRUDBase(object):
 
     def __init__(self, rest, dispatcher):
 
-        class MyEntity(self.entity_class):
-            name = self.namespace
-            get = 'rpc:{0}'.format(self.get_retrieve_method_name())
-            post = 'task:{0}'.format(self.get_create_method_name())
-
-        class MyItem(self.item_class):
-            get = 'rpc:{0}'.format(self.get_retrieve_method_name())
-            put = 'task:{0}'.format(self.get_update_method_name())
-            delete = 'task:{0}'.format(self.get_delete_method_name())
-
-        self.entity = MyEntity(rest)
-        MyItem(rest, parent=self.entity)
+        self.entity = type('{0}EntityResource'.format(self.__class__.__name__), (self.entity_class, ), {
+            'name': self.namespace,
+            'get': 'rpc:{0}'.format(self.get_retrieve_method_name()),
+            'post': 'task:{0}'.format(self.get_create_method_name()),
+        })(rest)
+        type('{0}ItemResource'.format(self.__class__.__name__), (self.item_class, ), {
+            'get': 'rpc:{0}'.format(self.get_retrieve_method_name()),
+            'put': 'task:{0}'.format(self.get_update_method_name()),
+            'delete': 'task:{0}'.format(self.get_delete_method_name()),
+        })(rest, parent=self.entity)
 
     def get_create_method_name(self):
         return '{0}.create'.format(self.namespace)
