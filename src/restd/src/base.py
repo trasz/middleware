@@ -162,6 +162,20 @@ class EntityResource(Resource):
                 field, op = key.split('__', 1)
             else:
                 field, op = key, '='
+
+            op_map = {
+                'eq': '=',
+                'neq': '!=',
+                'gt': '>',
+                'lt', '<',
+                'gte', '>=',
+                'lte', '<=',
+                'regex', '~',
+            }
+
+            if op in op_map:
+                op = op_map.get(op)
+
             if val.isdigit():
                 val = int(val)
             elif val.lower() == 'true':
