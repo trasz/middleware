@@ -165,6 +165,10 @@ class EntityResource(Resource):
             else:
                 field, op = key, '='
 
+            if key in ('sort', 'limit', 'offset'):
+                kwargs[key] = val
+                continue
+
             op_map = {
                 'eq': '=',
                 'neq': '!=',
@@ -185,6 +189,7 @@ class EntityResource(Resource):
             elif val.lower() == 'false':
                 val = False
             args.append((field, op, val))
+
         return args, kwargs
 
     def do(self, method, req, resp, *args, **kwargs):
