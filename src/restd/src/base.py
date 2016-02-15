@@ -133,10 +133,17 @@ class Resource(object):
             else:
                 op = self.rest._rpcs[name]
 
+            code_map = {
+                'post': '201',
+                'get': '200',
+                'delete': '204',
+                'put': '200',
+            }
+
             rv[i] = {
                 'description': op.get('description'),
                 'responses': {
-                    '200': {
+                    code_map[i]: {
                         'description': 'entries to be returned',
                         'schema': normalize_schema(op.get('result-schema')),
                     }
