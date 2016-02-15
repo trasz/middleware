@@ -149,7 +149,7 @@ class Resource(object):
                         'required': True,
                         'schema': normalize_schema(op.get('schema')),
                     },
-                ],
+                ]
         return rv
 
 
@@ -200,6 +200,27 @@ class ItemResource(Resource):
 
     def run_get(self, req, kwargs):
         return [('id', '=', int(kwargs['id']))], {'single': True}
+
+
+    def doc(self):
+        rv = super(ItemResource, self).doc()
+        for i in ('get', 'post', 'put', 'delete'):
+            method_op = getattr(self, i, None)
+            if method_op is None:
+                continue
+
+            if 'parameters' not in rv[i]:
+                rv[i]['parameters'] = []
+
+            rv[i]['parameters'] = [
+                {
+                    'name': 'id',
+                    'in': 'path',
+                    'required': True,
+                    'schema': {'type': 'integer'},
+                },
+            ]
+        return rv
 
 
 class CRUDBase(object):
