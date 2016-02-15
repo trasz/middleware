@@ -183,13 +183,15 @@ class EntityResource(Resource):
             elif val.lower() == 'false':
                 val = False
             args.append((field, op, val))
-        return args, {}
+        return args, kwargs
 
-    def do(self, method, *args, **kwargs):
-        resp = super(EntityResource, self).do(method, *args, **kwargs)
+    def do(self, method, req, resp, *args, **kwargs):
+        rv = super(EntityResource, self).do(method, req, resp, *args, **kwargs)
         if method == 'post':
-            return self.do('get', *args, **kwargs)
-        return resp
+            kwargs['single'] = True
+            rv = self.do('get', req, resp, *args, **kwargs)
+            resp.status = falcon.HTTP_201
+        return rv
 
 
 class ItemResource(Resource):
