@@ -118,6 +118,8 @@ class Resource(object):
 
         if method == 'post':
             resp.status = falcon.HTTP_201
+        elif method == 'delete':
+            resp.status = falcon.HTTP_204
 
     def doc(self):
         rv = {}
