@@ -119,7 +119,6 @@ class Resource(object):
         if method == 'post':
             resp.status = falcon.HTTP_201
 
-
     def doc(self):
         rv = {}
         for i in ('get', 'post', 'put', 'delete'):
@@ -133,8 +132,8 @@ class Resource(object):
                 op = self.rest._rpcs[name]
 
             rv[i] = {
-                'responses': {
                 'description': op.get('description'),
+                'responses': {
                     '200': {
                         'description': 'entries to be returned',
                         'schema': normalize_schema(op.get('result-schema')),
@@ -154,6 +153,15 @@ class Resource(object):
         return rv
 
 
+class EntityResource(Resource):
+
+    def do(self, method, *args, **kwargs):
+        resp = super(EntityResource, self).do(method, *args, **kwargs)
+        if method == 'post':
+            return self.do('get', *args, **kwargs)
+        return resp
+
+
 class ItemResource(Resource):
 
     name = '{id}'
@@ -164,7 +172,7 @@ class ItemResource(Resource):
 
 class CRUDBase(object):
 
-    entity_class = Resource
+    entity_class = EntityResource
     item_class = ItemResource
     namespace = None
 
