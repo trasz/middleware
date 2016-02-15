@@ -167,10 +167,10 @@ class EntityResource(Resource):
                 'eq': '=',
                 'neq': '!=',
                 'gt': '>',
-                'lt', '<',
-                'gte', '>=',
-                'lte', '<=',
-                'regex', '~',
+                'lt': '<',
+                'gte': '>=',
+                'lte': '<=',
+                'regex': '~',
             }
 
             if op in op_map:
