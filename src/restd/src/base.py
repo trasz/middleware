@@ -155,6 +155,22 @@ class Resource(object):
 
 class EntityResource(Resource):
 
+    def run_get(self, req, kwargs):
+        args = []
+        for key, val in req.params.items():
+            if '__' in key:
+                field, op = key.split('__', 1)
+            else:
+                field, op = key, '='
+            if val.isdigit():
+                val = int(val)
+            elif val.lower() == 'true':
+                val = True
+            elif val.lower() == 'false':
+                val = False
+            args.append((field, op, val))
+        return args, {}
+
     def do(self, method, *args, **kwargs):
         resp = super(EntityResource, self).do(method, *args, **kwargs)
         if method == 'post':
