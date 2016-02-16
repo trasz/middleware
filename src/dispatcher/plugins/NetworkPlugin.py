@@ -321,28 +321,28 @@ class InterfaceDownTask(Task):
 @description("Renews IP lease on interface")
 @accepts(str)
 class InterfaceRenewTask(Task):
-    def verify(self, name):
-        interface = self.datastore.get_by_id('network.interfaces', name)
+    def verify(self, id):
+        interface = self.datastore.get_by_id('network.interfaces', id)
         if not interface:
-            raise VerifyException(errno.ENOENT, 'Interface {0} does not exist'.format(name))
+            raise VerifyException(errno.ENOENT, 'Interface {0} does not exist'.format(id))
 
         if not interface['enabled']:
-            raise VerifyException(errno.ENXIO, 'Interface {0} is disabled'.format(name))
+            raise VerifyException(errno.ENXIO, 'Interface {0} is disabled'.format(id))
 
         if not interface['dhcp']:
             raise VerifyException(errno.EINVAL, 'Cannot renew a lease on interface that is not configured for DHCP')
 
         return ['system']
 
-    def run(self, name):
+    def run(self, id):
         try:
-            self.dispatcher.call_sync('networkd.configuration.renew_lease', name)
+            self.dispatcher.call_sync('networkd.configuration.renew_lease', id)
         except RpcException as err:
             raise TaskException(err.code, err.message, err.extra)
 
         self.dispatcher.dispatch_event('network.interface.changed', {
             'operation': 'update',
-            'ids': [name]
+            'ids': [id]
         })
 
 
