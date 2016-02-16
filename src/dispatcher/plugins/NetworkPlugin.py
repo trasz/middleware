@@ -271,50 +271,50 @@ class ConfigureInterfaceTask(Task):
 @description("Enables interface")
 @accepts(str)
 class InterfaceUpTask(Task):
-    def verify(self, name):
-        iface = self.datastore.exists('network.interfaces', ('id', '=', name))
+    def verify(self, id):
+        iface = self.datastore.get_by_id('network.interfaces', id)
         if not iface:
-            raise VerifyException(errno.ENOENT, 'Interface {0} does not exist'.format(name))
+            raise VerifyException(errno.ENOENT, 'Interface {0} does not exist'.format(id))
 
         if not iface['enabled']:
-            raise VerifyException(errno.ENXIO, 'Interface {0} is disabled'.format(name))
+            raise VerifyException(errno.ENXIO, 'Interface {0} is disabled'.format(id))
 
         return ['system']
 
-    def run(self, name):
+    def run(self, id):
         try:
-            self.dispatcher.call_sync('networkd.configuration.up_interface', name)
+            self.dispatcher.call_sync('networkd.configuration.up_interface', id)
         except RpcException as err:
             raise TaskException(errno.ENXIO, 'Cannot reconfigure interface: {0}'.format(str(err)))
 
         self.dispatcher.dispatch_event('network.interface.changed', {
             'operation': 'update',
-            'ids': [name]
+            'ids': [id]
         })
 
 
 @description("Disables interface")
 @accepts(str)
 class InterfaceDownTask(Task):
-    def verify(self, name):
-        iface = self.datastore.exists('network.interfaces', ('id', '=', name))
+    def verify(self, id):
+        iface = self.datastore.get_by_id('network.interfaces', id)
         if not iface:
-            raise VerifyException(errno.ENOENT, 'Interface {0} does not exist'.format(name))
+            raise VerifyException(errno.ENOENT, 'Interface {0} does not exist'.format(id))
 
         if not iface['enabled']:
-            raise VerifyException(errno.ENXIO, 'Interface {0} is disabled'.format(name))
+            raise VerifyException(errno.ENXIO, 'Interface {0} is disabled'.format(id))
 
         return ['system']
 
-    def run(self, name):
+    def run(self, id):
         try:
-            self.dispatcher.call_sync('networkd.configuration.down_interface', name)
+            self.dispatcher.call_sync('networkd.configuration.down_interface', id)
         except RpcException as err:
             raise TaskException(err.code, err.message, err.extra)
 
         self.dispatcher.dispatch_event('network.interface.changed', {
             'operation': 'update',
-            'ids': [name]
+            'ids': [id]
         })
 
 
