@@ -41,7 +41,7 @@ import shutil
 from task import Provider, Task, ProgressTask, VerifyException, TaskException, query, TaskWarning
 from freenas.dispatcher.rpc import RpcException
 from freenas.dispatcher.rpc import SchemaHelper as h, description, accepts, returns, private
-from freenas.utils import first_or_default, normalize, deep_update
+from freenas.utils import first_or_default, normalize, deep_update, process_template
 from utils import save_config, load_config, delete_config
 from freenas.utils.query import wrap
 
@@ -58,6 +58,13 @@ class ContainerProvider(Provider):
 
         return self.datastore.query('containers', *(filter or []), callback=extend, **(params or {}))
 
+    def get_container_root(self, container_id):
+        container = self.datastore.get_by_id('containers', container_id)
+        if not container:
+            return None
+
+        pass # XXX
+
     def get_disk_path(self, container_id, disk_name):
         container = self.datastore.get_by_id('containers', container_id)
         if not container:
@@ -72,6 +79,21 @@ class ContainerProvider(Provider):
 
         if disk['type'] == 'CDROM':
             return disk['properties']['path']
+
+    def get_volume_path(self, container_id, volume_name):
+        container = self.datastore.get_by_id('containers', container_id)
+        if not container:
+            return None
+
+        vol = first_or_default(lambda v: v['name'] == volume_name, container['devices'])
+        if not vol:
+            return None
+
+        if vol['properties']['auto']:
+            return os.path.join(self.get_container_root(container_id), vol['name'])
+
+        return vol['properties']['destination']
+
 
     def generate_mac(self):
         return VM_OUI + ':' + ':'.join('{0:02x}'.format(random.randint(0, 255)) for _ in range(0, 3))
@@ -107,7 +129,7 @@ class ContainerBaseTask(Task):
     def init_dataset(self, container):
         pool = container['target']
         root_ds = os.path.join(pool, 'vm')
-        container_ds = os.path.join(root_ds, container['name'])
+        self.container_ds = os.path.join(root_ds, container['name'])
 
         if not self.dispatcher.call_sync('zfs.dataset.query', [('name', '=', root_ds)], {'single': True}):
             # Create VM root
@@ -118,13 +140,44 @@ class ContainerBaseTask(Task):
         try:
             self.join_subtasks(self.run_subtask('volume.dataset.create', {
                 'pool': pool,
-                'name': container_ds
+                'name': self.container_ds
             }))
         except RpcException:
             raise TaskException(
                 errno.EACCES,
                 'Dataset of the same name as {0} already exists. Maybe you meant to import an VM?'.format(container_ds)
             )
+
+    def init_files(self, container):
+        template = container.get('template')
+        if not template:
+            return
+
+        if template.get('files'):
+            source_root = os.path.join(template['path'], 'files')
+            dest_root = self.dispatcher.call_sync('volume.get_dataset_path', container['target'], self.container_ds)
+            files_root = os.path.join(dest_root, 'files')
+
+            os.mkdir(files_root)
+
+            for root, dirs, files in os.walk(source_root):
+                r = os.path.relpath(root, source_root)
+
+                for f in files:
+                    name, ext = os.path.splitext(f)
+                    if ext == '.in':
+                        process_template(os.path.join(root, f), os.path.join(files_root, r, name), **{
+                            'VM_ROOT': files_root
+                        })
+                    else:
+                        shutil.copy(os.path.join(root, f), os.path.join(files_root, r, f))
+
+                for d in dirs:
+                    os.mkdir(os.path.join(files_root, r, d))
+
+            if template.get('fetch'):
+                for f in template['fetch']:
+                    urllib.request.urlretrieve(f['url'], os.path.join(files_root, f['dest']))
 
     def create_device(self, container, res):
         if res['type'] == 'DISK':
@@ -154,21 +207,22 @@ class ContainerBaseTask(Task):
             })
 
         if res['type'] == 'VOLUME':
+            properties = res['properties']
             mgmt_net = ipaddress.ip_interface(self.configstore.get('container.network.management'))
             container_ds = os.path.join(container['target'], 'vm', container['name'])
-            ds_name = os.path.join(container_ds, res['name'])
             opts = {}
 
-            if res['properties']['access_method'] == 'NFS':
+            if properties['type'] == 'NFS':
                 opts['sharenfs'] = {'value': '-network={0}'.format(str(mgmt_net.network))}
                 if not self.configstore.get('service.nfs.enable'):
                     self.join_subtasks(self.run_subtask('service.configure', 'nfs', {'enable': True}))
 
-            self.join_subtasks(self.run_subtask('volume.dataset.create', {
-                'pool': container['target'],
-                'name': ds_name,
-                'properties': opts
-            }))
+            if properties['type'] == 'VT9P':
+                if properties.get('auto'):
+                    self.join_subtasks(self.run_subtask('volume.dataset.create', {
+                        'pool': container['target'],
+                        'name': os.path.join(container_ds, res['name'])
+                    }))
 
     def update_device(self, container, old_res, new_res):
         if new_res['type'] == 'DISK':
@@ -219,6 +273,7 @@ class ContainerCreateTask(ContainerBaseTask):
         })
 
         self.init_dataset(container)
+        self.init_files(container)
         for res in container['devices']:
             self.create_device(container, res)
 
@@ -571,6 +626,19 @@ def _init(dispatcher, plugin):
         'additionalProperties': False,
         'properties': {
             'path': {'type': 'string'}
+        }
+    })
+
+    plugin.register_schema_definition('container-device-volume', {
+        'type': 'object',
+        'additionalProperties': False,
+        'properties': {
+            'type': {
+                'type': 'string',
+                'enum': ['VT9P', 'NFS']
+            },
+            'auto': {'type': ['boolean', 'null']},
+            'destination': {'type': ['string', 'null']}
         }
     })
 
