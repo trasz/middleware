@@ -48,7 +48,7 @@ class RPC(object):
         if run_args:
             args, kwargs = run_args(req, kwargs)
         try:
-            result = self.dispatcher.call_sync(self.name, args, kwargs)
+            result = self.dispatcher.call_sync(self.name, *args, **kwargs)
         except RpcException as e:
             raise falcon.HTTPBadRequest(e.message, str(e))
         return result
@@ -197,7 +197,7 @@ class EntityResource(Resource):
                 val = False
             args.append((field, op, val))
 
-        return args, kwargs
+        return [args, kwargs], {}
 
     def do(self, method, req, resp, *args, **kwargs):
         rv = super(EntityResource, self).do(method, req, resp, *args, **kwargs)
@@ -234,6 +234,29 @@ class ItemResource(Resource):
                 },
             ]
         return rv
+
+
+class ServiceResource(Resource):
+
+    def get_uri(self):
+        return '/service/{0}'.format(self.name)
+
+
+class ServiceBase(object):
+
+    def __init__(self, rest, dispatcher):
+
+        type('{0}ServiceResource'.format(self.__class__.__name__), (ServiceResource, ), {
+            'name': self.namespace,
+            'get': 'rpc:{0}'.format(self.get_retrieve_method_name()),
+            'put': 'task:{0}'.format(self.get_update_method_name()),
+        })(rest)
+
+    def get_retrieve_method_name(self):
+        return 'service.{0}.get_config'.format(self.namespace)
+
+    def get_update_method_name(self):
+        return 'service.{0}.configure'.format(self.namespace)
 
 
 class CRUDBase(object):

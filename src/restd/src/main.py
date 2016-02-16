@@ -153,6 +153,9 @@ class RESTApi(object):
         ins = klass(self, self.dispatcher)
         self._cruds.append(ins)
 
+    def register_service(self, klass):
+        klass(self, self.dispatcher)
+
     def run(self):
         self.init_dispatcher()
         self.init_metadata()
