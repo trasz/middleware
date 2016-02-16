@@ -129,7 +129,12 @@ class TaskExecutor(object):
 
         if status['status'] == 'FAILED':
             error = status['error']
-            self.result.set_exception(TaskException(
+            cls = TaskException
+
+            if error['type'] == 'task.TaskAbortException':
+                cls = TaskAbortException
+
+            self.result.set_exception(cls(
                 code=error['code'],
                 message=error['message'],
                 stacktrace=error['stacktrace'],
