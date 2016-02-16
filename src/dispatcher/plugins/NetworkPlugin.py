@@ -202,21 +202,21 @@ class DeleteInterfaceTask(Task):
     h.forbidden('id', 'type', 'status')
 ))
 class ConfigureInterfaceTask(Task):
-    def verify(self, name, updated_fields):
-        if not self.datastore.exists('network.interfaces', ('id', '=', name)):
-            raise VerifyException(errno.ENOENT, 'Interface {0} does not exist'.format(name))
+    def verify(self, id, updated_fields):
+        if not self.datastore.exists('network.interfaces', ('id', '=', id)):
+            raise VerifyException(errno.ENOENT, 'Interface {0} does not exist'.format(id))
 
         return ['system']
 
-    def run(self, name, updated_fields):
+    def run(self, id, updated_fields):
         task = 'networkd.configuration.configure_interface'
-        entity = self.datastore.get_by_id('network.interfaces', name)
+        entity = self.datastore.get_by_id('network.interfaces', id)
 
         if updated_fields.get('dhcp'):
             # Check for DHCP inconsistencies
             # 1. Check whether DHCP is enabled on other interfaces
             # 2. Check whether DHCP configures default route and/or DNS server addresses
-            dhcp_used = self.datastore.exists('network.interfaces', ('dhcp', '=', True), ('id' '!=', name))
+            dhcp_used = self.datastore.exists('network.interfaces', ('dhcp', '=', True), ('id' '!=', id))
             dhcp_global = self.configstore.get('network.dhcp.assign_gateway') or \
                 self.configstore.get('network.dhcp.assign_dns')
 
@@ -255,16 +255,16 @@ class ConfigureInterfaceTask(Task):
                 task = 'networkd.configuration.down_interface'
 
         entity.update(updated_fields)
-        self.datastore.update('network.interfaces', name, entity)
+        self.datastore.update('network.interfaces', id, entity)
 
         try:
-            self.dispatcher.call_sync(task, name)
+            self.dispatcher.call_sync(task, id)
         except RpcException as err:
             raise TaskException(errno.ENXIO, 'Cannot reconfigure interface: {0}'.format(str(err)))
 
         self.dispatcher.dispatch_event('network.interface.changed', {
             'operation': 'update',
-            'ids': [name]
+            'ids': [id]
         })
 
 
