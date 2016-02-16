@@ -173,18 +173,18 @@ class CreateInterfaceTask(Task):
 @description("Deletes interface")
 @accepts(str)
 class DeleteInterfaceTask(Task):
-    def verify(self, name):
-        iface = self.datastore.get_by_id('network.interfaces', name)
+    def verify(self, id):
+        iface = self.datastore.get_by_id('network.interfaces', id)
         if not iface:
-            raise VerifyException(errno.ENOENT, 'Interface {0} does not exist'.format(name))
+            raise VerifyException(errno.ENOENT, 'Interface {0} does not exist'.format(id))
 
         if iface['type'] not in ('VLAN', 'LAGG', 'BRIDGE'):
             raise VerifyException(errno.EBUSY, 'Cannot delete physical interface')
 
         return ['system']
 
-    def run(self, name):
-        self.datastore.delete('network.interfaces', name)
+    def run(self, id):
+        self.datastore.delete('network.interfaces', id)
         try:
             self.dispatcher.call_sync('networkd.configuration.configure_network')
         except RpcException as e:
@@ -192,7 +192,7 @@ class DeleteInterfaceTask(Task):
 
         self.dispatcher.dispatch_event('network.interface.changed', {
             'operation': 'delete',
-            'ids': [name]
+            'ids': [id]
         })
 
 
