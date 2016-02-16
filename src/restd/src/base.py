@@ -186,8 +186,7 @@ class EntityResource(Resource):
                 'regex': '~',
             }
 
-            if op in op_map:
-                op = op_map.get(op)
+            op = op_map.get(op, op)
 
             if val.isdigit():
                 val = int(val)
