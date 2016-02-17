@@ -47,9 +47,7 @@ import socket
 import setproctitle
 import traceback
 import tempfile
-import pty
 import struct
-import termios
 import cgi
 import pwd
 import subprocess
@@ -58,7 +56,8 @@ import gevent
 from gevent import monkey, Greenlet
 from pyee import EventEmitter
 from gevent.socket import wait_write
-from gevent.os import tp_read, tp_write
+from gevent.os import tp_read, tp_write, forkpty_and_watch
+from gevent.select import select
 from gevent.queue import Queue
 from gevent.lock import RLock
 from gevent.subprocess import Popen
@@ -1457,12 +1456,12 @@ class ShellConnection(WebSocketApplication, EventEmitter):
         self.authenticated = False
         self.master = None
         self.slave = None
-        self.proc = None
+        self.closed = Event()
+        self.pid = None
         self.inq = Queue()
 
     def worker(self, user, shell):
         self.logger.info('Opening shell %s...', shell)
-        self.master, self.slave = pty.openpty()
         env = os.environ.copy()
         env['TERM'] = 'xterm'
 
@@ -1471,49 +1470,34 @@ class ShellConnection(WebSocketApplication, EventEmitter):
             self.ws.close()
             return
 
-        def preexec():
-            try:
-                fd = os.open("/dev/tty", os.O_RDWR | os.O_NOCTTY)
-            except OSError:
-                pass
-            else:
-                try:
-                    fcntl.ioctl(fd, termios.TIOCNOTTY, '')
-                except:
-                    pass
-                os.close(fd)
-
-            os.setsid()
-            fcntl.ioctl(0, termios.TIOCSCTTY)
-            os.seteuid(uinfo.pw_uid)
-
         def read_worker():
             while True:
                 data = tp_read(self.master, self.BUFSIZE)
                 if not data:
-                    return
+                    break
 
                 self.ws.send(data)
+
+            self.ws.close()
 
         def write_worker():
             for i in self.inq:
                 tp_write(self.master, i)
 
-        self.proc = Popen(
-            ['/bin/sh', '-c', shell],
-            stdout=self.slave,
-            stderr=self.slave,
-            stdin=self.slave,
-            close_fds=True,
-            env=env,
-            preexec_fn=preexec)
+        def callback(watcher):
+            watcher.stop()
+            self.closed.set()
 
-        self.logger.info('Shell %s spawned as PID %d', shell, self.proc.pid)
-
+        self.pid, self.master = forkpty_and_watch(callback)
         wr = gevent.spawn(write_worker)
         rd = gevent.spawn(read_worker)
-        self.proc.wait()
-        self.ws.close()
+
+        if self.pid == 0:
+            os.seteuid(uinfo.pw_uid)
+            os.execve('/bin/sh', ['sh', '-c', shell], env)
+
+        self.logger.info('Shell %s spawned as PID %d', shell, self.pid)
+        self.closed.wait()
         gevent.joinall([rd, wr])
 
     def on_open(self, *args, **kwargs):
@@ -1521,12 +1505,11 @@ class ShellConnection(WebSocketApplication, EventEmitter):
 
     def on_close(self, *args, **kwargs):
         self.inq.put(StopIteration)
-        self.logger.info('Terminating shell PID %d', self.proc.pid)
-        if not self.proc.returncode:
-            try:
-                self.proc.terminate()
-            except OSError:
-                pass
+        self.logger.info('Terminating shell PID %d', self.pid)
+        try:
+            os.kill(self.pid, signal.SIGTERM)
+        except OSError:
+            pass
 
         os.close(self.master)
 
