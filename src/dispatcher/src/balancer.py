@@ -589,6 +589,7 @@ class Balancer(object):
     def assign_executor(self, task):
         for i in self.executors:
             if i.state == WorkerState.IDLE:
+                i.checked_in.wait()
                 self.logger.info("Task %d assigned to executor #%d", task.id, i.index)
                 task.executor = i
                 i.state = WorkerState.EXECUTING
