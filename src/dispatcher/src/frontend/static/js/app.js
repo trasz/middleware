@@ -9,13 +9,17 @@ config(['$routeProvider', function($routeProvider) {
   $routeProvider.
       when('/',
         {
-          templateUrl: '../static/partials/index.html',
-          controller: IndexController
+            templateUrl: '../static/partials/rpc.html',
+            controller: RpcController
         }).
       when('/rpc',{
           templateUrl: '../static/partials/rpc.html',
           controller: RpcController
       }).
+	  when('/events',{
+		  templateUrl: '../static/partials/events.html',
+		  controller: EventsController
+	  }).
       when('/apidocs/',
         {
           templateUrl: '../static/partials/apidocs.html',

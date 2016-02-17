@@ -85,6 +85,44 @@ function RpcController($scope) {
     }
 }
 
+function EventsController($scope) {
+    document.title = "System Events";
+    var sock = new middleware.DispatcherClient(document.domain);
+    sock.connect();
+    $scope.init = function () {
+        sock.onError = function(err) {
+            alert("Error: " + err.message);
+        };
+        sock.onConnect = function() {
+            if (!sessionStorage.getItem("freenas:username")) {
+                var username = prompt("Username:");
+                var password = prompt("Password:");
+                sessionStorage.setItem("freenas:username", username);
+                sessionStorage.setItem("freenas:password", password);
+            }
+
+            sock.login(
+                sessionStorage.getItem("freenas:username"),
+                sessionStorage.getItem("freenas:password")
+            );
+        };
+        sock.onLogin = function() {
+            sock.subscribe("*");
+            console.log("getting system events, plz wait");
+            var item_list = [];
+            sock.onEvent = function(name, args) {
+                var ctx = {
+                    name: name,
+                    args: JSON.stringify(args, undefined, 4)
+                };
+                item_list.push(ctx);
+                $scope.$apply(function(){
+                  $scope.item_list = item_list;
+                });
+            };
+        };
+    }
+}
 
 function APIdocController($scope) {
 	console.log("api doc page");
