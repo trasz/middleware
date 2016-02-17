@@ -129,7 +129,12 @@ class TaskExecutor(object):
 
         if status['status'] == 'FAILED':
             error = status['error']
-            self.result.set_exception(TaskException(
+            cls = TaskException
+
+            if error['type'] == 'task.TaskAbortException':
+                cls = TaskAbortException
+
+            self.result.set_exception(cls(
                 code=error['code'],
                 message=error['message'],
                 stacktrace=error['stacktrace'],
@@ -584,6 +589,7 @@ class Balancer(object):
     def assign_executor(self, task):
         for i in self.executors:
             if i.state == WorkerState.IDLE:
+                i.checked_in.wait()
                 self.logger.info("Task %d assigned to executor #%d", task.id, i.index)
                 task.executor = i
                 i.state = WorkerState.EXECUTING

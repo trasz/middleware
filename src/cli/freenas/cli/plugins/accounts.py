@@ -130,7 +130,7 @@ class UsersNamespace(TaskBasedSaveMixin, EntitySubscriberBasedLoadMixin, EntityN
             interoperability. Can not begin with a hyphen or contain a space,
             a tab, a double quote, or any of these characters:
             r" , : + & # % ^ & ( ) ! @ ~ * ? < > =
-            If a \$ is used, it can only be the last character."""),
+            r" If a $ is used, it can only be the last character."""),
             list=True)
 
         self.add_property(
@@ -171,7 +171,7 @@ class UsersNamespace(TaskBasedSaveMixin, EntitySubscriberBasedLoadMixin, EntityN
             name='shell',
             get='shell',
             usage=_("""
-            r" Default is /bin/sh. Otherwise,
+            Default is "/bin/sh". Otherwise,
             specify full path to an existing shell."""),
             list=False,
             enum=UsersNamespace.shells
@@ -194,7 +194,7 @@ class UsersNamespace(TaskBasedSaveMixin, EntitySubscriberBasedLoadMixin, EntityN
             get=None,
             set='password',
             usage=_("""\
-            r" Mandatory unless password_disabled=true is
+            Mandatory unless "password_disabled=true" is
             specified when creating the user. Passwords
             cannot contain a question mark."""),
             list=False
@@ -238,6 +238,10 @@ class UsersNamespace(TaskBasedSaveMixin, EntitySubscriberBasedLoadMixin, EntityN
             descr='Sudo allowed',
             name='sudo',
             get='sudo',
+            usage=_("""
+            Can be set to true or false. When set to true, the
+            user is allowed to use sudo to run commands
+            with administrative permissions."""),
             list=False,
             type=ValueType.BOOLEAN
         )
@@ -246,6 +250,9 @@ class UsersNamespace(TaskBasedSaveMixin, EntitySubscriberBasedLoadMixin, EntityN
             descr='SSH public key',
             name='pubkey',
             get='sshpubkey',
+            usage=_("""
+            To configure key-based authentication, use the "set" command
+            to paste the user's SSH public key."""),
             type=ValueType.STRING,
             list=False
         )
@@ -309,7 +316,8 @@ class GroupsNamespace(TaskBasedSaveMixin, EntitySubscriberBasedLoadMixin, Entity
 
             Examples: set name=mygroup
 
-            Allows renaming a group.""")
+            Sets the "name" property in order to rename the group. This
+            will fail for builtin groups.""")
         self.localdoc['DeleteEntityCommand'] = ("""\
             Usage: delete <groupname>
 
@@ -336,6 +344,7 @@ class GroupsNamespace(TaskBasedSaveMixin, EntitySubscriberBasedLoadMixin, Entity
             descr='Group name',
             name='name',
             get='name',
+            usage=_("Editable group name."),
             list=True)
 
         self.add_property(
@@ -345,6 +354,9 @@ class GroupsNamespace(TaskBasedSaveMixin, EntitySubscriberBasedLoadMixin, Entity
             set='id',
             usersetable=False,            
             type=ValueType.NUMBER,
+            usage=_("""\
+            "Group ID. Read-only value assigned by operating
+            system."""),
             list=True)
 
         self.add_property(
@@ -353,6 +365,9 @@ class GroupsNamespace(TaskBasedSaveMixin, EntitySubscriberBasedLoadMixin, Entity
             get='builtin',
             set=None,
             list=True,
+            usage=_("""\
+            "Read-only value that indicates whether or not
+            the group was created by the operating system."""),
             type=ValueType.BOOLEAN)
 
         self.primary_key = self.get_mapping('name')

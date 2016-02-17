@@ -53,7 +53,7 @@ class BootEnvironmentNamespace(RpcBasedLoadMixin, EntityNamespace):
         self.required_props = ['name']
 
         self.localdoc['CreateEntityCommand'] = ("""\
-            Usage: create name=<bootenv name>
+            Usage: create <bootenv name>
 
             Example: create mybootenv
 
@@ -135,18 +135,24 @@ class BootEnvironmentNamespace(RpcBasedLoadMixin, EntityNamespace):
             set=None,
             )
 
-        self.add_property(
-            descr='Mount point',
-            name='mountpoint',
-            get='mountpoint',
-            list=False,
-            set=None,
-            )
+#        self.add_property(
+#            descr='Mount point',
+#            name='mountpoint',
+#            get='mountpoint',
+#            usage=_("""
+#            Read-only value indicating the amount of space used
+#            by the boot environment."""),
+#            list=False,
+#            set=None,
+#            )
 
         self.add_property(
             descr='Space used',
             name='space',
             get='space',
+            usage=_("""
+            Read-only timestamp indicating when the boot
+            environment was created."""),
             list=True,
             set=None,
             )

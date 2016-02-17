@@ -60,7 +60,7 @@ from freenas.cli.parser import (
     parse, unparse, Symbol, Literal, BinaryParameter, UnaryExpr, BinaryExpr, PipeExpr, AssignmentStatement,
     IfStatement, ForStatement, WhileStatement, FunctionCall, CommandCall, Subscript,
     ExpressionExpansion, CommandExpansion, FunctionDefinition, ReturnStatement, BreakStatement,
-    UndefStatement, Redirection, AnonymousFunction
+    UndefStatement, Redirection, AnonymousFunction, ShellEscape
 )
 from freenas.cli.output import (
     ValueType, ProgressBar, Sequence, output_lock, output_msg, read_value, format_value,
@@ -413,6 +413,10 @@ class Context(object):
 
         self.entity_subscribers['task'].on_add = update_task
         self.entity_subscribers['task'].on_update = lambda o, n: update_task(n, o)
+
+    def wait_entity_subscribers(self):
+        for i in self.entity_subscribers.values():
+            i.wait_ready()
 
     def connect(self, password=None):
         try:
@@ -1292,14 +1296,22 @@ class MainLoop(object):
                         result = cmd.run(self.context, args, kwargs, opargs)
 
                     result = PrintableNone.coerce(result)
-                    ret = self.eval(token.right, input_data=result)
-                    self.context.pipe_cwd = None
-                    if ret is None:
-                        resultset.append(result)
-                    else:
+                    if result is None:
+                        ret = self.eval(token.right, input_data=result)
                         resultset.append(ret)
+                    else:
+                        resultset.append(result)
+
+                    self.context.pipe_cwd = None
 
                 return resultset.unwind()
+
+            if isinstance(token, ShellEscape):
+                return self.builtin_commands['shell'].run(
+                    self.context,
+                    [' '.join(token.args)],
+                    {}, {}
+                )
 
             if isinstance(token, Redirection):
                 with open(token.path, 'a+') as f:
@@ -1316,11 +1328,6 @@ class MainLoop(object):
 
     def process(self, line):
         if len(line) == 0:
-            return
-
-        if line[0] == '!':
-            self.builtin_commands['shell'].run(
-                self.context, [line[1:]], {}, {})
             return
 
         if line == '-':
@@ -1470,6 +1477,10 @@ class MainLoop(object):
                     choices = [str(i.get_name()) for i in obj.namespaces()]
                     choices += obj.commands().keys()
                     choices += builtin_command_set + ['..', '/', '-']
+
+                    if text.startswith('/') and isinstance(obj, RootNamespace):
+                        choices = ['/' + i for i in choices]
+
                     append_space = True
                 elif issubclass(type(obj), Command):
                     completions = obj.complete(self.context)
@@ -1615,6 +1626,7 @@ def main():
         return
 
     if args.f:
+        context.wait_entity_subscribers()
         try:
             f = sys.stdin if args.f == '-' else open(args.f)
             for line in f:

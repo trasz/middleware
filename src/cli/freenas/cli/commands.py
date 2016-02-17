@@ -155,7 +155,7 @@ class SaveenvCommand(Command):
 
     """
     Save the current set of environment variables to either the specified filename
-    or, when not specified, to "/.freenascli.conf". To start the CLI with the saved
+    or, when not specified, to "~/.freenascli.conf". To start the CLI with the saved
     variables, type "cli -c filename" from either shell or an SSH session.
     
     Usage: saveenv
@@ -163,7 +163,7 @@ class SaveenvCommand(Command):
 
     Examples:
            saveenv
-           saveenv /root/myclisave.conf
+           saveenv "/root/myclisave.conf"
     """
 
     def run(self, context, args, kwargs, opargs):
@@ -192,7 +192,7 @@ class ShellCommand(Command):
     Usage: shell <command>
 
     Examples:
-           shell /usr/local/bin/bash
+           shell "/usr/local/bin/bash"
            shell "tail /var/log/messages"
     """
 
@@ -255,7 +255,7 @@ class ShowIpsCommand(Command):
 class ShowUrlsCommand(Command):
 
     """
-    Display the URL\(s\) for accessing the web GUI.
+    Display the URLs for accessing the web GUI.
 
     Usage: showurls
     """
@@ -344,7 +344,7 @@ class HelpCommand(Command):
     Examples:
         help
         help printenv
-        help account user show
+        help account user create
         account group help properties
     """
 
@@ -445,6 +445,8 @@ class HelpCommand(Command):
                     }
                     cmd_dict_list.append(namespace_dict)
 
+            cmd_dict_list = sorted(cmd_dict_list, key=lambda k: k['cmd'])
+
             # Finally listing the builtin cmds
             builtin_cmd_dict_list = [
                 {"cmd": "/", "description": "Go to the root namespace"},
@@ -461,6 +463,8 @@ class HelpCommand(Command):
                     'description': description,
                 }
                 builtin_cmd_dict_list.append(builtin_cmd_dict)
+
+            builtin_cmd_dict_list = sorted(builtin_cmd_dict_list, key=lambda k: k['cmd'])
 
             # Finally printing all this out in unix `LESS(1)` pager style
             output_seq = Sequence()
@@ -591,9 +595,9 @@ class HistoryCommand(Command):
 @description("Imports a script for parsing")
 class SourceCommand(Command):
     """
-    Run specified file\(s\), where each file contains a list
+    Run specified file or files, where each file contains a list
     of CLI commands. When creating the source file, separate
-    each CLI command with a semicolon \";\" or place each
+    each CLI command with a semicolon or place each
     CLI command on its own line. If multiple files are
     specified, they are run in the order given. If a CLI
     command fails, the source operation aborts.
@@ -635,7 +639,7 @@ class DumpCommand(Command):
     Examples:
     update dump
     dump | less
-    dump /root/mydumpfile.cli
+    dump "/root/mydumpfile.cli"
     """
 
     def run(self, context, args, kwargs, opargs):
@@ -697,6 +701,8 @@ class EchoCommand(Command):
                     isinstance(args[i-1], (Table, output_obj, dict, Sequence, list))
                 ):
                     echo_seq[-1] = ' '.join([echo_seq[-1], str(item)])
+                elif isinstance(item, list):
+                    echo_seq.append(', '.join(item))
                 else:
                     echo_seq.append(item)
             return Sequence(*echo_seq)
@@ -705,9 +711,10 @@ class EchoCommand(Command):
 @description("Shows pending tasks")
 class PendingCommand(Command):
     """
+    Display the list of currently pending tasks.
+    
     Usage: pending
 
-    Shows a list of currently pending tasks.
     """
     def run(self, context, args, kwargs, opargs):
         pending = list(filter(
@@ -725,8 +732,11 @@ class PendingCommand(Command):
 @description("Waits for a task to complete and shows task progress")
 class WaitCommand(Command):
     """
+    Shows task progress of either all waiting tasks or the
+    specified task. Use "task show' to determine the task ID.
+    
     Usage: wait
-           wait <task id>
+           wait <task ID>
 
     """
     def run(self, context, args, kwargs, opargs):
@@ -752,7 +762,7 @@ class WaitCommand(Command):
             progress.update(percentage=percentage, message=message)
 
         try:
-            task = context.entity_subscribers['task'].query(('id', '=', tid), single=True)
+            task = context.entity_subscribers['task'].get(tid, timeout=1)
             if task['state'] in ('FINISHED', 'FAILED', 'ABORTED'):
                 return _("The task with id: {0} ended in {1} state".format(tid, task['state']))
 
@@ -800,8 +810,9 @@ class WaitCommand(Command):
 class MorePipeCommand(PipeCommand):
 
     """
-    Allow paging and scrolling through long outputs of text.
-    It has an alias of 'less' i.e. 'more' and 'less' do the same thing.
+    Allow paging and scrolling through long outputs of text, where
+    'more' and 'less' are interchangeable. Press 'q' to return to
+    the prompt.
 
     Usage: <command> | more
            <command> | less
@@ -960,7 +971,7 @@ class SortPipeCommand(PipeCommand):
 @description("Limits output to <n> items")
 class LimitPipeCommand(PipeCommand):
     """
-    Return only the n elements of a list.
+    Return only the specified number of elements in a list.
 
     Usage: <command> | limit <n>
 
