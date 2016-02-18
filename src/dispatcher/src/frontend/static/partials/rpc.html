@@ -41,7 +41,7 @@
         <div class="table-responsive">
           <ul class="list-group nav">
             <li class="list-group-item" ng-repeat='method in current_methods | filter:search:strict'>
-              <a href="" ng-click="setInput(method)">{{ method }}</a>
+              <a href="" ng-click="setInput(method)" ng-class="method.includes('die') ? 'btn btn-danger' : 'btn btn-primary'">{{ method }}</a>
             </li>
           </ul>
         </div>
