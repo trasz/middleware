@@ -43,10 +43,13 @@ from datastore.config import ConfigStore
 
 
 def serialize_error(err):
+    etype, _, _ = sys.exc_info()
+    stacktrace = traceback.format_exc() if etype else traceback.format_stack()
+
     ret = {
         'type': type(err).__name__,
         'message': str(err),
-        'stacktrace': traceback.format_exc()
+        'stacktrace': stacktrace
     }
 
     if isinstance(err, (RpcException, RpcWarning)):
