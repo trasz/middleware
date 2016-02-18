@@ -63,6 +63,7 @@ class ManagementService(RpcService):
             current_progress = None
             schedule = {f.name: f for f in job.trigger.fields}
             schedule['coalesce'] = job.coalesce
+            schedule['timezone'] = job.trigger.timezone
 
             last_run = self.context.datastore.query(
                 'schedulerd.runs',
