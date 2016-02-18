@@ -144,6 +144,31 @@ function SyslogController($scope) {
                 sessionStorage.getItem("freenas:password")
             );
         };
+        sock.onLogin = function(result) {
+            sock.call("syslog.query", [[], {"sort": ["-id"], "limit": 50}], function(result) {
+                $.each(result, function(idx, i) {
+                    var tr = $("<tr/>", {
+                        'data-id': i.id,
+                        'html': template(i)
+                    });
+
+                    tr.prependTo("#syslog tbody");
+                    tr[0].scrollIntoView();
+                });
+
+                sock.registerEventHandler("entity-subscriber.syslog.changed", function(args) {
+                    $.each(args.entities, function(idx, i) {
+                        var tr = $("<tr/>", {
+                            'data-id': i.id,
+                            'html': template(i)
+                        });
+
+                        tr.appendTo("#syslog tbody");
+                        tr[0].scrollIntoView();
+                    });
+                });
+            });
+        };
 }
 
 function APIdocController($scope) {
