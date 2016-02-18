@@ -235,6 +235,36 @@ class ItemResource(Resource):
         return rv
 
 
+class ProviderMixin:
+
+    provider = None
+
+    def __init__(self, rest, parent=None):
+        super(ProviderMixin, self).__init__(rest, parent)
+        provider_name = self.get_provider_name()
+        if provider_name is None:
+            return
+
+        methods = rest._services.get(self.get_provider_name())
+        if methods is None:
+            return
+
+        for method in methods:
+            # Skip private RPC methods
+            if method.get('private') is True:
+                continue
+            type('{0}Resource'.format(method['name']), (Resource, ), {
+                'name': method['name'],
+                'get': 'rpc:{0}.{1}'.format(provider_name, method['name']),
+            })(rest, parent=self)
+
+    def get_provider_name(self):
+        if self.provider:
+            return self.provider
+        if self.get is not None and self.get.startswith('rpc:'):
+            return self.get[4:].rsplit('.', 1)[0]
+
+
 class ServiceResource(Resource):
 
     def get_uri(self):
@@ -245,7 +275,7 @@ class ServiceBase(object):
 
     def __init__(self, rest, dispatcher):
 
-        type('{0}ServiceResource'.format(self.__class__.__name__), (ServiceResource, ), {
+        type('{0}ServiceResource'.format(self.__class__.__name__), (ProviderMixin, ServiceResource, ), {
             'name': self.namespace,
             'get': 'rpc:{0}'.format(self.get_retrieve_method_name()),
             'put': 'task:{0}'.format(self.get_update_method_name()),
