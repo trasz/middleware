@@ -20,6 +20,10 @@ config(['$routeProvider', function($routeProvider) {
 		  templateUrl: '../static/partials/events.html',
 		  controller: EventsController
 	  }).
+      when('/syslog',{
+          templateUrl: '../static/partials/syslog.html',
+          controller: SyslogController 
+      }).
       when('/apidocs/',
         {
           templateUrl: '../static/partials/apidocs.html',

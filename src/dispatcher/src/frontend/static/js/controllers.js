@@ -123,6 +123,28 @@ function EventsController($scope) {
         };
     }
 }
+function SyslogController($scope) {
+    document.title = "System Logs";
+    var sock = new middleware.DispatcherClient(document.domain);
+    sock.connect();
+    $scope.init = function () {
+        sock.onError = function(err) {
+            alert("Error: " + err.message);
+        };
+        sock.onConnect = function() {
+            if (!sessionStorage.getItem("freenas:username")) {
+                var username = prompt("Username:");
+                var password = prompt("Password:");
+                sessionStorage.setItem("freenas:username", username);
+                sessionStorage.setItem("freenas:password", password);
+            }
+
+            sock.login(
+                sessionStorage.getItem("freenas:username"),
+                sessionStorage.getItem("freenas:password")
+            );
+        };
+}
 
 function APIdocController($scope) {
 	console.log("api doc page");
