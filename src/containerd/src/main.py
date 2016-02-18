@@ -42,10 +42,12 @@ import gevent.monkey
 import subprocess
 import serial
 import netif
+import socket
 import signal
 import select
 import tempfile
 import ipaddress
+import pf
 from gevent.queue import Queue, Channel
 from gevent.event import Event
 from geventwebsocket import WebSocketServer, WebSocketApplication, Resource
@@ -56,7 +58,7 @@ from datastore.config import ConfigStore
 from freenas.dispatcher.client import Client, ClientError
 from freenas.dispatcher.rpc import RpcService, RpcException, private
 from freenas.utils.debug import DebugService
-from freenas.utils import configure_logging
+from freenas.utils import first_or_default, configure_logging
 from mgmt import ManagementNetwork
 from ec2 import EC2MetadataServer
 
@@ -164,11 +166,11 @@ class VirtualMachine(object):
                         bridge.add_member(iface.name)
 
             if nic['type'] == 'MANAGEMENT':
-                mgmt = netif.get_interface('mgmt0', force_type='bridge')
+                mgmt = netif.get_interface('mgmt0', bridge=True)
                 mgmt.add_member(iface.name)
 
             if nic['type'] == 'NAT':
-                mgmt = netif.get_interface('nat0', force_type='bridge')
+                mgmt = netif.get_interface('nat0', bridge=True)
                 mgmt.add_member(iface.name)
 
             self.tap_interfaces[iface] = mac
@@ -587,6 +589,39 @@ class Main(object):
             ipaddress.ip_interface('169.254.169.254/32')
         ))
 
+    def init_nat(self):
+        default_if = self.client.call_sync('networkd.configuration.get_default_interface')
+        if not default_if:
+            self.logger.warning('No default route interface; not configuring NAT')
+            return
+
+        p = pf.PF()
+
+        # Try to find and remove existing NAT rules for the same subnet
+        oldrule = first_or_default(
+            lambda r: r.src.address.address == MGMT_ADDR.network.network_address,
+            p.get_rules('nat')
+        )
+
+        if oldrule:
+            p.delete_rule('nat', oldrule.index)
+
+        rule = pf.Rule()
+        rule.src.address.address = MGMT_ADDR.network.network_address
+        rule.src.address.netmask = MGMT_ADDR.netmask
+        rule.action = pf.RuleAction.NAT
+        rule.af = socket.AF_INET
+        rule.ifname = default_if
+        rule.redirect_pool.append(pf.Address(ifname=default_if))
+        rule.proxy_ports = [50001, 65535]
+        p.append_rule('nat', rule)
+
+        try:
+            p.enable()
+        except OSError as err:
+            if err.errno != errno.EEXIST:
+                raise err
+
     def init_ec2(self):
         self.ec2 = EC2MetadataServer(self)
         self.ec2.start()
@@ -633,6 +668,7 @@ class Main(object):
         self.init_datastore()
         self.init_dispatcher()
         self.init_mgmt()
+        self.init_nat()
         self.init_ec2()
         self.logger.info('Started')
 
