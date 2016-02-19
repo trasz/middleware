@@ -103,7 +103,7 @@ def register_general_purpose_schemas(dispatcher):
                 'oneOf': [
                     {
                         'type': 'array',
-                        'items': 'string'
+                        'items': {'type': 'string'}
                     },
                     {'type': 'null'}
                 ]
