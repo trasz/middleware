@@ -253,9 +253,18 @@ class ProviderMixin:
             # Skip private RPC methods
             if method.get('private') is True:
                 continue
+
+            method_op = 'rpc:{0}.{1}'.format(provider_name, method['name'])
+
+            # Skip method if same as current resource
+            # e.g. GET /service/ftp will query service.ftp.get_config
+            #      so we don't need a /service/ftp/get_config
+            if method_op == self.get:
+                continue
+
             type('{0}Resource'.format(method['name']), (Resource, ), {
                 'name': method['name'],
-                'get': 'rpc:{0}.{1}'.format(provider_name, method['name']),
+                'get': method_op,
             })(rest, parent=self)
 
     def get_provider_name(self):
@@ -275,7 +284,7 @@ class ServiceBase(object):
 
     def __init__(self, rest, dispatcher):
 
-        type('{0}ServiceResource'.format(self.__class__.__name__), (ProviderMixin, ServiceResource, ), {
+        type('{0}Resource'.format(self.__class__.__name__), (ProviderMixin, ServiceResource, ), {
             'name': self.namespace,
             'get': 'rpc:{0}'.format(self.get_retrieve_method_name()),
             'put': 'task:{0}'.format(self.get_update_method_name()),
