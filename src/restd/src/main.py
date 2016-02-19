@@ -63,7 +63,6 @@ class AuthMiddleware(object):
         try:
             username, password = base64.b64decode(auth[6:]).decode('utf8').split(':', 1)
         except binascii.Error:
-            raise
             raise falcon.HTTPUnauthorized(
                 'Invalid Authorization token',
                 'Provide a valid Basic Authentication header',
