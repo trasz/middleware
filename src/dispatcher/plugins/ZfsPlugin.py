@@ -923,8 +923,8 @@ def zfsprop_schema_creator(**kwargs):
     result = {
         'type': 'object',
         'properties': {
-            'source': 'string',
-            'value': 'string',
+            'source': {'type': 'string'},
+            'value': {'type': 'string'},
         }
     }
     for key, value in kwargs.items():
