@@ -433,8 +433,10 @@ def _init(dispatcher, plugin):
         'additionalProperties': {
             'type': 'object',
             'properties': {
-                'subtype': {'type': 'string'},
-                'perm_type': {'type': 'string'}
+                'subtype': {'type': 'string', 'enum': ['FILE', 'BLOCK']},
+                'perm_type': {
+                    'oneOf': [{'type': 'string', 'enum': ['PERM', 'ACL']}, {'type': 'null'}]
+                },
             },
             'additionalProperties': False
         }
@@ -457,9 +459,7 @@ def _init(dispatcher, plugin):
                     new_path = new_path.replace(args['mountpoint'], args['new_mountpoint'], 1)
 
             if new_path is not share['target_path']:
-                dispatcher.call_task_sync('share.update',
-                                          share['id'],
-                                          {'target_path': new_path})
+                dispatcher.call_task_sync('share.update', share['id'], {'target_path': new_path})
         return True
 
     def set_related_enabled(name, enabled):

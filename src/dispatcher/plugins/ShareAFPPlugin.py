@@ -150,8 +150,8 @@ def _depends():
 def _metadata():
     return {
         'type': 'sharing',
-        'subtype': 'file',
-        'perm_type': 'PERMS',
+        'subtype': 'FILE',
+        'perm_type': 'PERM',
         'method': 'afp'
     }
 

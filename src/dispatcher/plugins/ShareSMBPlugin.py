@@ -208,7 +208,7 @@ def _depends():
 def _metadata():
     return {
         'type': 'sharing',
-        'subtype': 'file',
+        'subtype': 'FILE',
         'perm_type': 'ACL',
         'method': 'smb'
     }
