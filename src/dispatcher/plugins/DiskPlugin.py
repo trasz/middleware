@@ -1292,7 +1292,7 @@ def _init(dispatcher, plugin):
                     'node': {'type': 'string'},
                     'members': {
                         'type': 'array',
-                        'items': 'string'
+                        'items': {'type': 'string'},
                     },
                 }
             },
