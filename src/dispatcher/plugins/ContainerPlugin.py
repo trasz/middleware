@@ -553,7 +553,7 @@ def _init(dispatcher, plugin):
             'description': {'type': 'string'},
             'target': {'type': 'string'},
             'template': {
-                'type': ['object', 'none'],
+                'type': ['object', 'null'],
                 'properties': {
                     'name': {'type': 'string'},
                     'path': {'type': 'string'}
