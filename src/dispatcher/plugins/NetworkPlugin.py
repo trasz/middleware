@@ -64,6 +64,7 @@ class NetworkProvider(Provider):
         return ips
 
 
+@description("Provides access to network interface settings")
 class InterfaceProvider(Provider):
     @query('network-interface')
     def query(self, filter=None, params=None):
@@ -77,9 +78,12 @@ class InterfaceProvider(Provider):
                 return None
             return i
 
-        return self.datastore.query('network.interfaces', *(filter or []), callback=extend, **(params or {}))
+        return self.datastore.query(
+            'network.interfaces', *(filter or []), callback=extend, **(params or {})
+        )
 
 
+@description("Provides information on system's network routes")
 class RouteProvider(Provider):
     @query('network-route')
     def query(self, filter=None, params=None):
@@ -115,6 +119,7 @@ class NetworkConfigureTask(Task):
     h.required('type'),
     h.forbidden('id', 'status')
 ))
+@returns(str)
 class CreateInterfaceTask(Task):
     def verify(self, iface):
         return ['system']
@@ -643,9 +648,9 @@ def _init(dispatcher, plugin):
                     'INET6'
                 ]
             },
-            'address': {'type': 'string'},
+            'address': {'type': {'$ref': 'ip-address'}},
             'netmask': {'type': 'integer'},
-            'broadcast': {'type': ['string', 'null']}
+            'broadcast': {'type': [{'$ref': 'ipv4-address'}, 'null']}
         }
     })
 
@@ -655,9 +660,9 @@ def _init(dispatcher, plugin):
         'properties': {
             'id': {'type': 'string'},
             'type': {'type': 'string', 'enum': ['INET', 'INET6']},
-            'network': {'type': 'string'},
+            'network': {'type': {'$ref': 'ip-address'}},
             'netmask': {'type': 'integer'},
-            'gateway': {'type': 'string'}
+            'gateway': {'type': {'$ref': 'ip-address'}}
         }
     })
 
@@ -666,7 +671,7 @@ def _init(dispatcher, plugin):
         'additionalProperties': False,
         'properties': {
             'id': {'type': 'string'},
-            'address': {'type': 'string'},
+            'address': {'type': {'$ref': 'ip-address'}},
         }
     })
 
@@ -680,16 +685,16 @@ def _init(dispatcher, plugin):
                 'type': 'object',
                 'additionalProperties': False,
                 'properties': {
-                    'ipv4': {'type': ['string', 'null']},
-                    'ipv6': {'type': ['string', 'null']}
+                    'ipv4': {'type': [{'$ref': 'ipv4-address'}, 'null']},
+                    'ipv6': {'type': [{'$ref': 'ipv6-address'}, 'null']}
                 }
             },
             'dns': {
                 'type': 'object',
                 'additionalProperties': False,
                 'properties': {
-                    'addresses': {'type': 'array'},
-                    'search': {'type': 'array'}
+                    'addresses': {'type': 'array', 'items': {'$ref': 'ip-address'}},
+                    'search': {'type': 'array', 'items': {'type': 'string'}}
                 }
             },
             'dhcp': {
@@ -707,7 +712,7 @@ def _init(dispatcher, plugin):
                     'enabled': {'type': 'boolean'},
                     'addresses': {
                         'type': 'array',
-                        'items': {'type': 'string'}
+                        'items': {'type': {'$ref': 'ip-address'}}
                     }
                 }
             }
