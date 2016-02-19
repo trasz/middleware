@@ -137,7 +137,7 @@ def register_general_purpose_schemas(dispatcher):
             'output': {'type': 'string'},
             'warnings': {
                 'type': 'array',
-                'items': 'string'
+                'items': {'type': 'string'}
             },
             'error': {
                 'oneOf': [
