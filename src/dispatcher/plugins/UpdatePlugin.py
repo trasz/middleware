@@ -403,14 +403,12 @@ class UpdateProvider(Provider):
 
     @private
     @accepts(h.array(str))
-    @returns()
     def update_cache_invalidate(self, value_list):
         for item in value_list:
             update_cache.invalidate(item)
 
     @private
     @accepts(h.object())
-    @returns()
     def update_cache_putter(self, value_dict):
         for key, value in value_dict.items():
             update_cache.put(key, value)

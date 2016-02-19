@@ -53,7 +53,6 @@ class AlertsProvider(Provider):
 
     @description("Dismisses/Deletes an alert from the database")
     @accepts(int)
-    @returns()
     def dismiss(self, id):
         try:
             self.datastore.delete('alerts', id)
@@ -69,7 +68,7 @@ class AlertsProvider(Provider):
 
     @description("Emits an event for the provided alert")
     @accepts(h.ref('alert'))
-    @returns()
+    @returns(int)
     def emit(self, alert):
         alertprops = registered_alerts.get(alert['name'])
         if alertprops is None:
@@ -116,6 +115,8 @@ class AlertsProvider(Provider):
             except RpcException:
                 logger.error('Failed to send email alert', exc_info=True)
 
+        return id
+
     @description("Returns list of registered alerts")
     @accepts()
     @returns(h.ref('alert-registration'))
@@ -124,13 +125,15 @@ class AlertsProvider(Provider):
 
     @description("Registers an alert")
     @accepts(str, h.any_of(str, None))
-    @returns()
+    @returns(bool)
     def register_alert(self, name, verbose_name=None):
         if name not in registered_alerts:
             registered_alerts[name] = {
                 'name': name,
                 'verbose_name': verbose_name,
             }
+            return True
+        return False
 
 
 @description('Provides access to the alerts filters')

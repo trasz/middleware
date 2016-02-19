@@ -103,7 +103,6 @@ class ServiceInfoProvider(Provider):
 
     @private
     @accepts(str)
-    @returns()
     def ensure_started(self, service):
         # XXX launchd!
         svc = self.datastore.get_one('service_definitions', ('name', '=', service))

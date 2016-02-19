@@ -197,7 +197,6 @@ class SystemDatasetProvider(Provider):
     @private
     @description("Initializes the .system dataset")
     @accepts()
-    @returns()
     def init(self):
         pool = self.configstore.get('system.dataset.pool')
         dsid = self.configstore.get('system.dataset.id')

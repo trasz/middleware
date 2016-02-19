@@ -126,7 +126,6 @@ class ZpoolProvider(Provider):
         return first_or_default(lambda v: v['path'] == path, iterate_vdevs(pool['groups']))
 
     @accepts(str)
-    @returns()
     def ensure_resilvered(self, name):
         try:
             zfs = get_zfs()
