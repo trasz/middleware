@@ -1630,7 +1630,7 @@ class DatasetConfigureTask(Task):
     def switch_to_chmod(self, pool_name, path):
         self.join_subtasks(self.run_subtask('zfs.configure', pool_name, path, {
             'aclmode': {'value': 'passthrough'},
-            'org.freenas:permissions_type': {'value': 'PERMS'}
+            'org.freenas:permissions_type': {'value': 'PERM'}
         }))
 
     def run(self, pool_name, path, updated_params):
@@ -1651,7 +1651,7 @@ class DatasetConfigureTask(Task):
             if oldtyp != 'ACL' and typ == 'ACL':
                 self.switch_to_acl(pool_name, ds['name'])
 
-            if oldtyp != 'PERMS' and typ == 'PERMS':
+            if oldtyp != 'PERM' and typ == 'PERM':
                 self.switch_to_chmod(pool_name, ds['name'])
 
         if 'permissions' in updated_params:
