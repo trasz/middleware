@@ -2,6 +2,9 @@
 
 def normalize_schema(obj):
     if isinstance(obj, dict):
+        if 'anyOf' in obj:
+            # FIXME: Wrong, OpenAPI does not support it, need workaround
+            obj = obj['anyOf'][0]
         if '$ref' in obj:
             ref = obj['$ref']
             if not ref.startswith('#/definitions/'):

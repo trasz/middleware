@@ -140,13 +140,17 @@ class Resource(object):
                 'put': '200',
             }
 
+            response = {
+                'description': 'entries to be returned',
+            }
+            schema = normalize_schema(op.get('result-schema'))
+            if schema is not None:
+                response['schema'] = schema
+
             rv[i] = {
-                'description': op.get('description'),
+                'description': op.get('description', 'UNKNOWN'),
                 'responses': {
-                    code_map[i]: {
-                        'description': 'entries to be returned',
-                        'schema': normalize_schema(op.get('result-schema')),
-                    }
+                    code_map[i]: response,
                 },
             }
 
@@ -156,7 +160,7 @@ class Resource(object):
                         'name': 'data',
                         'in': 'body',
                         'required': True,
-                        'schema': normalize_schema(op.get('schema')),
+                        'schema': normalize_schema(op.get('schema', [None])[0]),
                     },
                 ]
         return rv
