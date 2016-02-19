@@ -229,7 +229,7 @@ class ItemResource(Resource):
                     'name': 'id',
                     'in': 'path',
                     'required': True,
-                    'schema': {'type': 'integer'},
+                    'type': 'integer',
                 },
             ]
         return rv
