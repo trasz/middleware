@@ -89,9 +89,9 @@ class SystemInfoProvider(Provider):
         return self.__version
 
     @accepts()
-    @returns(float, float, float)
+    @returns({'type': 'array', 'items': {'type': 'number'}, 'maxItems': 3, 'minItems': 3})
     def load_avg(self):
-        return os.getloadavg()
+        return list(os.getloadavg())
 
     @accepts()
     @returns(h.object(properties={
