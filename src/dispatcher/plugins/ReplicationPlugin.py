@@ -26,21 +26,17 @@
 #####################################################################
 
 import enum
-import os
 import io
 import errno
 import re
 import logging
-import subprocess
-import tempfile
 import paramiko
 from paramiko import RSAKey
 from datetime import datetime
 from dateutil.parser import parse as parse_datetime
 from task import Provider, Task, ProgressTask, VerifyException, TaskException
 from freenas.dispatcher.rpc import RpcException, SchemaHelper as h, description, accepts, returns, private
-from freenas.dispatcher.client import Client, ClientError
-from lib.system import SubprocessException, system
+from freenas.dispatcher.client import Client
 from freenas.utils import to_timedelta, first_or_default
 from freenas.utils.query import wrap
 from lib import sendzfs
