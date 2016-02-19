@@ -648,9 +648,11 @@ def _init(dispatcher, plugin):
                     'INET6'
                 ]
             },
-            'address': {'type': {'$ref': 'ip-address'}},
+            'address': {'$ref': 'ip-address'},
             'netmask': {'type': 'integer'},
-            'broadcast': {'type': [{'$ref': 'ipv4-address'}, 'null']}
+            'broadcast': {
+                'oneOf': [{'$ref': 'ipv4-address'}, {'type': 'null'}]
+            }
         }
     })
 
@@ -660,9 +662,9 @@ def _init(dispatcher, plugin):
         'properties': {
             'id': {'type': 'string'},
             'type': {'type': 'string', 'enum': ['INET', 'INET6']},
-            'network': {'type': {'$ref': 'ip-address'}},
+            'network': {'$ref': 'ip-address'},
             'netmask': {'type': 'integer'},
-            'gateway': {'type': {'$ref': 'ip-address'}}
+            'gateway': {'$ref': 'ip-address'}
         }
     })
 
@@ -671,7 +673,7 @@ def _init(dispatcher, plugin):
         'additionalProperties': False,
         'properties': {
             'id': {'type': 'string'},
-            'address': {'type': {'$ref': 'ip-address'}},
+            'address': {'$ref': 'ip-address'},
         }
     })
 
@@ -685,8 +687,8 @@ def _init(dispatcher, plugin):
                 'type': 'object',
                 'additionalProperties': False,
                 'properties': {
-                    'ipv4': {'type': [{'$ref': 'ipv4-address'}, 'null']},
-                    'ipv6': {'type': [{'$ref': 'ipv6-address'}, 'null']}
+                    'ipv4': {'oneOf': [{'$ref': 'ipv4-address'}, {'type': 'null'}]},
+                    'ipv6': {'oneOf': [{'$ref': 'ipv6-address'}, {'type': 'null'}]}
                 }
             },
             'dns': {
@@ -712,7 +714,7 @@ def _init(dispatcher, plugin):
                     'enabled': {'type': 'boolean'},
                     'addresses': {
                         'type': 'array',
-                        'items': {'type': {'$ref': 'ip-address'}}
+                        'items': {'$ref': 'ip-address'}
                     }
                 }
             }
