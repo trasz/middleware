@@ -1098,7 +1098,7 @@ def _init(dispatcher, plugin):
             'end_time': {'type': 'string'},
             'func': {'type': 'integer'},
             'bytes_processed': {'type': 'integer'},
-            'percentage': {'type': 'float'},
+            'percentage': {'type': 'number'},
         }
     })
 
