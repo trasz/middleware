@@ -597,7 +597,7 @@ def _init(dispatcher, plugin):
             },
             'properties': {'type': 'object'}
         },
-        'requiredProperties': ['name', 'type', 'properties']
+        'required': ['name', 'type', 'properties']
     })
 
     plugin.register_schema_definition('container-device-nic', {
