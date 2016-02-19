@@ -171,7 +171,7 @@ def _init(dispatcher, plugin):
     plugin.register_schema_definition('swap-mirror', {
         'type': 'object',
         'properties': {
-            'name': 'string',
+            'name': {'type': 'string'},
             'disks': {
                 'type': 'array',
                 'items': {'type': 'string'}
