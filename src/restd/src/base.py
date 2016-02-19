@@ -305,7 +305,7 @@ class CRUDBase(object):
 
     def __init__(self, rest, dispatcher):
 
-        self.entity = type('{0}EntityResource'.format(self.__class__.__name__), (self.entity_class, ), {
+        self.entity = type('{0}EntityResource'.format(self.__class__.__name__), (ProviderMixin, self.entity_class, ), {
             'name': self.namespace,
             'get': 'rpc:{0}'.format(self.get_retrieve_method_name()),
             'post': 'task:{0}'.format(self.get_create_method_name()),
