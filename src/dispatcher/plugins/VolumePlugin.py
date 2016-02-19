@@ -1950,7 +1950,7 @@ def _init(dispatcher, plugin):
             'key': {'type': 'string'},
             'disks': {
                 'type': 'array',
-                'items': 'string'
+                'items': {'type': 'string'}
             }
         }
     })
