@@ -42,7 +42,7 @@ from freenas.dispatcher.rpc import (
 )
 from gevent import subprocess
 from task import (
-    Provider, Task, ProgressTask, MasterProgressTask, TaskException, VerifyException
+    Provider, Task, ProgressTask, MasterProgressTask, TaskException, VerifyException, TaskWarning
 )
 if '/usr/local/lib' not in sys.path:
     sys.path.append('/usr/local/lib')
@@ -688,7 +688,7 @@ class UpdateApplyTask(ProgressTask):
         if reboot_post_install:
             self.message = "Scheduling user specified reboot post succesfull update"
             # Note not using subtasks on purpose as they do not have queuing logic
-            self.dispatcher.submit_task('system.reboot')
+            self.dispatcher.submit_task('system.reboot', 3)
         self.set_progress(100)
 
 
@@ -769,6 +769,27 @@ class CheckFetchUpdateTask(MasterProgressTask):
 
             return True
         return False
+
+
+@description("Checks for new updates, fetches if available, installs new/or downloaded updates")
+@accepts(bool)
+class UpdateNowTask(MasterProgressTask):
+
+    def verify(self, reboot_post_install=False):
+        return ['root']
+
+    def run(self, reboot_post_install=False):
+        self.set_progress(0, 'Checking for new updates...')
+        self.run_and_join_progress_subtask('update.checkfetch', weight=0.5)
+        if self.dispatcher.call_sync('update.is_update_available'):
+            self.set_progress(50, "Installing downloaded updates now...")
+            self.run_and_join_progress_subtask('update.apply', reboot_post_install, weight=0.5)
+        else:
+            self.add_warning(TaskWarning(errno.ENOENT, 'No Updates Available for Install'))
+            self.set_progress(100)
+            return False
+        self.set_progress(100)
+        return True
 
 
 def _depends():
@@ -874,9 +895,10 @@ def _init(dispatcher, plugin):
     plugin.register_task_handler("update.check", CheckUpdateTask)
     plugin.register_task_handler("update.download", DownloadUpdateTask)
     plugin.register_task_handler("update.manual", UpdateManualTask)
-    plugin.register_task_handler("update.update", UpdateApplyTask)
+    plugin.register_task_handler("update.apply", UpdateApplyTask)
     plugin.register_task_handler("update.verify", UpdateVerifyTask)
     plugin.register_task_handler("update.checkfetch", CheckFetchUpdateTask)
+    plugin.register_task_handler("update.updatenow", UpdateNowTask)
 
     # Register Event Types
     plugin.register_event_type('update.in_progress', schema=h.ref('update-progress'))
