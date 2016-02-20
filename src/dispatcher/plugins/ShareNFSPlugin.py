@@ -112,6 +112,7 @@ class UpdateNFSShareTask(Task):
         share.update(updated_fields)
         self.datastore.update('shares', id, share)
         self.dispatcher.call_sync('etcd.generation.generate_group', 'nfs')
+        self.dispatcher.call_sync('service.reload', 'nfs')
         self.dispatcher.dispatch_event('share.nfs.changed', {
             'operation': 'update',
             'ids': [id]
