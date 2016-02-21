@@ -7,7 +7,6 @@ UseDNS no
 ChallengeResponseAuthentication no
 ClientAliveCountMax 3
 ClientAliveInterval 15
-NoneEnabled yes
 Port ${ssh_config['port']}
 PermitRootLogin ${"yes" if ssh_config['permit_root_login'] else "without-password"}
 AllowTcpForwarding ${"yes" if ssh_config['allow_port_forwarding'] else "no"}
