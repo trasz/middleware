@@ -9,15 +9,21 @@ class Task(object):
 
     name = None
 
-    def __init__(self, resource, dispatcher, name=None):
+    def __init__(self, resource, dispatcher, method, name=None):
         if name is not None:
             self.name = name
-        self.resouce = resource
+        self.resource = resource
         self.dispatcher = dispatcher
+        self.method = method
 
     def run(self, req, kwargs):
+        run_args = getattr(self.resource, 'run_{0}'.format(self.method), None)
+        if run_args:
+            args, kwargs = run_args(req, kwargs)
+        else:
+            args = [req.context['doc']]
         try:
-            result = self.dispatcher.call_task_sync(self.name, req.context['doc'])
+            result = self.dispatcher.call_task_sync(self.name, *args, **kwargs)
         except RpcException as e:
             raise falcon.HTTPBadRequest(e.message, str(e))
         if result['state'] != 'FINISHED':
@@ -120,7 +126,7 @@ class Resource(object):
         type_, name = self._get_type_name(method_op)
 
         if type_ == 'task':
-            t = Task(self, req.context['client'], name=name)
+            t = Task(self, req.context['client'], method, name=name)
             t.run(req, kwargs)
         else:
             r = RPC(self, req.context['client'], method, name=name)
