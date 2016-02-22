@@ -12,6 +12,11 @@ def normalize_schema(obj):
             new = obj['oneOf'][0]
             obj.clear()
             obj.update(new)
+        if 'allOf' in obj:
+            # FIXME: Wrong, OpenAPI does not support it, need workaround
+            new = obj['allOf'][0]
+            obj.clear()
+            obj.update(new)
         if '$ref' in obj:
             ref = obj['$ref']
             if not ref.startswith('#/definitions/'):
