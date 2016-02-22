@@ -304,6 +304,7 @@ class CRUDBase(object):
     entity_class = EntityResource
     item_class = ItemResource
     namespace = None
+    item_resources = None
 
     def __init__(self, rest, dispatcher):
 
@@ -312,11 +313,15 @@ class CRUDBase(object):
             'get': 'rpc:{0}'.format(self.get_retrieve_method_name()),
             'post': 'task:{0}'.format(self.get_create_method_name()),
         })(rest)
-        type('{0}ItemResource'.format(self.__class__.__name__), (self.item_class, ), {
+        self.item = type('{0}ItemResource'.format(self.__class__.__name__), (self.item_class, ), {
             'get': 'rpc:{0}'.format(self.get_retrieve_method_name()),
             'put': 'task:{0}'.format(self.get_update_method_name()),
             'delete': 'task:{0}'.format(self.get_delete_method_name()),
         })(rest, parent=self.entity)
+
+        if self.item_resources is not None:
+            for ir in self.item_resources:
+                ir(rest, parent=self.item)
 
     def get_create_method_name(self):
         return '{0}.create'.format(self.namespace)
