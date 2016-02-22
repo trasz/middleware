@@ -136,6 +136,27 @@ class ReplicationProvider(Provider):
         return self.dispatcher.call_task_sync('replication.scan_hostkey', hostname)
 
 
+class ReplicationRemoteProvider(Provider):
+    def get_client(self, remote):
+        with open('/etc/replication/key') as f:
+            pkey = RSAKey.from_private_key(f)
+
+        remote_client = Client()
+        remote_client.connect('ws+ssh://{0}'.format(remote), pkey=pkey)
+        remote_client.login_service('replicator')
+        return remote_client
+
+    def call_sync(self, client, name, *args, **kwargs):
+        if not client:
+            raise RpcException(errno.ENOENT, 'Client not found.')
+        return client.call_sync(name, args, kwargs)
+
+    def call_task_sync(self, client, name, *args, **kwargs):
+        if not client:
+            raise RpcException(errno.ENOENT, 'Client not found.')
+        return client.call_task_sync(name, args, kwargs)
+
+
 @accepts(str)
 class ScanHostKeyTask(Task):
     def verify(self, hostname):
@@ -246,12 +267,10 @@ class ReplicateDatasetTask(ProgressTask):
         remote_datasets = []
         actions = []
 
-        with open('/etc/replication/key') as f:
-            pkey = RSAKey.from_private_key(f)
-
-        remote_client = Client()
-        remote_client.connect('ws+ssh://{0}'.format(options['remote']), pkey=pkey)
-        remote_client.login_service('replicator')
+        remote_client = self.dispatcher.call_sync(
+            'replication.remote.get_client',
+            options['remote']
+        )
 
         def is_replicated(snapshot):
             if snapshot.get('properties.org\\.freenas:replicate.value') != 'yes':
@@ -273,7 +292,9 @@ class ReplicateDatasetTask(ProgressTask):
                 {'select': 'name'}
             )
 
-            remote_datasets = remote_client.call_sync(
+            remote_datasets = self.dispatcher.call_sync(
+                'replication.remote.call_sync',
+                remote_client,
                 'zfs.dataset.query',
                 [('name', '~', '^{0}(/|$)'.format(remoteds))],
                 {'select': 'name'}
@@ -290,7 +311,14 @@ class ReplicateDatasetTask(ProgressTask):
             ))
 
             try:
-                remote_snapshots_full = wrap(remote_client.call_sync('zfs.dataset.get_snapshots', remotefs))
+                remote_snapshots_full = wrap(
+                    self.dispatcher.call_sync(
+                        'replication.remote.call_sync',
+                        remote_client,
+                        'zfs.dataset.get_snapshots',
+                        remotefs
+                    )
+                )
                 remote_snapshots = list(filter(is_replicated, remote_snapshots_full))
             except RpcException as err:
                 if err.code == errno.ENOENT:
@@ -402,7 +430,9 @@ class ReplicateDatasetTask(ProgressTask):
             if action.type == ReplicationActionType.DELETE_SNAPSHOTS:
                 self.set_progress(progress, 'Removing snapshots on remote dataset {0}'.format(action.remotefs))
                 # Remove snapshots on remote side
-                result = remote_client.call_task_sync(
+                result = self.dispatcher.call_sync(
+                    'replication.remote.call_task_sync',
+                    remote_client,
                     'zfs.delete_multiple_snapshots',
                     action.remotefs.split('/')[0],
                     action.remotefs,
@@ -428,7 +458,9 @@ class ReplicateDatasetTask(ProgressTask):
 
             if action.type == ReplicationActionType.DELETE_DATASET:
                 self.set_progress(progress, 'Removing remote dataset {0}'.format(action.remotefs))
-                result = remote_client.call_task_sync(
+                result = self.dispatcher.call_sync(
+                    'replication.remote.call_task_sync',
+                    remote_client,
                     'zfs.destroy',
                     action.remotefs.split('/')[0],
                     action.remotefs
@@ -467,6 +499,7 @@ def _init(dispatcher, plugin):
     })
 
     plugin.register_provider('replication', ReplicationProvider)
+    plugin.register_provider('replication.remote', ReplicationRemoteProvider)
     plugin.register_task_handler('volume.snapshot_dataset', SnapshotDatasetTask)
     plugin.register_task_handler('replication.scan_hostkey', ScanHostKeyTask)
     plugin.register_task_handler('replication.replicate_dataset', ReplicateDatasetTask)
