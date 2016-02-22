@@ -1,4 +1,29 @@
 <div ng-init="init()">
 </div>
 <div class="row">
+    <h1>Syslog live stream</h1>
+    <table class="table" id="syslog">
+        <thead>
+            <tr>
+                <td>Date</td>
+                <td>Process</td>
+                <td>Facitily</td>
+                <td>Priority</td>
+                <td>Messages</td>
+            </tr>
+        </thead>
+        <tbody>
+            <tr ng-repeat='log in syslog_list | filter:searchText'>
+                <td>{{ log.date }}</td>
+                <td>
+                    <span class="label label-primary">{{ log.program }}</span>
+                    <span class="label label-primary">{{ log.pid }}</span>
+                    </td>
+                <td><span class="label label-primary">{{ log.facility }}</span></td>
+                <td><span class="label label-primary">{{ log.priority }}</span></td>
+
+                <td><code>{{ log.message }}</code></td>
+            </tr>
+        </tbody>
+    </table>
 </div>

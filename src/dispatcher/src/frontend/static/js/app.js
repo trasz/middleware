@@ -22,7 +22,7 @@ config(['$routeProvider', function($routeProvider) {
 	  }).
       when('/syslog',{
           templateUrl: '../static/partials/syslog.html',
-          controller: SyslogController 
+          controller: SyslogController
       }).
       when('/apidocs/',
         {
