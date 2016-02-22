@@ -10,24 +10,15 @@ class InterfaceDownResource(Resource):
     name = 'down'
     post = 'task:network.interface.down'
 
-    def run_post(self, req, kwargs):
-        return [kwargs['id']], {}
-
 
 class InterfaceUpResource(Resource):
     name = 'up'
     post = 'task:network.interface.up'
 
-    def run_post(self, req, kwargs):
-        return [kwargs['id']], {}
-
 
 class InterfaceRenewResource(Resource):
-    name = 'up'
+    name = 'renew'
     post = 'task:network.interface.renew'
-
-    def run_post(self, req, kwargs):
-        return [kwargs['id']], {}
 
 
 class InterfaceCRUD(CRUDBase):
