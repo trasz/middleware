@@ -160,7 +160,7 @@ class Resource(object):
                         'name': 'data',
                         'in': 'body',
                         'required': True,
-                        'schema': normalize_schema(op.get('schema', [None])[0]),
+                        'schema': normalize_schema(op.get('schema', [None])[0 if i == 'post' else -1]),
                     },
                 ]
         return rv
@@ -228,14 +228,12 @@ class ItemResource(Resource):
             if 'parameters' not in rv[i]:
                 rv[i]['parameters'] = []
 
-            rv[i]['parameters'] = [
-                {
-                    'name': 'id',
-                    'in': 'path',
-                    'required': True,
-                    'type': 'integer',
-                },
-            ]
+            rv[i]['parameters'].append({
+                'name': 'id',
+                'in': 'path',
+                'required': True,
+                'type': 'integer',
+            })
         return rv
 
 
