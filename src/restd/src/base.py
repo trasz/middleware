@@ -301,15 +301,18 @@ class ServiceBase(object):
 
 class CRUDBase(object):
 
+    name = None
+    namespace = None
+
     entity_class = EntityResource
     item_class = ItemResource
-    namespace = None
+
     item_resources = None
 
     def __init__(self, rest, dispatcher):
 
         self.entity = type('{0}EntityResource'.format(self.__class__.__name__), (ProviderMixin, self.entity_class, ), {
-            'name': self.namespace,
+            'name': self.name or self.namespace,
             'get': 'rpc:{0}'.format(self.get_retrieve_method_name()),
             'post': 'task:{0}'.format(self.get_create_method_name()),
         })(rest)
