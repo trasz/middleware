@@ -148,7 +148,7 @@ class Resource(object):
                 response['schema'] = schema
 
             rv[i] = {
-                'description': op.get('description', 'UNKNOWN'),
+                'description': op.get('description') or 'UNKNOWN',
                 'responses': {
                     code_map[i]: response,
                 },
