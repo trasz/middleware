@@ -58,6 +58,7 @@ class Resource(object):
 
     name = None
     parent = None
+    params_type = None
 
     get = None
     post = None
@@ -95,6 +96,15 @@ class Resource(object):
         if self.parent is None:
             return '/{0}'.format(self.name)
         return '{0}/{1}'.format(self.parent.get_uri(), self.name)
+
+    def get_path_params(self):
+        current = self
+        params = {}
+        while current is not None:
+            if current.params_type is not None:
+                params.update(current.params_type)
+            current = current.parent
+        return params
 
     def _get_type_name(self, method_op):
         if ':' not in method_op:
@@ -154,15 +164,27 @@ class Resource(object):
                 },
             }
 
+            rv[i]['parameters'] = []
+
+            path_params = self.get_path_params()
+            if path_params:
+                for name, ptype in path_params.items():
+                    rv[i]['parameters'].append({
+                        'name': name,
+                        'in': 'path',
+                        'required': True,
+                        'type': ptype,
+                    })
+
             if i in ('post', 'put'):
-                rv[i]['parameters'] = [
+                rv[i]['parameters'].append(
                     {
                         'name': 'data',
                         'in': 'body',
                         'required': True,
                         'schema': normalize_schema(op.get('schema', [None])[0 if i == 'post' else -1]),
                     },
-                ]
+                )
         return rv
 
 
@@ -214,27 +236,12 @@ class EntityResource(Resource):
 class ItemResource(Resource):
 
     name = '{id}'
+    params_type = {
+        'id': 'integer',
+    }
 
     def run_get(self, req, kwargs):
         return [('id', '=', int(kwargs['id']))], {'single': True}
-
-    def doc(self):
-        rv = super(ItemResource, self).doc()
-        for i in ('get', 'post', 'put', 'delete'):
-            method_op = getattr(self, i, None)
-            if method_op is None:
-                continue
-
-            if 'parameters' not in rv[i]:
-                rv[i]['parameters'] = []
-
-            rv[i]['parameters'].append({
-                'name': 'id',
-                'in': 'path',
-                'required': True,
-                'type': 'integer',
-            })
-        return rv
 
 
 class ProviderMixin:
