@@ -498,6 +498,19 @@ def _init(dispatcher, plugin):
         'additionalProperties': False,
     })
 
+    plugin.register_schema_definition('failover-link', {
+        'type': 'object',
+        'properties': {
+            'partners': {
+                'type': 'array',
+                'items': {'type': 'string'}
+            },
+            'master': {'type': 'string'},
+            'last_switch': {'type': 'string'}
+        },
+        'additionalProperties': False,
+    })
+
     plugin.register_provider('replication', ReplicationProvider)
     plugin.register_provider('replication.remote', ReplicationRemoteProvider)
     plugin.register_task_handler('volume.snapshot_dataset', SnapshotDatasetTask)
