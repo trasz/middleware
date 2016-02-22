@@ -76,7 +76,8 @@ class CreateSMBShareTask(Task):
             'show_hidden_files': False,
             'vfs_objects': [],
             'hosts_allow': None,
-            'hosts_deny': None
+            'hosts_deny': None,
+            'extra_parameters': {}
         })
 
         id = self.datastore.insert('shares', share)
@@ -200,6 +201,9 @@ def convert_share(ret, path, share):
 
     ret['vfs objects'] = ' '.join(vfs_objects)
 
+    for k, v in share['extra_parameters'].items():
+        ret[k] = str(v)
+
 
 def _depends():
     return ['SMBPlugin', 'SharingPlugin']
@@ -236,6 +240,10 @@ def _init(dispatcher, plugin):
             'hosts_deny': {
                 'type': ['array', 'null'],
                 'items': {'type': 'string'}
+            },
+            'extra_parameters': {
+                'type': 'object',
+                'additionalProperties': {'type': 'string'}
             }
         }
     })
