@@ -155,7 +155,7 @@ class ContainerBaseTask(Task):
 
         if template.get('files'):
             source_root = os.path.join(template['path'], 'files')
-            dest_root = self.dispatcher.call_sync('volume.get_dataset_path', container['target'], self.container_ds)
+            dest_root = self.dispatcher.call_sync('volume.get_dataset_path', self.container_ds)
             files_root = os.path.join(dest_root, 'files')
 
             os.mkdir(files_root)
@@ -182,7 +182,7 @@ class ContainerBaseTask(Task):
     def create_device(self, container, res):
         if res['type'] == 'DISK':
             container_ds = os.path.join(container['target'], 'vm', container['name'])
-            container_dir = self.dispatcher.call_sync('volume.get_dataset_path', container['target'], container_ds)
+            container_dir = self.dispatcher.call_sync('volume.get_dataset_path', container_ds)
             ds_name = os.path.join(container_ds, res['name'])
             self.join_subtasks(self.run_subtask('volume.dataset.create', {
                 'pool': container['target'],

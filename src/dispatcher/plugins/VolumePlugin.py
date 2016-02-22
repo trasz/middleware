@@ -274,7 +274,7 @@ class VolumeProvider(Provider):
 
     @accepts(str, str)
     @returns(str)
-    def get_dataset_path(self, volname, dsname):
+    def get_dataset_path(self, dsname):
         return os.path.join(VOLUMES_ROOT, dsname)
 
     @description("Extracts volume name, dataset name and relative path from full path")
@@ -1616,7 +1616,7 @@ class DatasetConfigureTask(Task):
         return ['zpool:{0}'.format(pool_name)]
 
     def switch_to_acl(self, pool_name, path):
-        fs_path = self.dispatcher.call_sync('volume.get_dataset_path', pool_name, path)
+        fs_path = self.dispatcher.call_sync('volume.get_dataset_path', path)
         self.join_subtasks(
             self.run_subtask('zfs.configure', pool_name, path, {
                 'aclmode': {'value': 'restricted'},
