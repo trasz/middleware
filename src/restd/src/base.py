@@ -19,11 +19,15 @@ class Task(object):
     def run(self, req, kwargs):
         run_args = getattr(self.resource, 'run_{0}'.format(self.method), None)
         if run_args:
-            args, kwargs = run_args(req, kwargs)
+            args = run_args(req, kwargs)[0]
         else:
-            args = [req.context['doc']]
+            args = []
+            if 'id' in kwargs:
+                args.append(kwargs['id'])
+            if 'doc' in req.context:
+                args.append(req.context['doc'])
         try:
-            result = self.dispatcher.call_task_sync(self.name, *args, **kwargs)
+            result = self.dispatcher.call_task_sync(self.name, *args)
         except RpcException as e:
             raise falcon.HTTPBadRequest(e.message, str(e))
         if result['state'] != 'FINISHED':
