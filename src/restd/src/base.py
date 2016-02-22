@@ -241,7 +241,10 @@ class ItemResource(Resource):
     }
 
     def run_get(self, req, kwargs):
-        return [('id', '=', int(kwargs['id']))], {'single': True}
+        id = kwargs['id']
+        if id.isdigit():
+            id = int(id)
+        return [[('id', '=', id)], {'single': True}], {}
 
 
 class ProviderMixin:
