@@ -1,6 +1,11 @@
 from base import CRUDBase, Resource
 
 
+class HostCRUD(CRUDBase):
+    name = 'network/host'
+    namespace = 'network.host'
+
+
 class InterfaceDownResource(Resource):
     name = 'down'
     post = 'task:network.interface.down'
@@ -44,5 +49,6 @@ class RouteCRUD(CRUDBase):
 
 
 def _init(rest):
+    rest.register_crud(HostCRUD)
     rest.register_crud(InterfaceCRUD)
     rest.register_crud(RouteCRUD)
