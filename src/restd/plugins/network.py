@@ -38,5 +38,11 @@ class InterfaceCRUD(CRUDBase):
         return '{0}.configure'.format(self.namespace)
 
 
+class RouteCRUD(CRUDBase):
+    name = 'network/route'
+    namespace = 'network.route'
+
+
 def _init(rest):
     rest.register_crud(InterfaceCRUD)
+    rest.register_crud(RouteCRUD)
