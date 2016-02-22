@@ -1,17 +1,22 @@
-from base import CRUDBase, Resource
+from base import CRUDBase, ItemResource, Resource
 
 
 class VolumeUpgradeResource(Resource):
     name = 'upgrade'
     post = 'task:volume.upgrade'
 
-    def run_post(self, req, kwargs):
-        return [kwargs['id']], {}
+
+class VolumeItemResource(ItemResource):
+
+    def run_get(self, req, kwargs):
+        id = kwargs['id']
+        return [[['or', [('name', '=', id), ('id', '=', id)]]], {'single': True}], {}
 
 
 class VolumeCRUD(CRUDBase):
     name = 'volume'
     namespace = 'volume'
+    item_class = VolumeItemResource
     item_resources = (
         VolumeUpgradeResource,
     )
