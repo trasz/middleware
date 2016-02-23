@@ -1,59 +1,59 @@
-from base import ServiceBase
+from base import SingleItemBase
 
 
-class AFPService(ServiceBase):
-    namespace = 'afp'
+class AFPService(SingleItemBase):
+    namespace = 'service.afp'
 
 
-class DynDNSService(ServiceBase):
-    namespace = 'dyndns'
+class DynDNSService(SingleItemBase):
+    namespace = 'service.dyndns'
 
 
-class FTPService(ServiceBase):
-    namespace = 'ftp'
+class FTPService(SingleItemBase):
+    namespace = 'service.ftp'
 
 
-class NFSService(ServiceBase):
-    namespace = 'nfs'
+class NFSService(SingleItemBase):
+    namespace = 'service.nfs'
 
 
-class SMARTDService(ServiceBase):
-    namespace = 'smb'
+class SMARTDService(SingleItemBase):
+    namespace = 'service.smb'
 
 
-class SMBService(ServiceBase):
-    namespace = 'smb'
+class SMBService(SingleItemBase):
+    namespace = 'service.smb'
 
 
-class SNMPService(ServiceBase):
-    namespace = 'snmp'
+class SNMPService(SingleItemBase):
+    namespace = 'servie.snmp'
 
 
-class SSHService(ServiceBase):
-    namespace = 'ssh'
+class SSHService(SingleItemBase):
+    namespace = 'service.ssh'
 
 
-class TFTPService(ServiceBase):
-    namespace = 'tftp'
+class TFTPService(SingleItemBase):
+    namespace = 'service.tftp'
 
 
-class UPSService(ServiceBase):
-    namespace = 'ups'
+class UPSService(SingleItemBase):
+    namespace = 'service.ups'
 
 
-class WebDAVService(ServiceBase):
-    namespace = 'webdav'
+class WebDAVService(SingleItemBase):
+    namespace = 'service.webdav'
 
 
 def _init(rest):
-    rest.register_service(AFPService)
-    rest.register_service(DynDNSService)
-    rest.register_service(FTPService)
-    rest.register_service(NFSService)
-    rest.register_service(SMARTDService)
-    rest.register_service(SMBService)
-    rest.register_service(SNMPService)
-    rest.register_service(SSHService)
-    rest.register_service(TFTPService)
-    rest.register_service(UPSService)
-    rest.register_service(WebDAVService)
+    rest.register_singleitem(AFPService)
+    rest.register_singleitem(DynDNSService)
+    rest.register_singleitem(FTPService)
+    rest.register_singleitem(NFSService)
+    rest.register_singleitem(SMARTDService)
+    rest.register_singleitem(SMBService)
+    rest.register_singleitem(SNMPService)
+    rest.register_singleitem(SSHService)
+    rest.register_singleitem(TFTPService)
+    rest.register_singleitem(UPSService)
+    rest.register_singleitem(WebDAVService)

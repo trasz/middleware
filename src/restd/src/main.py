@@ -152,7 +152,7 @@ class RESTApi(object):
         ins = klass(self, self.dispatcher)
         self._cruds.append(ins)
 
-    def register_service(self, klass):
+    def register_singleitem(self, klass):
         klass(self, self.dispatcher)
 
     def run(self):

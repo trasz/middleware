@@ -296,27 +296,25 @@ class ProviderMixin:
             return self.get[4:].rsplit('.', 1)[0]
 
 
-class ServiceResource(Resource):
+class SingleItemBase(object):
 
-    def get_uri(self):
-        return '/service/{0}'.format(self.name)
-
-
-class ServiceBase(object):
+    name = None
+    namespace = None
+    resource_class = Resource
 
     def __init__(self, rest, dispatcher):
 
-        type('{0}Resource'.format(self.__class__.__name__), (ProviderMixin, ServiceResource, ), {
-            'name': self.namespace,
+        type('{0}Resource'.format(self.__class__.__name__), (ProviderMixin, self.resource_class, ), {
+            'name': self.name or self.namespace.replace('.', '/'),
             'get': 'rpc:{0}'.format(self.get_retrieve_method_name()),
             'put': 'task:{0}'.format(self.get_update_method_name()),
         })(rest)
 
     def get_retrieve_method_name(self):
-        return 'service.{0}.get_config'.format(self.namespace)
+        return '{0}.get_config'.format(self.namespace)
 
     def get_update_method_name(self):
-        return 'service.{0}.configure'.format(self.namespace)
+        return '{0}.configure'.format(self.namespace)
 
 
 class CRUDBase(object):
