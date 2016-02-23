@@ -1903,6 +1903,7 @@ def _init(dispatcher, plugin):
     plugin.register_schema_definition('dataset', {
         'type': 'object',
         'properties': {
+            'pool': {'type': 'string'},
             'name': {'type': 'string'},
             'mountpoint': {'type': 'string'},
             'type': {
