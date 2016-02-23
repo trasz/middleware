@@ -24,13 +24,14 @@
 # POSSIBILITY OF SUCH DAMAGE.
 #
 #####################################################################
+
 import errno
 import logging
 import re
 import smbconf
 import enum
 from datastore.config import ConfigNode
-from freenas.dispatcher.rpc import RpcException, SchemaHelper as h, description, accepts, returns
+from freenas.dispatcher.rpc import RpcException, SchemaHelper as h, description, accepts, returns, private
 from lib.system import system, SubprocessException
 from lib.freebsd import get_sysctl
 from task import Task, Provider, TaskException, ValidationException
@@ -59,6 +60,7 @@ class SMBProvider(Provider):
         return ConfigNode('service.smb', self.configstore).__getstate__()
 
 
+@private
 @description('Configure SMB service')
 @accepts(h.ref('service-smb'))
 class SMBConfigureTask(Task):

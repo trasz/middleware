@@ -29,7 +29,7 @@ import logging
 import re
 
 from datastore.config import ConfigNode
-from freenas.dispatcher.rpc import RpcException, SchemaHelper as h, description, accepts, returns
+from freenas.dispatcher.rpc import RpcException, SchemaHelper as h, description, accepts, returns, private
 from task import Task, Provider, TaskException, ValidationException
 
 logger = logging.getLogger('SNMPPlugin')
@@ -43,6 +43,7 @@ class SNMPProvider(Provider):
         return ConfigNode('service.snmp', self.configstore).__getstate__()
 
 
+@private
 @description('Configure SNMP service')
 @accepts(h.ref('service-snmp'))
 class SNMPConfigureTask(Task):

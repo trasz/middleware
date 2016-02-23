@@ -23,6 +23,7 @@
 # POSSIBILITY OF SUCH DAMAGE.
 #
 #####################################################################
+
 import errno
 import logging
 import re
@@ -33,7 +34,7 @@ from tempfile import TemporaryFile
 
 from datastore import DatastoreException
 from datastore.config import ConfigNode
-from freenas.dispatcher.rpc import RpcException, SchemaHelper as h, description, accepts, returns
+from freenas.dispatcher.rpc import RpcException, SchemaHelper as h, description, accepts, returns, private
 from task import (
     Task, ProgressTask, Provider, TaskException, query,
     ValidationException, VerifyException,
@@ -58,6 +59,7 @@ class RsyncdModuleProvider(Provider):
         return self.datastore.query('rsyncd-module', *(filter or []), **(params or {}))
 
 
+@private
 @description('Configure Rsyncd service')
 @accepts(h.ref('service-rsyncd'))
 class RsyncdConfigureTask(Task):

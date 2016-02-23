@@ -27,7 +27,7 @@ import errno
 import logging
 
 from datastore.config import ConfigNode
-from freenas.dispatcher.rpc import RpcException, SchemaHelper as h, description, accepts, returns
+from freenas.dispatcher.rpc import RpcException, SchemaHelper as h, description, accepts, returns, private
 from task import Task, Provider, TaskException, ValidationException
 
 logger = logging.getLogger('RIAKPlugin')
@@ -41,6 +41,7 @@ class RIAKProvider(Provider):
         return ConfigNode('service.riak', self.configstore).__getstate__()
 
 
+@private
 @description('Configure RIAK KV service')
 @accepts(h.ref('service-riak'))
 class RIAKConfigureTask(Task):

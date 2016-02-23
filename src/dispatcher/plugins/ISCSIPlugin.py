@@ -46,6 +46,7 @@ class ISCSIProvider(Provider):
         return node
 
 
+@private
 @description('Configure ISCSI service')
 @accepts(h.ref('service-iscsi'))
 class ISCSIConfigureTask(Task):

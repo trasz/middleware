@@ -30,7 +30,7 @@ import shutil
 import ipfsApi
 from requests.exceptions import ConnectionError
 from datastore.config import ConfigNode
-from freenas.dispatcher.rpc import RpcException, SchemaHelper as h, description, accepts, returns
+from freenas.dispatcher.rpc import RpcException, SchemaHelper as h, description, accepts, returns, private
 from task import Task, Provider, TaskException, ValidationException
 
 logger = logging.getLogger('IPFSPlugin')
@@ -98,6 +98,7 @@ class IPFSProvider(Provider):
         return self.ipfs_api.swarm_peers()["Strings"]
 
 
+@private
 @description('Configure IPFS service')
 @accepts(h.ref('service-ipfs'))
 class IPFSConfigureTask(Task):

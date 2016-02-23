@@ -23,11 +23,12 @@
 # POSSIBILITY OF SUCH DAMAGE.
 #
 #####################################################################
+
 import errno
 import logging
 
 from datastore.config import ConfigNode
-from freenas.dispatcher.rpc import RpcException, SchemaHelper as h, description, accepts, returns
+from freenas.dispatcher.rpc import RpcException, SchemaHelper as h, description, accepts, returns, private
 from task import Task, Provider, TaskException, ValidationException
 
 logger = logging.getLogger('SMARTPlugin')
@@ -41,6 +42,7 @@ class SMARTProvider(Provider):
         return ConfigNode('service.smartd', self.configstore)
 
 
+@private
 @description('Configure SMART service')
 @accepts(h.ref('service-smartd'))
 class SMARTConfigureTask(Task):

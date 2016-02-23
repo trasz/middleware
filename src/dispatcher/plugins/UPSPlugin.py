@@ -23,6 +23,7 @@
 # POSSIBILITY OF SUCH DAMAGE.
 #
 #####################################################################
+
 import io
 import csv
 import errno
@@ -137,6 +138,7 @@ class UPSProvider(Provider):
             raise TaskException(errno.EBUSY, e.err)
 
 
+@private
 @description('Configure UPS service')
 @accepts(h.ref('service-ups'))
 class UPSConfigureTask(Task):
