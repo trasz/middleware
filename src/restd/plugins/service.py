@@ -26,7 +26,7 @@ class SMBService(SingleItemBase):
 
 
 class SNMPService(SingleItemBase):
-    namespace = 'servie.snmp'
+    namespace = 'service.snmp'
 
 
 class SSHService(SingleItemBase):
