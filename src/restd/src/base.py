@@ -182,21 +182,26 @@ class Resource(object):
 
             path_params = self.get_path_params()
             if path_params:
-                for name, ptype in path_params.items():
+                for pname, ptype in path_params.items():
                     rv[i]['parameters'].append({
-                        'name': name,
+                        'name': pname,
                         'in': 'path',
                         'required': True,
                         'type': ptype,
                     })
 
             if i in ('post', 'put'):
+
+                if type_ == 'task':
+                    schema = op.get('schema', [None])[0 if i == 'post' else -1]
+                else:
+                    schema = op.get('result-schema')
                 rv[i]['parameters'].append(
                     {
                         'name': 'data',
                         'in': 'body',
                         'required': True,
-                        'schema': normalize_schema(op.get('schema', [None])[0 if i == 'post' else -1]),
+                        'schema': normalize_schema(schema) or {'type': 'null'},
                     },
                 )
         return rv
