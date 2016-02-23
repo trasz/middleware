@@ -128,7 +128,6 @@ function SyslogController($scope) {
     var sock = new middleware.DispatcherClient(document.domain);
     sock.connect();
     $scope.init = function () {
-        console.log("init");
         sock.onError = function(err) {
             alert("Error: " + err.message);
         };
@@ -149,25 +148,12 @@ function SyslogController($scope) {
             var syslog_list = [];
             sock.call("syslog.query", [[], {"sort": ["-id"], "limit": 50}], function(result) {
                 $.each(result, function(idx, i) {
-                    // var tr = $("<tr/>", {
-                    //     'data-id': i.id,
-                    //     'html': template(i)
-                    // });
-                    // console.log(i);
-                    // tr.prependTo("#syslog tbody");
-                    // tr[0].scrollIntoView();
                     syslog_list.push(i);
                 });
 
                 sock.registerEventHandler("entity-subscriber.syslog.changed", function(args) {
                     $.each(args.entities, function(idx, i) {
-                    //     var tr = $("<tr/>", {
-                    //         'data-id': i.id,
-                    //         'html': template(i)
-                    //     });
                         syslog_list.push(i);
-                    //     tr.appendTo("#syslog tbody");
-                    //     tr[0].scrollIntoView();
                     });
                 });
                 $scope.$apply(function(){
