@@ -218,17 +218,7 @@ def demote(user_uid, user_gid):
 
 
 @description("Runs an Rsync Copy Task with the specified arguments")
-@accepts(h.all_of(
-    h.ref('rsync_copy'),
-    h.required(
-        'user',
-        'path',
-        'remote_host',
-        'rsync_direction',
-        'rsync_mode'
-    ),
-    h.one_of('remote_path', 'remote_module')
-))
+@accepts(h.ref('rsync_copy'))
 class RsyncCopyTask(ProgressTask):
     def describe(self, params):
         return 'Running Rsync Copy Task with user specified arguments'
@@ -256,7 +246,7 @@ class RsyncCopyTask(ProgressTask):
             )
         if (
             params.get('remote_host') in ['127.0.0.1', 'localhost'] and
-            rmode == 'ssh' and
+            rmode == 'SSH' and
             remote_path is not None and
             not os.path.exists(remote_path)
            ):
@@ -265,9 +255,9 @@ class RsyncCopyTask(ProgressTask):
                 "The specified path: '{0}'' does not exist".format(remote_path)
             )
 
-        if rmode == 'ssh' and (remote_path in [None, ''] or remote_path.isspace()):
+        if rmode == 'SSH' and (remote_path in [None, ''] or remote_path.isspace()):
             errors.append(('remote_path', errno.EINVAL, 'The Remote Path is required'))
-        elif rmode == 'module' and (remote_module in [None, ''] or remote_module.isspace()):
+        elif rmode == 'MODULE' and (remote_module in [None, ''] or remote_module.isspace()):
             errors.append(('remote_module', errno.EINVAL, 'The Remote Module is required'))
 
         if remote_host in [None, ''] or remote_host.isspace():
@@ -365,7 +355,7 @@ class RsyncCopyTask(ProgressTask):
             # readline() and such read methods. stdout.readline() does not
             # allow for us to catch rsync's in-place progress updates which
             # are done with the '\r' character. It is also auto garbage collected.
-            proc_stdout = TemporaryFile(mode='w+', bufsize=0)
+            proc_stdout = TemporaryFile(mode='w+b', buffering=0)
             try:
                 rsync_proc = subprocess.Popen(
                     line,
@@ -383,7 +373,7 @@ class RsyncCopyTask(ProgressTask):
                     proc_stdout.seek(seek)
                     try:
                         while True:
-                            op_byte = proc_stdout.read(1)
+                            op_byte = proc_stdout.read(1).decode('utf8')
                             if op_byte == '':
                                 # In this case break before incrementing `seek`
                                 break
@@ -405,7 +395,7 @@ class RsyncCopyTask(ProgressTask):
                         # raising Bad File Descriptor error. In this case break
                         # and the outer while loop will check for rsync_proc.poll()
                         # to be None or not and DTRT
-                        if e[0] == 9:
+                        if e.errno == 9:
                             break
                         logger.debug("Parsing error in rsync task: {0}".format(str(e)))
             except Exception as e:
@@ -473,6 +463,7 @@ def _init(dispatcher, plugin):
             'remote_host': {'type': 'string'},
             'path': {'type': 'string'},
             'remote_path': {'type': 'string'},
+            'remote_module': {'type': 'string'},
             'rsync_direction': {
                 'type': 'string',
                 'enum': ['PUSH', 'PULL']
@@ -482,7 +473,6 @@ def _init(dispatcher, plugin):
                 'enum': ['MODULE', 'SSH']
             },
             'remote_ssh_port': {'type': 'integer'},
-            'remote_module': {'type': 'string'},
             'rsync_properties': {
                 'type': 'object',
                 'properties': {
@@ -499,6 +489,11 @@ def _init(dispatcher, plugin):
             },
             'quiet': {'type': 'boolean'},
         },
+        'oneOf': [
+            {'required': ['remote_path']},
+            {'required': ['remote_module']}
+        ],
+        'required': ['user', 'path', 'remote_host', 'rsync_direction', 'rsync_mode'],
         'additionalProperties': False,
     })
 
