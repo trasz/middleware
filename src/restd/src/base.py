@@ -54,9 +54,13 @@ class RPC(object):
 
     def run(self, req, kwargs):
         run_args = getattr(self.resource, 'run_{0}'.format(self.method), None)
-        args = []
         if run_args:
             args, kwargs = run_args(req, kwargs)
+        else:
+            if 'doc' in req.context:
+                args = req.context['doc']
+            else:
+                args = []
         try:
             result = self.dispatcher.call_sync(self.name, *args, **kwargs)
         except RpcException as e:
