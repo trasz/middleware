@@ -343,15 +343,20 @@ class CRUDBase(object):
 
     def __init__(self, rest, dispatcher):
 
+        get = self.get_retrieve_method_name()
+        post = self.get_create_method_name()
+        put = self.get_update_method_name()
+        delete = self.get_delete_method_name()
+
         self.entity = type('{0}EntityResource'.format(self.__class__.__name__), (ProviderMixin, self.entity_class, ), {
             'name': self.name or self.namespace.replace('.', '/'),
-            'get': 'rpc:{0}'.format(self.get_retrieve_method_name()),
-            'post': 'task:{0}'.format(self.get_create_method_name()),
+            'get': 'rpc:{0}'.format(get) if get else None,
+            'post': 'task:{0}'.format(post) if post else None,
         })(rest)
         self.item = type('{0}ItemResource'.format(self.__class__.__name__), (self.item_class, ), {
-            'get': 'rpc:{0}'.format(self.get_retrieve_method_name()),
-            'put': 'task:{0}'.format(self.get_update_method_name()),
-            'delete': 'task:{0}'.format(self.get_delete_method_name()),
+            'get': 'rpc:{0}'.format(get) if get else None,
+            'put': 'task:{0}'.format(put) if put else None,
+            'delete': 'task:{0}'.format(delete) if delete else None,
         })(rest, parent=self.entity)
 
         if self.item_resources is not None:
