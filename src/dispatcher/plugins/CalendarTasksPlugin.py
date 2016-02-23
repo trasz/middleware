@@ -102,6 +102,7 @@ class DeleteCalendarTask(Task):
 
 
 @accepts(str)
+@description("Runs the calendar task specified by the given id")
 class RunCalendarTask(Task):
     def verify(self, id):
         return ['system']
