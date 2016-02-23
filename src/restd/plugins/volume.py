@@ -1,6 +1,14 @@
 from base import CRUDBase, ItemResource, Resource
 
 
+class SnapshotCRUD(CRUDBase):
+    name = 'snapshot'
+    namespace = 'volume.snapshot'
+
+    def get_update_method_name(self):
+        return None
+
+
 class VolumeUpgradeResource(Resource):
     name = 'upgrade'
     post = 'task:volume.upgrade'
@@ -14,7 +22,6 @@ class VolumeItemResource(ItemResource):
 
 
 class VolumeCRUD(CRUDBase):
-    name = 'volume'
     namespace = 'volume'
     item_class = VolumeItemResource
     item_resources = (
@@ -26,4 +33,5 @@ class VolumeCRUD(CRUDBase):
 
 
 def _init(rest):
+    rest.register_crud(SnapshotCRUD)
     rest.register_crud(VolumeCRUD)
