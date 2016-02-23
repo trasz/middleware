@@ -709,7 +709,7 @@ class DiskTestTask(ProgressTask):
 
     def run(self, id, test_type):
         try:
-            diskinfo = self.dispatcher.call_sync("get_disk_config_by_id", id)
+            diskinfo = self.dispatcher.call_sync('disk.get_disk_config_by_id', id)
         except RpcException:
             raise TaskException(errno.ENOENT, 'Disk {0} not found'.format(id))
 
