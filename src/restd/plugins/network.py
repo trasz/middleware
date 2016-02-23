@@ -2,7 +2,6 @@ from base import CRUDBase, Resource
 
 
 class HostCRUD(CRUDBase):
-    name = 'network/host'
     namespace = 'network.host'
 
 
@@ -22,7 +21,6 @@ class InterfaceRenewResource(Resource):
 
 
 class InterfaceCRUD(CRUDBase):
-    name = 'network/interface'
     namespace = 'network.interface'
     item_resources = (
         InterfaceDownResource,
@@ -35,7 +33,6 @@ class InterfaceCRUD(CRUDBase):
 
 
 class RouteCRUD(CRUDBase):
-    name = 'network/route'
     namespace = 'network.route'
 
 
