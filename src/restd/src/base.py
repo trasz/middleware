@@ -265,6 +265,14 @@ class ItemResource(Resource):
             id = int(id)
         return [[('id', '=', id)], {'single': True}], {}
 
+    def do(self, method, req, resp, *args, **kwargs):
+        rv = super(ItemResource, self).do(method, req, resp, *args, **kwargs)
+        if method == 'get':
+            if req.context['result'] is None:
+                del req.context['result']
+                resp.status = falcon.HTTP_404
+        return rv
+
 
 class ProviderMixin:
 
