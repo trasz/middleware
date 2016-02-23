@@ -76,6 +76,7 @@ class WebDAVSharesProvider(Provider):
         return result
 
 
+@private
 @description("Adds new WebDAV share")
 @accepts(h.ref('webdav-share'))
 class CreateWebDAVShareTask(Task):
@@ -101,6 +102,7 @@ class CreateWebDAVShareTask(Task):
         return id
 
 
+@private
 @description("Updates existing WebDAV share")
 @accepts(str, h.ref('webdav-share'))
 class UpdateWebDAVShareTask(Task):
@@ -122,6 +124,7 @@ class UpdateWebDAVShareTask(Task):
         })
 
 
+@private
 @description("Removes WebDAV share")
 @accepts(str)
 class DeleteWebDAVShareTask(Task):
@@ -141,6 +144,7 @@ class DeleteWebDAVShareTask(Task):
         })
 
 
+@private
 @description("Imports existing WebDAV share")
 @accepts(h.ref('webdav-share'))
 class ImportWebDAVShareTask(CreateWebDAVShareTask):

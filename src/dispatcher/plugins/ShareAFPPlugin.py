@@ -55,6 +55,7 @@ class AFPSharesProvider(Provider):
             })
 
 
+@private
 @description("Adds new AFP share")
 @accepts(h.ref('afp-share'))
 class CreateAFPShareTask(Task):
@@ -90,6 +91,7 @@ class CreateAFPShareTask(Task):
         return id
 
 
+@private
 @description("Updates existing AFP share")
 @accepts(str, h.ref('afp-share'))
 class UpdateAFPShareTask(Task):
@@ -111,6 +113,7 @@ class UpdateAFPShareTask(Task):
         })
 
 
+@private
 @description("Removes AFP share")
 @accepts(str)
 class DeleteAFPShareTask(Task):
@@ -130,6 +133,7 @@ class DeleteAFPShareTask(Task):
         })
 
 
+@private
 @description("Imports existing AFP share")
 @accepts(h.ref('afp-share'))
 class ImportAFPShareTask(CreateAFPShareTask):

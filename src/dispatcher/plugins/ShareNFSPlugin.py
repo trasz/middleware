@@ -59,6 +59,7 @@ class NFSSharesProvider(Provider):
         return result
 
 
+@private
 @description("Adds new NFS share")
 @accepts(h.ref('nfs-share'))
 class CreateNFSShareTask(Task):
@@ -92,6 +93,7 @@ class CreateNFSShareTask(Task):
         return id
 
 
+@private
 @description("Updates existing NFS share")
 @accepts(str, h.ref('nfs-share'))
 class UpdateNFSShareTask(Task):
@@ -119,6 +121,7 @@ class UpdateNFSShareTask(Task):
         })
 
 
+@private
 @description("Removes NFS share")
 @accepts(str)
 class DeleteNFSShareTask(Task):
@@ -138,6 +141,7 @@ class DeleteNFSShareTask(Task):
         })
 
 
+@private
 @description("Imports existing NFS share")
 @accepts(h.ref('nfs-share'))
 class ImportNFSShareTask(CreateNFSShareTask):

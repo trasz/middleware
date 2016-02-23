@@ -57,6 +57,7 @@ class SMBSharesProvider(Provider):
         return result
 
 
+@private
 @description("Adds new SMB share")
 @accepts(h.ref('smb-share'))
 class CreateSMBShareTask(Task):
@@ -99,6 +100,7 @@ class CreateSMBShareTask(Task):
         return id
 
 
+@private
 @description("Updates existing SMB share")
 @accepts(str, h.ref('SMB-share'))
 class UpdateSMBShareTask(Task):
@@ -128,6 +130,7 @@ class UpdateSMBShareTask(Task):
         })
 
 
+@private
 @description("Removes SMB share")
 @accepts(str)
 class DeleteSMBShareTask(Task):
@@ -153,6 +156,7 @@ class DeleteSMBShareTask(Task):
         })
 
 
+@private
 @description("Imports existing SMB share")
 @accepts(h.ref('smb-share'))
 class ImportSMBShareTask(CreateSMBShareTask):
