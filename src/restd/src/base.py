@@ -284,9 +284,14 @@ class ProviderMixin:
             if method_op == self.get:
                 continue
 
+            if 'params-schema' not in method or len(method['params-schema']['items']) == 0:
+                http_method = 'get'
+            else:
+                http_method = 'post'
+
             type('{0}Resource'.format(method['name']), (Resource, ), {
                 'name': method['name'],
-                'get': method_op,
+                http_method: method_op,
             })(rest, parent=self)
 
     def get_provider_name(self):
