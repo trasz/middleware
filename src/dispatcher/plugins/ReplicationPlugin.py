@@ -231,6 +231,8 @@ class FailoverReplicationCreate(Task):
 
     def run(self, link, password=None):
         link['id'] = link['name']
+        link['update_date'] = str(datetime.utcnow())
+
         is_master = False
         remote = ''
         ips = self.dispatcher.call_sync('network.config.get_my_ips')
