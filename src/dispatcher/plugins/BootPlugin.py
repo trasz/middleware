@@ -170,7 +170,7 @@ def _init(dispatcher, plugin):
     })
 
     plugin.register_provider('boot.environment', BootEnvironmentsProvider)
-    plugin.register_task_handler('boot.environment.create', BootEnvironmentCreate)
+    plugin.register_task_handler('boot.environment.clone', BootEnvironmentCreate)
     plugin.register_task_handler('boot.environment.activate', BootEnvironmentActivate)
     plugin.register_task_handler('boot.environment.rename', BootEnvironmentRename)
     plugin.register_task_handler('boot.environment.delete', BootEnvironmentsDelete)
