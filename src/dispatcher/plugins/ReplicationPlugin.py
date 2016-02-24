@@ -227,9 +227,10 @@ class FailoverReplicationCreate(Task):
                             'Container {0} already exists on {1}'.format(container['name'], remote.split('@', 1)[1])
                         )
 
-        return ['zpool:{0}'.format(p['name']) for p in self.dispatcher.call_sync('volume.query')]
+        return ['zpool:{0}'.format(p) for p in link['volumes']]
 
     def run(self, link, password=None):
+        link['id'] = link['name']
         is_master = False
         remote = ''
         ips = self.dispatcher.call_sync('network.config.get_my_ips')
@@ -665,6 +666,7 @@ def _init(dispatcher, plugin):
     plugin.register_schema_definition('failover-link', {
         'type': 'object',
         'properties': {
+            'id': {'type': 'string'},
             'name': {'type': 'string'},
             'partners': {
                 'type': 'array',
