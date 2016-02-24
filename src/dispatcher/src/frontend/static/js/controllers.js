@@ -37,8 +37,9 @@ function RpcController($scope) {
                 $.each(services, function(idx, i) {
                     var temp_list = [];
                     sock.call("discovery.get_methods", [i], function(methods) {
+                        console.log(methods);
                         for(var tmp = 0; tmp < methods.length; tmp++) {
-                           temp_list.push(methods[tmp].name);
+                           temp_list.push(methods[tmp]);
                         }
                     service_dict[i] = temp_list;
                       $scope.$apply(function(){
