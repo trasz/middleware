@@ -46,6 +46,7 @@ from gevent.event import Event, AsyncResult
 from gevent.subprocess import Popen
 from freenas.utils import first_or_default
 from resources import Resource
+from auth import Service
 from task import (
     TaskException, TaskAbortException, VerifyException,
     TaskStatus, TaskState, MasterProgressTask
@@ -462,11 +463,15 @@ class Balancer(object):
             )
             raise RpcException(errno.EINVAL, "Schema verification failed", extra=errors)
 
+        clazz = self.dispatcher.tasks[name]
+        if hasattr(clazz, 'private') and not isinstance(sender.user, Service):
+            raise RpcException(errno.EPERM, "Permission denied")
+
         task = Task(self.dispatcher, name)
         task.user = sender.user.name
         task.session_id = sender.session_id
         task.created_at = datetime.utcnow()
-        task.clazz = self.dispatcher.tasks[name]
+        task.clazz = clazz
         task.args = copy.deepcopy(args)
 
         if self.debugger:
