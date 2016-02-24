@@ -336,8 +336,8 @@ class FailoverReplicationCreate(Task):
                     ))
                     continue
 
-                remote_client.call_task_sync(('volume.autoimport', volume, 'containers'))
-                remote_client.call_task_sync(('volume.autoimport', volume, 'shares'))
+                remote_client.call_task_sync('volume.autoimport', volume, 'containers')
+                remote_client.call_task_sync('volume.autoimport', volume, 'shares')
         else:
             id = self.datastore.insert('failover.links', link)
 
