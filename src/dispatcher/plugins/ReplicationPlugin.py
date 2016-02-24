@@ -478,12 +478,17 @@ def _init(dispatcher, plugin):
     plugin.register_schema_definition('failover-link', {
         'type': 'object',
         'properties': {
+            'name': {'type': 'string'},
             'partners': {
                 'type': 'array',
                 'items': {'type': 'string'}
             },
             'master': {'type': 'string'},
-            'last_switch': {'type': 'string'}
+            'update_date': {'type': 'string'},
+            'volumes': {
+                'type': 'array',
+                'items': {'type': 'string'}
+            }
         },
         'additionalProperties': False,
     })
