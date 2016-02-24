@@ -295,24 +295,37 @@ class CertificateCreateTask(Task):
         return pkey
 
 
-@accepts(h.object({
-    'properties': {
-        'name': {'type': 'string'},
-        'certificate': {'type': 'string'},
-        'privatekey': {'type': 'string'},
-        'passphrase': {'type': 'string'},
-    },
-    'additionalProperties': False,
-    'required': ['name', 'certificate', 'privatekey', 'passphrase'],
-}))
+@accepts(h.all_of(
+    h.ref('crypto-certificate'),
+    h.required('name', 'type', 'certificate'),
+))
 class CertificateImportTask(Task):
     def verify(self, certificate):
 
         if self.datastore.exists('crypto.certificates', ('name', '=', certificate['name'])):
             raise VerifyException(errno.EEXIST, 'Certificate with given name already exists')
 
+        if certificate['type'] not in ('CERT_EXISTING', 'CA_EXISTING'):
+            raise VerifyException(errno.EINVAL, 'Invalid certificate type')
+
+        errors = []
+        for i in ('country', 'state', 'city', 'organization', 'email', 'common'):
+            if i in certificate:
+                errors.append((i, errno.EINVAL, '{0} is not valid in certificate import'.format(i)))
+        if errors:
+            raise ValidationException(errors)
+
+        if certificate['type'] == 'CERT_EXISTING' and (
+            'privatekey' not in certificate or
+            'passphrase' not in certificate
+        ):
+            raise VerifyException(
+                errno.EINVAL, 'privatekey and passphrase required to import certificate'
+            )
+
         try:
-            load_privatekey(certificate['privatekey'], certificate.get('passphrase'))
+            if 'privatekey' in certificate:
+                load_privatekey(certificate['privatekey'], certificate.get('passphrase'))
         except Exception:
             raise VerifyException(errno.EINVAL, 'Invalid passphrase')
 
@@ -325,8 +338,6 @@ class CertificateImportTask(Task):
         if 'privatekey' in certificate:
             certificate['privatekey'] = export_privatekey(
                 certificate['privatekey'], certificate['passphrase'])
-
-        certificate['type'] = 'CERT_EXISTING'
 
         try:
             pkey = self.datastore.insert('crypto.certificates', certificate)
@@ -397,57 +408,6 @@ class CertificateUpdateTask(Task):
         self.dispatcher.dispatch_event('crypto.certificate.changed', {
             'operation': 'update',
             'ids': [id]
-        })
-
-        return pkey
-
-
-@accepts(h.object({
-    'properties': {
-        'name': {'type': 'string'},
-        'certificate': {'type': 'string'},
-        'privatekey': {'type': 'string'},
-        'passphrase': {'type': 'string'},
-        'serial': {'type': 'integer'},
-    },
-    'additionalProperties': False,
-    'required': ['name', 'certificate'],
-}))
-class CAImportTask(Task):
-    def verify(self, certificate):
-
-        if self.datastore.exists('crypto.certificates', ('name', '=', certificate['name'])):
-            raise VerifyException(errno.EEXIST, 'Certificate with given name already exists')
-
-        if 'privatekey' in certificate:
-            try:
-                load_privatekey(certificate['privatekey'], certificate.get('passphrase'))
-            except Exception:
-                raise VerifyException(errno.EINVAL, 'Invalid passphrase')
-
-        return ['system']
-
-    def run(self, certificate):
-
-        certificate.update(load_certificate(certificate['certificate']))
-
-        if 'privatekey' in certificate:
-            certificate['privatekey'] = export_privatekey(
-                certificate['privatekey'], certificate['passphrase'])
-
-        certificate['type'] = 'CA_EXISTING'
-
-        try:
-            pkey = self.datastore.insert('crypto.certificates', certificate)
-            self.dispatcher.call_sync('etcd.generation.generate_group', 'crypto')
-        except DatastoreException as e:
-            raise TaskException(errno.EBADMSG, 'Cannot import CA: {0}'.format(str(e)))
-        except RpcException as e:
-            raise TaskException(errno.ENXIO, 'Cannot generate certificate: {0}'.format(str(e)))
-
-        self.dispatcher.dispatch_event('crypto.certificate.changed', {
-            'operation': 'create',
-            'ids': [pkey]
         })
 
         return pkey
@@ -528,8 +488,7 @@ def _init(dispatcher, plugin):
 
     plugin.register_task_handler('crypto.certificate.create', CertificateCreateTask)
     plugin.register_task_handler('crypto.certificate.update', CertificateUpdateTask)
-    plugin.register_task_handler('crypto.certificate.ca_import', CAImportTask)
-    plugin.register_task_handler('crypto.certificate.cert_import', CertificateImportTask)
+    plugin.register_task_handler('crypto.certificate.import', CertificateImportTask)
     plugin.register_task_handler('crypto.certificate.delete', CertificateDeleteTask)
 
     # Register event types
