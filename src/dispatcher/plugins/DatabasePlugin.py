@@ -78,4 +78,4 @@ class RestoreFactoryConfigTask(ProgressTask):
 
 
 def _init(dispatcher, plugin):
-    plugin.register_task_handler('database.restore_factory', RestoreFactoryConfigTask)
+    plugin.register_task_handler('database.factory_restore', RestoreFactoryConfigTask)
