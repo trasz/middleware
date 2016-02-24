@@ -168,6 +168,22 @@ def get_latest_failover_link(dispatcher, datastore, name):
     else:
         return None
 
+
+def get_failover_state(dispatcher, link):
+    is_master = False
+    remote = ''
+    ips = dispatcher.call_sync('network.config.get_my_ips')
+    for ip in ips:
+        for partner in link['partners']:
+            if partner.endswith(ip) and partner == link['master']:
+                is_master = True
+    for partner in link['partners']:
+        if partner.split('@', 1)[1] not in ips:
+            remote = partner
+
+    return is_master, remote
+
+
 class ReplicationProvider(Provider):
     def get_public_key(self):
         return self.configstore.get('replication.key.public')
