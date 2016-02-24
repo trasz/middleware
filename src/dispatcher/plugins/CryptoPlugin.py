@@ -344,17 +344,27 @@ class CertificateImportTask(Task):
         return pkey
 
 
-@accepts(str, h.object({
-    'properties': {'certificate': {'type': 'string'}},
-}))
-class CSRUpdateTask(Task):
+@accepts(str, h.all_of(
+    h.ref('crypto-certificate'),
+))
+class CertificateUpdateTask(Task):
     def verify(self, id, updated_fields):
 
-        if not self.datastore.exists('crypto.certificates', ('id', '=', id)):
-            raise VerifyException(errno.EEXIST, 'Certificate ID {0} does not exist'.format(id))
+        certificate = self.datastore.get_by_id('crypto.certificates', id)
+        if certificate is None:
+            raise VerifyException(errno.ENOENT, 'Certificate ID {0} does not exist'.format(id))
+
+        if 'name' in updated_fields and self.datastore.exists(
+            'crypto.certificates', ('name', '=', updated_fields['name']), ('id', '!=', id)
+        ):
+            raise VerifyException(errno.EEXIST, 'Certificate with given name already exists')
+
+        if not certificate['type'].startswith('CA_') or certificate['type'] != 'CERT_CSR':
+            raise VerifyException(errno.EINVAL, 'Invalid certificate type: {0}'.format(certificate['type']))
 
         try:
-            load_certificate(updated_fields['certificate'])
+            if 'certificate' in updated_fields:
+                load_certificate(updated_fields['certificate'])
         except crypto.Error as e:
             raise VerifyException(errno.EINVAL, 'Invalid certificate: {0}'.format(str(e)))
 
@@ -364,14 +374,23 @@ class CSRUpdateTask(Task):
 
         try:
             certificate = self.datastore.get_by_id('crypto.certificates', id)
-
-            certificate['certificate'] = updated_fields['certificate']
-            certificate['type'] = 'CERT_EXISTING'
+            if certificate['type'] == 'CERT_CSR':
+                certificate['certificate'] = updated_fields['certificate']
+                certificate['type'] = 'CERT_EXISTING'
+            else:
+                if 'name' in updated_fields:
+                    certificate['name'] = updated_fields['name']
+                if 'certificate' in updated_fields:
+                    certificate['certificate'] = updated_fields['certificate']
+                if 'privatekey' in updated_fields:
+                    certificate['privatekey'] = updated_fields['privatekey']
+                if 'serial' in updated_fields:
+                    certificate['serial'] = updated_fields['serial']
 
             pkey = self.datastore.update('crypto.certificates', id, certificate)
             self.dispatcher.call_sync('etcd.generation.generate_group', 'crypto')
         except DatastoreException as e:
-            raise TaskException(errno.EBADMSG, 'Cannot update CSR: {0}'.format(str(e)))
+            raise TaskException(errno.EBADMSG, 'Cannot update certificate: {0}'.format(str(e)))
         except RpcException as e:
             raise TaskException(errno.ENXIO, 'Cannot generate certificate: {0}'.format(str(e)))
 
@@ -432,53 +451,6 @@ class CAImportTask(Task):
         })
 
         return pkey
-
-
-@accepts(str, h.all_of(
-    h.ref('crypto-certificate'),
-    h.required('certificate', 'privatekey'),
-))
-class CAUpdateTask(Task):
-    def verify(self, id, updated_fields):
-
-        certificate = self.datastore.get_by_id('crypto.certificates', id)
-        if certificate is None:
-            raise VerifyException(errno.ENOENT, 'Certificate ID {0} does not exist'.format(id))
-
-        if 'name' in updated_fields and self.datastore.exists(
-            'crypto.certificates', ('name', '=', updated_fields['name']), ('id', '!=', id)
-        ):
-            raise VerifyException(errno.EEXIST, 'Certificate with given name already exists')
-
-        return ['system']
-
-    def run(self, id, updated_fields):
-
-        certificate = self.datastore.get_by_id('crypto.certificates', id)
-
-        if 'name' in updated_fields:
-            certificate['name'] = updated_fields['name']
-
-        if 'certificate' in updated_fields:
-            certificate['certificate'] = updated_fields['certificate']
-
-        if 'privatekey' in updated_fields:
-            certificate['privatekey'] = updated_fields['privatekey']
-
-        if 'serial' in updated_fields:
-            certificate['serial'] = updated_fields['serial']
-
-        self.datastore.update('crypto.certificates', id, certificate)
-        try:
-            pass
-            self.dispatcher.call_sync('etcd.generation.generate_group', 'crypto')
-        except RpcException as e:
-            raise TaskException(errno.ENXIO, 'Cannot generate certificate: {0}'.format(str(e)))
-
-        self.dispatcher.dispatch_event('crypto.certificate.changed', {
-            'operation': 'update',
-            'ids': [id]
-        })
 
 
 @accepts(str)
@@ -555,10 +527,9 @@ def _init(dispatcher, plugin):
     plugin.register_provider('crypto.certificate', CertificateProvider)
 
     plugin.register_task_handler('crypto.certificate.create', CertificateCreateTask)
+    plugin.register_task_handler('crypto.certificate.update', CertificateUpdateTask)
     plugin.register_task_handler('crypto.certificate.ca_import', CAImportTask)
-    plugin.register_task_handler('crypto.certificate.ca_update', CAUpdateTask)
     plugin.register_task_handler('crypto.certificate.cert_import', CertificateImportTask)
-    plugin.register_task_handler('crypto.certificate.csr_update', CSRUpdateTask)
     plugin.register_task_handler('crypto.certificate.delete', CertificateDeleteTask)
 
     # Register event types
