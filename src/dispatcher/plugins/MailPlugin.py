@@ -180,4 +180,4 @@ def _init(dispatcher, plugin):
     plugin.register_provider('mail', MailProvider)
 
     # Register task handlers
-    plugin.register_task_handler('mail.configure', MailConfigureTask)
+    plugin.register_task_handler('mail.update', MailConfigureTask)

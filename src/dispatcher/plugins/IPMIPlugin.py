@@ -32,7 +32,6 @@ import ipaddress
 import logging
 from freenas.dispatcher.rpc import RpcException, description, accepts, returns
 from freenas.dispatcher.rpc import SchemaHelper as h
-from datastore.config import ConfigNode
 from task import Provider, Task, TaskException, VerifyException
 from lib.system import system, SubprocessException
 from bsd import kld
@@ -161,7 +160,7 @@ def _init(dispatcher, plugin):
     })
 
     plugin.register_provider('ipmi', IPMIProvider)
-    plugin.register_task_handler('ipmi.configure', ConfigureIPMITask)
+    plugin.register_task_handler('ipmi.update', ConfigureIPMITask)
 
     # Load ipmi kernel module
     try:

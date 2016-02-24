@@ -452,7 +452,7 @@ def _init(dispatcher, plugin):
 
     plugin.register_event_handler("service.rc.command", on_rc_command)
     plugin.register_task_handler("service.manage", ServiceManageTask)
-    plugin.register_task_handler("service.configure", UpdateServiceConfigTask)
+    plugin.register_task_handler("service.update", UpdateServiceConfigTask)
     plugin.register_provider("service", ServiceInfoProvider)
     plugin.register_event_type("service.changed")
 
