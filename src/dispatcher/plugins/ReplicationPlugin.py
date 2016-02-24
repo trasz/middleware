@@ -34,7 +34,7 @@ import paramiko
 from paramiko import RSAKey, AuthenticationException
 from datetime import datetime
 from dateutil.parser import parse as parse_datetime
-from task import Provider, Task, ProgressTask, VerifyException, TaskException
+from task import Provider, Task, ProgressTask, VerifyException, TaskException, TaskWarning
 from freenas.dispatcher.rpc import RpcException, SchemaHelper as h, description, accepts, returns, private
 from freenas.dispatcher.client import Client
 from freenas.utils import to_timedelta, first_or_default
@@ -162,6 +162,189 @@ class ScanHostKeyTask(Task):
             'name': key.get_name(),
             'key': key.get_base64()
         }
+
+
+@description("Sets up failover connection")
+@accepts(h.all_of(
+        h.ref('failover-link'),
+        h.required('name', 'partners', 'master', 'volumes')
+    ),
+    h.one_of(str, None)
+)
+class FailoverReplicationCreate(Task):
+    def verify(self, link, password=None):
+        ip_matches = False
+        is_master = False
+        remote = ''
+        ips = self.dispatcher.call_sync('network.config.get_my_ips')
+        for ip in ips:
+            for partner in link['partners']:
+                if partner.endswith(ip):
+                    ip_matches = True
+                    if partner == link['master']:
+                        is_master = True
+        try:
+            for partner in link['partners']:
+                if partner.split('@', 1)[1] not in ips:
+                    remote = partner
+        except IndexError:
+            raise VerifyException(errno.EINVAL, 'Please provide failover link partners as username@host')
+
+        if not ip_matches:
+            raise VerifyException(errno.EINVAL, 'Provided partner IPs do not create a valid pair. Check addresses.')
+
+        if self.datastore.exists('failover.links', ('name', '=', link['name'])):
+            raise VerifyException(errno.EEXIST, 'Failover link with same name already exists')
+
+        if is_master:
+            remote_client = get_client(remote)
+
+            for volume in link['volumes']:
+                if not self.datastore.exists('volumes', ('name', '=', volume)):
+                    raise VerifyException(errno.ENOENT, 'Volume {0} not found'.format(volume))
+
+                for share in self.dispatcher.call_sync('share.get_related', volume):
+                    remote_share = remote_client.call_sync(
+                        'share.query',
+                        [('name', '=', share['name'])],
+                        {'single': True}
+                    )
+                    if remote_share:
+                        raise VerifyException(
+                            errno.EEXIST,
+                            'Share {0} already exists on {1}'.format(share['name'], remote.split('@', 1)[1])
+                        )
+
+                for container in self.dispatcher.call_sync('container.query', [('target', '=', volume)]):
+                    remote_container = remote_client.call_sync(
+                        'container.query',
+                        [('name', '=', container['name'])],
+                        {'single': True}
+                    )
+                    if remote_container:
+                        raise VerifyException(
+                            errno.EEXIST,
+                            'Container {0} already exists on {1}'.format(container['name'], remote.split('@', 1)[1])
+                        )
+
+        return ['zpool:{0}'.format(p['name']) for p in self.dispatcher.call_sync('volume.query')]
+
+    def run(self, link, password=None):
+        is_master = False
+        remote = ''
+        ips = self.dispatcher.call_sync('network.config.get_my_ips')
+        for ip in ips:
+            for partner in link['partners']:
+                if partner.endswith(ip) and partner == link['master']:
+                    is_master = True
+        for partner in link['partners']:
+            if partner.split('@', 1)[1] not in ips:
+                remote = partner
+
+        if is_master:
+            remote_client = get_client(remote)
+            dataset_properties = [
+                'pool',
+                'name',
+                'mountpoint',
+                'type',
+                'volsize',
+                'properties',
+                'permissions',
+                'permissions_type'
+            ]
+
+            for volume in link['volumes']:
+                remote_vol = remote_client.call_sync(
+                    'volume.query',
+                    [('name', '=', volume)],
+                    {'single': True}
+                )
+                if not remote_vol:
+                    try:
+                        vol = self.dispatcher.call_sync('volume.query', [('name', '=', volume)], {'single': True})
+                        remote_client.call_task_sync(
+                            'volume.create',
+                            {
+                                'name': vol['name'],
+                                'type': vol['type'],
+                                'params': {'encryption': True if password else False},
+                                'topology': vol['topology']
+                            },
+                            password
+                        )
+                    except RpcException as e:
+                        raise TaskException(
+                            e.code,
+                            'Cannot create exact duplicate of {0} on {1}. Message: {2}'.format(
+                                volume,
+                                remote,
+                                e.message
+                            )
+                        )
+
+                vol_datasets = self.dispatcher.call_sync('zfs.dataset.query', [('pool', '=', volume)])
+                for dataset in vol_datasets:
+                    remote_dataset = remote_client.call_sync(
+                        'zfs.dataset.query',
+                        [('name', '=', dataset['name'])],
+                        {'single': True}
+                    )
+                    if not remote_dataset:
+                        try:
+                            properties = {}
+                            for key in dataset_properties:
+                                if dataset.get(key):
+                                    properties[key] = dataset[key]
+                            remote_client.call_task_sync(
+                                'volume.dataset.create',
+                                properties
+                            )
+                        except RpcException as e:
+                            raise TaskException(
+                                e.code,
+                                'Cannot create exact duplicate of {0} on {1}. Message: {2}'.format(
+                                    dataset,
+                                    remote,
+                                    e.message
+                                )
+                            )
+
+            remote_client.call_task_sync('replication.failover.create', link)
+
+            id = self.datastore.insert('failover.links', link)
+
+            for volume in link['volumes']:
+                try:
+                    self.join_subtasks(self.run_subtask(
+                        'replication.replicate_dataset',
+                        volume,
+                        volume,
+                        {
+                            'remote': remote,
+                            'remote_dataset': volume,
+                            'recursive': True
+                        }
+                    ))
+                except RpcException as e:
+                    self.add_warning(TaskWarning(
+                        e.code,
+                        'Error during replication of {0}. Message {1}. Retry after fixing this issue.'.format(
+                            volume,
+                            e.message
+                        )
+                    ))
+                    continue
+
+                remote_client.call_task_sync(('volume.autoimport', volume, 'containers'))
+                remote_client.call_task_sync(('volume.autoimport', volume, 'shares'))
+        else:
+            id = self.datastore.insert('failover.links', link)
+
+        self.dispatcher.dispatch_event('replication.failover.changed', {
+            'operation': 'create',
+            'ids': [id]
+        })
 
 
 @accepts(str, str, bool, str, str, bool)
@@ -501,6 +684,7 @@ def _init(dispatcher, plugin):
     plugin.register_task_handler('volume.snapshot_dataset', SnapshotDatasetTask)
     plugin.register_task_handler('replication.scan_hostkey', ScanHostKeyTask)
     plugin.register_task_handler('replication.replicate_dataset', ReplicateDatasetTask)
+    plugin.register_task_handler('replication.failover.create', FailoverReplicationCreate)
 
     # Generate replication key pair on first run
     if not dispatcher.configstore.get('replication.key.private') or not dispatcher.configstore.get('replication.key.public'):
