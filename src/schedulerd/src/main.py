@@ -169,7 +169,12 @@ class ManagementService(RpcService):
     def run(self, job_id):
         self.context.logger.info('Running job {0} manualy'.format(job_id))
         jb = self.context.scheduler.get_job(job_id)
-        self.context.run_job(*jb.args, **jb.kwargs)
+        self.context.scheduler.add_job(
+            job,
+            id=job_id + '-temp',
+            args=jb.args,
+            kwargs=jb.kwargs,
+        )
 
 
 class Context(object):
