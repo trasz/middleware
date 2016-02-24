@@ -32,6 +32,7 @@ import setproctitle
 import argparse
 import pytz
 import errno
+from datetime import datetime, timezone
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.jobstores.mongodb import MongoDBJobStore
 from datastore import get_datastore, DatastoreException
@@ -174,6 +175,7 @@ class ManagementService(RpcService):
             id=job_id + '-temp',
             args=jb.args,
             kwargs=jb.kwargs,
+            run_date=datetime.now(timezone.utc)
         )
 
 
