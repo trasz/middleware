@@ -282,16 +282,7 @@ class FailoverReplicationCreate(Task):
         link['id'] = link['name']
         link['update_date'] = str(datetime.utcnow())
 
-        is_master = False
-        remote = ''
-        ips = self.dispatcher.call_sync('network.config.get_my_ips')
-        for ip in ips:
-            for partner in link['partners']:
-                if partner.endswith(ip) and partner == link['master']:
-                    is_master = True
-        for partner in link['partners']:
-            if partner.split('@', 1)[1] not in ips:
-                remote = partner
+        is_master, remote = get_failover_state(link)
 
         if is_master:
             remote_client = get_client(remote)
@@ -406,12 +397,12 @@ class FailoverReplicationDelete(Task):
         if not self.datastore.exists('failover.links', ('name', '=', name)):
             raise VerifyException(errno.ENOENT, 'Failover link {0} do not exist.'.format(name))
 
-        link = self.datastore.get_one('failover.links', ('name', '=', name))
+        link = get_latest_failover_link(self.dispatcher, self.datastore, name)
 
         return ['zpool:{0}'.format(p) for p in link['volumes']]
 
     def run(self, name, scrub=False):
-        link = self.datastore.get_one('failover.links', ('name', '=', name))
+        link = get_latest_failover_link(self.dispatcher, self.datastore, name)
         is_master = False
         ips = self.dispatcher.call_sync('network.config.get_my_ips')
         for ip in ips:
