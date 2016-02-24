@@ -99,6 +99,7 @@ class ISCSIPortalProvider(Provider):
         return self.datastore.query('iscsi.portals', *(filter or []), **(params or {}))
 
 
+@private
 @description("Adds new iSCSI share")
 @accepts(h.ref('iscsi-share'))
 class CreateISCSIShareTask(Task):
@@ -143,6 +144,7 @@ class CreateISCSIShareTask(Task):
         return id
 
 
+@private
 @description("Updates existing iSCSI share")
 @accepts(str, h.ref('iscsi-share'))
 class UpdateISCSIShareTask(Task):
@@ -164,6 +166,7 @@ class UpdateISCSIShareTask(Task):
         })
 
 
+@private
 @description("Removes iSCSI share")
 @accepts(str)
 class DeleteiSCSIShareTask(Task):
@@ -195,6 +198,7 @@ class DeleteiSCSIShareTask(Task):
         })
 
 
+@private
 @description("Imports existing iSCSI share")
 @accepts(h.ref('iscsi-share'))
 class ImportiSCSIShareTask(CreateISCSIShareTask):
