@@ -56,7 +56,8 @@ class Task(object):
         return {
             'description': cls.description if hasattr(cls, 'description') else None,
             'schema': cls.params_schema if hasattr(cls, 'params_schema') else None,
-            'abortable': True if (hasattr(cls, 'abort') and isinstance(cls.abort, collections.Callable)) else False
+            'abortable': True if (hasattr(cls, 'abort') and isinstance(cls.abort, collections.Callable)) else False,
+            'private': cls.private if hasattr(cls, 'private') else False
         }
 
     def get_status(self):
