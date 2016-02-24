@@ -218,6 +218,8 @@ class EntityResource(Resource):
                 field, op = key, '='
 
             if key in ('sort', 'limit', 'offset'):
+                if val.isdigit():
+                    val = int(val)
                 kwargs[key] = val
                 continue
 
