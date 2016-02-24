@@ -100,18 +100,16 @@ class BootEnvironmentRename(Task):
 @description("Deletes the given Boot Environments. Note: It cannot delete an activated BE")
 @accepts(h.array(str))
 class BootEnvironmentsDelete(Task):
-    def verify(self, names):
-        for n in names:
-            be = FindClone(n)
-            if not be:
-                raise VerifyException(errno.ENOENT, 'Boot environment {0} not found'.format(n))
+    def verify(self, id):
+        be = FindClone(id)
+        if not be:
+            raise VerifyException(errno.ENOENT, 'Boot environment {0} not found'.format(id))
 
         return ['system']
 
-    def run(self, names):
-        for n in names:
-            if not DeleteClone(n):
-                raise TaskException(errno.EIO, 'Cannot delete the {0} boot environment'.format(n))
+    def run(self, id):
+        if not DeleteClone(id):
+            raise TaskException(errno.EIO, 'Cannot delete the {0} boot environment'.format(id))
 
 
 @description("Attaches the given Disk to the Boot Pool")
