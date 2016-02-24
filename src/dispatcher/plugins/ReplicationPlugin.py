@@ -142,6 +142,32 @@ def get_client(remote):
         raise RpcException(errno.EAUTH, 'Cannot connect to {0}'.format(remote))
 
 
+def get_latest_failover_link(dispatcher, datastore, name):
+    if datastore.exists('failover.links', ('name', '=', name)):
+        local_link = datastore.get_one('failover.links', ('name', '=', name))
+        ips = dispatcher.call_sync('network.config.get_my_ips')
+        remote = ''
+        for partner in local_link['partners']:
+            if partner.split('@', 1)[1] not in ips:
+                remote = partner
+
+        try:
+            client = get_client(remote)
+            remote_link = client.call_sync('replication.get_failover', name)
+            client.disconnect()
+
+            if parse_datetime(local_link['update_date']) > parse_datetime(remote_link['update_date']):
+                return local_link
+            else:
+                return remote_link
+
+        except RpcException:
+            client.disconnect()
+            return local_link
+
+    else:
+        return None
+
 class ReplicationProvider(Provider):
     def get_public_key(self):
         return self.configstore.get('replication.key.public')
