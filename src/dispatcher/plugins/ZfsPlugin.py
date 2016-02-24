@@ -34,7 +34,7 @@ from threading import Event
 from cache import EventCacheStore
 from task import (Provider, Task, TaskStatus, TaskException,
                   VerifyException, TaskAbortException, query)
-from freenas.dispatcher.rpc import RpcException, accepts, returns, description
+from freenas.dispatcher.rpc import RpcException, accepts, returns, description, private
 from freenas.dispatcher.rpc import SchemaHelper as h
 from balancer import TaskState
 from resources import Resource
@@ -201,6 +201,7 @@ class ZfsSnapshotProvider(Provider):
         return snapshots.query(*(filter or []), **(params or {}))
 
 
+@private
 @description("Scrubs ZFS pool")
 @accepts(str, int)
 class ZpoolScrubTask(Task):
@@ -291,6 +292,7 @@ class ZpoolScrubTask(Task):
             return TaskStatus(100, "Finished")
 
 
+@private
 @description("Creates new ZFS pool")
 @accepts(str, h.ref('zfs-topology'), h.object())
 class ZpoolCreateTask(Task):
@@ -367,6 +369,7 @@ class ZpoolBaseTask(Task):
         return get_disk_names(self.dispatcher, pool)
 
 
+@private
 @accepts(str, h.object())
 class ZpoolConfigureTask(ZpoolBaseTask):
     def verify(self, pool, updated_props):
@@ -383,6 +386,7 @@ class ZpoolConfigureTask(ZpoolBaseTask):
             raise TaskException(errno.EFAULT, str(err))
 
 
+@private
 @accepts(str)
 class ZpoolDestroyTask(ZpoolBaseTask):
     def run(self, name):
@@ -393,6 +397,7 @@ class ZpoolDestroyTask(ZpoolBaseTask):
             raise TaskException(errno.EFAULT, str(err))
 
 
+@private
 @accepts(
     str,
     h.any_of(
@@ -462,6 +467,7 @@ class ZpoolExtendTask(ZpoolBaseTask):
             return TaskStatus(100, "Finished")
 
 
+@private
 @accepts(str, str)
 class ZpoolDetachTask(ZpoolBaseTask):
     def run(self, pool, guid):
@@ -477,6 +483,7 @@ class ZpoolDetachTask(ZpoolBaseTask):
             raise TaskException(errno.EFAULT, str(err))
 
 
+@private
 @accepts(str, str, h.ref('zfs-vdev'))
 class ZpoolReplaceTask(ZpoolBaseTask):
     def run(self, pool, guid, vdev):
@@ -494,6 +501,7 @@ class ZpoolReplaceTask(ZpoolBaseTask):
             raise TaskException(errno.EFAULT, str(err))
 
 
+@private
 @accepts(str, str, bool)
 class ZpoolOfflineDiskTask(ZpoolBaseTask):
     def run(self, pool, guid, temporary=False):
@@ -509,6 +517,7 @@ class ZpoolOfflineDiskTask(ZpoolBaseTask):
             raise TaskException(errno.EFAULT, str(err))
 
 
+@private
 @accepts(str, str)
 class ZpoolOnlineDiskTask(ZpoolBaseTask):
     def run(self, pool, guid):
@@ -524,6 +533,7 @@ class ZpoolOnlineDiskTask(ZpoolBaseTask):
             raise TaskException(errno.EFAULT, str(err))
 
 
+@private
 @accepts(str)
 class ZpoolUpgradeTask(ZpoolBaseTask):
     def run(self, pool):
@@ -535,6 +545,7 @@ class ZpoolUpgradeTask(ZpoolBaseTask):
             raise TaskException(errno.EFAULT, str(err))
 
 
+@private
 @accepts(str, str, h.object())
 class ZpoolImportTask(Task):
     def verify(self, guid, name=None, properties=None):
@@ -555,6 +566,7 @@ class ZpoolImportTask(Task):
             raise TaskException(errno.EFAULT, str(err))
 
 
+@private
 @accepts(str)
 class ZpoolExportTask(ZpoolBaseTask):
     def verify(self, name):
@@ -581,6 +593,7 @@ class ZfsBaseTask(Task):
         return ['zpool:{0}'.format(dataset.pool.name)]
 
 
+@private
 @accepts(str, bool)
 class ZfsDatasetMountTask(ZfsBaseTask):
     def run(self, name, recursive=False):
@@ -599,6 +612,7 @@ class ZfsDatasetMountTask(ZfsBaseTask):
             raise TaskException(errno.EFAULT, str(err))
 
 
+@private
 @accepts(str)
 class ZfsDatasetUmountTask(ZfsBaseTask):
     def run(self, name):
@@ -610,6 +624,7 @@ class ZfsDatasetUmountTask(ZfsBaseTask):
             raise TaskException(errno.EFAULT, str(err))
 
 
+@private
 @accepts(str, str, h.ref('dataset-type'), h.object())
 class ZfsDatasetCreateTask(Task):
     def check_type(self, type):
@@ -642,6 +657,7 @@ class ZfsDatasetCreateTask(Task):
             raise TaskException(errno.EFAULT, str(err))
 
 
+@private
 @accepts(str, str, str, h.any_of(bool, None), h.any_of(h.object(), None))
 class ZfsSnapshotCreateTask(ZfsBaseTask):
     def run(self, pool_name, path, snapshot_name, recursive=False, params=None):
@@ -656,6 +672,7 @@ class ZfsSnapshotCreateTask(ZfsBaseTask):
             raise TaskException(errno.EFAULT, str(err))
 
 
+@private
 @accepts(str, str, str, h.any_of(bool, None))
 class ZfsSnapshotDeleteTask(ZfsBaseTask):
     def run(self, pool_name, path, snapshot_name, recursive=False):
@@ -667,6 +684,7 @@ class ZfsSnapshotDeleteTask(ZfsBaseTask):
             raise TaskException(errno.EFAULT, str(err))
 
 
+@private
 @accepts(str, str, h.array(str), h.any_of(bool, None))
 class ZfsSnapshotDeleteMultipleTask(ZfsBaseTask):
     def run(self, pool_name, path, snapshot_names, recursive=False):
@@ -679,6 +697,7 @@ class ZfsSnapshotDeleteMultipleTask(ZfsBaseTask):
             raise TaskException(errno.EFAULT, str(err))
 
 
+@private
 class ZfsConfigureTask(ZfsBaseTask):
     def run(self, pool_name, name, properties):
         try:
@@ -697,6 +716,7 @@ class ZfsConfigureTask(ZfsBaseTask):
             raise TaskException(errno.EFAULT, str(err))
 
 
+@private
 class ZfsDestroyTask(ZfsBaseTask):
     def run(self, name):
         try:
@@ -707,6 +727,7 @@ class ZfsDestroyTask(ZfsBaseTask):
             raise TaskException(errno.EFAULT, str(err))
 
 
+@private
 @accepts(str, str)
 class ZfsRenameTask(ZfsBaseTask):
     def run(self, name, new_name):
@@ -718,6 +739,7 @@ class ZfsRenameTask(ZfsBaseTask):
             raise TaskException(errno.EFAULT, str(err))
 
 
+@private
 @accepts(str)
 class ZfsCloneTask(ZfsBaseTask):
     def run(self, path):
