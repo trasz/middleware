@@ -177,5 +177,5 @@ def _init(dispatcher, plugin):
     plugin.register_task_handler('boot.environment.rename', BootEnvironmentRename)
     plugin.register_task_handler('boot.environment.delete', BootEnvironmentsDelete)
 
-    plugin.register_task_handler('boot.attach_disk', BootAttachDisk)
-    plugin.register_task_handler('boot.detach_disk', BootDetachDisk)
+    plugin.register_task_handler('boot.disk.attach', BootAttachDisk)
+    plugin.register_task_handler('boot.disk.detach', BootDetachDisk)
