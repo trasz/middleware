@@ -149,6 +149,13 @@ class ReplicationProvider(Provider):
     def scan_keys_on_host(self, hostname):
         return self.dispatcher.call_task_sync('replication.scan_hostkey', hostname)
 
+    def get_failover(self, name):
+        if self.datastore.exists('failover.links', ('name', '=', name)):
+            return self.datastore.get_one('failover.links', ('name', '=', name))
+        else:
+            return None
+
+
 @accepts(str)
 class ScanHostKeyTask(Task):
     def verify(self, hostname):
