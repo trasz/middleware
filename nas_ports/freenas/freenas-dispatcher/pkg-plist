@@ -40,6 +40,7 @@ lib/dispatcher/src/frontend/static/partials/index.html
 lib/dispatcher/src/frontend/static/partials/rpc.html
 lib/dispatcher/src/frontend/static/partials/syslog.html
 lib/dispatcher/src/frontend/static/partials/tests.html
+lib/dispatcher/src/frontend/static/partials/stats.html
 libexec/dispatcher/notify-pam
 libexec/dispatcher/ssh_transport_catcher
 lib/dispatcher/src/lib/sendzfs.so
