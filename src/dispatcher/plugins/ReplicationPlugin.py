@@ -348,6 +348,38 @@ class FailoverReplicationCreate(Task):
         })
 
 
+@description("Deletes failover connection")
+@accepts(str, bool)
+class FailoverReplicationDelete(Task):
+    def verify(self, name, scrub=False):
+        if not self.datastore.exists('failover.links', ('name', '=', name)):
+            raise VerifyException(errno.ENOENT, 'Failover link {0} do not exist.'.format(name))
+
+        link = self.datastore.get_one('failover.links', ('name', '=', name))
+
+        return ['zpool:{0}'.format(p) for p in link['volumes']]
+
+    def run(self, name, scrub=False):
+        link = self.datastore.get_one('failover.links', ('name', '=', name))
+        is_master = False
+        ips = self.dispatcher.call_sync('network.config.get_my_ips')
+        for ip in ips:
+            for partner in link['partners']:
+                if partner.endswith(ip) and partner == link['master']:
+                    is_master = True
+
+        if not is_master and scrub:
+            for volume in link['volumes']:
+                self.dispatcher.call_task_sync('volume.delete', volume)
+
+        self.dispatcher.datastore.delete('failover.links', link['id'])
+
+        self.dispatcher.dispatch_event('replication.failover.changed', {
+            'operation': 'delete',
+            'ids': [link['id']]
+        })
+
+
 @accepts(str, str, bool, str, str, bool)
 @returns(str)
 class SnapshotDatasetTask(Task):
@@ -687,6 +719,18 @@ def _init(dispatcher, plugin):
     plugin.register_task_handler('replication.scan_hostkey', ScanHostKeyTask)
     plugin.register_task_handler('replication.replicate_dataset', ReplicateDatasetTask)
     plugin.register_task_handler('replication.failover.create', FailoverReplicationCreate)
+    #plugin.register_task_handler('replication.failover.switch', FailoverReplicationSwitch)
+    plugin.register_task_handler('replication.failover.delete', FailoverReplicationDelete)
+
+    #plugin.register_event_handler('zfs.pool.changed', on_pool_changed)
+    #plugin.register_event_handler('zfs.dataset.changed', on_dataset_changed)
+    #plugin.register_event_handler('zfs.snapshot.changed', on_snapshot_changed)
+
+    #plugin.register_event_handler('share.changed', on_share_changed)
+
+    #plugin.register_event_handler('container.changed', on_container_changed)
+
+    plugin.register_event_type('replication.failover.changed')
 
     # Generate replication key pair on first run
     if not dispatcher.configstore.get('replication.key.private') or not dispatcher.configstore.get('replication.key.public'):
