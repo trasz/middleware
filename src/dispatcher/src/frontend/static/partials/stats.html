@@ -1,0 +1,31 @@
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/3.5.3/d3.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/c3/0.4.9/c3.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.9.0/moment.js"></script>
+
+<div ng-init="init()">
+</div>
+<div class="row">
+    <div class="dropdown">
+      <button class="btn btn-default dropdown-toggle" type="button" data-toggle="dropdown">
+        Data source
+        <span class="caret"></span>
+      </button>
+      <ul id="sources" class="dropdown-menu" role="menu">
+      </ul>
+    </div>
+    <hr/>
+    <form style="width: 20%;">
+        <div class="form-group">
+            <label for="method">Starting point (in minutes from now):</label>
+            <input type="text" name="method" id="timespan" class="form-control" value="15"/>
+        </div>
+        <div class="form-group">
+            <label for="method">Frequency:</label>
+            <input type="text" name="method" id="frequency" class="form-control" value="10S"/>
+        </div>
+        <button type="button" id="call" class="btn btn-default">Load</button>
+    </form>
+    <h1 id="title">Select data source</h1>
+    <div id="chart">
+    </div>
+</div>
