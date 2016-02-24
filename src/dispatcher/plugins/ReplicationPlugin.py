@@ -31,7 +31,7 @@ import errno
 import re
 import logging
 import paramiko
-from paramiko import RSAKey
+from paramiko import RSAKey, AuthenticationException
 from datetime import datetime
 from dateutil.parser import parse as parse_datetime
 from task import Provider, Task, ProgressTask, VerifyException, TaskException
@@ -132,10 +132,14 @@ def get_client(remote):
     with open('/etc/replication/key') as f:
         pkey = RSAKey.from_private_key(f)
 
-    remote_client = Client()
-    remote_client.connect('ws+ssh://{0}'.format(remote), pkey=pkey)
-    remote_client.login_service('replicator')
-    return remote_client
+    try:
+        remote_client = Client()
+        remote_client.connect('ws+ssh://{0}'.format(remote), pkey=pkey)
+        remote_client.login_service('replicator')
+        return remote_client
+
+    except AuthenticationException:
+        raise RpcException(errno.EAUTH, 'Cannot connect to {0}'.format(remote))
 
 
 class ReplicationProvider(Provider):
