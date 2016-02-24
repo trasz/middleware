@@ -217,9 +217,14 @@ class EntityResource(Resource):
             else:
                 field, op = key, '='
 
-            if key in ('sort', 'limit', 'offset'):
+            if key in ('sort', 'limit', 'offset', 'count'):
                 if val.isdigit():
                     val = int(val)
+                elif val.lower() in ('true', 'false', '0', '1'):
+                    if val.lower() in ('true', '1'):
+                        val = True
+                    elif val.lower() in ('false', '0'):
+                        val = False
                 kwargs[key] = val
                 continue
 
