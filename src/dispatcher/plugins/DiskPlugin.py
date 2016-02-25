@@ -580,7 +580,6 @@ class DiskGELIRestoreMetadataTask(Task):
         return "Restore metadata of encrypted partition on {0}".format(os.path.basename(metadata.get('disk')))
 
     def verify(self, id, metadata):
-        disk = metadata.get('disk')
         disk = self.dispatcher.call_sync('disk.query', [('id', '=', id)], {'single': True})
         if disk:
             raise VerifyException(errno.ENOENT, "Disk {0} not found".format(disk['path']))
