@@ -343,7 +343,7 @@ class SingleItemBase(object):
         return '{0}.get_config'.format(self.namespace)
 
     def get_update_method_name(self):
-        return '{0}.configure'.format(self.namespace)
+        return '{0}.update'.format(self.namespace)
 
 
 class CRUDBase(object):
