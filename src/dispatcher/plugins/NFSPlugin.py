@@ -54,9 +54,6 @@ class NFSConfigureTask(Task):
     def verify(self, nfs):
         errors = []
 
-        node = ConfigNode('service.nfs', self.configstore).__getstate__()
-        node.update(nfs)
-
         if errors:
             raise ValidationException(errors)
 

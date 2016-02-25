@@ -52,9 +52,6 @@ class HAProxyConfigureTask(Task):
     def verify(self, haproxy):
         errors = []
 
-        node = ConfigNode('service.haproxy', self.configstore).__getstate__()
-        node.update(haproxy)
-
         if errors:
             raise ValidationException(errors)
 

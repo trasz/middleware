@@ -69,9 +69,6 @@ class RsyncdConfigureTask(Task):
     def verify(self, rsyncd):
         errors = []
 
-        node = ConfigNode('service.rsyncd', self.configstore).__getstate__()
-        node.update(rsyncd)
-
         if errors:
             raise ValidationException(errors)
 

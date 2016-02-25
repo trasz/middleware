@@ -73,8 +73,6 @@ class DynDNSConfigureTask(Task):
     def verify(self, dyndns):
         errors = []
 
-        node = ConfigNode('service.dyndns', self.configstore)
-
         if errors:
             raise ValidationException(errors)
 

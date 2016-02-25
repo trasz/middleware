@@ -51,9 +51,6 @@ class GlusterdConfigureTask(Task):
     def verify(self, glusterd):
         errors = []
 
-        node = ConfigNode('service.glusterd', self.configstore).__getstate__()
-        node.update(glusterd)
-
         if errors:
             raise ValidationException(errors)
 

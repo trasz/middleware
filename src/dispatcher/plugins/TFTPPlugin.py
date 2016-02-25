@@ -52,9 +52,6 @@ class TFTPConfigureTask(Task):
     def verify(self, tftp):
         errors = []
 
-        node = ConfigNode('service.tftp', self.configstore).__getstate__()
-        node.update(tftp)
-
         if errors:
             raise ValidationException(errors)
 

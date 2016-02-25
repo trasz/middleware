@@ -109,9 +109,6 @@ class IPFSConfigureTask(Task):
     def verify(self, ipfs):
         errors = []
 
-        node = ConfigNode('service.ipfs', self.configstore).__getstate__()
-        node.update(ipfs)
-
         if 'path' in ipfs:
             if ipfs['path'] in [None, ''] or ipfs['path'].isspace():
                 errors.append((

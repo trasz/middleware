@@ -51,9 +51,6 @@ class SWIFTConfigureTask(Task):
     def verify(self, swift):
         errors = []
 
-        node = ConfigNode('service.swift', self.configstore).__getstate__()
-        node.update(swift)
-
         if errors:
             raise ValidationException(errors)
 

@@ -52,9 +52,6 @@ class SMARTConfigureTask(Task):
     def verify(self, smartd):
         errors = []
 
-        node = ConfigNode('service.smartd', self.configstore).__getstate__()
-        node.update(smartd)
-
         if errors:
             raise ValidationException(errors)
 

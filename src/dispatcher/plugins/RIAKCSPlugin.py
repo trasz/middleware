@@ -51,9 +51,6 @@ class RIAKCSConfigureTask(Task):
     def verify(self, riakcs):
         errors = []
 
-        node = ConfigNode('service.riak_cs', self.configstore).__getstate__()
-        node.update(riakcs)
-
         if errors:
             raise ValidationException(errors)
 

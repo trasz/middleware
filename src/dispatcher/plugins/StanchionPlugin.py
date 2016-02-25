@@ -51,9 +51,6 @@ class StanchionConfigureTask(Task):
     def verify(self, stanchion):
         errors = []
 
-        node = ConfigNode('service.stanchion', self.configstore).__getstate__()
-        node.update(stanchion)
-
         if errors:
             raise ValidationException(errors)
 
