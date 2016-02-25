@@ -135,4 +135,4 @@ def _init(dispatcher, plugin):
     plugin.register_provider("service.snmp", SNMPProvider)
 
     # Register tasks
-    plugin.register_task_handler("service.snmp.configure", SNMPConfigureTask)
+    plugin.register_task_handler("service.snmp.update", SNMPConfigureTask)

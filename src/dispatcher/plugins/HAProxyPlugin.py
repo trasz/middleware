@@ -102,4 +102,4 @@ def _init(dispatcher, plugin):
     plugin.register_provider("service.haproxy", HAProxyProvider)
 
     # Register tasks
-    plugin.register_task_handler("service.haproxy.configure", HAProxyConfigureTask)
+    plugin.register_task_handler("service.haproxy.update", HAProxyConfigureTask)

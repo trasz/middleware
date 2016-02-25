@@ -195,4 +195,4 @@ def _init(dispatcher, plugin):
     plugin.register_provider("service.ipfs", IPFSProvider)
 
     # Register tasks
-    plugin.register_task_handler("service.ipfs.configure", IPFSConfigureTask)
+    plugin.register_task_handler("service.ipfs.update", IPFSConfigureTask)

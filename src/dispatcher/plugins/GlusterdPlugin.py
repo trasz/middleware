@@ -94,4 +94,4 @@ def _init(dispatcher, plugin):
     plugin.register_provider("service.glusterd", GlusterdProvider)
 
     # Register tasks
-    plugin.register_task_handler("service.glusterd.configure", GlusterdConfigureTask)
+    plugin.register_task_handler("service.glusterd.update", GlusterdConfigureTask)

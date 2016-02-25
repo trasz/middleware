@@ -891,7 +891,7 @@ def _init(dispatcher, plugin):
     plugin.register_provider("update", UpdateProvider)
 
     # Register task handlers
-    plugin.register_task_handler("update.configure", UpdateConfigureTask)
+    plugin.register_task_handler("update.update", UpdateConfigureTask)
     plugin.register_task_handler("update.check", CheckUpdateTask)
     plugin.register_task_handler("update.download", DownloadUpdateTask)
     plugin.register_task_handler("update.manual", UpdateManualTask)

@@ -604,10 +604,10 @@ def _init(dispatcher, plugin):
     plugin.register_provider("system.ui", SystemUIProvider)
 
     # Register task handlers
-    plugin.register_task_handler("system.advanced.configure", SystemAdvancedConfigureTask)
-    plugin.register_task_handler("system.general.configure", SystemGeneralConfigureTask)
-    plugin.register_task_handler("system.ui.configure", SystemUIConfigureTask)
-    plugin.register_task_handler("system.time.configure", SystemTimeConfigureTask)
+    plugin.register_task_handler("system.advanced.update", SystemAdvancedConfigureTask)
+    plugin.register_task_handler("system.general.update", SystemGeneralConfigureTask)
+    plugin.register_task_handler("system.ui.update", SystemUIConfigureTask)
+    plugin.register_task_handler("system.time.update", SystemTimeConfigureTask)
     plugin.register_task_handler("system.shutdown", SystemHaltTask)
     plugin.register_task_handler("system.reboot", SystemRebootTask)
 

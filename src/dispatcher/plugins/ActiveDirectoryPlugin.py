@@ -77,5 +77,5 @@ def _init(dispatcher, plugin):
 
     plugin.register_provider('directoryservice.activedirectory', ActiveDirectoryProvider)
 
-    plugin.register_task_handler('directoryservice.activedirectory.configure',
+    plugin.register_task_handler('directoryservice.activedirectory.update',
         ActiveDirectoryConfigureTask)

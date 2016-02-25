@@ -215,7 +215,7 @@ class ContainerBaseTask(Task):
             if properties['type'] == 'NFS':
                 opts['sharenfs'] = {'value': '-network={0}'.format(str(mgmt_net.network))}
                 if not self.configstore.get('service.nfs.enable'):
-                    self.join_subtasks(self.run_subtask('service.configure', 'nfs', {'enable': True}))
+                    self.join_subtasks(self.run_subtask('service.update', 'nfs', {'enable': True}))
 
             if properties['type'] == 'VT9P':
                 if properties.get('auto'):

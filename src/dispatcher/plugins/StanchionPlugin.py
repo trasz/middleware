@@ -102,4 +102,4 @@ def _init(dispatcher, plugin):
     plugin.register_provider("service.stanchion", StanchionProvider)
 
     # Register tasks
-    plugin.register_task_handler("service.stanchion.configure", StanchionConfigureTask)
+    plugin.register_task_handler("service.stanchion.update", StanchionConfigureTask)

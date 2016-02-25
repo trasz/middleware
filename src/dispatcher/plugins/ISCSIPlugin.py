@@ -97,4 +97,4 @@ def _init(dispatcher, plugin):
     plugin.register_provider("service.iscsi", ISCSIProvider)
 
     # Register tasks
-    plugin.register_task_handler("service.iscsi.configure", ISCSIConfigureTask)
+    plugin.register_task_handler("service.iscsi.update", ISCSIConfigureTask)

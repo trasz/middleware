@@ -181,4 +181,4 @@ def _init(dispatcher, plugin):
     plugin.register_provider("service.ftp", FTPProvider)
 
     # Register tasks
-    plugin.register_task_handler("service.ftp.configure", FTPConfigureTask)
+    plugin.register_task_handler("service.ftp.update", FTPConfigureTask)

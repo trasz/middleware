@@ -188,7 +188,7 @@ class DirectoryServiceConfigureTask(Task):
             'samba', 'pam', 'activedirectory', 'ldap']:
             raise VerifyException(errno.ENOENT, 'No such configuration!')
 
-        self.dispatcher.call_sync('dsd.configuration.configure_%s' % what, id, enable)
+        self.dispatcher.call_sync('dsd.configuration.update_%s' % what, id, enable)
         return [ 'ship' ]
 
 
@@ -245,6 +245,6 @@ def _init(dispatcher, plugin):
     plugin.register_task_handler('directoryservice.enable', DirectoryServiceEnableTask)
     plugin.register_task_handler('directoryservice.disable', DirectoryServiceDisableTask)
     plugin.register_task_handler('directoryservice.get', DirectoryServiceGetTask)
-    plugin.register_task_handler('directoryservice.configure', DirectoryServiceConfigureTask)
+    plugin.register_task_handler('directoryservice.update', DirectoryServiceConfigureTask)
     plugin.register_task_handler('directoryservice.kerberosticket', DirectoryServiceKerberosTicketTask)
     plugin.register_task_handler('directoryservice.join', DirectoryServiceJoinActiveDirectoryTask)

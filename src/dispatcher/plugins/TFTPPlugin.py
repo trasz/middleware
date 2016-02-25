@@ -101,4 +101,4 @@ def _init(dispatcher, plugin):
     plugin.register_provider("service.tftp", TFTPProvider)
 
     # Register tasks
-    plugin.register_task_handler("service.tftp.configure", TFTPConfigureTask)
+    plugin.register_task_handler("service.tftp.update", TFTPConfigureTask)

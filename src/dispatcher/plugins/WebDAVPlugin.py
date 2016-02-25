@@ -121,4 +121,4 @@ def _init(dispatcher, plugin):
     plugin.register_provider("service.webdav", WebDAVProvider)
 
     # Register tasks
-    plugin.register_task_handler("service.webdav.configure", WebDAVConfigureTask)
+    plugin.register_task_handler("service.webdav.update", WebDAVConfigureTask)

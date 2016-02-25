@@ -123,4 +123,4 @@ def _init(dispatcher, plugin):
     plugin.register_provider("service.dyndns", DynDNSProvider)
 
     # Register tasks
-    plugin.register_task_handler("service.dyndns.configure", DynDNSConfigureTask)
+    plugin.register_task_handler("service.dyndns.update", DynDNSConfigureTask)

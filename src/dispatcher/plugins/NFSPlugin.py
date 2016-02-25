@@ -108,4 +108,4 @@ def _init(dispatcher, plugin):
     plugin.register_provider("service.nfs", NFSProvider)
 
     # Register tasks
-    plugin.register_task_handler("service.nfs.configure", NFSConfigureTask)
+    plugin.register_task_handler("service.nfs.update", NFSConfigureTask)

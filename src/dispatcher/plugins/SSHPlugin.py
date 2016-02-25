@@ -113,4 +113,4 @@ def _init(dispatcher, plugin):
     plugin.register_provider("service.ssh", SSHProvider)
 
     # Register tasks
-    plugin.register_task_handler("service.ssh.configure", SSHConfigureTask)
+    plugin.register_task_handler("service.ssh.update", SSHConfigureTask)

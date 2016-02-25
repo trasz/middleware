@@ -255,7 +255,7 @@ def _init(dispatcher, plugin):
     plugin.register_provider("service.ups", UPSProvider)
 
     # Register tasks
-    plugin.register_task_handler("service.ups.configure", UPSConfigureTask)
+    plugin.register_task_handler("service.ups.update", UPSConfigureTask)
 
     # Register events
     plugin.register_event_type('service.ups.signal')

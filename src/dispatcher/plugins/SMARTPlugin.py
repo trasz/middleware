@@ -105,4 +105,4 @@ def _init(dispatcher, plugin):
     plugin.register_provider("service.smartd", SMARTProvider)
 
     # Register tasks
-    plugin.register_task_handler("service.smartd.configure", SMARTConfigureTask)
+    plugin.register_task_handler("service.smartd.update", SMARTConfigureTask)

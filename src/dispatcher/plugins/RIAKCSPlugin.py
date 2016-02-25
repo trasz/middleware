@@ -107,4 +107,4 @@ def _init(dispatcher, plugin):
     plugin.register_provider("service.riak_cs", RIAKCSProvider)
 
     # Register tasks
-    plugin.register_task_handler("service.riak_cs.configure", RIAKCSConfigureTask)
+    plugin.register_task_handler("service.riak_cs.update", RIAKCSConfigureTask)

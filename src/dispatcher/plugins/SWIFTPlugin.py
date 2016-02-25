@@ -95,4 +95,4 @@ def _init(dispatcher, plugin):
     plugin.register_provider("service.swift", SWIFTProvider)
 
     # Register tasks
-    plugin.register_task_handler("service.swift.configure", SWIFTConfigureTask)
+    plugin.register_task_handler("service.swift.update", SWIFTConfigureTask)

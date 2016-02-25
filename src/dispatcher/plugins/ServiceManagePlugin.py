@@ -327,7 +327,7 @@ class UpdateServiceConfigTask(Task):
             if 'enable' in updated_fields:
                 # Propagate to dependent services
                 for i in service_def.get('dependencies', []):
-                    self.join_subtasks(self.run_subtask('service.configure', i, {
+                    self.join_subtasks(self.run_subtask('service.update', i, {
                         'enable': updated_fields['enable']
                     }))
 

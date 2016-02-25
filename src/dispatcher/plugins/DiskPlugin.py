@@ -1371,7 +1371,7 @@ def _init(dispatcher, plugin):
     plugin.register_task_handler('disk.geli.detach', DiskGELIDetachTask)
     plugin.register_task_handler('disk.geli.kill', DiskGELIKillTask)
     plugin.register_task_handler('disk.install_bootloader', DiskInstallBootloaderTask)
-    plugin.register_task_handler('disk.configure', DiskConfigureTask)
+    plugin.register_task_handler('disk.update', DiskConfigureTask)
     plugin.register_task_handler('disk.delete', DiskDeleteTask)
     plugin.register_task_handler('disk.test', DiskTestTask)
     plugin.register_task_handler('disk.parallel_test', DiskParallelTestTask)

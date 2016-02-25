@@ -102,4 +102,4 @@ def _init(dispatcher, plugin):
     plugin.register_provider("service.lldp", LLDPProvider)
 
     # Register tasks
-    plugin.register_task_handler("service.lldp.configure", LLDPConfigureTask)
+    plugin.register_task_handler("service.lldp.update", LLDPConfigureTask)

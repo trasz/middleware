@@ -267,7 +267,7 @@ def _init(dispatcher, plugin):
     plugin.register_provider("service.smb", SMBProvider)
 
     # Register tasks
-    plugin.register_task_handler("service.smb.configure", SMBConfigureTask)
+    plugin.register_task_handler("service.smb.update", SMBConfigureTask)
 
     set_smb_sid()
     node = ConfigNode('service.smb', dispatcher.configstore)
