@@ -1498,7 +1498,12 @@ class VolumeBackupKeysTask(Task):
 
             subtasks = []
             for dname in disks:
-                subtasks.append(self.run_subtask('disk.geli.mkey.backup', dname))
+                disk_info = self.dispatcher.call_sync(
+                    'disk.query',
+                    [('path', 'in', dname), ('online', '=', True)],
+                    {'single': True}
+                )
+                subtasks.append(self.run_subtask('disk.geli.mkey.backup', disk_info['id']))
             output = self.join_subtasks(*subtasks)
 
         for result in output:

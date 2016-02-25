@@ -545,23 +545,24 @@ class DiskGELIDelUserKeyTask(Task):
 @accepts(str)
 @returns(h.ref('disk-metadata'))
 class DiskGELIBackupMetadataTask(Task):
-    def describe(self, disk):
+    def describe(self, id):
+        disk = self.dispatcher.call_sync('disk.query', [('id', '=', id)], {'single': True})
         return "Backup metadata of encrypted partition on {0}".format(os.path.basename(disk))
 
-    def verify(self, disk):
-        if not get_disk_by_path(disk):
-            raise VerifyException(errno.ENOENT, "Disk {0} not found".format(disk))
+    def verify(self, id):
+        disk = self.dispatcher.call_sync('disk.query', [('id', '=', id)], {'single': True})
+        if disk:
+            raise VerifyException(errno.ENOENT, "Disk {0} not found".format(disk['path']))
 
-        return ['disk:{0}'.format(disk)]
+        return ['disk:{0}'.format(disk['path'])]
 
-    def run(self, disk):
-        disk_info = self.dispatcher.call_sync('disk.query', [('path', 'in', disk),
-                                                             ('online', '=', True)], {'single': True})
+    def run(self, id):
+        disk_info = self.dispatcher.call_sync('disk.query', [('id', '=', id)], {'single': True})
         disk_status = disk_info.get('status', None)
         if disk_status is not None:
             data_partition_path = os.path.join('/dev/gptid/', disk_status.get('data_partition_uuid'))
         else:
-            raise TaskException(errno.EINVAL, 'Cannot get disk status for: {0}'.format(disk))
+            raise TaskException(errno.EINVAL, 'Cannot get disk status for: {0}'.format(disk_info['path']))
 
         with tempfile.NamedTemporaryFile('w+b') as metadata_file:
             try:
@@ -570,7 +571,7 @@ class DiskGELIBackupMetadataTask(Task):
                 raise TaskException(errno.EFAULT, 'Cannot backup metadata of encrypted partition: {0}'.format(err.err))
 
             metadata_file.seek(0)
-            return {'disk': disk, 'metadata': base64.b64encode(metadata_file.read()).decode('utf-8')}
+            return {'disk': disk_info['path'], 'metadata': base64.b64encode(metadata_file.read()).decode('utf-8')}
 
 
 @accepts(h.ref('disk-metadata'))
