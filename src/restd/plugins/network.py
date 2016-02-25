@@ -28,9 +28,6 @@ class InterfaceCRUD(CRUDBase):
         InterfaceRenewResource,
     )
 
-    def get_update_method_name(self):
-        return '{0}.configure'.format(self.namespace)
-
 
 class RouteCRUD(CRUDBase):
     namespace = 'network.route'
