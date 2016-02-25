@@ -1441,12 +1441,14 @@ class VolumeRekeyTask(Task):
                 digest = None
 
             subtasks = []
+            disk_ids = []
             for dname in disks:
                 disk_info = self.dispatcher.call_sync(
                     'disk.query',
                     [('path', 'in', dname), ('online', '=', True)],
                     {'single': True}
                 )
+                disk_ids.append(disk_info['id'])
                 subtasks.append(self.run_subtask('disk.geli.ukey.set', disk_info['id'], {
                     'key': key,
                     'password': password,
@@ -1466,13 +1468,8 @@ class VolumeRekeyTask(Task):
             slot = 0 if encryption['slot'] is 1 else 1
 
             subtasks = []
-            for dname in disks:
-                disk_info = self.dispatcher.call_sync(
-                    'disk.query',
-                    [('path', 'in', dname), ('online', '=', True)],
-                    {'single': True}
-                )
-                subtasks.append(self.run_subtask('disk.geli.ukey.del', disk_info['id'], slot))
+            for disk_id in disk_ids:
+                subtasks.append(self.run_subtask('disk.geli.ukey.del', disk_id, slot))
             self.join_subtasks(*subtasks)
 
             self.dispatcher.dispatch_event('volume.changed', {
