@@ -57,7 +57,7 @@ class AFPSharesProvider(Provider):
 
 @private
 @description("Adds new AFP share")
-@accepts(h.ref('afp-share'))
+@accepts(h.ref('share'))
 class CreateAFPShareTask(Task):
     def describe(self, share):
         return "Creating AFP share {0}".format(share['name'])
@@ -93,7 +93,7 @@ class CreateAFPShareTask(Task):
 
 @private
 @description("Updates existing AFP share")
-@accepts(str, h.ref('afp-share'))
+@accepts(str, h.ref('share'))
 class UpdateAFPShareTask(Task):
     def describe(self, id, updated_fields):
         return "Updating AFP share {0}".format(id)
@@ -135,7 +135,7 @@ class DeleteAFPShareTask(Task):
 
 @private
 @description("Imports existing AFP share")
-@accepts(h.ref('afp-share'))
+@accepts(h.ref('share'))
 class ImportAFPShareTask(CreateAFPShareTask):
     def describe(self, share):
         return "Importing AFP share {0}".format(share['name'])
@@ -161,7 +161,7 @@ def _metadata():
 
 
 def _init(dispatcher, plugin):
-    plugin.register_schema_definition('afp-share', {
+    plugin.register_schema_definition('share-afp', {
         'type': 'object',
         'properties': {
             'comment': {'type': 'string'},

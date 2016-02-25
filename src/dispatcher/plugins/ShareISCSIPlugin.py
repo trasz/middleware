@@ -212,7 +212,7 @@ class ImportiSCSIShareTask(CreateISCSIShareTask):
         return super(ImportiSCSIShareTask, self).run(share)
 
 
-@accepts(h.ref('iscsi-target'))
+@accepts(h.ref('share-iscsi-target'))
 class CreateISCSITargetTask(Task):
     def verify(self, target):
         for i in target.get('extents', []):
@@ -238,7 +238,7 @@ class CreateISCSITargetTask(Task):
         return id
 
 
-@accepts(str, h.ref('iscsi-target'))
+@accepts(str, h.ref('share-iscsi-target'))
 class UpdateISCSITargetTask(Task):
     def verify(self, id, updated_params):
         if not self.datastore.exists('iscsi.targets', ('id', '=', id)):
@@ -289,7 +289,7 @@ class DeleteISCSITargetTask(Task):
 
 @accepts(
     h.all_of(
-        h.ref('iscsi-auth-group'),
+        h.ref('share-iscsi-auth'),
         h.required('type')
     )
 )
@@ -315,7 +315,7 @@ class CreateISCSIAuthGroupTask(Task):
         return id
 
 
-@accepts(str, h.ref('iscsi-auth-group'))
+@accepts(str, h.ref('share-iscsi-auth'))
 class UpdateISCSIAuthGroupTask(Task):
     def verify(self, id, updated_params):
         if not self.datastore.exists('iscsi.auth', ('id', '=', id)):
@@ -353,7 +353,7 @@ class DeleteISCSIAuthGroupTask(Task):
         })
 
 
-@accepts(h.ref('iscsi-portal'))
+@accepts(h.ref('share-iscsi-portal'))
 class CreateISCSIPortalTask(Task):
     def verify(self, portal):
         return ['service:ctl']
@@ -376,7 +376,7 @@ class CreateISCSIPortalTask(Task):
         return id
 
 
-@accepts(str, h.ref('iscsi-portal'))
+@accepts(str, h.ref('share-iscsi-portal'))
 class UpdateISCSIPortalTask(Task):
     def verify(self, id, updated_params):
         if not self.datastore.exists('iscsi.portals', ('id', '=', id)):
@@ -430,7 +430,7 @@ def _metadata():
 
 
 def _init(dispatcher, plugin):
-    plugin.register_schema_definition('iscsi-share-properties', {
+    plugin.register_schema_definition('share-iscsi', {
         'type': 'object',
         'additionalProperties': False,
         'properties': {
@@ -454,7 +454,7 @@ def _init(dispatcher, plugin):
         }
     })
 
-    plugin.register_schema_definition('iscsi-target', {
+    plugin.register_schema_definition('share-iscsi-target', {
         'type': 'object',
         'additionalProperties': False,
         'properties': {
@@ -477,7 +477,7 @@ def _init(dispatcher, plugin):
         }
     })
 
-    plugin.register_schema_definition('iscsi-portal', {
+    plugin.register_schema_definition('share-iscsi-portal', {
         'type': 'object',
         'additionalProperties': False,
         'properties': {
@@ -499,7 +499,7 @@ def _init(dispatcher, plugin):
         }
     })
 
-    plugin.register_schema_definition('iscsi-auth-group', {
+    plugin.register_schema_definition('share-iscsi-auth', {
         'type': 'object',
         'additionalProperties': False,
         'properties': {
@@ -511,7 +511,7 @@ def _init(dispatcher, plugin):
             },
             'users': {
                 'type': ['array', 'null'],
-                'items': {'$ref': 'iscsi-user'}
+                'items': {'$ref': 'share-iscsi-user'}
             },
             'initiators': {
                 'type': ['array', 'null'],
@@ -524,7 +524,7 @@ def _init(dispatcher, plugin):
         }
     })
 
-    plugin.register_schema_definition('iscsi-user', {
+    plugin.register_schema_definition('share-iscsi-user', {
         'type': 'object',
         'additionalProperties': False,
         'properties': {

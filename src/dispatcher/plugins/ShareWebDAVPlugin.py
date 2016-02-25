@@ -78,7 +78,7 @@ class WebDAVSharesProvider(Provider):
 
 @private
 @description("Adds new WebDAV share")
-@accepts(h.ref('webdav-share'))
+@accepts(h.ref('share'))
 class CreateWebDAVShareTask(Task):
     def describe(self, share):
         return "Creating WebDAV share {0}".format(share['name'])
@@ -104,7 +104,7 @@ class CreateWebDAVShareTask(Task):
 
 @private
 @description("Updates existing WebDAV share")
-@accepts(str, h.ref('webdav-share'))
+@accepts(str, h.ref('share'))
 class UpdateWebDAVShareTask(Task):
     def describe(self, id, updated_fields):
         return "Updating WebDAV share {0}".format(id)
@@ -146,7 +146,7 @@ class DeleteWebDAVShareTask(Task):
 
 @private
 @description("Imports existing WebDAV share")
-@accepts(h.ref('webdav-share'))
+@accepts(h.ref('share'))
 class ImportWebDAVShareTask(CreateWebDAVShareTask):
     def describe(self, share):
         return "Importing WebDAV share {0}".format(share['name'])
@@ -172,7 +172,7 @@ def _depends():
 
 
 def _init(dispatcher, plugin):
-    plugin.register_schema_definition('webdav-share-properties', {
+    plugin.register_schema_definition('share-webdav', {
         'type': 'object',
         'additionalProperties': False,
         'properties': {

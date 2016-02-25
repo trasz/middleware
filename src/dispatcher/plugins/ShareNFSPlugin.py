@@ -61,7 +61,7 @@ class NFSSharesProvider(Provider):
 
 @private
 @description("Adds new NFS share")
-@accepts(h.ref('nfs-share'))
+@accepts(h.ref('share'))
 class CreateNFSShareTask(Task):
     def describe(self, share):
         properties = share['properties']
@@ -95,7 +95,7 @@ class CreateNFSShareTask(Task):
 
 @private
 @description("Updates existing NFS share")
-@accepts(str, h.ref('nfs-share'))
+@accepts(str, h.ref('share'))
 class UpdateNFSShareTask(Task):
     def describe(self, id, updated_fields):
         return "Updating NFS share {0}".format(id)
@@ -143,7 +143,7 @@ class DeleteNFSShareTask(Task):
 
 @private
 @description("Imports existing NFS share")
-@accepts(h.ref('nfs-share'))
+@accepts(h.ref('share'))
 class ImportNFSShareTask(CreateNFSShareTask):
     def describe(self, share):
         properties = share['properties']
@@ -175,7 +175,7 @@ def _depends():
 
 
 def _init(dispatcher, plugin):
-    plugin.register_schema_definition('nfs-share-properties', {
+    plugin.register_schema_definition('share-nfs', {
         'type': 'object',
         'additionalProperties': False,
         'properties': {

@@ -59,7 +59,7 @@ class SMBSharesProvider(Provider):
 
 @private
 @description("Adds new SMB share")
-@accepts(h.ref('smb-share'))
+@accepts(h.ref('share'))
 class CreateSMBShareTask(Task):
     def describe(self, share):
         return "Creating SMB share {0}".format(share['name'])
@@ -102,7 +102,7 @@ class CreateSMBShareTask(Task):
 
 @private
 @description("Updates existing SMB share")
-@accepts(str, h.ref('SMB-share'))
+@accepts(str, h.ref('share'))
 class UpdateSMBShareTask(Task):
     def describe(self, id, updated_fields):
         return "Updating SMB share {0}".format(id)
@@ -158,7 +158,7 @@ class DeleteSMBShareTask(Task):
 
 @private
 @description("Imports existing SMB share")
-@accepts(h.ref('smb-share'))
+@accepts(h.ref('share'))
 class ImportSMBShareTask(CreateSMBShareTask):
     def describe(self, share):
         return "Importing SMB share {0}".format(share['name'])
@@ -223,7 +223,7 @@ def _metadata():
 
 
 def _init(dispatcher, plugin):
-    plugin.register_schema_definition('smb-share', {
+    plugin.register_schema_definition('share-smb', {
         'type': 'object',
         'properties': {
             'comment': {'type': 'string'},
