@@ -155,7 +155,7 @@ class GroupProvider(Provider):
     h.ref('user'),
     h.required('username'),
     h.forbidden('builtin'),
-    h.object({'password': {'type': 'string'}}),
+    h.object(properties={'password': {'type': 'string'}}),
     h.any_of(
         h.required('password'),
         h.required('unixhash', 'smbhash'),
