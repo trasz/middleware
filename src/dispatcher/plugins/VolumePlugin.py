@@ -512,7 +512,12 @@ class VolumeCreateTask(ProgressTask):
 
             subtasks = []
             for dname, dgroup in get_disks(volume['topology']):
-                subtasks.append(self.run_subtask('disk.geli.attach', dname, {
+                disk_info = self.dispatcher.call_sync(
+                    'disk.query',
+                    [('path', 'in', dname), ('online', '=', True)],
+                    {'single': True}
+                )
+                subtasks.append(self.run_subtask('disk.geli.attach', disk_info['id'], {
                     'key': key,
                     'password': password
                 }))
@@ -843,7 +848,7 @@ class VolumeUpdateTask(Task):
                 if vol.get('providers_presence', 'NONE') != 'NONE':
                     subtasks = []
                     for vdev, group in iterate_vdevs(new_vdevs):
-                        subtasks.append(self.run_subtask('disk.geli.attach', vdev['path'], {
+                        subtasks.append(self.run_subtask('disk.geli.attach', vdev['id'], {
                             'key': encryption['key'],
                             'password': password
                         }))
@@ -927,7 +932,12 @@ class VolumeImportTask(Task):
 
                 attach_params = {'key': key, 'password': password}
                 for dname in disks:
-                    self.join_subtasks(self.run_subtask('disk.geli.attach', dname, attach_params))
+                    disk_info = self.dispatcher.call_sync(
+                        'disk.query',
+                        [('path', 'in', dname), ('online', '=', True)],
+                        {'single': True}
+                    )
+                    self.join_subtasks(self.run_subtask('disk.geli.attach', disk_info['id'], attach_params))
 
                 real_id = None
                 pool_info = self.dispatcher.call_sync('volume.find')
@@ -1118,7 +1128,7 @@ class VolumeAutoReplaceTask(Task):
                         self.join_subtasks(self.run_subtask('disk.geli.ukey.del', disk['id'], 0))
 
                     if vol.get('providers_presence', 'NONE') != 'NONE':
-                        self.join_subtasks(self.run_subtask('disk.geli.attach', disk['path'], {
+                        self.join_subtasks(self.run_subtask('disk.geli.attach', disk['id'], {
                             'key': encryption['key'],
                             'password': password
                         }))
@@ -1366,12 +1376,12 @@ class VolumeUnlockTask(Task):
                 if vol['providers_presence'] == 'PART':
                     vdev_conf = self.dispatcher.call_sync('disk.get_disk_config', vdev)
                     if vdev_conf.get('encrypted', False) is False:
-                        subtasks.append(self.run_subtask('disk.geli.attach', vdev['path'], {
+                        subtasks.append(self.run_subtask('disk.geli.attach', vdev['id'], {
                             'key': vol['encryption']['key'],
                             'password': password
                         }))
                 else:
-                    subtasks.append(self.run_subtask('disk.geli.attach', vdev['path'], {
+                    subtasks.append(self.run_subtask('disk.geli.attach', vdev['id'], {
                         'key': vol['encryption']['key'],
                         'password': password
                     }))

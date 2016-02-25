@@ -607,33 +607,34 @@ class DiskGELIRestoreMetadataTask(Task):
 
 @accepts(str, h.ref('disk-attach-params'))
 class DiskGELIAttachTask(Task):
-    def describe(self, disk, params=None):
-        return "Attach encrypted partition of {0}".format(os.path.basename(disk))
+    def describe(self, id, params=None):
+        disk = self.dispatcher.call_sync('disk.query', [('id', '=', id)], {'single': True})
+        return "Attach encrypted partition of {0}".format(os.path.basename(disk['path']))
 
-    def verify(self, disk, params=None):
+    def verify(self, id, params=None):
         if params is None:
             params = {}
-        if not get_disk_by_path(disk):
-            raise VerifyException(errno.ENOENT, "Disk {0} not found".format(disk))
+        disk = self.dispatcher.call_sync('disk.query', [('id', '=', id)], {'single': True})
+        if disk:
+            raise VerifyException(errno.ENOENT, "Disk {0} not found".format(disk['path']))
 
         key = params.get('key', None)
         if key is None:
             raise VerifyException(errno.EINVAL, "No key for attach specified")
 
-        return ['disk:{0}'.format(disk)]
+        return ['disk:{0}'.format(disk['path'])]
 
-    def run(self, disk, params=None):
+    def run(self, id, params=None):
         if params is None:
             params = {}
         key = base64.b64decode(params.get('key', None))
         password = params.get('password', None)
-        disk_info = self.dispatcher.call_sync('disk.query', [('path', 'in', disk),
-                                                             ('online', '=', True)], {'single': True})
+        disk_info = self.dispatcher.call_sync('disk.query', [('id', '=', id)], {'single': True})
         disk_status = disk_info.get('status', None)
         if disk_status is not None:
             data_partition_path = disk_status.get('data_partition_path')
         else:
-            raise TaskException(errno.EINVAL, 'Cannot get disk status for: {0}'.format(disk))
+            raise TaskException(errno.EINVAL, 'Cannot get disk status for: {0}'.format(disk_info['path']))
 
         with tempfile.NamedTemporaryFile('wb') as keyfile:
             keyfile.write(key)
@@ -646,7 +647,7 @@ class DiskGELIAttachTask(Task):
                         system('/sbin/geli', 'attach', '-k', keyfile.name, '-j', passfile.name, data_partition_path)
                 else:
                     system('/sbin/geli', 'attach', '-k', keyfile.name, '-p', data_partition_path)
-                self.dispatcher.call_sync('disk.update_disk_cache', disk, timeout=120)
+                self.dispatcher.call_sync('disk.update_disk_cache', disk_info['path'], timeout=120)
             except SubprocessException as err:
                 logger.warning('Cannot attach encrypted partition: {0}'.format(err.err))
 
