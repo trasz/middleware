@@ -480,12 +480,14 @@ class VolumeCreateTask(ProgressTask):
         self.set_progress(10)
 
         subtasks = []
+        disk_ids = []
         for dname, dgroup in get_disks(volume['topology']):
             disk_info = self.dispatcher.call_sync(
                 'disk.query',
                 [('path', 'in', dname), ('online', '=', True)],
                 {'single': True}
             )
+            disk_ids.append(disk_info['id'])
             subtasks.append(self.run_subtask('disk.format.gpt', disk_info['id'], 'freebsd-zfs', {
                 'blocksize': params.get('blocksize', 4096),
                 'swapsize': params.get('swapsize', 2048) if dgroup == 'data' else 0
@@ -497,13 +499,8 @@ class VolumeCreateTask(ProgressTask):
 
         if encryption:
             subtasks = []
-            for dname, dgroup in get_disks(volume['topology']):
-                disk_info = self.dispatcher.call_sync(
-                    'disk.query',
-                    [('path', 'in', dname), ('online', '=', True)],
-                    {'single': True}
-                )
-                subtasks.append(self.run_subtask('disk.geli.init', disk_info['id'], {
+            for disk_id in disk_ids:
+                subtasks.append(self.run_subtask('disk.geli.init', disk_id, {
                     'key': key,
                     'password': password
                 }))
@@ -511,13 +508,8 @@ class VolumeCreateTask(ProgressTask):
             self.set_progress(30)
 
             subtasks = []
-            for dname, dgroup in get_disks(volume['topology']):
-                disk_info = self.dispatcher.call_sync(
-                    'disk.query',
-                    [('path', 'in', dname), ('online', '=', True)],
-                    {'single': True}
-                )
-                subtasks.append(self.run_subtask('disk.geli.attach', disk_info['id'], {
+            for disk_id in disk_ids:
+                subtasks.append(self.run_subtask('disk.geli.attach', disk_id, {
                     'key': key,
                     'password': password
                 }))
