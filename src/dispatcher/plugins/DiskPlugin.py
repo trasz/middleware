@@ -418,7 +418,7 @@ class DiskGELIInitTask(Task):
         if params is None:
             params = {}
 
-        if not get_disk_by_path(disk['path']):
+        if not disk:
             raise VerifyException(errno.ENOENT, "Disk {0} not found".format(disk['path']))
 
         key = params.get('key', None)
