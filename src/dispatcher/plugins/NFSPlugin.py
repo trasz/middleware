@@ -29,8 +29,9 @@ import errno
 import logging
 
 from datastore.config import ConfigNode
-from freenas.dispatcher.rpc import RpcException, SchemaHelper as h, description, accepts, returns
+from freenas.dispatcher.rpc import RpcException, SchemaHelper as h, description, accepts, returns, private
 from task import Task, Provider, TaskException, ValidationException
+
 
 logger = logging.getLogger('NFSPlugin')
 
@@ -43,6 +44,7 @@ class NFSProvider(Provider):
         return ConfigNode('service.nfs', self.configstore)
 
 
+@private
 @description('Configure NFS service')
 @accepts(h.ref('service-nfs'))
 class NFSConfigureTask(Task):

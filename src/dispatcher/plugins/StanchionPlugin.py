@@ -27,7 +27,7 @@ import errno
 import logging
 
 from datastore.config import ConfigNode
-from freenas.dispatcher.rpc import RpcException, SchemaHelper as h, description, accepts, returns
+from freenas.dispatcher.rpc import RpcException, SchemaHelper as h, description, accepts, returns, private
 from task import Task, Provider, TaskException, ValidationException
 
 logger = logging.getLogger('StanchionPlugin')
@@ -41,6 +41,7 @@ class StanchionProvider(Provider):
         return ConfigNode('service.stanchion', self.configstore).__getstate__()
 
 
+@private
 @description('Configure Stanchion KV service')
 @accepts(h.ref('service-stanchion'))
 class StanchionConfigureTask(Task):
