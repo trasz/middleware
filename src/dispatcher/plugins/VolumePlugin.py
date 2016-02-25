@@ -1839,7 +1839,7 @@ def _init(dispatcher, plugin):
 
         return {
             'id': snapshot['name'],
-            'pool': pool,
+            'volume': pool,
             'dataset': dataset,
             'name': name,
             'properties': include(
@@ -1999,6 +1999,18 @@ def _init(dispatcher, plugin):
                 'type': 'string',
                 'enum': ['PERM', 'ACL']
             }
+        }
+    })
+
+    plugin.register_schema_definition('volume-snapshot', {
+        'type': 'object',
+        'properties': {
+            'id': {'type': 'string'},
+            'volume': {'type': 'string'},
+            'dataset': {'type': 'string'},
+            'name': {'type': 'string'},
+            'properties': {'type': 'object'},
+            'holds': {'type': 'object'}
         }
     })
 
