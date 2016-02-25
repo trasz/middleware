@@ -480,20 +480,18 @@ class VolumeCreateTask(ProgressTask):
         self.set_progress(10)
 
         subtasks = []
-        disk_ids = []
         for dname, dgroup in get_disks(volume['topology']):
-            disk_info = self.dispatcher.call_sync(
-                'disk.query',
-                [('path', 'in', dname), ('online', '=', True)],
-                {'single': True}
-            )
-            disk_ids.append(disk_info['id'])
-            subtasks.append(self.run_subtask('disk.format.gpt', disk_info['id'], 'freebsd-zfs', {
+            disk_id = self.dispatcher.call_sync('disk.path_to_id', dname)
+            subtasks.append(self.run_subtask('disk.format.gpt', disk_id, 'freebsd-zfs', {
                 'blocksize': params.get('blocksize', 4096),
                 'swapsize': params.get('swapsize', 2048) if dgroup == 'data' else 0
             }))
 
         self.join_subtasks(*subtasks)
+
+        disk_ids = []
+        for dname, dgroup in get_disks(volume['topology']):
+            disk_ids.append(self.dispatcher.call_sync('disk.path_to_id', dname))
 
         self.set_progress(20)
 
@@ -654,12 +652,8 @@ class VolumeDestroyTask(Task):
                 subtasks = []
                 if 'topology' in vol:
                     for dname, _ in get_disks(vol['topology']):
-                        disk_info = self.dispatcher.call_sync(
-                            'disk.query',
-                            [('path', 'in', dname), ('online', '=', True)],
-                            {'single': True}
-                        )
-                        subtasks.append(self.run_subtask('disk.geli.kill', disk_info['id']))
+                        disk_id = self.dispatcher.call_sync('disk.path_to_id', dname)
+                        subtasks.append(self.run_subtask('disk.geli.kill', disk_id))
                     self.join_subtasks(*subtasks)
 
             self.datastore.delete('volumes', vol['id'])
@@ -804,51 +798,77 @@ class VolumeUpdateTask(Task):
 
             for vdev, group in iterate_vdevs(new_vdevs):
                 if vdev['type'] == 'disk':
-                    subtasks.append(self.run_subtask('disk.format.gpt', vdev['id'], 'freebsd-zfs', {
-                        'blocksize': params.get('blocksize', 4096),
-                        'swapsize': params.get('swapsize', 2048) if group == 'data' else 0
-                    }))
+                    subtasks.append(self.run_subtask(
+                        'disk.format.gpt',
+                        self.dispatcher.call_sync('disk.path_to_id', vdev['path']),
+                        'freebsd-zfs',
+                        {
+                            'blocksize': params.get('blocksize', 4096),
+                            'swapsize': params.get('swapsize', 2048) if group == 'data' else 0
+                        }
+                    ))
 
             for vdev in updated_vdevs:
-                subtasks.append(self.run_subtask('disk.format.gpt', vdev['vdev']['id'], 'freebsd-zfs', {
-                    'blocksize': params.get('blocksize', 4096),
-                    'swapsize': params.get('swapsize', 2048)
-                }))
+                subtasks.append(self.run_subtask(
+                    'disk.format.gpt',
+                    self.dispatcher.call_sync('disk.path_to_id', vdev['vdev']['path']),
+                    'freebsd-zfs',
+                    {
+                        'blocksize': params.get('blocksize', 4096),
+                        'swapsize': params.get('swapsize', 2048)
+                    }
+                ))
 
             self.join_subtasks(*subtasks)
 
             if encryption['key'] is not None:
                 subtasks = []
                 for vdev, group in iterate_vdevs(new_vdevs):
-                    subtasks.append(self.run_subtask('disk.geli.init', vdev['id'], {
-                        'key': encryption['key'],
-                        'password': password
-                    }))
+                    subtasks.append(self.run_subtask(
+                        'disk.geli.init',
+                        self.dispatcher.call_sync('disk.path_to_id', vdev['path']),
+                        {
+                            'key': encryption['key'],
+                            'password': password
+                        }
+                    ))
                 self.join_subtasks(*subtasks)
 
                 if encryption['slot'] is not 0:
                     subtasks = []
                     for vdev, group in iterate_vdevs(new_vdevs):
-                        subtasks.append(self.run_subtask('disk.geli.ukey.set', vdev['id'], {
-                            'key': encryption['key'],
-                            'password': password,
-                            'slot': 1
-                        }))
+                        subtasks.append(self.run_subtask(
+                            'disk.geli.ukey.set',
+                            self.dispatcher.call_sync('disk.path_to_id', vdev['path']),
+                            {
+                                'key': encryption['key'],
+                                'password': password,
+                                'slot': 1
+                            }
+                        ))
                     self.join_subtasks(*subtasks)
 
                     subtasks = []
                     for vdev, group in iterate_vdevs(new_vdevs):
-                        subtasks.append(self.run_subtask('disk.geli.ukey.del', vdev['id'], 0))
+                        subtasks.append(self.run_subtask(
+                            'disk.geli.ukey.del',
+                            self.dispatcher.call_sync('disk.path_to_id', vdev['path']),
+                            0
+                        ))
                     self.join_subtasks(*subtasks)
 
                 vol = self.dispatcher.call_sync('volume.query', [('name', '=', name)], {'single': True})
                 if vol.get('providers_presence', 'NONE') != 'NONE':
                     subtasks = []
                     for vdev, group in iterate_vdevs(new_vdevs):
-                        subtasks.append(self.run_subtask('disk.geli.attach', vdev['id'], {
-                            'key': encryption['key'],
-                            'password': password
-                        }))
+                        subtasks.append(self.run_subtask(
+                            'disk.geli.attach',
+                            self.dispatcher.call_sync('disk.path_to_id', vdev['path']),
+                            {
+                                'key': encryption['key'],
+                                'password': password
+                            }
+                        ))
                     self.join_subtasks(*subtasks)
 
             new_vdevs_gptids = convert_topology_to_gptids(self.dispatcher, new_vdevs)
@@ -929,12 +949,8 @@ class VolumeImportTask(Task):
 
                 attach_params = {'key': key, 'password': password}
                 for dname in disks:
-                    disk_info = self.dispatcher.call_sync(
-                        'disk.query',
-                        [('path', 'in', dname), ('online', '=', True)],
-                        {'single': True}
-                    )
-                    self.join_subtasks(self.run_subtask('disk.geli.attach', disk_info['id'], attach_params))
+                    disk_id = self.dispatcher.call_sync('disk.path_to_id', dname)
+                    self.join_subtasks(self.run_subtask('disk.geli.attach', disk_id, attach_params))
 
                 real_id = None
                 pool_info = self.dispatcher.call_sync('volume.find')
@@ -1056,12 +1072,8 @@ class VolumeDetachTask(Task):
         if encryption['key'] is not None:
             subtasks = []
             for dname in disks:
-                disk_info = self.dispatcher.call_sync(
-                    'disk.query',
-                    [('path', 'in', dname), ('online', '=', True)],
-                    {'single': True}
-                )
-                subtasks.append(self.run_subtask('disk.geli.detach', disk_info['id']))
+                disk_id = self.dispatcher.call_sync('disk.path_to_id', dname)
+                subtasks.append(self.run_subtask('disk.geli.detach', disk_id))
             self.join_subtasks(*subtasks)
 
         self.datastore.delete('volumes', vol['id'])
@@ -1112,7 +1124,7 @@ class VolumeAutoReplaceTask(Task):
 
             if disk:
                 self.join_subtasks(self.run_subtask('disk.format.gpt', disk['id'], 'freebsd-zfs', {'swapsize': 2048}))
-                disk = self.dispatcher.call_sync('disk.query', [('id', '=', disk['id'])], {'single': True})
+                disk = self.dispatcher.call_sync('disk.path_to_id', disk['path'])
                 if vol.get('encrypted', False):
                     encryption = vol['encryption']
                     self.join_subtasks(self.run_subtask('disk.geli.init', disk['id'], {
@@ -1174,9 +1186,15 @@ class VolumeLockTask(Task):
                 if vol['providers_presence'] == 'PART':
                     vdev_conf = self.dispatcher.call_sync('disk.get_disk_config', vdev)
                     if vdev_conf.get('encrypted', False) is True:
-                        subtasks.append(self.run_subtask('disk.geli.detach', vdev['id']))
+                        subtasks.append(self.run_subtask(
+                            'disk.geli.detach',
+                            self.dispatcher.call_sync('disk.path_to_id', vdev['path'])
+                        ))
                 else:
-                    subtasks.append(self.run_subtask('disk.geli.detach', vdev['id']))
+                    subtasks.append(self.run_subtask(
+                        'disk.geli.detach',
+                        self.dispatcher.call_sync('disk.path_to_id', vdev['path'])
+                    ))
             self.join_subtasks(*subtasks)
 
             self.dispatcher.dispatch_event('volume.changed', {
@@ -1378,15 +1396,23 @@ class VolumeUnlockTask(Task):
                 if vol['providers_presence'] == 'PART':
                     vdev_conf = self.dispatcher.call_sync('disk.get_disk_config', vdev)
                     if vdev_conf.get('encrypted', False) is False:
-                        subtasks.append(self.run_subtask('disk.geli.attach', vdev['id'], {
+                        subtasks.append(self.run_subtask(
+                            'disk.geli.attach',
+                            self.dispatcher.call_sync('disk.path_to_id', vdev['path']),
+                            {
+                                'key': vol['encryption']['key'],
+                                'password': password
+                            }
+                        ))
+                else:
+                    subtasks.append(self.run_subtask(
+                        'disk.geli.attach',
+                        self.dispatcher.call_sync('disk.path_to_id', vdev['path']),
+                        {
                             'key': vol['encryption']['key'],
                             'password': password
-                        }))
-                else:
-                    subtasks.append(self.run_subtask('disk.geli.attach', vdev['id'], {
-                        'key': vol['encryption']['key'],
-                        'password': password
-                    }))
+                        }
+                    ))
             self.join_subtasks(*subtasks)
 
             self.join_subtasks(self.run_subtask('zfs.pool.import', vol['id'], name, params))
@@ -1443,13 +1469,9 @@ class VolumeRekeyTask(Task):
             subtasks = []
             disk_ids = []
             for dname in disks:
-                disk_info = self.dispatcher.call_sync(
-                    'disk.query',
-                    [('path', 'in', dname), ('online', '=', True)],
-                    {'single': True}
-                )
-                disk_ids.append(disk_info['id'])
-                subtasks.append(self.run_subtask('disk.geli.ukey.set', disk_info['id'], {
+                disk_id = self.dispatcher.call_sync('disk.path_to_id', dname)
+                disk_ids.append(disk_id)
+                subtasks.append(self.run_subtask('disk.geli.ukey.set', disk_id, {
                     'key': key,
                     'password': password,
                     'slot': slot
@@ -1507,12 +1529,8 @@ class VolumeBackupKeysTask(Task):
 
             subtasks = []
             for dname in disks:
-                disk_info = self.dispatcher.call_sync(
-                    'disk.query',
-                    [('path', 'in', dname), ('online', '=', True)],
-                    {'single': True}
-                )
-                subtasks.append(self.run_subtask('disk.geli.mkey.backup', disk_info['id']))
+                disk_id = self.dispatcher.call_sync('disk.path_to_id', dname)
+                subtasks.append(self.run_subtask('disk.geli.mkey.backup', disk_id))
             output = self.join_subtasks(*subtasks)
 
         for result in output:
@@ -1571,13 +1589,9 @@ class VolumeRestoreKeysTask(Task):
                 if disk is None:
                     raise TaskException(errno.EINVAL, 'Disk {0} is not a part of volume {1}'.format(disk['disk'], name))
 
-                disk_info = self.dispatcher.call_sync(
-                    'disk.query',
-                    [('path', 'in', dname), ('online', '=', True)],
-                    {'single': True}
-                )
+                disk_id = self.dispatcher.call_sync('disk.path_to_id', dname)
 
-                subtasks.append(self.run_subtask('disk.geli.mkey.restore', disk_info['id'], disk))
+                subtasks.append(self.run_subtask('disk.geli.mkey.restore', disk_id, disk))
 
             self.join_subtasks(*subtasks)
 
