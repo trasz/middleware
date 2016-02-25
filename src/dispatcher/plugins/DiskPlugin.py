@@ -574,19 +574,20 @@ class DiskGELIBackupMetadataTask(Task):
             return {'disk': disk_info['path'], 'metadata': base64.b64encode(metadata_file.read()).decode('utf-8')}
 
 
-@accepts(h.ref('disk-metadata'))
+@accepts(str, h.ref('disk-metadata'))
 class DiskGELIRestoreMetadataTask(Task):
-    def describe(self, metadata):
-        return "Restore metadata of encrypted partition on {0}".format(os.path.basename(disk))
+    def describe(self, id, metadata):
+        return "Restore metadata of encrypted partition on {0}".format(os.path.basename(metadata.get('disk')))
 
-    def verify(self, metadata):
+    def verify(self, id, metadata):
         disk = metadata.get('disk')
-        if not get_disk_by_path(disk):
-            raise VerifyException(errno.ENOENT, "Disk {0} not found".format(disk))
+        disk = self.dispatcher.call_sync('disk.query', [('id', '=', id)], {'single': True})
+        if disk:
+            raise VerifyException(errno.ENOENT, "Disk {0} not found".format(disk['path']))
 
-        return ['disk:{0}'.format(disk)]
+        return ['disk:{0}'.format(disk['path'])]
 
-    def run(self, metadata):
+    def run(self, id, metadata):
         disk = metadata.get('disk')
         disk_info = self.dispatcher.call_sync('disk.query', [('path', 'in', disk),
                                                              ('online', '=', True)], {'single': True})

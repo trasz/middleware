@@ -1562,7 +1562,13 @@ class VolumeRestoreKeysTask(Task):
                 if disk is None:
                     raise TaskException(errno.EINVAL, 'Disk {0} is not a part of volume {1}'.format(disk['disk'], name))
 
-                subtasks.append(self.run_subtask('disk.geli.mkey.restore', disk))
+                disk_info = self.dispatcher.call_sync(
+                    'disk.query',
+                    [('path', 'in', dname), ('online', '=', True)],
+                    {'single': True}
+                )
+
+                subtasks.append(self.run_subtask('disk.geli.mkey.restore', disk_info['id'], disk))
 
             self.join_subtasks(*subtasks)
 
