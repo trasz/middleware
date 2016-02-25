@@ -1,6 +1,11 @@
 from base import CRUDBase, ItemResource, Resource
 
 
+class DatasetCRUD(CRUDBase):
+    name = 'dataset'
+    namespace = 'volume.dataset'
+
+
 class SnapshotCRUD(CRUDBase):
     name = 'snapshot'
     namespace = 'volume.snapshot'
@@ -33,5 +38,6 @@ class VolumeCRUD(CRUDBase):
 
 
 def _init(rest):
+    rest.register_crud(DatasetCRUD)
     rest.register_crud(SnapshotCRUD)
     rest.register_crud(VolumeCRUD)
