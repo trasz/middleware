@@ -381,6 +381,7 @@ class DeleteDependentShares(Task):
         self.join_subtasks(*subtasks)
 
 
+@private
 @description("Updates all shares related to specified volume/dataset")
 @accepts(str, h.ref('share'))
 class UpdateRelatedShares(Task):
