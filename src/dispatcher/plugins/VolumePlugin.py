@@ -1059,7 +1059,12 @@ class VolumeDetachTask(Task):
         if encryption['key'] is not None:
             subtasks = []
             for dname in disks:
-                subtasks.append(self.run_subtask('disk.geli.detach', dname))
+                disk_info = self.dispatcher.call_sync(
+                    'disk.query',
+                    [('path', 'in', dname), ('online', '=', True)],
+                    {'single': True}
+                )
+                subtasks.append(self.run_subtask('disk.geli.detach', disk_info['id']))
             self.join_subtasks(*subtasks)
 
         self.datastore.delete('volumes', vol['id'])
@@ -1172,9 +1177,9 @@ class VolumeLockTask(Task):
                 if vol['providers_presence'] == 'PART':
                     vdev_conf = self.dispatcher.call_sync('disk.get_disk_config', vdev)
                     if vdev_conf.get('encrypted', False) is True:
-                        subtasks.append(self.run_subtask('disk.geli.detach', vdev['path']))
+                        subtasks.append(self.run_subtask('disk.geli.detach', vdev['id']))
                 else:
-                    subtasks.append(self.run_subtask('disk.geli.detach', vdev['path']))
+                    subtasks.append(self.run_subtask('disk.geli.detach', vdev['id']))
             self.join_subtasks(*subtasks)
 
             self.dispatcher.dispatch_event('volume.changed', {
