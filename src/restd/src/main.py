@@ -15,7 +15,7 @@ import time
 from freenas.dispatcher.client import Client, ClientError
 from freenas.dispatcher.rpc import RpcException
 from freenas.utils import configure_logging
-from gevent.wsgi import WSGIServer
+from gevent.pywsgi import WSGIServer
 
 from serializers import JsonEncoder
 from swagger import SwaggerResource
