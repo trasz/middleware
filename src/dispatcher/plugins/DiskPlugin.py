@@ -240,19 +240,21 @@ class DiskBootFormatTask(Task):
 @description("Installs Bootloader (grub) on specified disk")
 @accepts(str)
 class DiskInstallBootloaderTask(Task):
-    def describe(self, disk):
-        return "Installing bootloader on disk {0}".format(disk)
+    def describe(self, id):
+        disk = self.dispatcher.call_sync('disk.query', [('id', '=', id)], {'single': True})
+        return "Installing bootloader on disk {0}".format(disk['path'])
 
-    def verify(self, disk):
-        if not get_disk_by_path(disk):
-            raise VerifyException(errno.ENOENT, "Disk {0} not found".format(disk))
+    def verify(self, id):
+        disk = self.dispatcher.call_sync('disk.query', [('id', '=', id)], {'single': True})
+        if not get_disk_by_path(disk['path']):
+            raise VerifyException(errno.ENOENT, "Disk {0} not found".format(disk['path']))
 
-        return ['disk:{0}'.format(disk)]
+        return ['disk:{0}'.format(disk['path'])]
 
-    def run(self, disk):
+    def run(self, id):
         try:
-            disk = os.path.join('/dev', disk)
-            system('/usr/local/sbin/grub-install', "--modules='zfs part_gpt'", disk)
+            disk = self.dispatcher.call_sync('disk.query', [('id', '=', id)], {'single': True})
+            system('/usr/local/sbin/grub-install', "--modules='zfs part_gpt'", disk['path'])
         except SubprocessException as err:
             raise TaskException(errno.EFAULT, 'Cannot install GRUB: {0}'.format(err.err))
 

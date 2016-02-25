@@ -142,7 +142,7 @@ class BootAttachDisk(ProgressTask):
         self.set_progress(80)
 
         # Install grub
-        self.join_subtasks(self.run_subtask('disk.install_bootloader', disk))
+        self.join_subtasks(self.run_subtask('disk.install_bootloader', disk_info['id']))
         self.set_progress(100)
 
 
