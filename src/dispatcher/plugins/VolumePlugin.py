@@ -662,7 +662,12 @@ class VolumeDestroyTask(Task):
                 subtasks = []
                 if 'topology' in vol:
                     for dname, _ in get_disks(vol['topology']):
-                        subtasks.append(self.run_subtask('disk.geli.kill', dname))
+                        disk_info = self.dispatcher.call_sync(
+                            'disk.query',
+                            [('path', 'in', dname), ('online', '=', True)],
+                            {'single': True}
+                        )
+                        subtasks.append(self.run_subtask('disk.geli.kill', disk_info['id']))
                     self.join_subtasks(*subtasks)
 
             self.datastore.delete('volumes', vol['id'])

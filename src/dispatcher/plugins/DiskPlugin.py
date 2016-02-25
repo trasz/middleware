@@ -683,30 +683,29 @@ class DiskGELIDetachTask(Task):
 
 @accepts(str)
 class DiskGELIKillTask(Task):
-    def describe(self, disk):
-        return "Kill encrypted partition of {0}".format(os.path.basename(disk))
+    def describe(self, id):
+        disk = self.dispatcher.call_sync('disk.query', [('id', '=', id)], {'single': True})
+        return "Kill encrypted partition of {0}".format(os.path.basename(disk['path']))
 
-    def verify(self, disk):
-        if not get_disk_by_path(disk):
-            raise VerifyException(errno.ENOENT, "Disk {0} not found".format(disk))
+    def verify(self, id):
+        disk = self.dispatcher.call_sync('disk.query', [('id', '=', id)], {'single': True})
+        if disk:
+            raise VerifyException(errno.ENOENT, "Disk {0} not found".format(disk['path']))
 
-        return ['disk:{0}'.format(disk)]
+        return ['disk:{0}'.format(disk['path'])]
 
-    def run(self, disk):
-        disk_info = self.dispatcher.call_sync('disk.query', [
-            ('path', 'in', disk),
-            ('online', '=', True)
-        ], {'single': True})
+    def run(self, id):
+        disk_info = self.dispatcher.call_sync('disk.query', [('id', '=', id)], {'single': True})
 
         disk_status = disk_info.get('status', None)
         if disk_status is not None:
             data_partition_path = disk_status.get('data_partition_path')
         else:
-            raise TaskException(errno.EINVAL, 'Cannot get disk status for: {0}'.format(disk))
+            raise TaskException(errno.EINVAL, 'Cannot get disk status for: {0}'.format(disk_info['path']))
 
         try:
             system('/sbin/geli', 'kill', data_partition_path)
-            self.dispatcher.call_sync('disk.update_disk_cache', disk, timeout=120)
+            self.dispatcher.call_sync('disk.update_disk_cache', disk_info['path'], timeout=120)
         except SubprocessException as err:
             logger.warning('Cannot kill encrypted partition: {0}'.format(err.err))
 
