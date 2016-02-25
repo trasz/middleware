@@ -15,10 +15,23 @@ import time
 from freenas.dispatcher.client import Client, ClientError
 from freenas.dispatcher.rpc import RpcException
 from freenas.utils import configure_logging
-from gevent.pywsgi import WSGIServer
+from gevent.pywsgi import WSGIHandler, WSGIServer
 
 from serializers import JsonEncoder
 from swagger import SwaggerResource
+
+
+class RESTWSGIHandler(WSGIHandler):
+
+    def get_environ(self):
+        """
+        This is so the path is not unquoted and we can have portions
+        of the url with slashes (%2F)
+        e.g. /api/v2.0/dataset/tank%2Fdataset/
+        """
+        env = super(RESTWSGIHandler, self).get_environ()
+        env['PATH_INFO'] = self.path.split('?')[0]
+        return env
 
 
 class JSONTranslator(object):
@@ -160,7 +173,7 @@ class RESTApi(object):
         self.init_metadata()
         self.load_plugins()
 
-        server4 = WSGIServer(('', 8889), self)
+        server4 = WSGIServer(('', 8889), self, handler_class=RESTWSGIHandler)
         self._threads = [gevent.spawn(server4.serve_forever)]
         gevent.joinall(self._threads)
 
