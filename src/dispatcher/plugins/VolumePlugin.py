@@ -1635,7 +1635,7 @@ class DatasetCreateTask(Task):
 
 
 @description("Deletes an existing Dataset from a Volume")
-@accepts(str, str, bool)
+@accepts(str, str)
 class DatasetDeleteTask(Task):
     def verify(self, id):
         pool_name, _, ds = id.partition('/')
@@ -1658,7 +1658,7 @@ class DatasetDeleteTask(Task):
 
 
 @description("Configures/Updates an existing Dataset's properties")
-@accepts(str, str, h.object())
+@accepts(str, h.object())
 class DatasetConfigureTask(Task):
     def verify(self, id, updated_params):
         pool_name, _, ds = id.partition('/')
@@ -1932,7 +1932,7 @@ def _init(dispatcher, plugin):
 
                     dispatcher.dispatch_event('volume.changed', {
                         'operation': 'create',
-                        'ids': [i['guid']]
+                        'ids': [i['name']]
                     })
 
     def on_snapshot_change(args):
@@ -1940,10 +1940,6 @@ def _init(dispatcher, plugin):
 
     def on_dataset_change(args):
         datasets.propagate(args, callback=convert_dataset)
-        dispatcher.dispatch_event('volume.changed', {
-            'operation': 'update',
-            'ids': [args['guid']]
-        })
 
     def on_vdev_remove(args):
         dispatcher.call_sync('alert.emit', {
