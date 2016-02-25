@@ -1990,6 +1990,7 @@ def _init(dispatcher, plugin):
         'properties': {
             'id': {'type': 'string'},
             'name': {'type': 'string'},
+            'volume': {'type': 'string'},
             'mountpoint': {'type': 'string'},
             'type': {
                 'type': 'string',
