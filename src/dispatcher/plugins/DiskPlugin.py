@@ -547,7 +547,7 @@ class DiskGELIDelUserKeyTask(Task):
 class DiskGELIBackupMetadataTask(Task):
     def describe(self, id):
         disk = self.dispatcher.call_sync('disk.query', [('id', '=', id)], {'single': True})
-        return "Backup metadata of encrypted partition on {0}".format(os.path.basename(disk))
+        return "Backup metadata of encrypted partition on {0}".format(os.path.basename(disk['path']))
 
     def verify(self, id):
         disk = self.dispatcher.call_sync('disk.query', [('id', '=', id)], {'single': True})
