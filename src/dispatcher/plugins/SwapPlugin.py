@@ -50,7 +50,7 @@ class SwapProvider(Provider):
 def get_available_disks(dispatcher):
     disks = []
     for i in dispatcher.call_sync('volume.query'):
-        disks += dispatcher.call_sync('volume.get_volume_disks', i['name'])
+        disks += dispatcher.call_sync('volume.get_volume_disks', i['id'])
 
     return disks
 

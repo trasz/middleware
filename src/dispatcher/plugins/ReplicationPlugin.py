@@ -300,12 +300,12 @@ class FailoverReplicationCreate(Task):
             for volume in link['volumes']:
                 remote_vol = remote_client.call_sync(
                     'volume.query',
-                    [('name', '=', volume)],
+                    [('id', '=', volume)],
                     {'single': True}
                 )
                 if not remote_vol:
                     try:
-                        vol = self.dispatcher.call_sync('volume.query', [('name', '=', volume)], {'single': True})
+                        vol = self.dispatcher.call_sync('volume.query', [('id', '=', volume)], {'single': True})
                         remote_client.call_task_sync(
                             'volume.create',
                             {

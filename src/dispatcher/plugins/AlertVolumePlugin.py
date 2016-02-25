@@ -37,23 +37,23 @@ def _depends():
 
 def _init(dispatcher, plugin):
     def volume_status(volume):
-        if volume['status'] == 'ONLINE' and volume['name'] in degraded_volumes:
-            degraded_volumes.remove(volume['name'])
+        if volume['status'] == 'ONLINE' and volume['id'] in degraded_volumes:
+            degraded_volumes.remove(volume['id'])
             dispatcher.rpc.call_sync('alert.emit', {
                 'name': 'volume.status',
                 'description': 'The volume {0} state is {1}'.format(
-                    volume['name'],
+                    volume['id'],
                     volume['status'],
                 ),
                 'severity': 'INFO',
             })
 
-        if volume['status'] != 'ONLINE' and volume['name'] not in degraded_volumes:
-            degraded_volumes.append(volume['name'])
+        if volume['status'] != 'ONLINE' and volume['id'] not in degraded_volumes:
+            degraded_volumes.append(volume['id'])
             dispatcher.rpc.call_sync('alert.emit', {
                 'name': 'volume.status',
                 'description': 'The volume {0} state is {1}'.format(
-                    volume['name'],
+                    volume['id'],
                     volume['status'],
                 ),
                 'severity': 'CRITICAL',
@@ -69,7 +69,7 @@ def _init(dispatcher, plugin):
 
             dispatcher.rpc.call_sync('alert.emit', {
                 'name': 'volume.version',
-                'description': 'New feature flags are available for volume {0}'.format(volume['name']),
+                'description': 'New feature flags are available for volume {0}'.format(volume['id']),
                 'severity': 'WARNING',
             })
 

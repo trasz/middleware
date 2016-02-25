@@ -260,7 +260,7 @@ class SetPermissionsTask(Task):
         # Update volume if dataset permissions were changed
         try:
             poolname, dsname, rest = self.dispatcher.call_sync('volume.decode_path', path)
-            pool = self.dispatcher.call_sync('volume.query', [('name', '=', poolname)], {'single': True})
+            pool = self.dispatcher.call_sync('volume.query', [('id', '=', poolname)], {'single': True})
             ds = first_or_default(lambda d: d['mountpoint'] == path, pool['datasets'])
             if ds:
                 self.dispatcher.dispatch_event('volume.changed', {

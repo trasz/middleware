@@ -1434,7 +1434,7 @@ def _init(dispatcher, plugin):
         # Finally, Importing the unique unimported pools that are present in
         # the database
         for vol in dispatcher.datastore.query('volumes'):
-            if int(vol['id']) in unimported_unique_pools:
+            if int(vol['guid']) in unimported_unique_pools:
                 pool_to_import = unimported_unique_pools[int(vol['id'])]
                 # Check if the volume name is also the same
                 if vol['name'] == pool_to_import.name:
@@ -1451,8 +1451,8 @@ def _init(dispatcher, plugin):
                     # What to do now??
                     # When in doubt log it!
                     dispatcher.logger.error(
-                        'Cannot Import pool with guid: {0}'.format(vol['id']) +
-                        ' because it is named as: {0} in'.format(vol['name']) +
+                        'Cannot Import pool with guid: {0}'.format(vol['guid']) +
+                        ' because it is named as: {0} in'.format(vol['id']) +
                         ' the database but the actual system found it named' +
                         ' as {0}'.format(pool_to_import.name))
 

@@ -243,7 +243,7 @@ class ContainerBaseTask(Task):
 @accepts(h.ref('container'))
 class ContainerCreateTask(ContainerBaseTask):
     def verify(self, container):
-        if not self.dispatcher.call_sync('volume.query', [('name', '=', container['target'])], {'single': True}):
+        if not self.dispatcher.call_sync('volume.query', [('id', '=', container['target'])], {'single': True}):
             raise VerifyException(errno.ENXIO, 'Volume {0} doesn\'t exist'.format(container['target']))
 
         return ['zpool:{0}'.format(container['target'])]
@@ -300,7 +300,7 @@ class ContainerCreateTask(ContainerBaseTask):
 @accepts(str, str)
 class ContainerImportTask(ContainerBaseTask):
     def verify(self, name, volume):
-        if not self.dispatcher.call_sync('volume.query', [('name', '=', volume)], {'single': True}):
+        if not self.dispatcher.call_sync('volume.query', [('id', '=', volume)], {'single': True}):
             raise VerifyException(errno.ENXIO, 'Volume {0} doesn\'t exist'.format(volume))
 
         if self.datastore.exists('containers', ('name', '=', name)):
