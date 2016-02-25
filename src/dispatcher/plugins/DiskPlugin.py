@@ -257,28 +257,32 @@ class DiskEraseTask(Task):
         self.mediasize = 0
         self.remaining = 0
 
-    def verify(self, disk, erase_method=None):
-        if not get_disk_by_path(disk):
-            raise VerifyException(errno.ENOENT, "Disk {0} not found".format(disk))
+    def verify(self, id, erase_method=None):
+        disk = self.dispatcher.call_sync('disk.query', [('id', '=', id)], {'single': True})
+        if not get_disk_by_path(disk['path']):
+            raise VerifyException(errno.ENOENT, "Disk {0} not found".format(disk['path']))
 
         allocation = self.dispatcher.call_sync(
             'volume.get_disks_allocation',
-            [disk]
-        ).get(disk)
+            [disk['path']]
+        ).get(disk['path'])
 
         if allocation is not None:
-            raise VerifyException(errno.EINVAL, "Cannot perform erase operation on an allocated disk {0}".format(disk))
+            raise VerifyException(
+                errno.EINVAL,
+                "Cannot perform erase operation on an allocated disk {0}".format(disk['path'])
+            )
 
-        return ['disk:{0}'.format(disk)]
+        return ['disk:{0}'.format(disk['path'])]
 
-    def run(self, disk, erase_method=None):
-        diskinfo = self.dispatcher.call_sync('disk.get_disk_config', disk)
+    def run(self, id, erase_method=None):
+        disk = self.dispatcher.call_sync('disk.query', [('id', '=', id)], {'single': True})
         try:
-            system('/sbin/zpool', 'labelclear', '-f', disk)
-            self.dispatcher.call_sync('disk.update_disk_cache', disk, timeout=120)
-            diskinfo = self.dispatcher.call_sync('disk.get_disk_config', disk)
+            system('/sbin/zpool', 'labelclear', '-f', disk['path'])
+            self.dispatcher.call_sync('disk.update_disk_cache', disk['path'], timeout=120)
+            diskinfo = self.dispatcher.call_sync('disk.get_disk_config', disk['path'])
             if diskinfo.get('partitions'):
-                system('/sbin/gpart', 'destroy', '-F', disk)
+                system('/sbin/gpart', 'destroy', '-F', disk['path'])
         except SubprocessException as err:
             raise TaskException(errno.EFAULT, 'Cannot erase disk: {0}'.format(err.err))
 
@@ -286,7 +290,7 @@ class DiskEraseTask(Task):
             erase_method = 'QUICK'
 
         zeros = b'\0' * (1024 * 1024)
-        fd = os.open(disk, os.O_WRONLY)
+        fd = os.open(disk['path'], os.O_WRONLY)
 
         if erase_method == 'QUICK':
             os.write(fd, zeros)
