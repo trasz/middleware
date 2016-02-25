@@ -157,7 +157,7 @@ class DiskGPTFormatTask(Task):
     def verify(self, id, fstype, params=None):
         disk = self.dispatcher.call_sync('disk.query', [('id', '=', id)], {'single': True})
         if not get_disk_by_path(disk['path']):
-            raise VerifyException(errno.ENOENT, "Disk {0} not found".format(disk['path']))
+            raise VerifyException(errno.ENOENT, "Disk {0} not found".format(id))
 
         if fstype not in ['freebsd-zfs']:
             raise VerifyException(errno.EINVAL, "Unsupported fstype {0}".format(fstype))
@@ -216,7 +216,7 @@ class DiskBootFormatTask(Task):
     def verify(self, id):
         disk = self.dispatcher.call_sync('disk.query', [('id', '=', id)], {'single': True})
         if not get_disk_by_path(disk['path']):
-            raise VerifyException(errno.ENOENT, "Disk {0} not found".format(disk['path']))
+            raise VerifyException(errno.ENOENT, "Disk {0} not found".format(id))
 
         return ['disk:{0}'.format(disk['path'])]
 
@@ -247,7 +247,7 @@ class DiskInstallBootloaderTask(Task):
     def verify(self, id):
         disk = self.dispatcher.call_sync('disk.query', [('id', '=', id)], {'single': True})
         if not get_disk_by_path(disk['path']):
-            raise VerifyException(errno.ENOENT, "Disk {0} not found".format(disk['path']))
+            raise VerifyException(errno.ENOENT, "Disk {0} not found".format(id))
 
         return ['disk:{0}'.format(disk['path'])]
 
@@ -271,7 +271,7 @@ class DiskEraseTask(Task):
     def verify(self, id, erase_method=None):
         disk = self.dispatcher.call_sync('disk.query', [('id', '=', id)], {'single': True})
         if not get_disk_by_path(disk['path']):
-            raise VerifyException(errno.ENOENT, "Disk {0} not found".format(disk['path']))
+            raise VerifyException(errno.ENOENT, "Disk {0} not found".format(id))
 
         allocation = self.dispatcher.call_sync(
             'volume.get_disks_allocation',
@@ -421,7 +421,7 @@ class DiskGELIInitTask(Task):
             params = {}
 
         if not disk:
-            raise VerifyException(errno.ENOENT, "Disk {0} not found".format(disk['path']))
+            raise VerifyException(errno.ENOENT, "Disk {0} not found".format(id))
 
         key = params.get('key', None)
         if key is None:
@@ -473,7 +473,7 @@ class DiskGELISetUserKeyTask(Task):
     def verify(self, id, params=None):
         disk = self.dispatcher.call_sync('disk.query', [('id', '=', id)], {'single': True})
         if not disk:
-            raise VerifyException(errno.ENOENT, "Disk {0} not found".format(disk['path']))
+            raise VerifyException(errno.ENOENT, "Disk {0} not found".format(id))
 
         if params.get('key', None) is None:
             raise VerifyException(errno.EINVAL, "No key specified for operation")
@@ -523,7 +523,7 @@ class DiskGELIDelUserKeyTask(Task):
     def verify(self, id, slot):
         disk = self.dispatcher.call_sync('disk.query', [('id', '=', id)], {'single': True})
         if not disk:
-            raise VerifyException(errno.ENOENT, "Disk {0} not found".format(disk['path']))
+            raise VerifyException(errno.ENOENT, "Disk {0} not found".format(id))
 
         if slot not in [0, 1]:
             raise VerifyException(errno.EINVAL, "Chosen key slot value {0} is not in valid range [0-1]".format(slot))
@@ -554,7 +554,7 @@ class DiskGELIBackupMetadataTask(Task):
     def verify(self, id):
         disk = self.dispatcher.call_sync('disk.query', [('id', '=', id)], {'single': True})
         if not disk:
-            raise VerifyException(errno.ENOENT, "Disk {0} not found".format(disk['path']))
+            raise VerifyException(errno.ENOENT, "Disk {0} not found".format(id))
 
         return ['disk:{0}'.format(disk['path'])]
 
@@ -584,7 +584,7 @@ class DiskGELIRestoreMetadataTask(Task):
     def verify(self, id, metadata):
         disk = self.dispatcher.call_sync('disk.query', [('id', '=', id)], {'single': True})
         if not disk:
-            raise VerifyException(errno.ENOENT, "Disk {0} not found".format(disk['path']))
+            raise VerifyException(errno.ENOENT, "Disk {0} not found".format(id))
 
         return ['disk:{0}'.format(disk['path'])]
 
@@ -618,7 +618,7 @@ class DiskGELIAttachTask(Task):
             params = {}
         disk = self.dispatcher.call_sync('disk.query', [('id', '=', id)], {'single': True})
         if not disk:
-            raise VerifyException(errno.ENOENT, "Disk {0} not found".format(disk['path']))
+            raise VerifyException(errno.ENOENT, "Disk {0} not found".format(id))
 
         key = params.get('key', None)
         if key is None:
@@ -663,7 +663,7 @@ class DiskGELIDetachTask(Task):
     def verify(self, id):
         disk = self.dispatcher.call_sync('disk.query', [('id', '=', id)], {'single': True})
         if not disk:
-            raise VerifyException(errno.ENOENT, "Disk {0} not found".format(disk['path']))
+            raise VerifyException(errno.ENOENT, "Disk {0} not found".format(id))
 
         return ['disk:{0}'.format(disk['path'])]
 
@@ -692,7 +692,7 @@ class DiskGELIKillTask(Task):
     def verify(self, id):
         disk = self.dispatcher.call_sync('disk.query', [('id', '=', id)], {'single': True})
         if not disk:
-            raise VerifyException(errno.ENOENT, "Disk {0} not found".format(disk['path']))
+            raise VerifyException(errno.ENOENT, "Disk {0} not found".format(id))
 
         return ['disk:{0}'.format(disk['path'])]
 
