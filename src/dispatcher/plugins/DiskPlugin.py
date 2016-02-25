@@ -144,6 +144,15 @@ class DiskProvider(Provider):
         with self.dispatcher.get_lock('diskcache:{0}'.format(disk)):
             update_disk_cache(self.dispatcher, disk)
 
+    @accepts(str)
+    def path_to_id(self, path):
+        disk_info = self.dispatcher.call_sync(
+            'disk.query',
+            [('path', 'in', path), ('online', '=', True)],
+            {'single': True}
+        )
+        return disk_info['id'] if disk_info else None
+
 
 @description(
     "GPT formats the given disk with the filesystem type and parameters(optional) specified"
