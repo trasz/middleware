@@ -160,11 +160,11 @@ class DiskProvider(Provider):
 @accepts(str, str, h.object())
 class DiskGPTFormatTask(Task):
     def describe(self, id, fstype, params=None):
-        disk = self.dispatcher.call_sync('disk.query', [('id', '=', id)], {'single': True})
+        disk = disk_by_id(self.dispatcher, id)
         return "Formatting disk {0}".format(os.path.basename(disk['path']))
 
     def verify(self, id, fstype, params=None):
-        disk = self.dispatcher.call_sync('disk.query', [('id', '=', id)], {'single': True})
+        disk = disk_by_id(self.dispatcher, id)
         if not get_disk_by_path(disk['path']):
             raise VerifyException(errno.ENOENT, "Disk {0} not found".format(id))
 
@@ -185,7 +185,7 @@ class DiskGPTFormatTask(Task):
         return ['disk:{0}'.format(disk['path'])]
 
     def run(self, id, fstype, params=None):
-        disk = self.dispatcher.call_sync('disk.query', [('id', '=', id)], {'single': True})
+        disk = disk_by_id(self.dispatcher, id)
         if params is None:
             params = {}
 
@@ -219,18 +219,18 @@ class DiskGPTFormatTask(Task):
 @accepts(str)
 class DiskBootFormatTask(Task):
     def describe(self, id):
-        disk = self.dispatcher.call_sync('disk.query', [('id', '=', id)], {'single': True})
+        disk = disk_by_id(self.dispatcher, id)
         return "Formatting bootable disk {0}".format(disk['path'])
 
     def verify(self, id):
-        disk = self.dispatcher.call_sync('disk.query', [('id', '=', id)], {'single': True})
+        disk = disk_by_id(self.dispatcher, id)
         if not get_disk_by_path(disk['path']):
             raise VerifyException(errno.ENOENT, "Disk {0} not found".format(id))
 
         return ['disk:{0}'.format(disk['path'])]
 
     def run(self, id):
-        disk = self.dispatcher.call_sync('disk.query', [('id', '=', id)], {'single': True})
+        disk = disk_by_id(self.dispatcher, id)
         try:
             system('/sbin/gpart', 'destroy', '-F', disk['path'])
         except SubprocessException:
@@ -250,11 +250,11 @@ class DiskBootFormatTask(Task):
 @accepts(str)
 class DiskInstallBootloaderTask(Task):
     def describe(self, id):
-        disk = self.dispatcher.call_sync('disk.query', [('id', '=', id)], {'single': True})
+        disk = disk_by_id(self.dispatcher, id)
         return "Installing bootloader on disk {0}".format(disk['path'])
 
     def verify(self, id):
-        disk = self.dispatcher.call_sync('disk.query', [('id', '=', id)], {'single': True})
+        disk = disk_by_id(self.dispatcher, id)
         if not get_disk_by_path(disk['path']):
             raise VerifyException(errno.ENOENT, "Disk {0} not found".format(id))
 
@@ -262,7 +262,7 @@ class DiskInstallBootloaderTask(Task):
 
     def run(self, id):
         try:
-            disk = self.dispatcher.call_sync('disk.query', [('id', '=', id)], {'single': True})
+            disk = disk_by_id(self.dispatcher, id)
             system('/usr/local/sbin/grub-install', "--modules='zfs part_gpt'", disk['path'])
         except SubprocessException as err:
             raise TaskException(errno.EFAULT, 'Cannot install GRUB: {0}'.format(err.err))
@@ -278,7 +278,7 @@ class DiskEraseTask(Task):
         self.remaining = 0
 
     def verify(self, id, erase_method=None):
-        disk = self.dispatcher.call_sync('disk.query', [('id', '=', id)], {'single': True})
+        disk = disk_by_id(self.dispatcher, id)
         if not get_disk_by_path(disk['path']):
             raise VerifyException(errno.ENOENT, "Disk {0} not found".format(id))
 
@@ -296,7 +296,7 @@ class DiskEraseTask(Task):
         return ['disk:{0}'.format(disk['path'])]
 
     def run(self, id, erase_method=None):
-        disk = self.dispatcher.call_sync('disk.query', [('id', '=', id)], {'single': True})
+        disk = disk_by_id(self.dispatcher, id)
         try:
             system('/sbin/zpool', 'labelclear', '-f', disk['path'])
             self.dispatcher.call_sync('disk.update_disk_cache', disk['path'], timeout=120)
@@ -347,7 +347,7 @@ class DiskEraseTask(Task):
 )
 class DiskConfigureTask(Task):
     def verify(self, id, updated_fields):
-        disk = self.dispatcher.call_sync('disk.query', [('id', '=', id)], {'single': True})
+        disk = disk_by_id(self.dispatcher, id)
 
         if not disk:
             raise VerifyException(errno.ENOENT, 'Disk {0} not found'.format(id))
@@ -421,11 +421,11 @@ class DiskDeleteTask(Task):
 @accepts(str, h.ref('disk-attach-params'))
 class DiskGELIInitTask(Task):
     def describe(self, id, params=None):
-        disk = self.dispatcher.call_sync('disk.query', [('id', '=', id)], {'single': True})
+        disk = disk_by_id(self.dispatcher, id)
         return "Creating encrypted partition for {0}".format(os.path.basename(disk['path']))
 
     def verify(self, id, params=None):
-        disk = self.dispatcher.call_sync('disk.query', [('id', '=', id)], {'single': True})
+        disk = disk_by_id(self.dispatcher, id)
         if params is None:
             params = {}
 
@@ -443,7 +443,7 @@ class DiskGELIInitTask(Task):
             params = {}
         key = base64.b64decode(params.get('key', None))
         password = params.get('password', None)
-        disk_info = self.dispatcher.call_sync('disk.query', [('id', '=', id)], {'single': True})
+        disk_info = disk_by_id(self.dispatcher, id)
         disk_status = disk_info.get('status', None)
         if disk_status is not None:
             data_partition_path = disk_status.get('data_partition_path')
@@ -476,11 +476,11 @@ class DiskGELIInitTask(Task):
 @accepts(str, h.ref('disk-set-key-params'))
 class DiskGELISetUserKeyTask(Task):
     def describe(self, id, params=None):
-        disk = self.dispatcher.call_sync('disk.query', [('id', '=', id)], {'single': True})
+        disk = disk_by_id(self.dispatcher, id)
         return "Set new key for encrypted partition on {0}".format(os.path.basename(disk['path']))
 
     def verify(self, id, params=None):
-        disk = self.dispatcher.call_sync('disk.query', [('id', '=', id)], {'single': True})
+        disk = disk_by_id(self.dispatcher, id)
         if not disk:
             raise VerifyException(errno.ENOENT, "Disk {0} not found".format(id))
 
@@ -499,7 +499,7 @@ class DiskGELISetUserKeyTask(Task):
         key = base64.b64decode(params.get('key', None))
         password = params.get('password', None)
         slot = params.get('slot', None)
-        disk_info = self.dispatcher.call_sync('disk.query', [('id', '=', id)], {'single': True})
+        disk_info = disk_by_id(self.dispatcher, id)
         disk_status = disk_info.get('status', None)
         if disk_status is not None:
             data_partition_path = os.path.join('/dev/gptid/', disk_status.get('data_partition_uuid'))
@@ -526,11 +526,11 @@ class DiskGELISetUserKeyTask(Task):
 @accepts(str, int)
 class DiskGELIDelUserKeyTask(Task):
     def describe(self, id, slot):
-        disk = self.dispatcher.call_sync('disk.query', [('id', '=', id)], {'single': True})
+        disk = disk_by_id(self.dispatcher, id)
         return "Delete key of encrypted partition on {0}".format(os.path.basename(disk['path']))
 
     def verify(self, id, slot):
-        disk = self.dispatcher.call_sync('disk.query', [('id', '=', id)], {'single': True})
+        disk = disk_by_id(self.dispatcher, id)
         if not disk:
             raise VerifyException(errno.ENOENT, "Disk {0} not found".format(id))
 
@@ -540,7 +540,7 @@ class DiskGELIDelUserKeyTask(Task):
         return ['disk:{0}'.format(disk['path'])]
 
     def run(self, id, slot):
-        disk_info = self.dispatcher.call_sync('disk.query', [('id', '=', id)], {'single': True})
+        disk_info = disk_by_id(self.dispatcher, id)
         disk_status = disk_info.get('status', None)
         if disk_status is not None:
             data_partition_path = os.path.join('/dev/gptid/', disk_status.get('data_partition_uuid'))
@@ -557,18 +557,18 @@ class DiskGELIDelUserKeyTask(Task):
 @returns(h.ref('disk-metadata'))
 class DiskGELIBackupMetadataTask(Task):
     def describe(self, id):
-        disk = self.dispatcher.call_sync('disk.query', [('id', '=', id)], {'single': True})
+        disk = disk_by_id(self.dispatcher, id)
         return "Backup metadata of encrypted partition on {0}".format(os.path.basename(disk['path']))
 
     def verify(self, id):
-        disk = self.dispatcher.call_sync('disk.query', [('id', '=', id)], {'single': True})
+        disk = disk_by_id(self.dispatcher, id)
         if not disk:
             raise VerifyException(errno.ENOENT, "Disk {0} not found".format(id))
 
         return ['disk:{0}'.format(disk['path'])]
 
     def run(self, id):
-        disk_info = self.dispatcher.call_sync('disk.query', [('id', '=', id)], {'single': True})
+        disk_info = disk_by_id(self.dispatcher, id)
         disk_status = disk_info.get('status', None)
         if disk_status is not None:
             data_partition_path = os.path.join('/dev/gptid/', disk_status.get('data_partition_uuid'))
@@ -591,7 +591,7 @@ class DiskGELIRestoreMetadataTask(Task):
         return "Restore metadata of encrypted partition on {0}".format(os.path.basename(metadata.get('disk')))
 
     def verify(self, id, metadata):
-        disk = self.dispatcher.call_sync('disk.query', [('id', '=', id)], {'single': True})
+        disk = disk_by_id(self.dispatcher, id)
         if not disk:
             raise VerifyException(errno.ENOENT, "Disk {0} not found".format(id))
 
@@ -619,13 +619,13 @@ class DiskGELIRestoreMetadataTask(Task):
 @accepts(str, h.ref('disk-attach-params'))
 class DiskGELIAttachTask(Task):
     def describe(self, id, params=None):
-        disk = self.dispatcher.call_sync('disk.query', [('id', '=', id)], {'single': True})
+        disk = disk_by_id(self.dispatcher, id)
         return "Attach encrypted partition of {0}".format(os.path.basename(disk['path']))
 
     def verify(self, id, params=None):
         if params is None:
             params = {}
-        disk = self.dispatcher.call_sync('disk.query', [('id', '=', id)], {'single': True})
+        disk = disk_by_id(self.dispatcher, id)
         if not disk:
             raise VerifyException(errno.ENOENT, "Disk {0} not found".format(id))
 
@@ -640,7 +640,7 @@ class DiskGELIAttachTask(Task):
             params = {}
         key = base64.b64decode(params.get('key', None))
         password = params.get('password', None)
-        disk_info = self.dispatcher.call_sync('disk.query', [('id', '=', id)], {'single': True})
+        disk_info = disk_by_id(self.dispatcher, id)
         disk_status = disk_info.get('status', None)
         if disk_status is not None:
             data_partition_path = disk_status.get('data_partition_path')
@@ -666,18 +666,18 @@ class DiskGELIAttachTask(Task):
 @accepts(str)
 class DiskGELIDetachTask(Task):
     def describe(self, id):
-        disk = self.dispatcher.call_sync('disk.query', [('id', '=', id)], {'single': True})
+        disk = disk_by_id(self.dispatcher, id)
         return "Detach encrypted partition of {0}".format(os.path.basename(disk['path']))
 
     def verify(self, id):
-        disk = self.dispatcher.call_sync('disk.query', [('id', '=', id)], {'single': True})
+        disk = disk_by_id(self.dispatcher, id)
         if not disk:
             raise VerifyException(errno.ENOENT, "Disk {0} not found".format(id))
 
         return ['disk:{0}'.format(disk['path'])]
 
     def run(self, id):
-        disk_info = self.dispatcher.call_sync('disk.query', [('id', '=', id)], {'single': True})
+        disk_info = disk_by_id(self.dispatcher, id)
 
         disk_status = disk_info.get('status', None)
         if disk_status is not None:
@@ -695,18 +695,18 @@ class DiskGELIDetachTask(Task):
 @accepts(str)
 class DiskGELIKillTask(Task):
     def describe(self, id):
-        disk = self.dispatcher.call_sync('disk.query', [('id', '=', id)], {'single': True})
+        disk = disk_by_id(self.dispatcher, id)
         return "Kill encrypted partition of {0}".format(os.path.basename(disk['path']))
 
     def verify(self, id):
-        disk = self.dispatcher.call_sync('disk.query', [('id', '=', id)], {'single': True})
+        disk = disk_by_id(self.dispatcher, id)
         if not disk:
             raise VerifyException(errno.ENOENT, "Disk {0} not found".format(id))
 
         return ['disk:{0}'.format(disk['path'])]
 
     def run(self, id):
-        disk_info = self.dispatcher.call_sync('disk.query', [('id', '=', id)], {'single': True})
+        disk_info = disk_by_id(self.dispatcher, id)
 
         disk_status = disk_info.get('status', None)
         if disk_status is not None:
@@ -949,6 +949,10 @@ def attach_to_multipath(dispatcher, disk, ds_disk, path):
     gmultipath = geom.geom_by_name('MULTIPATH', nodename)
     ret['multipath'] = generate_multipath_info(gmultipath)
     return ret
+
+
+def disk_by_id(dispatcher, id):
+    return dispatcher.call_sync('disk.query', [('id', '=', id)], {'single': True})
 
 
 def generate_partitions_list(gpart):
