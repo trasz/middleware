@@ -309,7 +309,7 @@ def _init(dispatcher, plugin):
     plugin.attach_hook('volume.pre_detach', volume_pre_destroy)
     plugin.attach_hook('volume.pre_rename', volume_pre_destroy)
     plugin.register_provider('system_dataset', SystemDatasetProvider)
-    plugin.register_task_handler('system_dataset.configure', SystemDatasetConfigure)
+    plugin.register_task_handler('system_dataset.migrate', SystemDatasetConfigure)
     plugin.register_task_handler('system_dataset.import', SystemDatasetImport)
 
     plugin.register_hook('system_dataset.pre_detach')
