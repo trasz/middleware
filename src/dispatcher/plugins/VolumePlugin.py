@@ -1658,7 +1658,7 @@ class DatasetDeleteTask(Task):
 
 
 @description("Configures/Updates an existing Dataset's properties")
-@accepts(str, h.object())
+@accepts(str, h.ref('volume-dataset'))
 class DatasetConfigureTask(Task):
     def verify(self, id, updated_params):
         pool_name, _, ds = id.partition('/')
