@@ -827,7 +827,7 @@ class VolumeUpdateTask(Task):
                 if encryption['slot'] is not 0:
                     subtasks = []
                     for vdev, group in iterate_vdevs(new_vdevs):
-                        subtasks.append(self.run_subtask('disk.geli.ukey.set', vdev['path'], {
+                        subtasks.append(self.run_subtask('disk.geli.ukey.set', vdev['id'], {
                             'key': encryption['key'],
                             'password': password,
                             'slot': 1
@@ -1109,7 +1109,7 @@ class VolumeAutoReplaceTask(Task):
                     }))
 
                     if encryption['slot'] is not 0:
-                        self.join_subtasks(self.run_subtask('disk.geli.ukey.set', disk['path'], {
+                        self.join_subtasks(self.run_subtask('disk.geli.ukey.set', disk['id'], {
                             'key': encryption['key'],
                             'password': password,
                             'slot': 1
@@ -1430,7 +1430,12 @@ class VolumeRekeyTask(Task):
 
             subtasks = []
             for dname in disks:
-                subtasks.append(self.run_subtask('disk.geli.ukey.set', dname, {
+                disk_info = self.dispatcher.call_sync(
+                    'disk.query',
+                    [('path', 'in', dname), ('online', '=', True)],
+                    {'single': True}
+                )
+                subtasks.append(self.run_subtask('disk.geli.ukey.set', disk_info['id'], {
                     'key': key,
                     'password': password,
                     'slot': slot

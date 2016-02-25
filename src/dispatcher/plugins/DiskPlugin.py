@@ -464,12 +464,14 @@ class DiskGELIInitTask(Task):
 
 @accepts(str, h.ref('disk-set-key-params'))
 class DiskGELISetUserKeyTask(Task):
-    def describe(self, disk, params=None):
-        return "Set new key for encrypted partition on {0}".format(os.path.basename(disk))
+    def describe(self, id, params=None):
+        disk = self.dispatcher.call_sync('disk.query', [('id', '=', id)], {'single': True})
+        return "Set new key for encrypted partition on {0}".format(os.path.basename(disk['path']))
 
-    def verify(self, disk, params=None):
-        if not get_disk_by_path(disk):
-            raise VerifyException(errno.ENOENT, "Disk {0} not found".format(disk))
+    def verify(self, id, params=None):
+        disk = self.dispatcher.call_sync('disk.query', [('id', '=', id)], {'single': True})
+        if not disk:
+            raise VerifyException(errno.ENOENT, "Disk {0} not found".format(disk['path']))
 
         if params.get('key', None) is None:
             raise VerifyException(errno.EINVAL, "No key specified for operation")
@@ -478,21 +480,20 @@ class DiskGELISetUserKeyTask(Task):
             raise VerifyException(errno.EINVAL, "Chosen key slot value {0} is not in valid range [0-1]".
                                   format(params.get('slot', None)))
 
-        return ['disk:{0}'.format(disk)]
+        return ['disk:{0}'.format(disk['path'])]
 
-    def run(self, disk, params=None):
+    def run(self, id, params=None):
         if params is None:
             params = {}
         key = base64.b64decode(params.get('key', None))
         password = params.get('password', None)
         slot = params.get('slot', None)
-        disk_info = self.dispatcher.call_sync('disk.query', [('path', 'in', disk),
-                                                             ('online', '=', True)], {'single': True})
+        disk_info = self.dispatcher.call_sync('disk.query', [('id', '=', id)], {'single': True})
         disk_status = disk_info.get('status', None)
         if disk_status is not None:
             data_partition_path = os.path.join('/dev/gptid/', disk_status.get('data_partition_uuid'))
         else:
-            raise TaskException(errno.EINVAL, 'Cannot get disk status for: {0}'.format(disk))
+            raise TaskException(errno.EINVAL, 'Cannot get disk status for: {0}'.format(disk_info['path']))
 
         with tempfile.NamedTemporaryFile('wb') as keyfile:
             keyfile.write(key)
