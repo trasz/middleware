@@ -2090,7 +2090,7 @@ def _init(dispatcher, plugin):
     plugin.register_task_handler('volume.import', VolumeImportTask)
     plugin.register_task_handler('volume.import_disk', VolumeDiskImportTask)
     plugin.register_task_handler('volume.autoimport', VolumeAutoImportTask)
-    plugin.register_task_handler('volume.detach', VolumeDetachTask)
+    plugin.register_task_handler('volume.export', VolumeDetachTask)
     plugin.register_task_handler('volume.update', VolumeUpdateTask)
     plugin.register_task_handler('volume.upgrade', VolumeUpgradeTask)
     plugin.register_task_handler('volume.autoreplace', VolumeAutoReplaceTask)
