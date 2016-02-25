@@ -1338,7 +1338,7 @@ def _init(dispatcher, plugin):
 
     # Register Task Handlers
     plugin.register_task_handler('zfs.pool.create', ZpoolCreateTask)
-    plugin.register_task_handler('zfs.pool.configure', ZpoolConfigureTask)
+    plugin.register_task_handler('zfs.pool.update', ZpoolConfigureTask)
     plugin.register_task_handler('zfs.pool.extend', ZpoolExtendTask)
     plugin.register_task_handler('zfs.pool.detach', ZpoolDetachTask)
     plugin.register_task_handler('zfs.pool.replace', ZpoolReplaceTask)
@@ -1357,7 +1357,7 @@ def _init(dispatcher, plugin):
     plugin.register_task_handler('zfs.create_snapshot', ZfsSnapshotCreateTask)
     plugin.register_task_handler('zfs.delete_snapshot', ZfsSnapshotDeleteTask)
     plugin.register_task_handler('zfs.delete_multiple_snapshots', ZfsSnapshotDeleteMultipleTask)
-    plugin.register_task_handler('zfs.configure', ZfsConfigureTask)
+    plugin.register_task_handler('zfs.update', ZfsConfigureTask)
     plugin.register_task_handler('zfs.destroy', ZfsDestroyTask)
     plugin.register_task_handler('zfs.rename', ZfsRenameTask)
     plugin.register_task_handler('zfs.clone', ZfsCloneTask)
