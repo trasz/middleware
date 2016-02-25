@@ -83,18 +83,18 @@ class BootEnvironmentActivate(Task):
 
 
 @description("Renames the given Boot Environment with the alternate name provieded")
-@accepts(str, str)
-class BootEnvironmentRename(Task):
-    def verify(self, oldname, newname):
-        be = FindClone(oldname)
+@accepts(str, h.ref('boot-environment'))
+class BootEnvironmentUpdate(Task):
+    def verify(self, name, be):
+        be = FindClone(name)
         if not be:
-            raise VerifyException(errno.ENOENT, 'Boot environment {0} not found'.format(oldname))
+            raise VerifyException(errno.ENOENT, 'Boot environment {0} not found'.format(name))
 
         return ['system']
 
-    def run(self, oldname, newname):
-        if not RenameClone(oldname, newname):
-            raise TaskException(errno.EIO, 'Cannot rename the {0} boot evironment'.format(newname))
+    def run(self, name, be):
+        if not RenameClone(name, be['id']):
+            raise TaskException(errno.EIO, 'Cannot rename the {0} boot evironment'.format(name))
 
 
 @description("Deletes the given Boot Environments. Note: It cannot delete an activated BE")
@@ -174,7 +174,7 @@ def _init(dispatcher, plugin):
     plugin.register_provider('boot.environment', BootEnvironmentsProvider)
     plugin.register_task_handler('boot.environment.clone', BootEnvironmentCreate)
     plugin.register_task_handler('boot.environment.activate', BootEnvironmentActivate)
-    plugin.register_task_handler('boot.environment.rename', BootEnvironmentRename)
+    plugin.register_task_handler('boot.environment.update', BootEnvironmentUpdate)
     plugin.register_task_handler('boot.environment.delete', BootEnvironmentsDelete)
 
     plugin.register_task_handler('boot.disk.attach', BootAttachDisk)
