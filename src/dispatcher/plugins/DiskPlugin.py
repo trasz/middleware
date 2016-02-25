@@ -150,27 +150,33 @@ class DiskProvider(Provider):
 )
 @accepts(str, str, h.object())
 class DiskGPTFormatTask(Task):
-    def describe(self, disk, fstype, params=None):
-        return "Formatting disk {0}".format(os.path.basename(disk))
+    def describe(self, id, fstype, params=None):
+        disk = self.dispatcher.call_sync('disk.query', [('id', '=', id)], {'single': True})
+        return "Formatting disk {0}".format(os.path.basename(disk['path']))
 
-    def verify(self, disk, fstype, params=None):
-        if not get_disk_by_path(disk):
-            raise VerifyException(errno.ENOENT, "Disk {0} not found".format(disk))
+    def verify(self, id, fstype, params=None):
+        disk = self.dispatcher.call_sync('disk.query', [('id', '=', id)], {'single': True})
+        if not get_disk_by_path(disk['path']):
+            raise VerifyException(errno.ENOENT, "Disk {0} not found".format(disk['path']))
 
         if fstype not in ['freebsd-zfs']:
             raise VerifyException(errno.EINVAL, "Unsupported fstype {0}".format(fstype))
 
         allocation = self.dispatcher.call_sync(
             'volume.get_disks_allocation',
-            [disk]
-        ).get(disk)
+            [disk['path']]
+        ).get(disk['path'])
 
         if allocation is not None:
-            raise VerifyException(errno.EINVAL, "Cannot perform format operation on an allocated disk {0}".format(disk))
+            raise VerifyException(
+                errno.EINVAL,
+                "Cannot perform format operation on an allocated disk {0}".format(disk['path'])
+            )
 
-        return ['disk:{0}'.format(disk)]
+        return ['disk:{0}'.format(disk['path'])]
 
-    def run(self, disk, fstype, params=None):
+    def run(self, id, fstype, params=None):
+        disk = self.dispatcher.call_sync('disk.query', [('id', '=', id)], {'single': True})
         if params is None:
             params = {}
 
@@ -179,23 +185,23 @@ class DiskGPTFormatTask(Task):
         bootcode = params.pop('bootcode', '/boot/pmbr-datadisk')
 
         try:
-            system('/sbin/gpart', 'destroy', '-F', disk)
+            system('/sbin/gpart', 'destroy', '-F', disk['path'])
         except SubprocessException:
             # ignore
             pass
 
         try:
-            with self.dispatcher.get_lock('diskcache:{0}'.format(disk)):
-                system('/sbin/gpart', 'create', '-s', 'gpt', disk)
+            with self.dispatcher.get_lock('diskcache:{0}'.format(disk['path'])):
+                system('/sbin/gpart', 'create', '-s', 'gpt', disk['path'])
                 if swapsize > 0:
-                    system('/sbin/gpart', 'add', '-a', str(blocksize), '-b', '128', '-s', '{0}M'.format(swapsize), '-t', 'freebsd-swap', disk)
-                    system('/sbin/gpart', 'add', '-a', str(blocksize), '-t', fstype, disk)
+                    system('/sbin/gpart', 'add', '-a', str(blocksize), '-b', '128', '-s', '{0}M'.format(swapsize), '-t', 'freebsd-swap', disk['path'])
+                    system('/sbin/gpart', 'add', '-a', str(blocksize), '-t', fstype, disk['path'])
                 else:
-                    system('/sbin/gpart', 'add', '-a', str(blocksize), '-b', '128', '-t', fstype, disk)
+                    system('/sbin/gpart', 'add', '-a', str(blocksize), '-b', '128', '-t', fstype, disk['path'])
 
-                system('/sbin/gpart', 'bootcode', '-b', bootcode, disk)
+                system('/sbin/gpart', 'bootcode', '-b', bootcode, disk['path'])
 
-            self.dispatcher.call_sync('disk.update_disk_cache', disk, timeout=120)
+            self.dispatcher.call_sync('disk.update_disk_cache', disk['path'], timeout=120)
         except SubprocessException as err:
             raise TaskException(errno.EFAULT, 'Cannot format disk: {0}'.format(err.err))
 

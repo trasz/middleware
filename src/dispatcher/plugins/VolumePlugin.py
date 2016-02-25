@@ -481,7 +481,12 @@ class VolumeCreateTask(ProgressTask):
 
         subtasks = []
         for dname, dgroup in get_disks(volume['topology']):
-            subtasks.append(self.run_subtask('disk.format.gpt', dname, 'freebsd-zfs', {
+            disk_info = self.dispatcher.call_sync(
+                'disk.query',
+                [('path', 'in', dname), ('online', '=', True)],
+                {'single': True}
+            )
+            subtasks.append(self.run_subtask('disk.format.gpt', disk_info['id'], 'freebsd-zfs', {
                 'blocksize': params.get('blocksize', 4096),
                 'swapsize': params.get('swapsize', 2048) if dgroup == 'data' else 0
             }))
@@ -792,13 +797,13 @@ class VolumeUpdateTask(Task):
 
             for vdev, group in iterate_vdevs(new_vdevs):
                 if vdev['type'] == 'disk':
-                    subtasks.append(self.run_subtask('disk.format.gpt', vdev['path'], 'freebsd-zfs', {
+                    subtasks.append(self.run_subtask('disk.format.gpt', vdev['id'], 'freebsd-zfs', {
                         'blocksize': params.get('blocksize', 4096),
                         'swapsize': params.get('swapsize', 2048) if group == 'data' else 0
                     }))
 
             for vdev in updated_vdevs:
-                subtasks.append(self.run_subtask('disk.format.gpt', vdev['vdev']['path'], 'freebsd-zfs', {
+                subtasks.append(self.run_subtask('disk.format.gpt', vdev['vdev']['id'], 'freebsd-zfs', {
                     'blocksize': params.get('blocksize', 4096),
                     'swapsize': params.get('swapsize', 2048)
                 }))
@@ -1089,7 +1094,7 @@ class VolumeAutoReplaceTask(Task):
             disk = first_or_default(lambda d: d['mediasize'] > minsize, matching_disks)
 
             if disk:
-                self.join_subtasks(self.run_subtask('disk.format.gpt', disk['path'], 'freebsd-zfs', {'swapsize': 2048}))
+                self.join_subtasks(self.run_subtask('disk.format.gpt', disk['id'], 'freebsd-zfs', {'swapsize': 2048}))
                 disk = self.dispatcher.call_sync('disk.query', [('id', '=', disk['id'])], {'single': True})
                 if vol.get('encrypted', False):
                     encryption = vol['encryption']
