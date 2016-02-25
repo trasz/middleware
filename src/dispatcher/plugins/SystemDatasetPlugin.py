@@ -253,6 +253,7 @@ class SystemDatasetConfigure(Task):
         self.configstore.set('system.dataset.pool', pool)
 
 
+@private
 @description("Imports .system dataset from a volume")
 @accepts(str)
 class SystemDatasetImport(Task):
