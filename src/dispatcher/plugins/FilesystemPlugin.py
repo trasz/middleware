@@ -260,12 +260,11 @@ class SetPermissionsTask(Task):
         # Update volume if dataset permissions were changed
         try:
             poolname, dsname, rest = self.dispatcher.call_sync('volume.decode_path', path)
-            pool = self.dispatcher.call_sync('volume.dataset.query', [('id', '=', poolname)], {'single': True})
-            ds = first_or_default(lambda d: d['mountpoint'] == path, pool['datasets'])
+            ds = self.dispatcher.call_sync('volume.dataset.query', [('id', '=', dsname)], {'single': True})
             if ds:
-                self.dispatcher.dispatch_event('volume.dataset.changed', {
+                self.dispatcher.dispatch_event('zfs.dataset.changed', {
                     'operation': 'update',
-                    'ids': [pool['id']]
+                    'ids': [ds['id']]
                 })
         except RpcException:
             pass

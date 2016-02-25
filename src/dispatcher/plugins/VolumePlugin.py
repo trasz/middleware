@@ -259,7 +259,7 @@ class VolumeProvider(Provider):
             raise RpcException(errno.EINVAL, 'Invalid path')
 
         volname = tokens[1]
-        vol = self.dispatcher.call_sync('volume.query', [('id', '=', 'volname')], {'single': True})
+        vol = self.dispatcher.call_sync('volume.query', [('id', '=', volname)], {'single': True})
         if vol:
             datasets = [d['name'] for d in vol['datasets']]
         else:
