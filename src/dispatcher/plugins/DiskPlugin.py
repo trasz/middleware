@@ -514,26 +514,27 @@ class DiskGELISetUserKeyTask(Task):
 
 @accepts(str, int)
 class DiskGELIDelUserKeyTask(Task):
-    def describe(self, disk, slot):
-        return "Delete key of encrypted partition on {0}".format(os.path.basename(disk))
+    def describe(self, id, slot):
+        disk = self.dispatcher.call_sync('disk.query', [('id', '=', id)], {'single': True})
+        return "Delete key of encrypted partition on {0}".format(os.path.basename(disk['path']))
 
-    def verify(self, disk, slot):
-        if not get_disk_by_path(disk):
-            raise VerifyException(errno.ENOENT, "Disk {0} not found".format(disk))
+    def verify(self, id, slot):
+        disk = self.dispatcher.call_sync('disk.query', [('id', '=', id)], {'single': True})
+        if not disk:
+            raise VerifyException(errno.ENOENT, "Disk {0} not found".format(disk['path']))
 
         if slot not in [0, 1]:
             raise VerifyException(errno.EINVAL, "Chosen key slot value {0} is not in valid range [0-1]".format(slot))
 
-        return ['disk:{0}'.format(disk)]
+        return ['disk:{0}'.format(disk['path'])]
 
-    def run(self, disk, slot):
-        disk_info = self.dispatcher.call_sync('disk.query', [('path', 'in', disk),
-                                                             ('online', '=', True)], {'single': True})
+    def run(self, id, slot):
+        disk_info = self.dispatcher.call_sync('disk.query', [('id', '=', id)], {'single': True})
         disk_status = disk_info.get('status', None)
         if disk_status is not None:
             data_partition_path = os.path.join('/dev/gptid/', disk_status.get('data_partition_uuid'))
         else:
-            raise TaskException(errno.EINVAL, 'Cannot get disk status for: {0}'.format(disk))
+            raise TaskException(errno.EINVAL, 'Cannot get disk status for: {0}'.format(disk_info['path']))
 
         try:
             system('/sbin/geli', 'delkey', '-n', str(slot), data_partition_path)

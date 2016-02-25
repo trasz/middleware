@@ -836,7 +836,7 @@ class VolumeUpdateTask(Task):
 
                     subtasks = []
                     for vdev, group in iterate_vdevs(new_vdevs):
-                        subtasks.append(self.run_subtask('disk.geli.ukey.del', vdev['path'], 0))
+                        subtasks.append(self.run_subtask('disk.geli.ukey.del', vdev['id'], 0))
                     self.join_subtasks(*subtasks)
 
                 vol = self.dispatcher.call_sync('volume.query', [('name', '=', name)], {'single': True})
@@ -1115,7 +1115,7 @@ class VolumeAutoReplaceTask(Task):
                             'slot': 1
                         }))
 
-                        self.join_subtasks(self.run_subtask('disk.geli.ukey.del', disk['path'], 0))
+                        self.join_subtasks(self.run_subtask('disk.geli.ukey.del', disk['id'], 0))
 
                     if vol.get('providers_presence', 'NONE') != 'NONE':
                         self.join_subtasks(self.run_subtask('disk.geli.attach', disk['path'], {
@@ -1455,7 +1455,12 @@ class VolumeRekeyTask(Task):
 
             subtasks = []
             for dname in disks:
-                subtasks.append(self.run_subtask('disk.geli.ukey.del', dname, slot))
+                disk_info = self.dispatcher.call_sync(
+                    'disk.query',
+                    [('path', 'in', dname), ('online', '=', True)],
+                    {'single': True}
+                )
+                subtasks.append(self.run_subtask('disk.geli.ukey.del', disk_info['id'], slot))
             self.join_subtasks(*subtasks)
 
             self.dispatcher.dispatch_event('volume.changed', {
