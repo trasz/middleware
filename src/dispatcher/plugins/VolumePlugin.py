@@ -498,7 +498,12 @@ class VolumeCreateTask(ProgressTask):
         if encryption:
             subtasks = []
             for dname, dgroup in get_disks(volume['topology']):
-                subtasks.append(self.run_subtask('disk.geli.init', dname, {
+                disk_info = self.dispatcher.call_sync(
+                    'disk.query',
+                    [('path', 'in', dname), ('online', '=', True)],
+                    {'single': True}
+                )
+                subtasks.append(self.run_subtask('disk.geli.init', disk_info['id'], {
                     'key': key,
                     'password': password
                 }))
@@ -813,7 +818,7 @@ class VolumeUpdateTask(Task):
             if encryption['key'] is not None:
                 subtasks = []
                 for vdev, group in iterate_vdevs(new_vdevs):
-                    subtasks.append(self.run_subtask('disk.geli.init', vdev['path'], {
+                    subtasks.append(self.run_subtask('disk.geli.init', vdev['id'], {
                         'key': encryption['key'],
                         'password': password
                     }))
@@ -1098,7 +1103,7 @@ class VolumeAutoReplaceTask(Task):
                 disk = self.dispatcher.call_sync('disk.query', [('id', '=', disk['id'])], {'single': True})
                 if vol.get('encrypted', False):
                     encryption = vol['encryption']
-                    self.join_subtasks(self.run_subtask('disk.geli.init', disk['path'], {
+                    self.join_subtasks(self.run_subtask('disk.geli.init', disk['id'], {
                         'key': encryption['key'],
                         'password': password
                     }))

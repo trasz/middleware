@@ -409,34 +409,35 @@ class DiskDeleteTask(Task):
 
 @accepts(str, h.ref('disk-attach-params'))
 class DiskGELIInitTask(Task):
-    def describe(self, disk, params=None):
-        return "Creating encrypted partition for {0}".format(os.path.basename(disk))
+    def describe(self, id, params=None):
+        disk = self.dispatcher.call_sync('disk.query', [('id', '=', id)], {'single': True})
+        return "Creating encrypted partition for {0}".format(os.path.basename(disk['path']))
 
-    def verify(self, disk, params=None):
+    def verify(self, id, params=None):
+        disk = self.dispatcher.call_sync('disk.query', [('id', '=', id)], {'single': True})
         if params is None:
             params = {}
 
-        if not get_disk_by_path(disk):
-            raise VerifyException(errno.ENOENT, "Disk {0} not found".format(disk))
+        if not get_disk_by_path(disk['path']):
+            raise VerifyException(errno.ENOENT, "Disk {0} not found".format(disk['path']))
 
         key = params.get('key', None)
         if key is None:
             raise VerifyException(errno.EINVAL, "No key for encryption specified")
 
-        return ['disk:{0}'.format(disk)]
+        return ['disk:{0}'.format(disk['path'])]
 
-    def run(self, disk, params=None):
+    def run(self, id, params=None):
         if params is None:
             params = {}
         key = base64.b64decode(params.get('key', None))
         password = params.get('password', None)
-        disk_info = self.dispatcher.call_sync('disk.query', [('path', 'in', disk),
-                                                             ('online', '=', True)], {'single': True})
+        disk_info = self.dispatcher.call_sync('disk.query', [('id', '=', id)], {'single': True})
         disk_status = disk_info.get('status', None)
         if disk_status is not None:
             data_partition_path = disk_status.get('data_partition_path')
         else:
-            raise TaskException(errno.EINVAL, 'Cannot get disk status for: {0}'.format(disk))
+            raise TaskException(errno.EINVAL, 'Cannot get disk status for: {0}'.format(disk_info['path']))
 
         try:
             system('/sbin/geli', 'kill', data_partition_path)
