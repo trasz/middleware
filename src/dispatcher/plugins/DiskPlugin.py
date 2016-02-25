@@ -209,27 +209,30 @@ class DiskGPTFormatTask(Task):
 @description('Formats given disk to be bootable and capable to be included in the Boot Pool')
 @accepts(str)
 class DiskBootFormatTask(Task):
-    def describe(self, disk):
-        return "Formatting bootable disk {0}".format(disk)
+    def describe(self, id):
+        disk = self.dispatcher.call_sync('disk.query', [('id', '=', id)], {'single': True})
+        return "Formatting bootable disk {0}".format(disk['path'])
 
-    def verify(self, disk):
-        if not get_disk_by_path(disk):
-            raise VerifyException(errno.ENOENT, "Disk {0} not found".format(disk))
+    def verify(self, id):
+        disk = self.dispatcher.call_sync('disk.query', [('id', '=', id)], {'single': True})
+        if not get_disk_by_path(disk['path']):
+            raise VerifyException(errno.ENOENT, "Disk {0} not found".format(disk['path']))
 
-        return ['disk:{0}'.format(disk)]
+        return ['disk:{0}'.format(disk['path'])]
 
-    def run(self, disk):
+    def run(self, id):
+        disk = self.dispatcher.call_sync('disk.query', [('id', '=', id)], {'single': True})
         try:
-            system('/sbin/gpart', 'destroy', '-F', disk)
+            system('/sbin/gpart', 'destroy', '-F', disk['path'])
         except SubprocessException:
             # ignore
             pass
 
         try:
-            system('/sbin/gpart', 'create', '-s', 'gpt', disk)
-            system('/sbin/gpart', 'add', '-t', 'bios-boot', '-i', '1', '-s', '512k', disk)
-            system('/sbin/gpart', 'add', '-t', 'freebsd-zfs', '-i', '2', '-a', '4k', disk)
-            system('/sbin/gpart', 'set', '-a', 'active', disk)
+            system('/sbin/gpart', 'create', '-s', 'gpt', disk['path'])
+            system('/sbin/gpart', 'add', '-t', 'bios-boot', '-i', '1', '-s', '512k', disk['path'])
+            system('/sbin/gpart', 'add', '-t', 'freebsd-zfs', '-i', '2', '-a', '4k', disk['path'])
+            system('/sbin/gpart', 'set', '-a', 'active', disk['path'])
         except SubprocessException as err:
             raise TaskException(errno.EFAULT, 'Cannot format disk: {0}'.format(err.err))
 
