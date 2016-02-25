@@ -908,7 +908,7 @@
             "service.webdav.protocol": "HTTP",
             "service.webdav.http_port": 8080,
             "service.webdav.https_port": 8081,
-            "service.webdav.password": "devtest",
+            "service.webdav.password": "davtest",
             "service.webdav.authentication": "DIGEST",
             "service.webdav.certificate": null,
             "update.check_auto": true,
