@@ -121,7 +121,6 @@ class VolumeProvider(Provider):
                 vol.update({
                     'description': None,
                     'mountpoint': None,
-                    'datasets': None,
                     'upgraded': None,
                     'topology': topology,
                     'root_vdev': config['root_vdev'],
@@ -134,7 +133,6 @@ class VolumeProvider(Provider):
                     vol.update({
                         'description': config.get('root_dataset.properties.org\\.freenas:description.value'),
                         'mountpoint': config['root_dataset.properties.mountpoint.value'],
-                        'datasets': datasets.query(('volume', '=', vol['id'])) if datasets else [],
                         'upgraded': is_upgraded(config),
                     })
 
