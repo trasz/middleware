@@ -245,6 +245,6 @@ def _init(dispatcher, plugin):
     plugin.register_task_handler('directoryservice.enable', DirectoryServiceEnableTask)
     plugin.register_task_handler('directoryservice.disable', DirectoryServiceDisableTask)
     plugin.register_task_handler('directoryservice.get', DirectoryServiceGetTask)
-    plugin.register_task_handler('directoryservice.update', DirectoryServiceConfigureTask)
+    #plugin.register_task_handler('directoryservice.update', DirectoryServiceConfigureTask)
     plugin.register_task_handler('directoryservice.kerberosticket', DirectoryServiceKerberosTicketTask)
     plugin.register_task_handler('directoryservice.join', DirectoryServiceJoinActiveDirectoryTask)
