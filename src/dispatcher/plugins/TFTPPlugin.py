@@ -37,14 +37,14 @@ logger = logging.getLogger('TFTPPlugin')
 @description('Provides info about TFTP service configuration')
 class TFTPProvider(Provider):
     @accepts()
-    @returns(h.ref('service-tftp'))
+    @returns(h.ref('service-tftpd'))
     def get_config(self):
-        return ConfigNode('service.tftp', self.configstore)
+        return ConfigNode('service.tftpd', self.configstore)
 
 
 @private
 @description('Configure TFTP service')
-@accepts(h.ref('service-tftp'))
+@accepts(h.ref('service-tftpd'))
 class TFTPConfigureTask(Task):
     def describe(self, share):
         return 'Configuring TFTP service'
@@ -62,7 +62,7 @@ class TFTPConfigureTask(Task):
             node = ConfigNode('service.tftp', self.configstore)
             node.update(tftp)
             self.dispatcher.call_sync('etcd.generation.generate_group', 'services')
-            self.dispatcher.dispatch_event('service.tftp.changed', {
+            self.dispatcher.dispatch_event('service.tftpd.changed', {
                 'operation': 'updated',
                 'ids': None,
             })
@@ -81,7 +81,7 @@ def _depends():
 def _init(dispatcher, plugin):
 
     # Register schemas
-    plugin.register_schema_definition('service-tftp', {
+    plugin.register_schema_definition('service-tftpd', {
         'type': 'object',
         'properties': {
             'port': {'type': 'integer'},
@@ -95,7 +95,7 @@ def _init(dispatcher, plugin):
     })
 
     # Register providers
-    plugin.register_provider("service.tftp", TFTPProvider)
+    plugin.register_provider("service.tftpd", TFTPProvider)
 
     # Register tasks
-    plugin.register_task_handler("service.tftp.update", TFTPConfigureTask)
+    plugin.register_task_handler("service.tftpd.update", TFTPConfigureTask)

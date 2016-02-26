@@ -1347,7 +1347,7 @@
                     "rc-scripts": "netatalk"
                 },
                 "builtin": false,
-                "task": "service.afp.configure",
+                "task": "service.afp.update",
                 "name": "afp"
             },
             "DE07173C-FCAA-47CE-A044-FACEF514581F": {
@@ -1360,7 +1360,7 @@
                     "/var/run/samba4/winbindd.pid"
                 ],
                 "builtin": false,
-                "task": "service.smb.configure",
+                "task": "service.smb.update",
                 "name": "smb"
             },
             "FFD1EA3F-36E3-4CFA-8A1E-9BADA0DEFB76": {
@@ -1403,7 +1403,7 @@
                 "builtin": false,
                 "etcd-group": "sshd",
                 "pidfile": "/var/run/sshd.pid",
-                "task": "service.ssh.configure",
+                "task": "service.sshd.update",
                 "name": "sshd"
             },
             "77C31BDA-A90A-495A-8D58-0063981EEC67": {
@@ -1454,7 +1454,7 @@
                 ],
                 "builtin": false,
                 "etcd-group": "nfs",
-                "task": "service.nfs.configure",
+                "task": "service.nfs.update",
                 "name": "nfs"
             },
             "0A7FF372-9808-411B-B3AA-59A6F3F9A7B2": {
@@ -1464,7 +1464,7 @@
                 "builtin": false,
                 "pidfile": "/var/run/proftpd.pid",
                 "etcd-group": "ftp",
-                "task": "service.ftp.configure",
+                "task": "service.ftp.update",
                 "name": "ftp"
             },
             "702DD24D-BF1A-4D36-B69B-C96971B37A9D": {
@@ -1473,7 +1473,7 @@
                 },
                 "builtin": false,
                 "pidfile": "/var/run/net_snmpd.pid",
-                "task": "service.snmp.configure",
+                "task": "service.snmp.update",
                 "name": "snmp"
             },
             "7498B5D8-457F-442B-BF48-ED29D8DB5FC5": {
@@ -1490,7 +1490,7 @@
                     "rc-scripts": "inadyn-mt"
                 },
                 "builtin": false,
-                "task": "service.dyndns.configure",
+                "task": "service.dyndns.update",
                 "name": "dyndns"
             },
             "4D0E488C-C0A6-41C8-8EEE-5DEBC35EE56F": {
@@ -1499,7 +1499,7 @@
                 },
                 "builtin": false,
                 "pidfile": "/var/run/riak/riak.pid",
-                "task": "service.riak.configure",
+                "task": "service.riak.update",
                 "name": "riak"
             },
             "5E261539-46CB-4453-B94B-1C037F093CCE": {
@@ -1508,7 +1508,7 @@
                 },
                 "builtin": false,
                 "pidfile": "/var/run/stanchion/stanchion.pid",
-                "task": "service.stanchion.configure",
+                "task": "service.stanchion.update",
                 "name": "stanchion"
             },
             "0B1057A8-8923-4B57-B138-87563E0AFC9B": {
@@ -1517,7 +1517,7 @@
                 },
                 "builtin": false,
                 "pidfile": "/var/run/riak-cs/riak-cs.pid",
-                "task": "service.riak_cs.configure",
+                "task": "service.riak_cs.update",
                 "name": "riak_cs"
             },
             "A80D48F4-6D89-11E5-A3C7-C3D881054C8B": {
@@ -1526,7 +1526,7 @@
                 },
                 "builtin": false,
                 "pidfile": "/var/run/swift/swift.pid",
-                "task": "service.swift.configure",
+                "task": "service.swift.update",
                 "name": "swift"
             },
             "670716BC-6D8A-11E5-A3C7-C3D881054C8B": {
@@ -1550,7 +1550,7 @@
                     "rc-scripts": "ipfs-go"
                 },
                 "builtin": false,
-                "task": "service.ipfs.configure",
+                "task": "service.ipfs.update",
                 "name": "ipfs"
             },
             "FD2C3DCD-6959-4DAB-8750-65F2A0221FE6": {
@@ -1559,7 +1559,7 @@
                 },
                 "builtin": false,
                 "pidfile": "/var/run/rsyncd.pid",
-                "task": "service.rsyncd.configure",
+                "task": "service.rsyncd.update",
                 "name": "rsyncd"
             },
             "95DEC6AF-48E4-49F0-8D96-9E7ACC8F5E0D": {
@@ -1569,7 +1569,7 @@
                 "builtin": false,
                 "etcd-group": "smartd",
                 "pidfile": "/var/run/smartd.pid",
-                "task": "service.smartd.configure",
+                "task": "service.smartd.update",
                 "name": "smartd"
             },
             "638DDE98-3F61-487E-9DA7-47093A6BEB7A": {
@@ -1578,7 +1578,7 @@
                 },
                 "builtin": false,
                 "pidfile": "/var/run/tftpd.pid",
-                "task": "service.tftp.configure",
+                "task": "service.tftpd.update",
                 "name": "tftpd"
             },
             "B9D11E23-ECFB-46C2-A0C9-4A0D94EAAFC1": {

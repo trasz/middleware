@@ -1,5 +1,5 @@
 <%
-    ssh_config = dispatcher.call_sync('service.ssh.get_config')
+    ssh_config = dispatcher.call_sync('service.sshd.get_config')
 %>\
 Subsystem sftp /usr/libexec/sftp-server -l ${ssh_config['sftp_log_level']} -f ${ssh_config['sftp_log_facility']}
 Protocol 2

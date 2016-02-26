@@ -98,7 +98,7 @@ class QueryTest(BaseTestCase):
         self.assertIsInstance(res, dict)    
 
     def test_service_ssh_get_config(self):
-        res = self.conn.call_sync('service.ssh.get_config')
+        res = self.conn.call_sync('service.sshd.get_config')
         self.pretty_print(res)
         self.assertIsInstance(res, dict) 
 

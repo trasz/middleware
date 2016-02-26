@@ -36,14 +36,14 @@ logger = logging.getLogger('SSHPlugin')
 @description('Provides info about SSH service configuration')
 class SSHProvider(Provider):
     @accepts()
-    @returns(h.ref('service-ssh'))
+    @returns(h.ref('service-sshd'))
     def get_config(self):
         return ConfigNode('service.sshd', self.configstore)
 
 
 @private
 @description('Configure SSH service')
-@accepts(h.ref('service-ssh'))
+@accepts(h.ref('service-sshd'))
 class SSHConfigureTask(Task):
     def describe(self, share):
         return 'Configuring SSH service'
@@ -56,7 +56,7 @@ class SSHConfigureTask(Task):
             node = ConfigNode('service.sshd', self.configstore)
             node.update(ssh)
             self.dispatcher.call_sync('etcd.generation.generate_group', 'sshd')
-            self.dispatcher.dispatch_event('service.ssh.changed', {
+            self.dispatcher.dispatch_event('service.sshd.changed', {
                 'operation': 'updated',
                 'ids': None,
             })
@@ -74,7 +74,7 @@ def _depends():
 
 def _init(dispatcher, plugin):
     # Register schemas
-    plugin.register_schema_definition('service-ssh', {
+    plugin.register_schema_definition('service-sshd', {
         'type': 'object',
         'properties': {
             'port': {'type': 'integer'},
@@ -111,7 +111,7 @@ def _init(dispatcher, plugin):
     })
 
     # Register providers
-    plugin.register_provider("service.ssh", SSHProvider)
+    plugin.register_provider("service.sshd", SSHProvider)
 
     # Register tasks
-    plugin.register_task_handler("service.ssh.update", SSHConfigureTask)
+    plugin.register_task_handler("service.sshd.update", SSHConfigureTask)

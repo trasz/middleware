@@ -24,34 +24,34 @@ class Migration(DataMigration):
         svc = svc[0] if svc.exists() else None
 
         if svc:
-            cs.set('service.ssh.enable', svc.srv_enable)
+            cs.set('service.sshd.enable', svc.srv_enable)
 
-        cs.set('service.ssh.port', ssh.ssh_tcpport)
-        cs.set('service.ssh.permit_root_login', ssh.ssh_rootlogin)
-        cs.set('service.ssh.allow_password_auth', ssh.ssh_passwordauth)
-        cs.set('service.ssh.allow_port_forwarding', ssh.ssh_tcpfwd)
-        cs.set('service.ssh.compression', ssh.ssh_compression)
-        cs.set('service.ssh.sftp_log_level', ssh.ssh_sftp_log_level)
-        cs.set('service.ssh.sftp_log_facility', ssh.ssh_sftp_log_facility)
-        cs.set('service.ssh.auxiliary', ssh.ssh_options or None)
-        cs.set('service.ssh.keys.host.private', ssh.ssh_host_key)
-        cs.set('service.ssh.keys.host.public', ssh.ssh_host_key_pub)
-        cs.set('service.ssh.keys.dsa.private', ssh.ssh_host_dsa_key or None)
-        cs.set('service.ssh.keys.dsa.public', ssh.ssh_host_dsa_key_pub or None)
+        cs.set('service.sshd.port', ssh.ssh_tcpport)
+        cs.set('service.sshd.permit_root_login', ssh.ssh_rootlogin)
+        cs.set('service.sshd.allow_password_auth', ssh.ssh_passwordauth)
+        cs.set('service.sshd.allow_port_forwarding', ssh.ssh_tcpfwd)
+        cs.set('service.sshd.compression', ssh.ssh_compression)
+        cs.set('service.sshd.sftp_log_level', ssh.ssh_sftp_log_level)
+        cs.set('service.sshd.sftp_log_facility', ssh.ssh_sftp_log_facility)
+        cs.set('service.sshd.auxiliary', ssh.ssh_options or None)
+        cs.set('service.sshd.keys.host.private', ssh.ssh_host_key)
+        cs.set('service.sshd.keys.host.public', ssh.ssh_host_key_pub)
+        cs.set('service.sshd.keys.dsa.private', ssh.ssh_host_dsa_key or None)
+        cs.set('service.sshd.keys.dsa.public', ssh.ssh_host_dsa_key_pub or None)
         if ssh.ssh_host_dsa_key_cert_pub:
-            cs.set('service.ssh.keys.dsa.certificate', ssh.ssh_host_dsa_key_cert_pub)
-        cs.set('service.ssh.keys.ecdsa.private', ssh.ssh_host_ecdsa_key or None)
-        cs.set('service.ssh.keys.ecdsa.public', ssh.ssh_host_ecdsa_key_pub or None)
+            cs.set('service.sshd.keys.dsa.certificate', ssh.ssh_host_dsa_key_cert_pub)
+        cs.set('service.sshd.keys.ecdsa.private', ssh.ssh_host_ecdsa_key or None)
+        cs.set('service.sshd.keys.ecdsa.public', ssh.ssh_host_ecdsa_key_pub or None)
         if ssh.ssh_host_ecdsa_key_cert_pub:
-            cs.set('service.ssh.keys.ecdsa.certificate', ssh.ssh_host_ecdsa_key_cert_pub)
-        cs.set('service.ssh.keys.ed25519.private', ssh.ssh_host_ed25519_key or None)
-        cs.set('service.ssh.keys.ed25519.public', ssh.ssh_host_ed25519_key_pub or None)
+            cs.set('service.sshd.keys.ecdsa.certificate', ssh.ssh_host_ecdsa_key_cert_pub)
+        cs.set('service.sshd.keys.ed25519.private', ssh.ssh_host_ed25519_key or None)
+        cs.set('service.sshd.keys.ed25519.public', ssh.ssh_host_ed25519_key_pub or None)
         if ssh.ssh_host_ed25519_key_cert_pub:
-            cs.set('service.ssh.keys.ed25519.certificate', ssh.ssh_host_ed25519_key_cert_pub)
-        cs.set('service.ssh.keys.rsa.private', ssh.ssh_host_rsa_key or None)
-        cs.set('service.ssh.keys.rsa.public', ssh.ssh_host_rsa_key_pub or None)
+            cs.set('service.sshd.keys.ed25519.certificate', ssh.ssh_host_ed25519_key_cert_pub)
+        cs.set('service.sshd.keys.rsa.private', ssh.ssh_host_rsa_key or None)
+        cs.set('service.sshd.keys.rsa.public', ssh.ssh_host_rsa_key_pub or None)
         if ssh.ssh_host_rsa_key_cert_pub:
-            cs.set('service.ssh.keys.rsa.certificate', ssh.ssh_host_rsa_key_cert_pub)
+            cs.set('service.sshd.keys.rsa.certificate', ssh.ssh_host_rsa_key_cert_pub)
 
     def backwards(self, orm):
         "Write your backwards methods here."
