@@ -216,6 +216,7 @@ def demote(user_uid, user_gid):
     return set_ids
 
 
+@private
 @description("Runs an Rsync Copy Task with the specified arguments")
 @accepts(h.ref('rsync_copy'))
 class RsyncCopyTask(ProgressTask):
