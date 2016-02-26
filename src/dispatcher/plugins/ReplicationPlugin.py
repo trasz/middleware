@@ -403,12 +403,7 @@ class FailoverReplicationDelete(Task):
 
     def run(self, name, scrub=False):
         link = get_latest_failover_link(self.dispatcher, self.datastore, name)
-        is_master = False
-        ips = self.dispatcher.call_sync('network.config.get_my_ips')
-        for ip in ips:
-            for partner in link['partners']:
-                if partner.endswith(ip) and partner == link['master']:
-                    is_master = True
+        is_master, remote = get_failover_state(self.dispatcher, link)
 
         if not is_master and scrub:
             for volume in link['volumes']:
