@@ -282,7 +282,7 @@ class FailoverReplicationCreate(Task):
         link['id'] = link['name']
         link['update_date'] = str(datetime.utcnow())
 
-        is_master, remote = get_failover_state(link)
+        is_master, remote = get_failover_state(self.dispatcher, link)
 
         if is_master:
             remote_client = get_client(remote)
