@@ -417,6 +417,39 @@ class FailoverReplicationDelete(Task):
         })
 
 
+@description("Switch state of failover connection")
+@accepts(str)
+class FailoverReplicationSwitch(Task):
+    def verify(self, name):
+        if not self.datastore.exists('failover.links', ('name', '=', name)):
+            raise VerifyException(errno.ENOENT, 'Failover link {0} do not exist.'.format(name))
+
+        link = get_latest_failover_link(self.dispatcher, self.datastore, name)
+
+        return ['zpool:{0}'.format(p) for p in link['volumes']]
+
+    def run(self, name):
+        link = get_latest_failover_link(self.dispatcher, self.datastore, name)
+        is_master, remote = get_failover_state(self.dispatcher, link)
+        for partner in link['partners']:
+            if partner != link['master']:
+                link['master'] = partner
+
+        self.datastore.update('failover.links', link['id'], link)
+
+        self.dispatcher.dispatch_event('replication.failover.changed', {
+            'operation': 'update',
+            'ids': [link['id']]
+        })
+
+        remote_client = get_client(remote)
+        if link is not remote_client.call_sync('replication.get_failover', name):
+            remote_client.call_task_sync(
+                'replication.failover.switch',
+                link['name']
+            )
+
+
 @accepts(str, str, bool, str, str, bool)
 @returns(str)
 class SnapshotDatasetTask(Task):
@@ -756,7 +789,7 @@ def _init(dispatcher, plugin):
     plugin.register_task_handler('replication.scan_hostkey', ScanHostKeyTask)
     plugin.register_task_handler('replication.replicate_dataset', ReplicateDatasetTask)
     plugin.register_task_handler('replication.failover.create', FailoverReplicationCreate)
-    #plugin.register_task_handler('replication.failover.switch', FailoverReplicationSwitch)
+    plugin.register_task_handler('replication.failover.switch', FailoverReplicationSwitch)
     plugin.register_task_handler('replication.failover.delete', FailoverReplicationDelete)
 
     #plugin.register_event_handler('zfs.pool.changed', on_pool_changed)
