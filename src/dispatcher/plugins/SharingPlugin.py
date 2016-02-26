@@ -415,7 +415,7 @@ def _init(dispatcher, plugin):
             },
             'target_path': {'type': 'string'},
             'permissions': {'$ref': 'permissions'},
-            'properties': {'type': 'object'}
+            'properties': {'$ref': 'share-properties'}
         }
     })
 
@@ -479,7 +479,12 @@ def _init(dispatcher, plugin):
         set_related_enabled(args['name'], True)
         return True
 
-    dispatcher.require_collection('share', 'string')
+    def update_share_properties_schema():
+        plugin.register_schema_definition('share-properties', {
+            'oneOf': [
+                {'$ref': 'share-{0}'.format(name)} for name in dispatcher.call_sync('share.supported_types')
+            ]
+        })
 
     # Register providers
     plugin.register_provider('share', SharesProvider)
@@ -504,6 +509,9 @@ def _init(dispatcher, plugin):
             'additionalProperties': False
         }
     )
+
+    update_share_properties_schema()
+    dispatcher.register_event_handler('server.plugin.loaded', update_share_properties_schema)
 
     # Register Hooks
     plugin.attach_hook('volume.pre_destroy', volume_pre_destroy)
