@@ -367,6 +367,7 @@ class Dispatcher(object):
         self.register_event_type('server.plugin.loaded')
         self.register_event_type('server.ready')
         self.register_event_type('server.shutdown')
+        self.register_event_type('server.schema_document_changed')
 
     def start(self):
         self.started_at = time.time()
