@@ -446,8 +446,16 @@ def _init(dispatcher, plugin):
             'state': {
                 'type': 'string',
                 'enum': ['RUNNING', 'STOPPED', 'UNKNOWN']
-            }
+            },
+            'config': {'$ref': 'service-config'}
         }
+    })
+
+    plugin.register_schema_definition('service-config', {
+        'oneOf': [
+            {'$ref': 'service-{0}'.format(svc['name'])} for svc in dispatcher.datastore.query('service_definitions')
+            if not svc['builtin']
+        ]
     })
 
     plugin.register_event_handler("service.rc.command", on_rc_command)
