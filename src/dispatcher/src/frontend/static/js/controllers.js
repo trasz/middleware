@@ -1,4 +1,5 @@
 'use strict';
+restrict: 'A';
 
 /* Controllers */
 
@@ -37,7 +38,6 @@ function RpcController($scope) {
                 $.each(services, function(idx, i) {
                     var temp_list = [];
                     sock.call("discovery.get_methods", [i], function(methods) {
-                        console.log(methods);
                         for(var tmp = 0; tmp < methods.length; tmp++) {
                            temp_list.push(methods[tmp]);
                         }
@@ -162,6 +162,98 @@ function SyslogController($scope) {
                 });
             });
         };
+    }
+}
+
+function StatsController($scope) {
+    document.title = "Stats Charts";
+    console.log("Stats Charts");
+    var sock = new middleware.DispatcherClient(document.domain);
+    var chart;
+    sock.connect();
+    function render_chart(data){
+        chart = c3.generate({
+            bindto: "#chart",
+            data: {
+                x: "x",
+                rows: [["x", "value"]].concat(data)
+            },
+            axis: {
+                x: {
+                    type: "timeseries",
+                    tick: {
+                        format: function(x) {
+                            return moment.unix(x).format('MMM Do, HH:mm:ss');
+                        }
+                    }
+                }
+            }
+        })
+    }
+
+    function update_chart(event){
+        chart.flow({
+            rows: [["x", "value"], [event.timestamp, event.value]]
+        })
+    }
+
+    function load_chart(name){
+        $("#title").text(name);
+        sock.subscribe("statd." + name + ".pulse");
+        sock.call("statd.output.query", [name, {
+            start: moment().subtract($("#timespan").val(), "minutes").format(),
+            end: moment().format(),
+            frequency: $("#frequency").val()
+        }], function (response) {
+            render_chart(response.data);
+        });
+    }
+    $scope.init = function () {
+        console.log("here's init");
+        sock.onError = function(err) {
+            alert("Error: " + err.message);
+        };
+        sock.onConnect = function() {
+            if (!sessionStorage.getItem("freenas:username")) {
+                var username = prompt("Username:");
+                var password = prompt("Password:");
+                sessionStorage.setItem("freenas:username", username);
+                sessionStorage.setItem("freenas:password", password);
+            }
+
+            sock.login(
+                sessionStorage.getItem("freenas:username"),
+                sessionStorage.getItem("freenas:password")
+            );
+        };
+        //onLogin function do everyting you need to render a chart
+        sock.onLogin = function() {
+            sock.onEvent = function(name, args) {
+                if (name == "statd." + $("#title").text() + ".pulse")
+                    update_chart(args);
+            };
+
+            sock.call("statd.output.get_data_sources", [], function(response) {
+                var dataSource_list = [];
+                $.each(response, function(idx, i) {
+                    dataSource_list.push(i);
+                });
+                $scope.$apply(function(){
+                    $scope.dataSource_list = dataSource_list;
+                });
+            });
+        };
+        $scope.loadSource = function(source_name) {
+                // load_chart(source_name);
+                console.log(source_name);
+        }
+        // $("#sources").on("click", "a.source-entry", function() {
+        //     load_chart(this.text)
+        // });
+
+        $("#call").click(function() {
+            load_chart($("#title").text())
+        })
     }
 }
 

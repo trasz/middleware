@@ -4,6 +4,7 @@
 
 angular.module('Debugger', [
 	'ngRoute',
+    'ui.bootstrap'
 ]).
 config(['$routeProvider', function($routeProvider) {
   $routeProvider.

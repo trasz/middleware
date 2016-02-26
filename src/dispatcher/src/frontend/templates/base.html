@@ -13,8 +13,6 @@
 <!-- Latest compiled and minified CSS -->
 <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.6/css/bootstrap.min.css" integrity="sha384-1q8mTJOASx8j1Au+a5WDVnPi2lkFfwwEAa8hDDdjZlpLegxhjVME1fgjWPGmkzs7" crossorigin="anonymous">
 <link rel="stylesheet" href="/static/css/dashboard.css" >
-<link rel="stylesheet" href="/static/css/messenger.css" >
-<link rel="stylesheet" href="/static/css/messenger-theme-future.css" >
 <style>
 	body { padding-top: 51px; }
 }
@@ -34,9 +32,9 @@
                 <li><a href="#/syslog">Syslog</a></li>
                 <li><a href="#/vm">Container console</a></li>
                 <li><a href="#/filebrowser">File Browser</a></li>
-                <li class="dropdown">
-                  <a href="#" class="dropdown-toggle" data-toggle="dropdown" role="button" aria-haspopup="true" aria-expanded="false">API Docs <span class="caret"></span></a>
-                  <ul class="dropdown-menu">
+                <li class="dropdown" dropdown>
+                  <a href="" class="dropdown-toggle" dropdown-toggle role="button" aria-haspopup="true" aria-expanded="false">API Docs <span class="caret"></span></a>
+                  <ul class="dropdown-menu" dropdown-menu>
                     <li><a href="#/doc/rpc">RPC Interface</a></li>
                     <li><a href="#">Events</a></li>
                     <li><a href="#">Tasks</a></li>
@@ -66,15 +64,15 @@
 <script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.6/js/bootstrap.min.js" integrity="sha384-0mSbJDEHialfmuBBQP6A4Qrprq5OVfW37PRR3j5ELqxss1yVqOtnepnHVP9aJ7xS" crossorigin="anonymous"></script>
 
 <!-- Latest compiled and minified AngularJS -->
-<script src="https://ajax.googleapis.com/ajax/libs/angularjs/1.5.0/angular.min.js"></script>
-<script src="https://ajax.googleapis.com/ajax/libs/angularjs/1.5.0/angular-resource.min.js"></script>
-<script src="http://ajax.googleapis.com/ajax/libs/angularjs/1.5.0/angular-route.min.js"></script>
+<!-- <script src="https://ajax.googleapis.com/ajax/libs/angularjs/1.5.0/angular.min.js"></script>
+<script src="http://ajax.googleapis.com/ajax/libs/angularjs/1.5.0/angular-route.min.js"></script> -->
+<script data-require="angular.js@1.2.*" data-semver="1.2.27" src="https://code.angularjs.org/1.2.27/angular.js"></script>
+<script src="http://ajax.googleapis.com/ajax/libs/angularjs/1.2.27/angular-route.min.js"></script>
+<script data-require="ui-bootstrap@*" data-semver="0.11.0" src="http://angular-ui.github.io/bootstrap/ui-bootstrap-tpls-0.12.0.min.js"></script>
 
 <!-- Functions for Angular -->
 <script src="/static/middleware.js"></script>
 <script src="/static/js/app.js"></script>
 <script src="/static/js/controllers.js"></script>
-<script src="/static/js/messenger.min.js"></script>
-<script src="/static/js/messenger-theme-future.js"></script>
 </body>
 </html>

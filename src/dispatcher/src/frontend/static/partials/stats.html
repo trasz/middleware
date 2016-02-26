@@ -5,12 +5,15 @@
 <div ng-init="init()">
 </div>
 <div class="row">
-    <div class="dropdown">
-      <button class="btn btn-default dropdown-toggle" type="button" data-toggle="dropdown">
+    <div class="dropdown" dropdown>
+      <button class="btn btn-primary dropdown-toggle" dropdown-toggle>
         Data source
         <span class="caret"></span>
       </button>
-      <ul id="sources" class="dropdown-menu" role="menu">
+      <ul id="sources" class="dropdown-menu" dropdown-menu>
+          <li ng-repeat="source in dataSource_list">
+              <a href="" class="source-entry" role="menuitem" ng-click="loadSource(source)">{{source}}</a>
+          </li>
       </ul>
     </div>
     <hr/>
