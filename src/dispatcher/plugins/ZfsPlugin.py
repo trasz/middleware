@@ -1435,7 +1435,7 @@ def _init(dispatcher, plugin):
         # the database
         for vol in dispatcher.datastore.query('volumes'):
             if int(vol['guid']) in unimported_unique_pools:
-                pool_to_import = unimported_unique_pools[int(vol['id'])]
+                pool_to_import = unimported_unique_pools[int(vol['guid'])]
                 # Check if the volume name is also the same
                 if vol['name'] == pool_to_import.name:
                     opts = {}
