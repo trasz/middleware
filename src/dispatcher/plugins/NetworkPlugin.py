@@ -233,7 +233,7 @@ class ConfigureInterfaceTask(Task):
 
         if updated_fields.get('aliases'):
             # Forbid setting any aliases on interface with DHCP
-            if updated_fields.get('dhcp') and len(updated_fields['aliases']) > 0:
+            if (updated_fields.get('dhcp') or entity['dhcp']) and len(updated_fields['aliases']) > 0:
                 raise TaskException(errno.EINVAL, 'Cannot set aliases when using DHCP')
 
             # Check for aliases inconsistencies
