@@ -32,9 +32,10 @@ import ipaddress
 import logging
 from freenas.dispatcher.rpc import RpcException, description, accepts, returns
 from freenas.dispatcher.rpc import SchemaHelper as h
-from task import Provider, Task, TaskException, VerifyException
+from task import Provider, Task, TaskException, VerifyException, query
 from lib.system import system, SubprocessException
 from bsd import kld
+from freenas.utils.query import wrap
 
 
 RE_ATTRS = re.compile(r'^(?P<key>^.+?)\s+?:\s+?(?P<val>.+?)\r?$', re.M)
@@ -62,26 +63,26 @@ class IPMIProvider(Provider):
     def channels(self):
         return channels
 
-    @accepts(int)
-    @returns(h.ref('ipmi-configuration'))
-    def get_config(self, channel):
+    @query('ipmi')
+    def query(self, filter=None, params=None):
         if not self.is_ipmi_loaded():
             raise RpcException(errno.ENXIO, 'The IPMI device could not be found')
 
-        if channel not in self.dispatcher.call_sync('ipmi.channels'):
-            raise RpcException(errno.ENXIO, 'Invalid channel')
+        result = []
+        for channel in self.channels():
+            try:
+                out, err = system('/usr/local/bin/ipmitool', 'lan', 'print', str(channel))
+            except SubprocessException as e:
+                raise RpcException(errno.EFAULT, 'Cannot receive IPMI configuration: {0}'.format(e.err.strip()))
 
-        try:
-            out, err = system('/usr/local/bin/ipmitool', 'lan', 'print', str(channel))
-        except SubprocessException as e:
-            raise RpcException(errno.EFAULT, 'Cannot receive IPMI configuration: {0}'.format(e.err.strip()))
+            raw = {k.strip(): v.strip() for k, v in RE_ATTRS.findall(out)}
+            ret = {IPMI_ATTR_MAP[k]: v for k, v in list(raw.items()) if k in IPMI_ATTR_MAP}
+            ret['channel'] = channel
+            ret['vlan_id'] = None if ret['vlan_id'] == 'Disabled' else ret['vlan_id']
+            ret['dhcp'] = True if ret['dhcp'] == 'DHCP Address' else False
+            result.append(ret)
 
-        raw = {k.strip(): v.strip() for k, v in RE_ATTRS.findall(out)}
-        ret = {IPMI_ATTR_MAP[k]: v for k, v in list(raw.items()) if k in IPMI_ATTR_MAP}
-        ret['channel'] = channel
-        ret['vlan_id'] = None if ret['vlan_id'] == 'Disabled' else ret['vlan_id']
-        ret['dhcp'] = True if ret['dhcp'] == 'DHCP Address' else False
-        return ret
+        return wrap(result).query(*(filter or []), **(params or {}))
 
 
 @accepts(int, h.ref('ipmi-configuration'))
@@ -137,7 +138,7 @@ def cidr_to_netmask(cidr):
 
 
 def _init(dispatcher, plugin):
-    plugin.register_schema_definition('ipmi-configuration', {
+    plugin.register_schema_definition('ipmi', {
         'type': 'object',
         'additionalProperties': False,
         'properties': {
