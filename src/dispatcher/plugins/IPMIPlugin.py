@@ -77,7 +77,7 @@ class IPMIProvider(Provider):
 
             raw = {k.strip(): v.strip() for k, v in RE_ATTRS.findall(out)}
             ret = {IPMI_ATTR_MAP[k]: v for k, v in list(raw.items()) if k in IPMI_ATTR_MAP}
-            ret['channel'] = channel
+            ret['id'] = channel
             ret['vlan_id'] = None if ret['vlan_id'] == 'Disabled' else ret['vlan_id']
             ret['dhcp'] = True if ret['dhcp'] == 'DHCP Address' else False
             result.append(ret)
@@ -88,19 +88,19 @@ class IPMIProvider(Provider):
 @accepts(int, h.ref('ipmi-configuration'))
 @description("Configures IPMI module")
 class ConfigureIPMITask(Task):
-    def verify(self, channel, updated_params):
+    def verify(self, id, updated_params):
         if not self.dispatcher.call_sync('ipmi.is_ipmi_loaded'):
             raise VerifyException(errno.ENXIO, 'No IPMI module loaded')
 
-        if channel not in self.dispatcher.call_sync('ipmi.channels'):
+        if id not in self.dispatcher.call_sync('ipmi.channels'):
             raise VerifyException(errno.ENXIO, 'Invalid channel')
 
         return ['system']
 
-    def run(self, channel, updated_params):
-        config = self.dispatcher.call_sync('ipmi.get_config', channel)
+    def run(self, id, updated_params):
+        config = self.dispatcher.call_sync('ipmi.get_config', id)
         config.update(updated_params)
-        channel = str(channel)
+        channel = str(id)
 
         if updated_params.get('gateway') is None:
             config['gateway'] = '0.0.0.0'
@@ -142,7 +142,7 @@ def _init(dispatcher, plugin):
         'type': 'object',
         'additionalProperties': False,
         'properties': {
-            'channel': {'type': 'integer'},
+            'id': {'type': 'integer'},
             'password': {
                 'type': 'string',
                 'maxLength': 20
