@@ -111,12 +111,13 @@ def _init(dispatcher, plugin):
     plugin.register_schema_definition('service-snmp', {
         'type': 'object',
         'properties': {
+            'enable': {'type': 'boolean'},
             'location': {'type': ['string', 'null']},
             'contact': {'type': ['string', 'null']},
             'community': {'type': ['string', 'null']},
             'v3': {'type': 'boolean'},
-            'v3_username': {'type': 'string'},
-            'v3_password': {'type': 'string'},
+            'v3_username': {'type': ['string', 'null']},
+            'v3_password': {'type': ['string', 'null']},
             'v3_auth_type': {'type': 'string', 'enum': [
                 'MD5',
                 'SHA',
