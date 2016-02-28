@@ -115,6 +115,14 @@ def _depends():
 
 
 def _init(dispatcher, plugin):
+    plugin.register_schema_definition('service-simulator', {
+        'type': 'object',
+        'additionalProperties': False,
+        'properties': {
+            'enable': {'type': 'boolean'}
+        }
+    })
+
     plugin.register_schema_definition('simulator-disk', {
         'type': 'object',
         'additionalProperties': False,

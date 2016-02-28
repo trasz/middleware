@@ -38,7 +38,7 @@ class FTPProvider(Provider):
     @accepts()
     @returns(h.ref('service-ftp'))
     def get_config(self):
-        return ConfigNode('service.ftp', self.configstore)
+        return ConfigNode('service.ftp', self.configstore).__getstate__()
 
 
 @private

@@ -78,7 +78,7 @@ class UPSProvider(Provider):
 
     @private
     def service_start(self):
-        ups = self.get_config().__getstate__()
+        ups = self.get_config()
         if ups['mode'] == 'MASTER':
             rc_scripts = ['nut']
         else:
@@ -93,7 +93,7 @@ class UPSProvider(Provider):
 
     @private
     def service_status(self):
-        ups = self.get_config().__getstate__()
+        ups = self.get_config()
         if ups['mode'] == 'MASTER':
             rc_scripts = ['nut']
         else:
@@ -108,7 +108,7 @@ class UPSProvider(Provider):
 
     @private
     def service_stop(self):
-        ups = self.get_config().__getstate__()
+        ups = self.get_config()
         rc_scripts = ['nut_upslog', 'nut_upsmon']
         if ups['mode'] == 'MASTER':
             rc_scripts.append('nut')
@@ -121,7 +121,7 @@ class UPSProvider(Provider):
 
     @private
     def service_restart(self):
-        ups = self.get_config().__getstate__()
+        ups = self.get_config()
         # Stop monitor so it wont trigger signals when nut restarts
         verbs = [
             ('nut_upsmon', 'stop'),
@@ -194,7 +194,7 @@ def _depends():
 def _init(dispatcher, plugin):
 
     def ups_signal(kwargs):
-        ups = dispatcher.call_sync('service.ups.get_config').__getstate__()
+        ups = dispatcher.call_sync('service.ups.get_config')
 
         name = kwargs.get('name')
         notifytype = kwargs.get('type')
