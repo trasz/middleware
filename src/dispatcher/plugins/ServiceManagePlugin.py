@@ -50,6 +50,7 @@ class ServiceInfoProvider(Provider):
         def extend(i):
             state, pid = get_status(self.dispatcher, i)
             entry = {
+                'id': i['id'],
                 'name': i['name'],
                 'state': state,
             }
@@ -88,18 +89,20 @@ class ServiceInfoProvider(Provider):
                 return greenlet.value
 
         result = group.map(result, jobs)
-        result = list(map(lambda s: extend_dict(s, {'config': wrap(self.get_service_config(s['name']))}), result))
+        result = list(map(lambda s: extend_dict(s, {'config': wrap(self.get_service_config(s['id']))}), result))
         return result[0] if single is True else result
 
     @accepts(str)
     @returns(h.object())
-    def get_service_config(self, service):
-        svc = self.datastore.get_one('service_definitions', ('name', '=', service))
+    def get_service_config(self, id):
+        svc = self.datastore.get_by_id('service_definitions', id)
         if not svc:
             raise RpcException(errno.EINVAL, 'Invalid service name')
 
-        node = ConfigNode('service.{0}'.format(service), self.configstore)
-        return node
+        if svc.get('get_config_rpc'):
+            return self.dispatcher.call_sync(svc['get_config_rpc'])
+
+        return ConfigNode('service.{0}'.format(svc['name']), self.configstore).__getstate__()
 
     @private
     @accepts(str)
@@ -285,62 +288,72 @@ class ServiceManageTask(Task):
 
 
 @description("Updates configuration for services")
-@accepts(str, h.object())
+@accepts(str, h.all_of(
+    h.ref('service'),
+    h.forbidden('id', 'name', 'builtin', 'pid', 'state'),
+    h.required('config')
+))
 class UpdateServiceConfigTask(Task):
-    def describe(self, service, updated_fields):
-        return "Updating configuration for service {0}".format(service)
+    def describe(self, id, updated_fields):
+        return "Updating configuration for service {0}".format(id)
 
-    def verify(self, service, updated_fields):
-        if not self.datastore.exists('service_definitions', ('name', '=', service)):
+    def verify(self, id, updated_fields):
+        svc = self.datastore.get_by_id('service_definitions', id)
+        if not svc:
             raise VerifyException(
                 errno.ENOENT,
-                'Service {0} not found'.format(service))
-        for x in updated_fields:
-            if not self.configstore.exists(
-                    'service.{0}.{1}'.format(service, x)):
+                'Service {0} not found'.format(id))
+
+        for x in updated_fields['config']:
+            if not self.configstore.exists('service.{0}.{1}'.format(svc['name'], x)):
                 raise VerifyException(
                     errno.ENOENT,
                     'Service {0} does not have the following key: {1}'.format(
-                        service, x))
+                        svc['name'], x))
+
         return ['system']
 
-    def run(self, service, updated_fields):
-        service_def = self.datastore.get_one('service_definitions', ('name', '=', service))
-        node = ConfigNode('service.{0}'.format(service), self.configstore)
+    def run(self, id, updated_fields):
+        service_def = self.datastore.get_by_id('service_definitions', id)
+        node = ConfigNode('service.{0}'.format(service_def['name']), self.configstore)
         restart = False
         reload = False
+        updated_config = updated_fields.get('config')
+
+        if updated_config is None:
+            return
 
         if service_def.get('task'):
-            enable = updated_fields.pop('enable', None)
-            result = self.join_subtasks(self.run_subtask(service_def['task'], updated_fields))
+            enable = updated_config.pop('enable', None)
+            result = self.join_subtasks(self.run_subtask(service_def['task'], updated_config))
             restart = result[0] == 'RESTART'
             reload = result[0] == 'RELOAD'
 
             if enable is not None:
                 node['enable'] = enable
         else:
-            node.update(updated_fields)
+            node.update(updated_config)
 
             if service_def.get('etcd-group'):
                 self.dispatcher.call_sync('etcd.generation.generate_group', service_def.get('etcd-group'))
 
-            if 'enable' in updated_fields:
+            if 'enable' in updated_config:
                 # Propagate to dependent services
                 for i in service_def.get('dependencies', []):
                     self.join_subtasks(self.run_subtask('service.update', i, {
-                        'enable': updated_fields['enable']
+                        'enable': updated_config['enable']
                     }))
 
                 if service_def.get('auto_enable'):
                     # Consult state of services dependent on us
-                    for i in self.datastore.query('service_definitions', ('dependencies', 'in', service)):
+                    for i in self.datastore.query('service_definitions', ('dependencies', 'in', service_def['name'])):
                         enb = self.configstore.get('service.{0}.enable', i['name'])
-                        if enb != updated_fields['enable']:
-                            del updated_fields['enable']
+                        if enb != updated_config['enable']:
+                            del updated_config['enable']
                             break
 
         self.dispatcher.call_sync('etcd.generation.generate_group', 'services')
-        self.dispatcher.call_sync('service.apply_state', service, restart, reload, timeout=30)
+        self.dispatcher.call_sync('service.apply_state', service_def['name'], restart, reload, timeout=30)
         self.dispatcher.dispatch_event('service.changed', {
             'operation': 'update',
             'ids': [service_def['id']]
@@ -441,8 +454,8 @@ def _init(dispatcher, plugin):
         'type': 'object',
         'properties': {
             'id': {'type': 'string'},
-            'name': {'type': 'string'},
             'pid': {'type': 'integer'},
+            'builtin': {'type': 'boolean'},
             'state': {
                 'type': 'string',
                 'enum': ['RUNNING', 'STOPPED', 'UNKNOWN']
