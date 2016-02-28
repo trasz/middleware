@@ -98,7 +98,7 @@ class BootEnvironmentUpdate(Task):
 
 
 @description("Deletes the given Boot Environments. Note: It cannot delete an activated BE")
-@accepts(h.array(str))
+@accepts(str)
 class BootEnvironmentsDelete(Task):
     def verify(self, id):
         be = FindClone(id)
