@@ -244,18 +244,19 @@ class ServiceInfoProvider(Provider):
     h.enum(str, ['start', 'stop', 'restart', 'reload'])
 )
 class ServiceManageTask(Task):
-    def describe(self, name, action):
-        return "{0}ing service {1}".format(action.title(), name)
+    def describe(self, id, action):
+        return "{0}ing service {1}".format(action.title(), id)
 
-    def verify(self, name, action):
-        if not self.datastore.exists('service_definitions', ('name', '=', name)):
-            raise VerifyException(errno.ENOENT, 'Service {0} not found'.format(name))
+    def verify(self, id, action):
+        if not self.datastore.exists('service_definitions', ('id', '=', id)):
+            raise VerifyException(errno.ENOENT, 'Service {0} not found'.format(id))
 
         return ['system']
 
-    def run(self, name, action):
-        service = self.datastore.get_one('service_definitions', ('name', '=', name))
+    def run(self, id, action):
+        service = self.datastore.get_by_id('service_definitions', id)
         hook_rpc = service.get('{0}_rpc'.format(action))
+        name = service['name']
 
         if hook_rpc:
             try:
