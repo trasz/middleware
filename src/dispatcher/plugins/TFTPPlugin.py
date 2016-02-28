@@ -39,7 +39,7 @@ class TFTPProvider(Provider):
     @accepts()
     @returns(h.ref('service-tftpd'))
     def get_config(self):
-        return ConfigNode('service.tftpd', self.configstore)
+        return ConfigNode('service.tftpd', self.configstore).__getstate__()
 
 
 @private
@@ -84,6 +84,7 @@ def _init(dispatcher, plugin):
     plugin.register_schema_definition('service-tftpd', {
         'type': 'object',
         'properties': {
+            'enable': {'type': 'boolean'},
             'port': {'type': 'integer'},
             'path': {'type': 'string'},
             'allow_new_files': {'type': 'boolean'},

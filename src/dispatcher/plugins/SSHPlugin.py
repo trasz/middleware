@@ -23,12 +23,14 @@
 # POSSIBILITY OF SUCH DAMAGE.
 #
 #####################################################################
+
 import errno
 import logging
 
 from datastore.config import ConfigNode
 from freenas.dispatcher.rpc import RpcException, SchemaHelper as h, description, accepts, returns, private
 from task import Task, Provider, TaskException, ValidationException
+from freenas.utils import exclude
 
 logger = logging.getLogger('SSHPlugin')
 
@@ -38,7 +40,7 @@ class SSHProvider(Provider):
     @accepts()
     @returns(h.ref('service-sshd'))
     def get_config(self):
-        return ConfigNode('service.sshd', self.configstore)
+        return exclude(ConfigNode('service.sshd', self.configstore).__getstate__(), 'keys')
 
 
 @private
@@ -77,8 +79,10 @@ def _init(dispatcher, plugin):
     plugin.register_schema_definition('service-sshd', {
         'type': 'object',
         'properties': {
+            'enable': {'type': 'boolean'},
             'port': {'type': 'integer'},
             'permit_root_login': {'type': 'boolean'},
+            'allow_pubkey_auth': {'type': 'boolean'},
             'allow_password_auth': {'type': 'boolean'},
             'allow_port_forwarding': {'type': 'boolean'},
             'compression': {'type': 'boolean'},

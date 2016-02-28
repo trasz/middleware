@@ -83,7 +83,7 @@ class IPFSProvider(Provider):
     @accepts()
     @returns(h.ref('service-ipfs'))
     def get_config(self):
-        return ConfigNode('service.ipfs', self.configstore)
+        return ConfigNode('service.ipfs', self.configstore).__getstate__()
 
     @ipfs_enabled_error()
     @accepts()
@@ -168,6 +168,7 @@ def _init(dispatcher, plugin):
     plugin.register_schema_definition('service-ipfs', {
         'type': 'object',
         'properties': {
+            'enable': {'type': 'boolean'},
             'path': {'type': 'string'},
         },
         'additionalProperties': False,

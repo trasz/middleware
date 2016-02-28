@@ -46,7 +46,7 @@ class UPSProvider(Provider):
     @accepts()
     @returns(h.ref('service-ups'))
     def get_config(self):
-        return ConfigNode('service.ups', self.configstore)
+        return ConfigNode('service.ups', self.configstore).__getstate__()
 
     @accepts()
     @returns(h.array(h.array(str)))
@@ -223,6 +223,7 @@ def _init(dispatcher, plugin):
     plugin.register_schema_definition('service-ups', {
         'type': 'object',
         'properties': {
+            'enable': {'type': 'boolean'},
             'mode': {'type': 'string', 'enum': [
                 'MASTER',
                 'SLAVE',

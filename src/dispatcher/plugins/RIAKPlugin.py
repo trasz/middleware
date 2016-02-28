@@ -83,6 +83,7 @@ def _init(dispatcher, plugin):
     plugin.register_schema_definition('service-riak', {
         'type': 'object',
         'properties': {
+            'enable': {'type': 'boolean'},
             'save_description': {'type': 'boolean'},
             'nodename': {'type': ['string', 'null']},
             'node_ip': {'type': ['string', 'null']},

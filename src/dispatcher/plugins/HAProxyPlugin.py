@@ -39,7 +39,7 @@ class HAProxyProvider(Provider):
     @accepts()
     @returns(h.ref('service-haproxy'))
     def get_config(self):
-        return ConfigNode('service.haproxy', self.configstore)
+        return ConfigNode('service.haproxy', self.configstore).__getstate__()
 
 
 @private
@@ -84,6 +84,7 @@ def _init(dispatcher, plugin):
     plugin.register_schema_definition('service-haproxy', {
         'type': 'object',
         'properties': {
+            'enable': {'type': 'boolean'},
             'global_maxconn': {'type': ['integer', 'null']},
             'defaults_maxconn': {'type': ['integer', 'null']},
             'http_ip': {'type': ['string', 'null']},

@@ -40,7 +40,7 @@ class WebDAVProvider(Provider):
     @accepts()
     @returns(h.ref('service-webdav'))
     def get_config(self):
-        return ConfigNode('service.webdav', self.configstore)
+        return ConfigNode('service.webdav', self.configstore).__getstate__()
 
 
 @private
@@ -98,6 +98,7 @@ def _init(dispatcher, plugin):
     plugin.register_schema_definition('service-webdav', {
         'type': 'object',
         'properties': {
+            'enable': {'type': 'boolean'},
             'protocol': {
                 'type': ['array'],
                 'items': {

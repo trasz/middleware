@@ -55,7 +55,7 @@ class DynDNSProvider(Provider):
     @accepts()
     @returns(h.ref('service-dyndns'))
     def get_config(self):
-        return ConfigNode('service.dyndns', self.configstore)
+        return ConfigNode('service.dyndns', self.configstore).__getstate__()
 
     @accepts()
     @returns(h.object())
@@ -105,6 +105,7 @@ def _init(dispatcher, plugin):
     plugin.register_schema_definition('service-dyndns', {
         'type': 'object',
         'properties': {
+            'enable': {'type': 'boolean'},
             'provider': {'type': ['string', 'null'], 'enum': [None] + list(PROVIDERS.values())},
             'ipserver': {'type': ['string', 'null']},
             'domains': {'type': 'array', 'items': {'type': 'string'}},

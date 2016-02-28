@@ -39,7 +39,7 @@ class SMARTProvider(Provider):
     @accepts()
     @returns(h.ref('service-smartd'))
     def get_config(self):
-        return ConfigNode('service.smartd', self.configstore)
+        return ConfigNode('service.smartd', self.configstore).__getstate__()
 
 
 @private
@@ -84,6 +84,7 @@ def _init(dispatcher, plugin):
     plugin.register_schema_definition('service-smartd', {
         'type': 'object',
         'properties': {
+            'enable': {'type': 'boolean'},
             'interval': {'type': 'integer'},
             'power_mode': {'type': 'string', 'enum': [
                 'NEVER',

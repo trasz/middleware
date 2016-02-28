@@ -41,7 +41,7 @@ class NFSProvider(Provider):
     @accepts()
     @returns(h.ref('service-nfs'))
     def get_config(self):
-        return ConfigNode('service.nfs', self.configstore)
+        return ConfigNode('service.nfs', self.configstore).__getstate__()
 
 
 @private
@@ -87,6 +87,7 @@ def _init(dispatcher, plugin):
     plugin.register_schema_definition('service-nfs', {
         'type': 'object',
         'properties': {
+            'enable': {'type': 'boolean'},
             'servers': {'type': 'integer'},
             'udp': {'type': 'boolean'},
             'nonroot': {'type': 'boolean'},

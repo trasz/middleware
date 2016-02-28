@@ -38,7 +38,7 @@ class SWIFTProvider(Provider):
     @accepts()
     @returns(h.ref('service-swift'))
     def get_config(self):
-        return ConfigNode('service.swift', self.configstore)
+        return ConfigNode('service.swift', self.configstore).__getstate__()
 
 
 @private
@@ -82,6 +82,7 @@ def _init(dispatcher, plugin):
     plugin.register_schema_definition('service-swift', {
         'type': 'object',
         'properties': {
+            'enable': {'type': 'boolean'},
             'swift_hash_path_suffix': {'type': ['string', 'null']},
             'swift_hash_path_prefix': {'type': ['string', 'null']},
         },

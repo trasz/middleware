@@ -93,6 +93,7 @@ def _init(dispatcher, plugin):
     plugin.register_schema_definition('service-afp', {
         'type': 'object',
         'properties': {
+            'enable': {'type': 'boolean'},
             'guest_enable': {'type': 'boolean'},
             'guest_user': {'type': 'string'},
             'bind_addresses': {

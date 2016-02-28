@@ -39,7 +39,7 @@ class LLDPProvider(Provider):
     @accepts()
     @returns(h.ref('service-lldp'))
     def get_config(self):
-        return ConfigNode('service.lldp', self.configstore)
+        return ConfigNode('service.lldp', self.configstore).__getstate__()
 
 
 @private
@@ -91,6 +91,7 @@ def _init(dispatcher, plugin):
     plugin.register_schema_definition('service-lldp', {
         'type': 'object',
         'properties': {
+            'enable': {'type': 'boolean'},
             'save_description': {'type': 'boolean'},
             'country_code': {'type': ['string', 'null']},
             'location': {'type': ['string', 'null']},

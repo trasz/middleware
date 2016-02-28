@@ -38,7 +38,7 @@ class GlusterdProvider(Provider):
     @accepts()
     @returns(h.ref('service-glusterd'))
     def get_config(self):
-        return ConfigNode('service.glusterd', self.configstore)
+        return ConfigNode('service.glusterd', self.configstore).__getstate__()
 
 
 @private
@@ -82,6 +82,7 @@ def _init(dispatcher, plugin):
     plugin.register_schema_definition('service-glusterd', {
         'type': 'object',
         'properties': {
+            'enable': {'type': 'boolean'},
             'working_directory': {'type': ['string', 'null']},
         },
         'additionalProperties': False,
