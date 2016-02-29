@@ -47,7 +47,7 @@ def calculate_broadcast(address, netmask):
 @description("Provides access to global network configuration settings")
 class NetworkProvider(Provider):
     @returns(h.ref('network-config'))
-    def get_global_config(self):
+    def get_config(self):
         return ConfigNode('network', self.configstore)
 
     @returns(h.array(str))
@@ -726,7 +726,7 @@ def _init(dispatcher, plugin):
     plugin.register_provider('network.route', RouteProvider)
     plugin.register_provider('network.host', HostsProvider)
 
-    plugin.register_task_handler('network.update', NetworkConfigureTask)
+    plugin.register_task_handler('network.config.update', NetworkConfigureTask)
     plugin.register_task_handler('network.host.create', AddHostTask)
     plugin.register_task_handler('network.host.update', UpdateHostTask)
     plugin.register_task_handler('network.host.delete', DeleteHostTask)
