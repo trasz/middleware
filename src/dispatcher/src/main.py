@@ -476,7 +476,7 @@ class Dispatcher(object):
         for i in unloadlist:
             try:
                 i.unload()
-            except RuntimeError:
+            except BaseException:
                 self.logger.warning(
                     "Error unloading plugin {0}".format(i.filename),
                     exc_info=True
