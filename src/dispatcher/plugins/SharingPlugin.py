@@ -191,7 +191,7 @@ class CreateShareTask(Task):
                     }))
             else:
                 if share_type['subtype'] == 'FILE':
-                    self.run_subtask('volume.dataset.update', pool, dataset, {
+                    self.run_subtask('volume.dataset.update', dataset, {
                         'permissions_type': share_type['perm_type']
                     })
 
@@ -258,7 +258,7 @@ class UpdateShareTask(Task):
             if share['target_type'] == 'DATASET':
                 pool, dataset = split_dataset(share['target_path'])
                 self.join_subtasks(
-                    self.run_subtask('volume.dataset.update', pool, dataset, {
+                    self.run_subtask('volume.dataset.update', dataset, {
                         'permissions_type': new_share_type['perm_type']
                     })
                 )

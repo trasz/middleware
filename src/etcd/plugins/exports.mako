@@ -28,9 +28,9 @@
                 result.append('-mapall={mapall_user}'.format(**properties))
         elif properties.get('maproot_user'):
             if properties.get('maproot_group'):
-                result.append('-maproot={maroot_user}:{maproot_group}'.format(**properties))
+                result.append('-maproot={maproot_user}:{maproot_group}'.format(**properties))
             else:
-                result.append('-maproot={maroot_user}'.format(**properties))
+                result.append('-maproot={maproot_user}'.format(**properties))
 
         if network:
             if '/' in network:

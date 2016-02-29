@@ -225,6 +225,7 @@ def _metadata():
 def _init(dispatcher, plugin):
     plugin.register_schema_definition('share-smb', {
         'type': 'object',
+        'additionalProperties': False,
         'properties': {
             'comment': {'type': 'string'},
             'read_only': {'type': 'boolean'},
