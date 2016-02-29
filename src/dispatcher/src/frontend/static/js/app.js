@@ -29,10 +29,25 @@ config(['$routeProvider', function($routeProvider) {
           templateUrl: '../static/partials/stats.html',
           controller: StatsController
       }).
-      when('/apidocs/',
-        {
+      when('/tasks', {
+          templateUrl: '../static/partials/tasks.html' ,
+          controller: TasksController
+      }).
+      when('/apidocs/', {
           templateUrl: '../static/partials/apidocs.html',
           controller: APIdocController
         }).
+      when('/404',{
+          templateUrl: '../static/partials/404.html',
+          controller: Four04Controller
+      }).
+      when('/500', {
+          templateUrl: '../static/partials/500.html',
+          controller: Five00Controller
+      }).
+      when('/status/:status_code/',{
+          templateUrl: '../static/partials/status.html',
+          controller: HTTPStatusController
+      }).
       otherwise({redirectTo: '/'});
 }]);
