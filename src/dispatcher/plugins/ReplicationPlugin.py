@@ -34,7 +34,7 @@ import paramiko
 from paramiko import RSAKey, AuthenticationException
 from datetime import datetime
 from dateutil.parser import parse as parse_datetime
-from task import Provider, Task, ProgressTask, VerifyException, TaskException, TaskWarning
+from task import Provider, Task, ProgressTask, VerifyException, TaskException, TaskWarning, query
 from freenas.dispatcher.rpc import RpcException, SchemaHelper as h, description, accepts, returns, private
 from freenas.dispatcher.client import Client
 from freenas.utils import to_timedelta, first_or_default
@@ -127,7 +127,15 @@ class ReplicationProvider(Provider):
     def scan_keys_on_host(self, hostname):
         return self.dispatcher.call_task_sync('replication.scan_hostkey', hostname)
 
-    def get_failover(self, name):
+
+class FailoverProvider(Provider):
+    @query('failover-link')
+    def query(self, filter=None, params=None):
+        return self.datastore.query(
+            'failover-links', *(filter or []), **(params or {})
+        )
+
+    def get_one(self, name):
         if self.datastore.exists('failover.links', ('name', '=', name)):
             return self.datastore.get_one('failover.links', ('name', '=', name))
         else:
@@ -394,7 +402,7 @@ class FailoverReplicationSwitch(Task):
         })
 
         remote_client = get_client(remote)
-        if link is not remote_client.call_sync('replication.get_failover', name):
+        if link is not remote_client.call_sync('failover.get_one', name):
             remote_client.call_task_sync(
                 'replication.failover.switch',
                 link['name']
@@ -726,7 +734,7 @@ def get_latest_failover_link(dispatcher, datastore, name):
 
         try:
             client = get_client(remote)
-            remote_link = client.call_sync('replication.get_failover', name)
+            remote_link = client.call_sync('failover.get_one', name)
             client.disconnect()
 
             if parse_datetime(local_link['update_date']) > parse_datetime(remote_link['update_date']):
@@ -800,6 +808,7 @@ def _init(dispatcher, plugin):
     })
 
     plugin.register_provider('replication', ReplicationProvider)
+    plugin.register_provider('failover', FailoverProvider)
     plugin.register_task_handler('volume.snapshot_dataset', SnapshotDatasetTask)
     plugin.register_task_handler('replication.scan_hostkey', ScanHostKeyTask)
     plugin.register_task_handler('replication.replicate_dataset', ReplicateDatasetTask)
