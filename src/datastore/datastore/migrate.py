@@ -127,6 +127,9 @@ def migrate_collection(ds, dump, directory, force=False):
     upsert = metadata['migration'] in ('merge-overwrite', 'replace')
     configstore = metadata['attributes'].get('configstore', False)
 
+    # Update pkey type for collection
+    ds.collection_set_pkey_type(name, metadata['pkey-type'])
+
     if metadata['migration'] != 'replace' and directory and os.path.isdir(directory) and ds.collection_exists(name):
         apply_migrations(ds, name, directory, force)
 
