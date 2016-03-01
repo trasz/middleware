@@ -239,7 +239,10 @@ class TaskExecutor(object):
     def die(self):
         self.exiting = True
         if self.proc:
-            self.proc.terminate()
+            try:
+                self.proc.terminate()
+            except ProcessLookupError:
+                self.balancer.logger.warning('Executor process with PID {0} already dead'.format(self.proc.pid))
 
 
 class Task(object):
