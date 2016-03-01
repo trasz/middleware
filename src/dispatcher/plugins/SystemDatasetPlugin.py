@@ -57,7 +57,7 @@ def link_directories(dispatcher):
             user = dispatcher.call_sync('user.query', [('username', '=', d['owner'])], {'single': True})
             group = dispatcher.call_sync('group.query', [('name', '=', d['group'])], {'single': True})
             if user and group:
-                os.chown(target, user['id'], group['id'])
+                os.chown(target, user['uid'], group['gid'])
 
         for cname, c in d.get('children', {}).items():
             try:
@@ -73,7 +73,7 @@ def link_directories(dispatcher):
                 user = dispatcher.call_sync('user.query', [('username', '=', c['owner'])], {'single': True})
                 group = dispatcher.call_sync('group.query', [('name', '=', c['group'])], {'single': True})
                 if user and group:
-                    os.chown(os.path.join(target, cname), user['id'], group['id'])
+                    os.chown(os.path.join(target, cname), user['uid'], group['gid'])
 
 
 def create_system_dataset(dispatcher, dsid, pool):

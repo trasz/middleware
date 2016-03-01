@@ -104,10 +104,10 @@ class UserProvider(Provider):
         start_uid, end_uid = self.dispatcher.configstore.get('accounts.local_uid_range')
         uid = None
         for i in range(start_uid, end_uid):
-            if check_gid and self.datastore.exists('groups', ('id', '=', i)):
+            if check_gid and self.datastore.exists('groups', ('gid', '=', i)):
                 continue
 
-            if not self.datastore.exists('users', ('id', '=', i)):
+            if not self.datastore.exists('users', ('uid', '=', i)):
                 uid = i
                 break
 
@@ -123,11 +123,11 @@ class GroupProvider(Provider):
     @query('group')
     def query(self, filter=None, params=None):
         def extend(group):
-            group['members'] = [x['id'] for x in self.datastore.query(
+            group['members'] = [x['uid'] for x in self.datastore.query(
                 'users',
                 ('or', (
-                    ('groups', 'in', group['id']),
-                    ('group', '=', group['id'])
+                    ('groups', 'in', group['gid']),
+                    ('group', '=', group['gid'])
                 ))
             )]
             return group
@@ -140,7 +140,7 @@ class GroupProvider(Provider):
         start_gid, end_gid = self.dispatcher.configstore.get('accounts.local_gid_range')
         gid = None
         for i in range(start_gid, end_gid):
-            if not self.datastore.exists('groups', ('id', '=', i)):
+            if not self.datastore.exists('groups', ('gid', '=', i)):
                 gid = i
                 break
 
@@ -180,7 +180,7 @@ class UserCreateTask(Task):
         if self.datastore.exists('users', ('username', '=', user['username'])):
             raise VerifyException(errno.EEXIST, 'User with given name already exists')
 
-        if 'id' in user and self.datastore.exists('users', ('id', '=', user['id'])):
+        if 'uid' in user and self.datastore.exists('users', ('uid', '=', user['uid'])):
             raise VerifyException(errno.EEXIST, 'User with given UID already exists')
 
         if 'groups' in user and len(user['groups']) > 64:
@@ -204,11 +204,11 @@ class UserCreateTask(Task):
         return ['system']
 
     def run(self, user):
-        if 'id' not in user:
+        if 'uid' not in user:
             # Need to get next free UID
             uid = self.dispatcher.call_sync('user.next_uid', user.get('group') is None)
         else:
-            uid = user.pop('id')
+            uid = user.pop('uid')
 
         self.uid = uid
 
@@ -220,6 +220,7 @@ class UserCreateTask(Task):
                 'shell': '/bin/sh',
                 'home': '/nonexistent',
                 'groups': [],
+                'uid': uid,
                 'attributes': {}
             })
 
@@ -230,7 +231,7 @@ class UserCreateTask(Task):
             if user.get('group') is None:
                 try:
                     result = self.join_subtasks(self.run_subtask('group.create', {
-                        'id': uid,
+                        'gid': uid,
                         'name': user['username']
                     }))
                 except RpcException as err:
@@ -239,7 +240,7 @@ class UserCreateTask(Task):
                 user['group'] = result[0]
                 self.created_group = result[0]
 
-            self.datastore.insert('users', user, pkey=uid)
+            self.datastore.insert('users', user)
             self.dispatcher.call_sync('etcd.generation.generate_group', 'accounts')
 
             if password:
@@ -293,7 +294,7 @@ class UserCreateTask(Task):
             if os.path.isdir(user['home']):
                 os.rmdir(user['home'])
 
-        if self.datastore.exists('users', ('id', '=', self.uid)):
+        if self.datastore.exists('users', ('uid', '=', self.uid)):
             self.datastore.delete('users', self.uid)
             self.dispatcher.call_sync('etcd.generation.generate_group', 'accounts')
 
@@ -322,11 +323,11 @@ class UserDeleteTask(Task):
     def run(self, uid):
         try:
             user = self.datastore.get_by_id('users', uid)
-            if user['group'] == uid and self.datastore.exists('groups', ('id', '=', uid)):
-                group = self.datastore.get_one('groups', ('id', '=', uid))
+            if user['group'] == uid and self.datastore.exists('groups', ('uid', '=', uid)):
+                group = self.datastore.get_one('groups', ('gid', '=', uid))
                 self.add_warning(TaskWarning(
                     errno.EBUSY,
-                    'Group {0} ({1}) left behind, you need to delete it separately'.format(group['name'], group['id']))
+                    'Group {0} ({1}) left behind, you need to delete it separately'.format(group['name'], group['gid']))
                 )
 
             self.datastore.delete('users', uid)
@@ -355,7 +356,7 @@ class UserUpdateTask(Task):
         self.original_user = None
 
     def verify(self, uid, updated_fields):
-        if not self.datastore.exists('users', ('id', '=', uid)):
+        if not self.datastore.exists('users', ('uid', '=', uid)):
             raise VerifyException(errno.ENOENT, 'User does not exist')
 
         user = self.datastore.get_by_id('users', uid)
@@ -364,8 +365,8 @@ class UserUpdateTask(Task):
             if 'home' in updated_fields:
                 errors.append(('home', errno.EPERM, "Cannot change builtin user's home directory"))
             # Similarly ignore uid changes for builtin users
-            if 'id' in updated_fields:
-                errors.append(('id', errno.EPERM, "Cannot change builtin user's UID"))
+            if 'uid' in updated_fields:
+                errors.append(('uid', errno.EPERM, "Cannot change builtin user's UID"))
             if 'username' in updated_fields:
                 errors.append(('username', errno.EPERM, "Cannot change builtin user's username"))
             if 'locked' in updated_fields:
@@ -378,7 +379,7 @@ class UserUpdateTask(Task):
             errors.append(('full_name', errno.EINVAL, 'The character ":" is not allowed'))
 
         if 'username' in updated_fields:
-            if self.datastore.exists('users', ('username', '=', updated_fields['username']), ('id', '!=', uid)):
+            if self.datastore.exists('users', ('username', '=', updated_fields['username']), ('uid', '!=', uid)):
                 errors.append(('username', errno.EEXIST, 'Different user with given name already exists'))
 
         if 'email' in updated_fields:
@@ -394,9 +395,9 @@ class UserUpdateTask(Task):
 
         return ['system']
 
-    def run(self, uid, updated_fields):
+    def run(self, id, updated_fields):
         try:
-            user = self.datastore.get_by_id('users', uid)
+            user = self.datastore.get_by_id('users', id)
             self.original_user = copy.deepcopy(user)
 
             home_before = user.get('home')
@@ -406,7 +407,7 @@ class UserUpdateTask(Task):
             if password:
                 user['unixhash'] = crypted_password(password)
 
-            self.datastore.update('users', uid, user)
+            self.datastore.update('users', user['id'], user)
             self.dispatcher.call_sync('etcd.generation.generate_group', 'accounts')
 
             if password:
@@ -415,7 +416,7 @@ class UserUpdateTask(Task):
                     stdin='{0}\n{1}\n'.format(password, password).encode('utf8')
                 )
                 user['smbhash'] = system('/usr/local/bin/pdbedit', '-d', '0', '-w', user['username'])[0]
-                self.datastore.update('users', uid, user)
+                self.datastore.update('users', id, user)
 
         except SubprocessException as e:
             raise TaskException(
@@ -438,10 +439,10 @@ class UserUpdateTask(Task):
                     system('mv', home_before, user['home'])
                 else:
                     os.makedirs(user['home'])
-                    os.chown(user['home'], uid, user['group'])
+                    os.chown(user['home'], user['uid'], user['group'])
                     os.chmod(user['home'], 0o755)
             elif user['home'] != home_before:
-                os.chown(user['home'], uid, user['group'])
+                os.chown(user['home'], user['uid'], user['group'])
                 os.chmod(user['home'], 0o755)
         elif not user['builtin'] and user['home'] not in (None, '/nonexistent'):
             raise TaskException(
@@ -449,12 +450,6 @@ class UserUpdateTask(Task):
                 "Invalid mountpoint specified for home directory: {0}. ".format(user['home']) +
                 "Use '{0}' instead as the mountpoint".format(volumes_root)
             )
-
-        if uid != user['id']:
-            self.dispatcher.dispatch_event('user.changed', {
-                'operation': 'rename',
-                'ids': [[uid, user['id']]]
-            })
 
         self.dispatcher.dispatch_event('user.changed', {
             'operation': 'update',
@@ -497,9 +492,9 @@ class GroupCreateTask(Task):
                 ("name", errno.EEXIST, 'Group {0} already exists'.format(group['name']))
             )
 
-        if 'id' in group and self.datastore.exists('groups', ('id', '=', group['id'])):
+        if 'gid' in group and self.datastore.exists('groups', ('gid', '=', group['gid'])):
             errors.append(
-                ("id", errno.EEXIST, 'Group with GID {0} already exists'.format(group['id']))
+                ("gid", errno.EEXIST, 'Group with GID {0} already exists'.format(group['gid']))
             )
 
         if errors:
@@ -508,16 +503,16 @@ class GroupCreateTask(Task):
         return ['system']
 
     def run(self, group):
-        if 'id' not in group:
+        if 'gid' not in group:
             # Need to get next free GID
             gid = self.dispatcher.call_sync('group.next_gid')
         else:
-            gid = group.pop('id')
+            gid = group.pop('gid')
 
         try:
             group['builtin'] = False
             group.setdefault('sudo', False)
-            self.datastore.insert('groups', group, pkey=gid)
+            gid = self.datastore.insert('groups', group, pkey=gid)
             self.dispatcher.call_sync('etcd.generation.generate_group', 'accounts')
         except DatastoreException as e:
             raise TaskException(errno.EBADMSG, 'Cannot add group: {0}'.format(str(e)))
@@ -540,7 +535,7 @@ class GroupUpdateTask(Task):
 
     def verify(self, id, updated_fields):
         # Check if group exists
-        group = self.datastore.get_one('groups', ('id', '=', id))
+        group = self.datastore.get_one('groups', ('gid', '=', id))
         if group is None:
             raise VerifyException(errno.ENOENT, 'Group with given ID does not exist')
 
@@ -550,7 +545,7 @@ class GroupUpdateTask(Task):
             errors.append(('name', code, message))
 
         # Check if there is another group with same name being renamed to
-        if self.datastore.exists('groups', ('name', '=', group['name']), ('id', '!=', id)):
+        if self.datastore.exists('groups', ('name', '=', group['name']), ('gid', '!=', group['gid'])):
             errors.append(
                 ("name", errno.EEXIST, 'Group {0} already exists'.format(group['name']))
             )
@@ -583,9 +578,9 @@ class GroupDeleteTask(Task):
     def describe(self, gid):
         return "Deleting group {0}".format(gid)
 
-    def verify(self, gid):
+    def verify(self, id):
         # Check if group exists
-        group = self.datastore.get_one('groups', ('id', '=', gid))
+        group = self.datastore.get_by_id('groups', id)
         if group is None:
             raise VerifyException(errno.ENOENT, 'Group with given ID does not exist')
 
@@ -595,14 +590,16 @@ class GroupDeleteTask(Task):
 
         return ['system']
 
-    def run(self, gid):
+    def run(self, id):
         try:
+            group = self.datastore.get_by_id('groups', id)
+
             # Remove group from users
-            for i in self.datastore.query('users', ('groups', 'in', gid)):
-                i['groups'].remove(gid)
+            for i in self.datastore.query('users', ('groups', 'in', group['gid'])):
+                i['groups'].remove(id)
                 self.datastore.update('users', i['id'], i)
 
-            self.datastore.delete('groups', gid)
+            self.datastore.delete('groups', id)
             self.dispatcher.call_sync('etcd.generation.generate_group', 'accounts')
         except DatastoreException as e:
             raise TaskException(errno.EBADMSG, 'Cannot delete group: {0}'.format(str(e)))
@@ -611,7 +608,7 @@ class GroupDeleteTask(Task):
 
         self.dispatcher.dispatch_event('group.changed', {
             'operation': 'delete',
-            'ids': [gid]
+            'ids': [id]
         })
 
 
@@ -620,7 +617,8 @@ def _init(dispatcher, plugin):
     plugin.register_schema_definition('user', {
         'type': 'object',
         'properties': {
-            'id': {'type': 'number'},
+            'id': {'type': 'string'},
+            'uid': {'type': 'integer'},
             'builtin': {'type': 'boolean', 'readOnly': True},
             'username': {'type': 'string'},
             'full_name': {'type': ['string', 'null']},
@@ -649,7 +647,8 @@ def _init(dispatcher, plugin):
     plugin.register_schema_definition('group', {
         'type': 'object',
         'properties': {
-            'id': {'type': 'integer'},
+            'id': {'type': 'string'},
+            'uid': {'type': 'integer'},
             'builtin': {'type': 'boolean', 'readOnly': True},
             'name': {'type': 'string'},
             'sudo': {'type': 'boolean'},
