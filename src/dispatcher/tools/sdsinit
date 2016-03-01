@@ -83,7 +83,7 @@ def link_directories():
             user = ds.get_one('users', ('username', '=', d['owner']))
             group = ds.get_one('groups', ('name', '=', d['group']))
             if user and group:
-                os.chown(target, user['id'], group['id'])
+                os.chown(target, user['uid'], group['gid'])
 
         for cname, c in d.get('children', {}).items():
             try:
