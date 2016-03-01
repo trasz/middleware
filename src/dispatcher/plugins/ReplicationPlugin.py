@@ -253,7 +253,7 @@ class FailoverReplicationCreate(Task):
                         remote_client.call_task_sync(
                             'volume.create',
                             {
-                                'id': vol['name'],
+                                'id': vol['id'],
                                 'type': vol['type'],
                                 'params': {'encryption': True if password else False},
                                 'topology': vol['topology']
