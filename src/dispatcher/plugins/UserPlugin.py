@@ -303,7 +303,7 @@ class UserCreateTask(Task):
 
 
 @description("Deletes an user from the system")
-@accepts(int)
+@accepts(str)
 class UserDeleteTask(Task):
     def describe(self, uid):
         user = self.datastore.get_by_id('users', uid)
@@ -343,7 +343,7 @@ class UserDeleteTask(Task):
 
 @description('Updates an user')
 @accepts(
-    int,
+    str,
     h.all_of(
         h.ref('user'),
         h.forbidden('builtin'),
@@ -355,11 +355,11 @@ class UserUpdateTask(Task):
         super(UserUpdateTask, self).__init__(dispatcher, datastore)
         self.original_user = None
 
-    def verify(self, uid, updated_fields):
-        if not self.datastore.exists('users', ('uid', '=', uid)):
-            raise VerifyException(errno.ENOENT, 'User does not exist')
+    def verify(self, id, updated_fields):
+        user = self.datastore.get_by_id('users', id)
+        if not user:
+            raise VerifyException(errno.ENOENT, 'User {0} does not exist'.format(id))
 
-        user = self.datastore.get_by_id('users', uid)
         errors = []
         if user.get('builtin'):
             if 'home' in updated_fields:
@@ -379,7 +379,7 @@ class UserUpdateTask(Task):
             errors.append(('full_name', errno.EINVAL, 'The character ":" is not allowed'))
 
         if 'username' in updated_fields:
-            if self.datastore.exists('users', ('username', '=', updated_fields['username']), ('uid', '!=', uid)):
+            if self.datastore.exists('users', ('username', '=', updated_fields['username']), ('id', '!=', id)):
                 errors.append(('username', errno.EEXIST, 'Different user with given name already exists'))
 
         if 'email' in updated_fields:
@@ -529,14 +529,14 @@ class GroupCreateTask(Task):
 
 
 @description("Updates a group")
-@accepts(int, h.ref('group'))
+@accepts(str, h.ref('group'))
 class GroupUpdateTask(Task):
     def describe(self, id, updated_fields):
         return "Deleting group {0}".format(id)
 
     def verify(self, id, updated_fields):
         # Check if group exists
-        group = self.datastore.get_one('groups', ('gid', '=', id))
+        group = self.datastore.get_by_id('groups', id)
         if group is None:
             raise VerifyException(errno.ENOENT, 'Group with given ID does not exist')
 
@@ -574,7 +574,7 @@ class GroupUpdateTask(Task):
 
 
 @description("Deletes a group")
-@accepts(int)
+@accepts(str)
 class GroupDeleteTask(Task):
     def describe(self, gid):
         return "Deleting group {0}".format(gid)
@@ -649,7 +649,7 @@ def _init(dispatcher, plugin):
         'type': 'object',
         'properties': {
             'id': {'type': 'string'},
-            'uid': {'type': 'integer'},
+            'gid': {'type': 'integer'},
             'builtin': {'type': 'boolean', 'readOnly': True},
             'name': {'type': 'string'},
             'sudo': {'type': 'boolean'},
