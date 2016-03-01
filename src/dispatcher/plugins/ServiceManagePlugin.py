@@ -100,9 +100,16 @@ class ServiceInfoProvider(Provider):
             raise RpcException(errno.EINVAL, 'Invalid service name')
 
         if svc.get('get_config_rpc'):
-            return self.dispatcher.call_sync(svc['get_config_rpc'])
+            ret = self.dispatcher.call_sync(svc['get_config_rpc'])
+        else:
+            ret = ConfigNode('service.{0}'.format(svc['name']), self.configstore).__getstate__()
 
-        return ConfigNode('service.{0}'.format(svc['name']), self.configstore).__getstate__()
+        if not ret:
+            return
+
+        return extend_dict(ret, {
+            'type': 'service-{0}'.format(svc['name'])
+        })
 
     @private
     @accepts(str)
@@ -291,8 +298,7 @@ class ServiceManageTask(Task):
 @description("Updates configuration for services")
 @accepts(str, h.all_of(
     h.ref('service'),
-    h.forbidden('id', 'name', 'builtin', 'pid', 'state'),
-    h.required('config')
+    h.forbidden('id', 'name', 'builtin', 'pid', 'state')
 ))
 class UpdateServiceConfigTask(Task):
     def describe(self, id, updated_fields):
@@ -305,12 +311,16 @@ class UpdateServiceConfigTask(Task):
                 errno.ENOENT,
                 'Service {0} not found'.format(id))
 
-        for x in updated_fields['config']:
-            if not self.configstore.exists('service.{0}.{1}'.format(svc['name'], x)):
-                raise VerifyException(
-                    errno.ENOENT,
-                    'Service {0} does not have the following key: {1}'.format(
-                        svc['name'], x))
+        if 'config' in updated_fields:
+            for x in updated_fields['config']:
+                if x == 'type':
+                    continue
+
+                if not self.configstore.exists('service.{0}.{1}'.format(svc['name'], x)):
+                    raise VerifyException(
+                        errno.ENOENT,
+                        'Service {0} does not have the following key: {1}'.format(
+                            svc['name'], x))
 
         return ['system']
 
@@ -323,6 +333,8 @@ class UpdateServiceConfigTask(Task):
 
         if updated_config is None:
             return
+
+        del updated_config['type']
 
         if service_def.get('task'):
             enable = updated_config.pop('enable', None)
@@ -453,6 +465,7 @@ def _init(dispatcher, plugin):
 
     plugin.register_schema_definition('service', {
         'type': 'object',
+        'additionalProperties': False,
         'properties': {
             'id': {'type': 'string'},
             'pid': {'type': 'integer'},
@@ -466,8 +479,10 @@ def _init(dispatcher, plugin):
     })
 
     plugin.register_schema_definition('service-config', {
+        'discriminator': 'type',
         'oneOf': [
-            {'$ref': 'service-{0}'.format(svc['name'])} for svc in dispatcher.datastore.query('service_definitions')
+            {'$ref': 'service-{0}'.format(svc['name'])}
+            for svc in dispatcher.datastore.query('service_definitions')
             if not svc['builtin']
         ]
     })
