@@ -1437,7 +1437,7 @@ def _init(dispatcher, plugin):
             if int(vol['guid']) in unimported_unique_pools:
                 pool_to_import = unimported_unique_pools[int(vol['guid'])]
                 # Check if the volume name is also the same
-                if vol['name'] == pool_to_import.name:
+                if vol['id'] == pool_to_import.name:
                     opts = {}
                     try:
                         zfs.import_pool(pool_to_import, pool_to_import.name, opts)
