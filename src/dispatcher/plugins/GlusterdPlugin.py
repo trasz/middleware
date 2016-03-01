@@ -82,6 +82,7 @@ def _init(dispatcher, plugin):
     plugin.register_schema_definition('service-glusterd', {
         'type': 'object',
         'properties': {
+            'type': {'enum': ['service-glusterd']},
             'enable': {'type': 'boolean'},
             'working_directory': {'type': ['string', 'null']},
         },

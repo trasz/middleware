@@ -98,6 +98,7 @@ def _init(dispatcher, plugin):
     plugin.register_schema_definition('service-webdav', {
         'type': 'object',
         'properties': {
+            'type': {'enum': ['service-webdav']},
             'enable': {'type': 'boolean'},
             'protocol': {
                 'type': ['array'],

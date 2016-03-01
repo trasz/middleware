@@ -83,6 +83,7 @@ def _init(dispatcher, plugin):
     plugin.register_schema_definition('service-riak_cs', {
         'type': 'object',
         'properties': {
+            'type': {'enum': ['service-riak_cs']},
             'enable': {'type': 'boolean'},
             'listener_ip': {'type': ['string', 'null']},
             'listener_port': {'type': ['integer', 'null']},

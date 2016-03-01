@@ -168,6 +168,7 @@ def _init(dispatcher, plugin):
     plugin.register_schema_definition('service-ipfs', {
         'type': 'object',
         'properties': {
+            'type': {'enum': ['service-ipfs']},
             'enable': {'type': 'boolean'},
             'path': {'type': 'string'},
         },

@@ -82,6 +82,7 @@ def _init(dispatcher, plugin):
     plugin.register_schema_definition('service-swift', {
         'type': 'object',
         'properties': {
+            'type': {'enum': ['service-swift']},
             'enable': {'type': 'boolean'},
             'swift_hash_path_suffix': {'type': ['string', 'null']},
             'swift_hash_path_prefix': {'type': ['string', 'null']},

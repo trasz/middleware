@@ -83,6 +83,7 @@ def _init(dispatcher, plugin):
     plugin.register_schema_definition('service-stanchion', {
         'type': 'object',
         'properties': {
+            'type': {'enum': ['service-stanchion']},
             'enable': {'type': 'boolean'},
             'listener_ip': {'type': ['string', 'null']},
             'listener_port': {'type': ['integer', 'null']},

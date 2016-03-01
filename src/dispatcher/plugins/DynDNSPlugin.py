@@ -105,6 +105,7 @@ def _init(dispatcher, plugin):
     plugin.register_schema_definition('service-dyndns', {
         'type': 'object',
         'properties': {
+            'type': {'enum': ['service-dyndns']},
             'enable': {'type': 'boolean'},
             'provider': {'type': ['string', 'null'], 'enum': [None] + list(PROVIDERS.values())},
             'ipserver': {'type': ['string', 'null']},

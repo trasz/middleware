@@ -226,6 +226,7 @@ def _init(dispatcher, plugin):
     plugin.register_schema_definition('service-smb', {
         'type': 'object',
         'properties': {
+            'type': {'enum': ['service-smb']},
             'enable': {'type': 'boolean'},
             'netbiosname': {
                 'type': 'array',

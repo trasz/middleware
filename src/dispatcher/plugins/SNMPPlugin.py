@@ -111,6 +111,7 @@ def _init(dispatcher, plugin):
     plugin.register_schema_definition('service-snmp', {
         'type': 'object',
         'properties': {
+            'type': {'enum': ['service-snmp']},
             'enable': {'type': 'boolean'},
             'location': {'type': ['string', 'null']},
             'contact': {'type': ['string', 'null']},

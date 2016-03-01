@@ -79,6 +79,7 @@ def _init(dispatcher, plugin):
     plugin.register_schema_definition('service-sshd', {
         'type': 'object',
         'properties': {
+            'type': {'enum': ['service-sshd']},
             'enable': {'type': 'boolean'},
             'port': {'type': 'integer'},
             'permit_root_login': {'type': 'boolean'},

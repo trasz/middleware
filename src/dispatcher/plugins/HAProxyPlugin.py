@@ -84,6 +84,7 @@ def _init(dispatcher, plugin):
     plugin.register_schema_definition('service-haproxy', {
         'type': 'object',
         'properties': {
+            'type': {'enum': ['service-haproxy']},
             'enable': {'type': 'boolean'},
             'global_maxconn': {'type': ['integer', 'null']},
             'defaults_maxconn': {'type': ['integer', 'null']},

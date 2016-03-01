@@ -91,6 +91,7 @@ def _init(dispatcher, plugin):
     plugin.register_schema_definition('service-lldp', {
         'type': 'object',
         'properties': {
+            'type': {'enum': ['service-lldp']},
             'enable': {'type': 'boolean'},
             'save_description': {'type': 'boolean'},
             'country_code': {'type': ['string', 'null']},

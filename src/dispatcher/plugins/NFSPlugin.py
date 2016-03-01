@@ -87,6 +87,7 @@ def _init(dispatcher, plugin):
     plugin.register_schema_definition('service-nfs', {
         'type': 'object',
         'properties': {
+            'type': {'enum': ['service-nfs']},
             'enable': {'type': 'boolean'},
             'servers': {'type': 'integer'},
             'udp': {'type': 'boolean'},

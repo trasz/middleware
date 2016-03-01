@@ -83,6 +83,7 @@ def _init(dispatcher, plugin):
         'type': 'object',
         'additionalProperties': False,
         'properties': {
+            'type': {'enum': ['service-iscsi']},
             'enable': {'type': 'boolean'},
             'base_name': {'type': 'string'},
             'pool_space_threshold': {'type': ['integer', 'null']},

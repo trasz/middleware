@@ -117,6 +117,8 @@ def _init(dispatcher, plugin):
     plugin.register_schema_definition('service-ftp', {
         'type': 'object',
         'properties': {
+            'type': {'enum': ['service-ftp']},
+            'enable': {'type': 'boolean'},
             'port': {'type': 'integer'},
             'max_clients': {'type': 'integer'},
             'ip_connections': {'type': ['integer', 'null']},

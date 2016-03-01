@@ -223,6 +223,7 @@ def _init(dispatcher, plugin):
     plugin.register_schema_definition('service-ups', {
         'type': 'object',
         'properties': {
+            'type': {'enum': ['service-ups']},
             'enable': {'type': 'boolean'},
             'mode': {'type': 'string', 'enum': [
                 'MASTER',

@@ -84,6 +84,7 @@ def _init(dispatcher, plugin):
     plugin.register_schema_definition('service-smartd', {
         'type': 'object',
         'properties': {
+            'type': {'enum': ['service-smartd']},
             'enable': {'type': 'boolean'},
             'interval': {'type': 'integer'},
             'power_mode': {'type': 'string', 'enum': [

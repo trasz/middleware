@@ -84,6 +84,7 @@ def _init(dispatcher, plugin):
     plugin.register_schema_definition('service-tftpd', {
         'type': 'object',
         'properties': {
+            'type': {'enum': ['service-tftpd']},
             'enable': {'type': 'boolean'},
             'port': {'type': 'integer'},
             'path': {'type': 'string'},

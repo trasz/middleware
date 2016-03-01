@@ -428,6 +428,8 @@ def _init(dispatcher, plugin):
     plugin.register_schema_definition('service-rsyncd', {
         'type': 'object',
         'properties': {
+            'type': {'enum': ['service-rsyncd']},
+            'enable': {'type': 'boolean'},
             'port': {'type': 'integer'},
             'auxiliary': {'type': 'string'},
         },
