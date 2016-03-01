@@ -1,7 +1,8 @@
 [
     {
         "data": {
-            "65534": {
+            "94248344-2453-4523-A0D9-1A128897FBE2": {
+                "uid": 65534,
                 "password_disabled": false,
                 "email": null,
                 "group": 65534,
@@ -17,7 +18,8 @@
                 "attributes": {},
                 "builtin": true
             },
-            "922": {
+            "87181BD2-C447-4388-883D-C0C81A3B5D42": {
+                "uid": 922,
                 "password_disabled": false,
                 "email": null,
                 "group": 922,
@@ -33,7 +35,8 @@
                 "attributes": {},
                 "builtin": true
             },
-            "666": {
+            "14254694-9809-4BE4-83CE-6FAD5A9B0E5E": {
+                "uid": 666,
                 "password_disabled": false,
                 "email": null,
                 "group": 666,
@@ -49,7 +52,8 @@
                 "attributes": {},
                 "builtin": true
             },
-            "667": {
+            "403B4C54-274B-42E0-BBA3-9213DB4811C1": {
+                "uid": 667,
                 "password_disabled": false,
                 "email": null,
                 "group": 667,
@@ -65,7 +69,8 @@
                 "attributes": {},
                 "builtin": true
             },
-            "668": {
+            "0A1F21CD-F6B3-432B-8A64-C6453DF50DDF": {
+                "uid": 668,
                 "password_disabled": false,
                 "email": null,
                 "group": 667,
@@ -81,7 +86,8 @@
                 "attributes": {},
                 "builtin": true
             },
-            "669": {
+            "CF985B11-75D2-40CB-A7D1-3F8C62D09407": {
+                "uid": 669,
                 "password_disabled": false,
                 "email": null,
                 "group": 667,
@@ -97,7 +103,8 @@
                 "attributes": {},
                 "builtin": true
             },
-            "556": {
+            "F589F902-F76B-4CA9-8168-24B4E95EC2D3": {
+                "uid": 556,
                 "password_disabled": false,
                 "email": null,
                 "group": 556,
@@ -113,7 +120,8 @@
                 "attributes": {},
                 "builtin": true
             },
-            "187": {
+            "750A9B20-730A-4FBB-B50D-01D1E58994FE": {
+                "uid": 187,
                 "password_disabled": false,
                 "email": null,
                 "group": 187,
@@ -129,7 +137,8 @@
                 "attributes": {},
                 "builtin": true
             },
-            "142": {
+            "78EA375D-F11C-42C5-9FB3-385FD9F368C9": {
+                "uid": 142,
                 "password_disabled": false,
                 "email": null,
                 "group": 142,
@@ -145,7 +154,8 @@
                 "attributes": {},
                 "builtin": true
             },
-            "80": {
+            "6596F0F7-3C24-4E14-BF88-A6F42EB33095": {
+                "uid": 80,
                 "password_disabled": false,
                 "email": null,
                 "group": 80,
@@ -161,7 +171,8 @@
                 "attributes": {},
                 "builtin": true
             },
-            "78": {
+            "FC6EB95D-176D-4CC5-B087-72E61E39E699": {
+                "uid": 78,
                 "password_disabled": false,
                 "email": null,
                 "group": 77,
@@ -177,7 +188,8 @@
                 "attributes": {},
                 "builtin": true
             },
-            "68": {
+            "BF66DDBC-35A2-4936-B9F4-541B1C48BFEB": {
+                "uid": 68,
                 "password_disabled": false,
                 "email": null,
                 "group": 6,
@@ -193,7 +205,8 @@
                 "attributes": {},
                 "builtin": true
             },
-            "66": {
+            "CE37C6D9-B10E-46BE-8825-67CE1C0991D8": {
+                "uid": 66,
                 "password_disabled": false,
                 "email": null,
                 "group": 66,
@@ -209,7 +222,8 @@
                 "attributes": {},
                 "builtin": true
             },
-            "65": {
+            "0C4265A4-EB83-4356-8B56-6765525FEE82": {
+                "uid": 65,
                 "password_disabled": false,
                 "email": null,
                 "group": 65,
@@ -225,7 +239,8 @@
                 "attributes": {},
                 "builtin": true
             },
-            "8": {
+            "1F703A0C-D7C0-4223-AC95-9B2DB2D53A92": {
+                "uid": 8,
                 "password_disabled": false,
                 "email": null,
                 "group": 8,
@@ -241,7 +256,8 @@
                 "attributes": {},
                 "builtin": true
             },
-            "7": {
+            "4D2A5872-8453-40EF-9EA0-4CC76F7F08D3": {
+                "uid": 7,
                 "password_disabled": false,
                 "email": null,
                 "group": 13,
@@ -257,7 +273,8 @@
                 "attributes": {},
                 "builtin": true
             },
-            "5": {
+            "00DDE493-6CD7-418F-9754-B2BCE4234EA3": {
+                "uid": 5,
                 "password_disabled": false,
                 "email": null,
                 "group": 2,
@@ -273,7 +290,8 @@
                 "attributes": {},
                 "builtin": true
             },
-            "4": {
+            "4E62F0A2-DE18-4D57-BA99-B78A5323F46F": {
+                "uid": 4,
                 "password_disabled": false,
                 "email": null,
                 "group": 65533,
@@ -289,7 +307,8 @@
                 "attributes": {},
                 "builtin": true
             },
-            "3": {
+            "2BC04966-0194-45B0-A01E-D39AD20FFB27": {
+                "uid": 3,
                 "password_disabled": false,
                 "email": null,
                 "group": 7,
@@ -305,7 +324,8 @@
                 "attributes": {},
                 "builtin": true
             },
-            "2": {
+            "BC35A261-4A81-41AA-AC26-12C2CABB25CE": {
+                "uid": 2,
                 "password_disabled": false,
                 "email": null,
                 "group": 5,
@@ -321,7 +341,8 @@
                 "attributes": {},
                 "builtin": true
             },
-            "1": {
+            "F0C27E8C-9E93-40C1-BA11-129F79157A73": {
+                "uid": 1,
                 "password_disabled": false,
                 "email": null,
                 "group": 1,
@@ -337,7 +358,8 @@
                 "attributes": {},
                 "builtin": true
             },
-            "0": {
+            "4B6D36AD-93E2-4B4E-A1A3-93E8A698F1DC": {
+                "uid": 0,
                 "password_disabled": false,
                 "email": null,
                 "group": 0,
@@ -353,7 +375,8 @@
                 "attributes": {},
                 "builtin": true
             },
-            "9": {
+            "616D055E-0471-4BE7-B79A-813648FF4FF0": {
+                "uid": 9,
                 "password_disabled": false,
                 "email": null,
                 "group": 9,
@@ -369,7 +392,8 @@
                 "attributes": {},
                 "builtin": true
             },
-            "14": {
+            "A7F01ED8-61DD-4561-8B49-2936AF854825": {
+                "uid": 14,
                 "password_disabled": false,
                 "email": null,
                 "group": 14,
@@ -385,7 +409,8 @@
                 "attributes": {},
                 "builtin": true
             },
-            "22": {
+            "99281C5F-29B7-45DA-8590-7A5E2CD34D71": {
+                "uid": 22,
                 "password_disabled": false,
                 "email": null,
                 "group": 22,
@@ -401,7 +426,8 @@
                 "attributes": {},
                 "builtin": true
             },
-            "25": {
+            "AB2406DA-3F09-4BFA-B0C1-A04BFC7B3A9B": {
+                "uid": 25,
                 "password_disabled": false,
                 "email": null,
                 "group": 25,
@@ -417,7 +443,8 @@
                 "attributes": {},
                 "builtin": true
             },
-            "26": {
+            "02BAF7A9-5FA5-4DD7-A234-8F1D27B249C7": {
+                "uid": 26,
                 "password_disabled": false,
                 "email": null,
                 "group": 26,
@@ -433,7 +460,8 @@
                 "attributes": {},
                 "builtin": true
             },
-            "53": {
+            "68E21C39-85B7-4FBC-875F-78EBB4701B83": {
+                "uid": 53,
                 "password_disabled": false,
                 "email": null,
                 "group": 53,
@@ -449,7 +477,8 @@
                 "attributes": {},
                 "builtin": true
             },
-            "62": {
+            "55B8D645-EDF3-4F18-9DA6-EF7F8C2F656B": {
+                "uid": 62,
                 "password_disabled": false,
                 "email": null,
                 "group": 62,
@@ -465,7 +494,8 @@
                 "attributes": {},
                 "builtin": true
             },
-            "64": {
+            "7F46A805-2636-4DE4-8AE4-93959D4F91AC": {
+                "uid": 64,
                 "password_disabled": false,
                 "email": null,
                 "group": 64,
@@ -488,183 +518,218 @@
             },
             "migration": "merge-preserve",
             "name": "users",
-            "pkey-type": "integer",
+            "pkey-type": "uuid",
             "last-id": 78
         }
     },
     {
         "data": {
-            "65534": {
+            "AE3500A4-C5FD-41D1-BDD7-6831A9D1E4AA": {
+                "gid": 65534,
                 "builtin": true,
                 "sudo": false,
                 "name": "nobody"
             },
-            "65533": {
+            "8980C534-6A71-4BFB-BC72-54CBD5A186DB": {
+                "gid": 65533,
                 "builtin": true,
                 "sudo": false,
                 "name": "nogroup"
             },
-            "922": {
+            "4F8F5150-28A0-4215-B822-EC4F4A617F6F": {
+                "gid": 922,
                 "builtin": true,
                 "sudo": false,
                 "name": "mongodb"
             },
-            "667": {
+            "17623FD9-9C3C-4143-8ECB-DD1BD0A072C0": {
+                "gid": 667,
                 "builtin": true,
                 "sudo": false,
                 "name": "riak"
             },
-            "666": {
+            "1E5EA5EC-0075-492E-BE6A-0CE85F82F15D": {
+                "gid": 666,
                 "builtin": true,
                 "sudo": false,
                 "name": "webdav"
             },
-            "556": {
+            "70216FA9-D279-4E5A-B9D4-DBB2824FD218": {
+                "gid": 556,
                 "builtin": true,
                 "sudo": false,
                 "name": "messagebus"
             },
-            "187": {
+            "C25B97F3-C40A-44CF-A3EF-BF80046066FD": {
+                "gid": 187,
                 "builtin": true,
                 "sudo": false,
                 "name": "swift"
             },
-            "142": {
+            "6A5FE6A8-AED3-405D-86F9-CD1936137D2B": {
+                "gid": 142,
                 "builtin": true,
                 "sudo": false,
                 "name": "ladvd"
             },
-            "80": {
+            "9B9B8F5E-E737-46BC-B215-61F6A0579E9E": {
+                "gid": 80,
                 "builtin": true,
                 "sudo": false,
                 "name": "www"
             },
-            "77": {
+            "2941B683-7444-42A4-AA66-F86A8F20A947": {
+                "gid": 77,
                 "builtin": true,
                 "sudo": false,
                 "name": "audit"
             },
-            "69": {
+            "15ADE20D-2F95-4BBB-8706-7C64D339F285": {
+                "gid": 69,
                 "builtin": true,
                 "sudo": false,
                 "name": "network"
             },
-            "68": {
+            "454273BF-487B-4CC3-B6F0-9071253B0663": {
+                "gid": 68,
                 "builtin": true,
                 "sudo": false,
                 "name": "dialer"
             },
-            "66": {
+            "04E287E2-6FB0-45A8-85CB-F548DBF7FFCF": {
+                "gid": 66,
                 "builtin": true,
                 "sudo": false,
                 "name": "uucp"
             },
-            "65": {
+            "901C6195-D94A-4CC9-BF1D-954DFB14F17B": {
+                "gid": 65,
                 "builtin": true,
                 "sudo": false,
                 "name": "_dhcp"
             },
-            "64": {
+            "F5E3DBDE-FF46-4E1C-B8C6-47713B28487C": {
+                "gid": 64,
                 "builtin": true,
                 "sudo": false,
                 "name": "_pflogd"
             },
-            "63": {
+            "BCA1739C-E3E8-4DDC-A35B-D4141BE92EC3": {
+                "gid": 63,
                 "builtin": true,
                 "sudo": false,
                 "name": "authpf"
             },
-            "62": {
+            "74149B26-0808-4F8F-B711-FBFA8DF8446D": {
+                "gid": 52,
                 "builtin": true,
                 "sudo": false,
                 "name": "proxy"
             },
-            "53": {
+            "FD259280-436B-45A6-B5AC-52BFAD816019": {
+                "gid": 53,
                 "builtin": true,
                 "sudo": false,
                 "name": "bind"
             },
-            "31": {
+            "5CE39317-BE43-48C9-A2F3-04BDB3FFDDF8": {
+                "gid": 31,
                 "builtin": true,
                 "sudo": false,
                 "name": "guest"
             },
-            "7": {
+            "566D4055-B736-4AC5-B324-889231381E27": {
+                "gid": 7,
                 "builtin": true,
                 "sudo": false,
                 "name": "bin"
             },
-            "6": {
+            "070ED099-D9AE-4D82-AAD4-C8CF18C7998B": {
+                "gid": 6,
                 "builtin": true,
                 "sudo": false,
                 "name": "mail"
             },
-            "5": {
+            "872D1632-EADD-431F-8C5F-8BD6222B602F": {
+                "gid": 5,
                 "builtin": true,
                 "sudo": false,
                 "name": "operator"
             },
-            "4": {
+            "C239E2E8-CDCD-44AD-890C-DFFCC347ACAC": {
+                "gid": 4,
                 "builtin": true,
                 "sudo": false,
                 "name": "tty"
             },
-            "3": {
+            "D2D5E4AB-8F0B-4D2B-B494-630ED71AB169": {
+                "gid": 3,
                 "builtin": true,
                 "sudo": false,
                 "name": "sys"
             },
-            "2": {
+            "3EE33D50-8A95-42A7-B6EC-B201CD51C298": {
+                "gid": 2,
                 "builtin": true,
                 "sudo": false,
                 "name": "kmem"
             },
-            "1": {
+            "36DD1308-699E-45B9-BA9E-D3253A14E1D5": {
+                "gid": 1,
                 "builtin": true,
                 "sudo": false,
                 "name": "daemon"
             },
-            "0": {
+            "0562D3BE-679B-45E3-A220-F9D9A2E938A9": {
+                "gid": 0,
                 "builtin": true,
                 "sudo": false,
                 "name": "wheel"
             },
-            "8": {
+            "75BB5D8A-8A36-46B4-A9BA-323EE310733A": {
+                "gid": 8,
                 "builtin": true,
                 "sudo": false,
                 "name": "news"
             },
-            "9": {
+            "A787B5E4-C875-47EB-BF44-A787581DD98A": {
+                "gid": 9,
                 "builtin": true,
                 "sudo": false,
                 "name": "man"
             },
-            "13": {
+            "C5B8F090-DB15-4083-BBE3-07FA541E7DAE": {
+                "gid": 13,
                 "builtin": true,
                 "sudo": false,
                 "name": "games"
             },
-            "14": {
+            "25E95D6D-AA2D-489C-8DAC-DD60ECC5F707": {
+                "gid": 14,
                 "builtin": true,
                 "sudo": false,
                 "name": "ftp"
             },
-            "20": {
+            "ED4F031F-287B-40B2-804B-13856B41C780": {
+                "gid": 20,
                 "builtin": true,
                 "sudo": false,
                 "name": "staff"
             },
-            "22": {
+            "C9AC8A31-FAE9-41EE-A8B1-07FA6E509626": {
+                "gid": 22,
                 "builtin": true,
                 "sudo": false,
                 "name": "sshd"
             },
-            "25": {
+            "E41D0AED-EC6A-4C86-8063-4215F923135E": {
+                "gid": 25,
                 "builtin": true,
                 "sudo": false,
                 "name": "smmsp"
             },
-            "26": {
+            "14FC9B9E-97EA-45C8-970A-8853987F6BCE": {
+                "gid": 26,
                 "builtin": true,
                 "sudo": false,
                 "name": "mailnull"
@@ -676,7 +741,7 @@
             },
             "migration": "merge-preserve",
             "name": "groups",
-            "pkey-type": "integer",
+            "pkey-type": "uuid",
             "last-id": null
         }
     },

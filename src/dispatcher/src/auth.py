@@ -78,7 +78,7 @@ class PasswordAuthenticator(object):
             return None
 
         user = User()
-        user.uid = entity['id']
+        user.uid = entity['uid']
         user.name = entity['username']
         user.pwhash = entity['unixhash']
 

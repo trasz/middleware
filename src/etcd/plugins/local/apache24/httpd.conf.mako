@@ -24,7 +24,7 @@
 
     user = dispatcher.call_sync('user.query', [('username', '=', 'webdav')], {'single': True})
     if user:
-        os.chown(auth_file, user['id'], user['group'])
+        os.chown(auth_file, user['uid'], user['group'])
         os.chmod(auth_file, 0o640)
 
         lockdir = "/etc/local/apache24/var"

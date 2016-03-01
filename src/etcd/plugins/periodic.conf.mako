@@ -22,7 +22,7 @@ monthly_show_success="NO"
 <%
     userid = dispatcher.call_sync('system.advanced.get_config')['periodic_notify_user']
     if userid is not None:
-        user = dispatcher.call_sync('user.query', [('id', '=', userid)], {'single': True})
+        user = dispatcher.call_sync('user.query', [('uid', '=', userid)], {'single': True})
     else:
         user = None
 %>\

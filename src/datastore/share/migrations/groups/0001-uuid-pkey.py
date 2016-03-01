@@ -1,5 +1,5 @@
 #+
-# Copyright 2014 iXsystems, Inc.
+# Copyright 2015 iXsystems, Inc.
 # All rights reserved
 #
 # Redistribution and use in source and binary forms, with or without
@@ -25,35 +25,17 @@
 #
 #####################################################################
 
+import uuid
 
-import os
+
+def probe(obj, ds):
+    return isinstance(obj['id'], int)
 
 
-def run(context):
-    for user in context.client.call_sync('user.query'):
-        home = user['home']
-        uid = user['uid']
-        gid = user['group']
-        builtin = user['builtin']
-        filename = os.path.join(home, '.ssh', 'authorized_keys')
-
-        if not os.path.isdir(home) or (uid != 0 and builtin):
-            # No home directory or builting and non-root user - ignore
-            continue
-
-        if not os.path.isdir(os.path.join(home, '.ssh')):
-            os.mkdir(os.path.join(home, '.ssh'))
-            os.chown(os.path.join(home, '.ssh'), uid, gid)
-
-        if 'sshpubkey' not in user or user['sshpubkey'] is None:
-            if os.path.isfile(filename):
-                os.unlink(filename)
-        else:
-            fd = open(filename, 'w')
-            fd.write(user['sshpubkey'])
-            fd.close()
-            os.chown(filename, uid, gid)
-
-            context.emit_event('etcd.file_generated', {
-                'filename': filename
-            })
+def apply(obj, ds):
+    if obj['builtin']:
+        return None
+    else:
+        obj['gid'] = obj['id']
+        obj['id'] = str(uuid.uuid4())
+        return obj
