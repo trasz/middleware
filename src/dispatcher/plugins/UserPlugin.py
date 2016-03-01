@@ -511,8 +511,9 @@ class GroupCreateTask(Task):
 
         try:
             group['builtin'] = False
+            group['gid'] = gid
             group.setdefault('sudo', False)
-            gid = self.datastore.insert('groups', group, pkey=gid)
+            gid = self.datastore.insert('groups', group)
             self.dispatcher.call_sync('etcd.generation.generate_group', 'accounts')
         except DatastoreException as e:
             raise TaskException(errno.EBADMSG, 'Cannot add group: {0}'.format(str(e)))
