@@ -268,7 +268,8 @@ class ContainerCreateTask(ContainerBaseTask):
 
         normalize(container['config'], {
             'memsize': 512,
-            'ncpus': 1
+            'ncpus': 1,
+            'enabled': True
         })
 
         self.init_dataset(container)
@@ -364,6 +365,9 @@ class ContainerUpdateTask(ContainerBaseTask):
                 else:
                     self.create_device(container, res)
 
+        if not updated_params.get('enabled', True):
+            self.join_subtasks(self.run_subtask('container.stop', id))
+
         container.update(updated_params)
         self.datastore.update('containers', id, container)
         self.dispatcher.dispatch_event('container.changed', {
@@ -425,6 +429,9 @@ class ContainerDeleteTask(Task):
 @accepts(str)
 class ContainerStartTask(Task):
     def verify(self, id):
+        container = self.dispatcher.call_sync('container.query', [('id', '=', id)], {'single': True})
+        if not container['enabled']:
+            raise VerifyException(errno.EACCES, "Cannot start disabled container {0}".format(id))
         return ['system']
 
     def run(self, id):
@@ -550,6 +557,7 @@ def _init(dispatcher, plugin):
             'id': {'type': 'string'},
             'name': {'type': 'string'},
             'description': {'type': 'string'},
+            'enabled': {'type': 'boolean'},
             'target': {'type': 'string'},
             'template': {
                 'type': ['object', 'null'],
