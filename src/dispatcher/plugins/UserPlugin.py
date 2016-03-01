@@ -557,11 +557,11 @@ class GroupUpdateTask(Task):
 
         return ['system']
 
-    def run(self, gid, updated_fields):
+    def run(self, id, updated_fields):
         try:
-            group = self.datastore.get_by_id('groups', gid)
+            group = self.datastore.get_by_id('groups', id)
             group.update(updated_fields)
-            self.datastore.update('groups', gid, group)
+            self.datastore.update('groups', id, group)
             self.dispatcher.call_sync('etcd.generation.generate_group', 'accounts')
         except DatastoreException as e:
             raise TaskException(errno.EBADMSG, 'Cannot update group: {0}'.format(str(e)))
@@ -570,7 +570,7 @@ class GroupUpdateTask(Task):
 
         self.dispatcher.dispatch_event('group.changed', {
             'operation': 'update',
-            'ids': [gid]
+            'ids': [id]
         })
 
 
