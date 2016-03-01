@@ -85,16 +85,21 @@ class BootEnvironmentActivate(Task):
 @description("Renames the given Boot Environment with the alternate name provieded")
 @accepts(str, h.ref('boot-environment'))
 class BootEnvironmentUpdate(Task):
-    def verify(self, name, be):
-        be = FindClone(name)
+    def verify(self, id, be):
+        be = FindClone(id)
         if not be:
-            raise VerifyException(errno.ENOENT, 'Boot environment {0} not found'.format(name))
+            raise VerifyException(errno.ENOENT, 'Boot environment {0} not found'.format(id))
 
         return ['system']
 
-    def run(self, name, be):
-        if not RenameClone(name, be['id']):
-            raise TaskException(errno.EIO, 'Cannot rename the {0} boot evironment'.format(name))
+    def run(self, id, updated_params):
+        if 'id' in updated_params:
+            if not RenameClone(id, updated_params['id']):
+                raise TaskException(errno.EIO, 'Cannot rename the {0} boot evironment'.format(id))
+
+        if updated_params.get('active'):
+            if not ActivateClone(id):
+                raise TaskException(errno.EIO, 'Cannot activate the {0} boot environment'.format(id))
 
 
 @description("Deletes the given Boot Environments. Note: It cannot delete an activated BE")
