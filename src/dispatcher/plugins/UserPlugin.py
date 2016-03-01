@@ -237,10 +237,11 @@ class UserCreateTask(Task):
                 except RpcException as err:
                     raise err
 
-                user['group'] = result[0]
+                group = self.datastore.get_by_id('groups', result[0])
+                user['group'] = group['gid']
                 self.created_group = result[0]
 
-            self.datastore.insert('users', user)
+            id = self.datastore.insert('users', user)
             self.dispatcher.call_sync('etcd.generation.generate_group', 'accounts')
 
             if password:
@@ -284,7 +285,7 @@ class UserCreateTask(Task):
 
         self.dispatcher.dispatch_event('user.changed', {
             'operation': 'create',
-            'ids': [uid]
+            'ids': [id]
         })
 
         return uid
