@@ -119,7 +119,11 @@ def _init(dispatcher, plugin):
         'properties': {
             'type': {'enum': ['service-ftp']},
             'enable': {'type': 'boolean'},
-            'port': {'type': 'integer'},
+            'port': {
+                'type': 'integer',
+                'minimum': 1,
+                'maximum': 65535
+                },
             'max_clients': {'type': 'integer'},
             'ip_connections': {'type': ['integer', 'null']},
             'login_attempt': {'type': 'integer'},
