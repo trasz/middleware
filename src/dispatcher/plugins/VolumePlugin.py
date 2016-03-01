@@ -336,7 +336,7 @@ class VolumeProvider(Provider):
             if vol['status'] == 'UNAVAIL':
                 continue
 
-            for dev in self.dispatcher.call_sync('volume.get_volume_disks', vol['name']):
+            for dev in self.dispatcher.call_sync('volume.get_volume_disks', vol['id']):
                 if dev in disks:
                     ret[dev] = {
                         'type': 'VOLUME',
