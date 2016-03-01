@@ -326,6 +326,11 @@ class FailoverReplicationCreate(Task):
                     remote_client.call_task_sync('share.update', share['id'], {'enabled': False})
                 for container in vol_containers:
                     remote_client.call_task_sync('container.update', container['id'], {'enabled': False})
+                remote_client.call_task_sync(
+                    'zfs.update',
+                    volume, volume,
+                    {'readonly': {'value': True}}
+                )
 
         else:
             id = self.datastore.insert('failover.links', link)
