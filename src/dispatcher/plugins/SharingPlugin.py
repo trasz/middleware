@@ -162,8 +162,10 @@ class CreateShareTask(Task):
     def run(self, share):
         root = self.dispatcher.call_sync('volume.get_volumes_root')
         share_type = self.dispatcher.call_sync('share.supported_types').get(share['type'])
+
         assert share_type['subtype'] in ('FILE', 'BLOCK'),\
             "Unsupported Share subtype: {0}".format(share_type['subtype'])
+
         normalize(share, {
             'enabled': True,
             'description': ''
@@ -481,6 +483,7 @@ def _init(dispatcher, plugin):
 
     def update_share_properties_schema():
         plugin.register_schema_definition('share-properties', {
+            'discriminator': 'type',
             'oneOf': [
                 {'$ref': 'share-{0}'.format(name)} for name in dispatcher.call_sync('share.supported_types')
             ]

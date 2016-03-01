@@ -227,6 +227,7 @@ def _init(dispatcher, plugin):
         'type': 'object',
         'additionalProperties': False,
         'properties': {
+            'type': {'enum': ['share-smb']},
             'comment': {'type': 'string'},
             'read_only': {'type': 'boolean'},
             'guest_ok': {'type': 'boolean'},

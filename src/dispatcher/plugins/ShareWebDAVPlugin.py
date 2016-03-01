@@ -176,6 +176,7 @@ def _init(dispatcher, plugin):
         'type': 'object',
         'additionalProperties': False,
         'properties': {
+            'type': {'enum': ['share-webdav']},
             'read_only': {'type': 'boolean'},
             'permission': {'type': 'boolean'},
         }

@@ -179,6 +179,7 @@ def _init(dispatcher, plugin):
         'type': 'object',
         'additionalProperties': False,
         'properties': {
+            'type': {'enum': ['share-nfs']},
             'alldirs': {'type': 'boolean'},
             'read_only': {'type': 'boolean'},
             'maproot_user': {'type': ['string', 'null']},

@@ -434,6 +434,7 @@ def _init(dispatcher, plugin):
         'type': 'object',
         'additionalProperties': False,
         'properties': {
+            'type': {'enum': ['share-iscsi']},
             'serial': {'type': 'string'},
             'ctl_lun': {'type': 'integer'},
             'naa': {'type': 'string'},
