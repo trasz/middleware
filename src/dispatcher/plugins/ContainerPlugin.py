@@ -134,12 +134,12 @@ class ContainerBaseTask(Task):
             # Create VM root
             self.join_subtasks(self.run_subtask('volume.dataset.create', {
                 'volume': pool,
-                'name': root_ds
+                'id': root_ds
             }))
         try:
             self.join_subtasks(self.run_subtask('volume.dataset.create', {
                 'volume': pool,
-                'name': self.container_ds
+                'id': self.container_ds
             }))
         except RpcException:
             raise TaskException(
@@ -185,7 +185,7 @@ class ContainerBaseTask(Task):
             ds_name = os.path.join(container_ds, res['name'])
             self.join_subtasks(self.run_subtask('volume.dataset.create', {
                 'volume': container['target'],
-                'name': ds_name,
+                'id': ds_name,
                 'type': 'VOLUME',
                 'volsize': res['properties']['size']
             }))
@@ -220,7 +220,7 @@ class ContainerBaseTask(Task):
                 if properties.get('auto'):
                     self.join_subtasks(self.run_subtask('volume.dataset.create', {
                         'volume': container['target'],
-                        'name': os.path.join(container_ds, res['name'])
+                        'id': os.path.join(container_ds, res['name'])
                     }))
 
     def update_device(self, container, old_res, new_res):
