@@ -178,8 +178,10 @@ def query(result_type):
                 'title': 'options',
                 'type': 'object',
                 'properties': {
-                    'sort-field': {'type': 'string'},
-                    'sort-order': {'type': 'string', 'enum': ['asc', 'desc']},
+                    'sort': {
+                        'type': 'array',
+                        'items': {'type': 'string'}
+                    },
                     'limit': {'type': 'integer'},
                     'offset': {'type': 'integer'},
                     'single': {'type': 'boolean'},
