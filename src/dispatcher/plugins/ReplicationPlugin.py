@@ -326,19 +326,7 @@ class FailoverReplicationCreate(Task):
                 remote_client.call_task_sync('volume.autoimport', volume, 'containers')
                 remote_client.call_task_sync('volume.autoimport', volume, 'shares')
 
-            for volume in link['volumes']:
-                vol_path = remote_client.call_sync('volume.get_dataset_path', volume)
-                vol_shares = remote_client.call_sync('share.get_related', vol_path)
-                vol_containers = remote_client.call_sync('container.query', [('target', '=', volume)])
-                for share in vol_shares:
-                    remote_client.call_task_sync('share.update', share['id'], {'enabled': False})
-                for container in vol_containers:
-                    remote_client.call_task_sync('container.update', container['id'], {'enabled': False})
-                remote_client.call_task_sync(
-                    'zfs.update',
-                    volume, volume,
-                    {'readonly': {'value': True}}
-                )
+            set_failover_state(remote_client, False, link['volumes'])
 
         else:
             id = self.datastore.insert('failover.links', link)
@@ -407,6 +395,9 @@ class FailoverReplicationSwitch(Task):
                 'replication.failover.switch',
                 link['name']
             )
+
+        is_master, remote = get_failover_state(self.dispatcher, link)
+        set_failover_state(self.dispatcher, is_master, link['volumes'])
 
 
 @accepts(str, str, bool, str, str, bool)
@@ -763,6 +754,22 @@ def get_failover_state(dispatcher, link):
             remote = partner
 
     return is_master, remote
+
+
+def set_failover_state(client, enabled, volumes):
+    for volume in volumes:
+        vol_path = client.call_sync('volume.get_dataset_path', volume)
+        vol_shares = client.call_sync('share.get_related', vol_path)
+        vol_containers = client.call_sync('container.query', [('target', '=', volume)])
+        for share in vol_shares:
+            client.call_task_sync('share.update', share['id'], {'enabled': enabled})
+        for container in vol_containers:
+            client.call_task_sync('container.update', container['id'], {'enabled': enabled})
+        client.call_task_sync(
+            'zfs.update',
+            volume, volume,
+            {'readonly': {'value': enabled}}
+        )
 
 
 def _init(dispatcher, plugin):
