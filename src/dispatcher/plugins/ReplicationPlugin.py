@@ -321,8 +321,11 @@ class FailoverReplicationCreate(Task):
                 for volume in link['volumes']:
                     vol_path = remote_client.call_sync('volume.get_dataset_path', volume)
                     vol_shares = remote_client.call_sync('share.get_related', vol_path)
+                    vol_containers = remote_client.call_sync('container.query', [('target', '=', volume)])
                     for share in vol_shares:
                         remote_client.call_task_sync('share.update', share['id'], {'enabled': False})
+                    for container in vol_containers:
+                        remote_client.call_task_sync('container.update', container['id'], {'enabled': False})
 
         else:
             id = self.datastore.insert('failover.links', link)
