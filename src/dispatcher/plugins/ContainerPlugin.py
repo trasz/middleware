@@ -133,12 +133,12 @@ class ContainerBaseTask(Task):
         if not self.dispatcher.call_sync('zfs.dataset.query', [('name', '=', root_ds)], {'single': True}):
             # Create VM root
             self.join_subtasks(self.run_subtask('volume.dataset.create', {
-                'pool': pool,
+                'volume': pool,
                 'name': root_ds
             }))
         try:
             self.join_subtasks(self.run_subtask('volume.dataset.create', {
-                'pool': pool,
+                'volume': pool,
                 'name': self.container_ds
             }))
         except RpcException:
@@ -184,7 +184,7 @@ class ContainerBaseTask(Task):
             container_dir = self.dispatcher.call_sync('volume.get_dataset_path', container_ds)
             ds_name = os.path.join(container_ds, res['name'])
             self.join_subtasks(self.run_subtask('volume.dataset.create', {
-                'pool': container['target'],
+                'volume': container['target'],
                 'name': ds_name,
                 'type': 'VOLUME',
                 'volsize': res['properties']['size']
@@ -219,7 +219,7 @@ class ContainerBaseTask(Task):
             if properties['type'] == 'VT9P':
                 if properties.get('auto'):
                     self.join_subtasks(self.run_subtask('volume.dataset.create', {
-                        'pool': container['target'],
+                        'volume': container['target'],
                         'name': os.path.join(container_ds, res['name'])
                     }))
 
