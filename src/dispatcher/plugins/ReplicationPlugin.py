@@ -193,7 +193,7 @@ class FailoverReplicationCreate(Task):
             remote_client = get_client(remote)
 
             for volume in link['volumes']:
-                if not self.datastore.exists('volumes', ('name', '=', volume)):
+                if not self.datastore.exists('volumes', ('id', '=', volume)):
                     raise VerifyException(errno.ENOENT, 'Volume {0} not found'.format(volume))
 
                 for share in self.dispatcher.call_sync('share.get_related', volume):
@@ -231,8 +231,8 @@ class FailoverReplicationCreate(Task):
         if is_master:
             remote_client = get_client(remote)
             dataset_properties = [
-                'pool',
-                'name',
+                'volume',
+                'id',
                 'mountpoint',
                 'type',
                 'volsize',
@@ -253,7 +253,7 @@ class FailoverReplicationCreate(Task):
                         remote_client.call_task_sync(
                             'volume.create',
                             {
-                                'name': vol['name'],
+                                'id': vol['name'],
                                 'type': vol['type'],
                                 'params': {'encryption': True if password else False},
                                 'topology': vol['topology']
