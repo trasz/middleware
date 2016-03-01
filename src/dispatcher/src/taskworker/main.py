@@ -113,6 +113,7 @@ class TaskProxyService(RpcService):
         return self.context.instance.get_status()
 
     def get_progress_subtask_info(self):
+        self.context.running.wait()
         return {
             'id': self.context.instance.progress_subtask_id,
             'weight': self.context.instance.progress_subtask_weight
