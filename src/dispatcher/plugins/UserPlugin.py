@@ -180,9 +180,6 @@ class UserCreateTask(Task):
         if self.datastore.exists('users', ('username', '=', user['username'])):
             raise VerifyException(errno.EEXIST, 'User with given name already exists')
 
-        if 'uid' in user and self.datastore.exists('users', ('uid', '=', user['uid'])):
-            raise VerifyException(errno.EEXIST, 'User with given UID already exists')
-
         if 'groups' in user and len(user['groups']) > 64:
             errors.append(
                 ('groups', errno.EINVAL, 'User cannot belong to more than 64 auxiliary groups'))
@@ -542,6 +539,7 @@ class GroupUpdateTask(Task):
             raise VerifyException(errno.ENOENT, 'Group with given ID does not exist')
 
         errors = []
+        group.update(updated_fields)
 
         for code, message in check_unixname(group['name']):
             errors.append(('name', code, message))
