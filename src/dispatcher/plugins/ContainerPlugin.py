@@ -94,7 +94,6 @@ class ContainerProvider(Provider):
 
         return vol['properties']['destination']
 
-
     def generate_mac(self):
         return VM_OUI + ':' + ':'.join('{0:02x}'.format(random.randint(0, 255)) for _ in range(0, 3))
 
