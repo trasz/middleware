@@ -253,7 +253,7 @@ class DevdEventSource(EventSource):
         while True:
             try:
                 self.socket = socket.socket(family=socket.AF_UNIX)
-                self.socket.connect("/var/run/devd.pipe")
+                self.socket.connect("/var/run/devd.xml.pipe")
                 f = self.socket.makefile("rb", 0)
                 
                 while True:
