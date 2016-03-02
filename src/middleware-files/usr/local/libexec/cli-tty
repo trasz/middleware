@@ -1,6 +1,11 @@
 #!/bin/sh
-sleep 1
-/usr/sbin/vidcontrol -s 2
+while true; do
+	/usr/sbin/vidcontrol -s 2 > /dev/null
+	OUT=$?
+	if [ $OUT -eq 0 ];then
+		break
+	fi
+done
 while true; do
 	sleep 100
 done
