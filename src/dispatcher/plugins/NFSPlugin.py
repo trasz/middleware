@@ -82,14 +82,16 @@ def _depends():
 
 
 def _init(dispatcher, plugin):
-
     # Register schemas
     plugin.register_schema_definition('service-nfs', {
         'type': 'object',
         'properties': {
             'type': {'enum': ['service-nfs']},
             'enable': {'type': 'boolean'},
-            'servers': {'type': 'integer'},
+            'servers': {
+                'type': 'integer',
+                'minimum': 1,
+            },
             'udp': {'type': 'boolean'},
             'nonroot': {'type': 'boolean'},
             'v4': {'type': 'boolean'},
