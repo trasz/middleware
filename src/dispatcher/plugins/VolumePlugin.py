@@ -103,7 +103,7 @@ class VolumeProvider(Provider):
             return True
 
         def extend(vol):
-            config = wrap(self.get_config(vol['id']))
+            config = wrap(self.dispatcher.call_sync('zfs.pool.query', [('id', '=', vol['id'])], {'single': True}))
             if not config:
                 vol['status'] = 'UNKNOWN'
             else:
@@ -344,17 +344,6 @@ class VolumeProvider(Provider):
                     }
 
         return ret
-
-    @description("Returns Information about all the possible attributes of" +
-                 " the Volume (name, guid, zfs properties, datasets, etc...)")
-    @accepts(str)
-    @returns(h.ref('zfs-pool'))
-    def get_config(self, volume):
-        return self.dispatcher.call_sync(
-            'zfs.pool.query',
-            [('name', '=', volume)],
-            {'single': True}
-        )
 
     @accepts(str, str)
     @returns(h.ref('zfs-vdev'))
@@ -614,7 +603,7 @@ class VolumeDestroyTask(Task):
     def run(self, id):
         vol = self.datastore.get_by_id('volumes', id)
         encryption = vol.get('encryption', {})
-        config = self.dispatcher.call_sync('volume.get_config', id)
+        config = self.dispatcher.call_sync('zfs.pool.query', [('id', '=', id)], {'single': True})
 
         self.dispatcher.run_hook('volume.pre_destroy', {'name': id})
 
