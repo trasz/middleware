@@ -430,7 +430,11 @@ def _init(dispatcher, plugin):
         'properties': {
             'type': {'enum': ['service-rsyncd']},
             'enable': {'type': 'boolean'},
-            'port': {'type': 'integer'},
+            'port': {
+                'type': 'integer',
+                'minimum': 1,
+                'maximum': 65535
+                },
             'auxiliary': {'type': 'string'},
         },
         'additionalProperties': False,
