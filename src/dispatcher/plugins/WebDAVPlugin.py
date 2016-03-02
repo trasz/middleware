@@ -107,8 +107,16 @@ def _init(dispatcher, plugin):
                     'enum': ['HTTP', 'HTTPS'],
                 },
             },
-            'http_port': {'type': 'integer'},
-            'https_port': {'type': 'integer'},
+            'http_port': {
+                'type': 'integer',
+                'minimum': 1,
+                'maximum': 65535
+            },
+            'https_port': {
+                'type': 'integer',
+                'minimum': 1,
+                'maximum': 65535
+            },
             'password': {'type': 'string'},
             'authentication': {'type': 'string', 'enum': [
                 'BASIC',
