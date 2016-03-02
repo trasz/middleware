@@ -842,13 +842,7 @@ def _init(dispatcher, plugin):
     plugin.register_task_handler('replication.failover.switch', FailoverReplicationSwitch)
     plugin.register_task_handler('replication.failover.delete', FailoverReplicationDelete)
 
-    #plugin.register_event_handler('zfs.pool.changed', on_pool_changed)
-    #plugin.register_event_handler('zfs.dataset.changed', on_dataset_changed)
     plugin.register_event_handler('zfs.snapshot.changed', sync_failovers)
-
-    #plugin.register_event_handler('share.changed', on_share_changed)
-
-    #plugin.register_event_handler('container.changed', on_container_changed)
 
     plugin.register_event_type('replication.failover.changed')
 
