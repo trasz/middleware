@@ -13,7 +13,11 @@ function RpcController($scope) {
     sock.connect();
     $scope.init = function () {
         sock.onError = function(err) {
-            alert("Error: " + err.message);
+            if (err.message == "" || err.message == "unknown") {
+                alert("Oops: there's something wrong with your connection, refresh the page");
+            }else {
+                alert("Error: " + err.message);
+            }
         };
         sock.onConnect = function() {
             if (!sessionStorage.getItem("freenas:username")) {
@@ -74,6 +78,12 @@ function RpcController($scope) {
             $("#method").val(),
             JSON.parse($("#args").val()),
             function(result) {
+                // $.each(result, function(idx, i) {
+                    // console.log(i);
+                    // Now I got every single object from socket,
+                    // should add some check like doHaveRef(),
+                    // then add ref_link for `$ref`
+                // });
                 $("#result").val(JSON.stringify(result, null, 4))
             }
         );
@@ -167,7 +177,6 @@ function SyslogController($scope) {
 
 function StatsController($scope) {
     document.title = "Stats Charts";
-    console.log("Stats Charts");
     var sock = new middleware.DispatcherClient(document.domain);
     var chart;
     sock.connect();
@@ -212,7 +221,6 @@ function StatsController($scope) {
         });
     }
     $scope.init = function () {
-        console.log("here's init");
         sock.onError = function(err) {
             alert("Error: " + err.message);
         };
@@ -257,7 +265,71 @@ function StatsController($scope) {
 }
 
 function TasksController($scope) {
-    console.log("200");
+    document.title = "System Tasks";
+    var sock = new middleware.DispatcherClient(document.domain);
+    sock.connect();
+    function refresh_tasks(){
+        $("#tasklist tbody").empty();
+        sock.call("task.query", [[["state", "in", ["CREATED", "WAITING", "EXECUTING"]]]], function (tasks) {
+            $.each(tasks, function(idx, i) {
+                $("<tr/>", {
+                    'data-id': i.id,
+                    'html': template_task(i)
+                }).appendTo("#tasklist tbody");
+            });
+        });
+    }
+    $scope.init() = function() {
+        sock.onError = function(err) {
+            alert("Error: " + err.message);
+        };
+        sock.onEvent = function(name, args) {
+            if (name == "task.created") {
+                $("<tr/>", {
+                    'data-id': args.id,
+                    'html': template_task(args)
+                }).appendTo("#tasklist tbody");
+            }
+
+            if (name == "task.updated") {
+                var tr = $("#tasklist").find("tr[data-id='" + args.id + "']");
+                tr.find(".status").text(args.state);
+            }
+
+            if (name == "task.progress") {
+                var tr = $("#tasklist").find("tr[data-id='" + args.id + "']");
+                tr.find(".progress .progress-bar").css("width", args.percentage.toFixed(2) + "%");
+                tr.find(".progress .progress-bar").text(args.percentage.toFixed() + "%");
+                tr.find(".message").text(args.message);
+            }
+        };
+        sock.onConnect = function() {
+            if (!sessionStorage.getItem("freenas:username")) {
+                var username = prompt("Username:");
+                var password = prompt("Password:");
+                sessionStorage.setItem("freenas:username", username);
+                sessionStorage.setItem("freenas:password", password);
+            }
+
+            sock.login(
+                sessionStorage.getItem("freenas:username"),
+                sessionStorage.getItem("freenas:password")
+            );
+        };
+        sock.onLogin = function() {
+            sock.subscribe("task.*");
+            refresh_tasks();
+            sock.call("discovery.get_tasks", null, function (tasks) {
+                $.each(tasks, function(key, value) {
+                    $("<div/>", {
+                        "class": "panel panel-primary",
+                        style: "width: 40%",
+                        html: template_class({name: key, args: value})
+                    }).prependTo("#tasks");
+                });
+            });
+        }
+    }
 }
 
 function Four04Controller($scope) {
