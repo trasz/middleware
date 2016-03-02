@@ -167,58 +167,19 @@ class ScanHostKeyTask(Task):
 class FailoverReplicationCreate(Task):
     def verify(self, link, password=None):
         ip_matches = False
-        is_master = False
-        remote = ''
         ips = self.dispatcher.call_sync('network.config.get_my_ips')
         for ip in ips:
             for partner in link['partners']:
+                if '@' not in partner:
+                    raise VerifyException(errno.EINVAL, 'Please provide failover link partners as username@host')
                 if partner.endswith(ip):
                     ip_matches = True
-                    if partner == link['master']:
-                        is_master = True
-        try:
-            for partner in link['partners']:
-                if partner.split('@', 1)[1] not in ips:
-                    remote = partner
-        except IndexError:
-            raise VerifyException(errno.EINVAL, 'Please provide failover link partners as username@host')
 
         if not ip_matches:
             raise VerifyException(errno.EINVAL, 'Provided partner IPs do not create a valid pair. Check addresses.')
 
         if self.datastore.exists('failover.links', ('name', '=', link['name'])):
             raise VerifyException(errno.EEXIST, 'Failover link with same name already exists')
-
-        if is_master:
-            remote_client = get_client(remote)
-
-            for volume in link['volumes']:
-                if not self.datastore.exists('volumes', ('id', '=', volume)):
-                    raise VerifyException(errno.ENOENT, 'Volume {0} not found'.format(volume))
-
-                for share in self.dispatcher.call_sync('share.get_related', volume):
-                    remote_share = remote_client.call_sync(
-                        'share.query',
-                        [('name', '=', share['name'])],
-                        {'single': True}
-                    )
-                    if remote_share:
-                        raise VerifyException(
-                            errno.EEXIST,
-                            'Share {0} already exists on {1}'.format(share['name'], remote.split('@', 1)[1])
-                        )
-
-                for container in self.dispatcher.call_sync('container.query', [('target', '=', volume)]):
-                    remote_container = remote_client.call_sync(
-                        'container.query',
-                        [('name', '=', container['name'])],
-                        {'single': True}
-                    )
-                    if remote_container:
-                        raise VerifyException(
-                            errno.EEXIST,
-                            'Container {0} already exists on {1}'.format(container['name'], remote.split('@', 1)[1])
-                        )
 
         return ['zpool:{0}'.format(p) for p in link['volumes']]
 
@@ -230,6 +191,34 @@ class FailoverReplicationCreate(Task):
 
         if is_master:
             remote_client = get_client(remote)
+
+            for volume in link['volumes']:
+                if not self.datastore.exists('volumes', ('id', '=', volume)):
+                    raise TaskException(errno.ENOENT, 'Volume {0} not found'.format(volume))
+
+                for share in self.dispatcher.call_sync('share.get_related', volume):
+                    remote_share = remote_client.call_sync(
+                        'share.query',
+                        [('name', '=', share['name'])],
+                        {'single': True}
+                    )
+                    if remote_share:
+                        raise TaskException(
+                            errno.EEXIST,
+                            'Share {0} already exists on {1}'.format(share['name'], remote.split('@', 1)[1])
+                        )
+
+                for container in self.dispatcher.call_sync('container.query', [('target', '=', volume)]):
+                    remote_container = remote_client.call_sync(
+                        'container.query',
+                        [('name', '=', container['name'])],
+                        {'single': True}
+                    )
+                    if remote_container:
+                        raise TaskException(
+                            errno.EEXIST,
+                            'Container {0} already exists on {1}'.format(container['name'], remote.split('@', 1)[1])
+                        )
 
             for volume in link['volumes']:
                 remote_vol = remote_client.call_sync(
@@ -335,7 +324,7 @@ class FailoverReplicationDelete(Task):
         if not self.datastore.exists('failover.links', ('name', '=', name)):
             raise VerifyException(errno.ENOENT, 'Failover link {0} do not exist.'.format(name))
 
-        link = get_latest_failover_link(self.dispatcher, self.datastore, name)
+        link = self.datastore.get_one('failover.links', ('name', '=', name))
 
         return ['zpool:{0}'.format(p) for p in link['volumes']]
 
@@ -366,7 +355,7 @@ class FailoverReplicationSwitch(Task):
         if not self.datastore.exists('failover.links', ('name', '=', name)):
             raise VerifyException(errno.ENOENT, 'Failover link {0} do not exist.'.format(name))
 
-        link = get_latest_failover_link(self.dispatcher, self.datastore, name)
+        link = self.datastore.get_one('failover.links', ('name', '=', name))
 
         return ['zpool:{0}'.format(p) for p in link['volumes']]
 
