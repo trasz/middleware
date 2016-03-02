@@ -347,7 +347,7 @@ class FailoverReplicationDelete(Task):
             for volume in link['volumes']:
                 self.dispatcher.call_task_sync('volume.delete', volume)
 
-        self.dispatcher.datastore.delete('failover.links', link['id'])
+        self.datastore.delete('failover.links', link['id'])
 
         remote_client = get_client(remote)
         if remote_client.call_sync('failover.get_one', name):
