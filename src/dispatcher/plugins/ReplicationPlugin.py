@@ -349,6 +349,10 @@ class FailoverReplicationDelete(Task):
 
         self.dispatcher.datastore.delete('failover.links', link['id'])
 
+        remote_client = get_client(remote)
+        if remote_client.call_sync('failover.get_one', name):
+            remote_client.call_task_sync('replication.failover.delete', name, scrub)
+
         self.dispatcher.dispatch_event('replication.failover.changed', {
             'operation': 'delete',
             'ids': [link['id']]
