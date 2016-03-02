@@ -94,7 +94,7 @@ def run(context):
             pass
         # Creating pristine boot environment from the "default"
         context.logger.info('Creating "Initial-Install" boot environment...')
-        context.client.call_task_sync('boot.environment.create', 'Initial-Install', 'default')
+        context.client.call_task_sync('boot.environment.clone', 'Initial-Install', 'default')
 
     if grub:
         proc = subprocess.Popen(
