@@ -722,6 +722,8 @@ def get_latest_failover_link(dispatcher, datastore, name):
             client = get_client(remote)
             remote_link = client.call_sync('failover.get_one', name)
             client.disconnect()
+            if not remote_link:
+                return local_link
 
             if parse_datetime(local_link['update_date']) > parse_datetime(remote_link['update_date']):
                 return local_link
