@@ -338,6 +338,7 @@ class UpdateServiceConfigTask(Task):
 
         if service_def.get('task'):
             enable = updated_config.pop('enable', None)
+            self.verify_subtask(service_def['task'], updated_config)
             result = self.join_subtasks(self.run_subtask(service_def['task'], updated_config))
             restart = result[0] == 'RESTART'
             reload = result[0] == 'RELOAD'
