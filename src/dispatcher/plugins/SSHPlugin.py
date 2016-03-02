@@ -81,7 +81,11 @@ def _init(dispatcher, plugin):
         'properties': {
             'type': {'enum': ['service-sshd']},
             'enable': {'type': 'boolean'},
-            'port': {'type': 'integer'},
+            'port': {
+                'type': 'integer',
+                'minimum': 1,
+                'maximum': 65535
+                },
             'permit_root_login': {'type': 'boolean'},
             'allow_pubkey_auth': {'type': 'boolean'},
             'allow_password_auth': {'type': 'boolean'},
