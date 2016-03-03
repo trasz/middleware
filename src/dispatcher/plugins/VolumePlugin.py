@@ -1241,8 +1241,8 @@ class VolumeAutoImportTask(Task):
                         item_type = config.get('type', '')
                         if item_type != '':
 
-                            if item_type in share_types:
-                                if scope in ['all', 'shares']:
+                            if scope in ['all', 'shares']:
+                                if item_type in share_types:
                                     try:
                                         self.join_subtasks(self.run_subtask(
                                             'share.import',
@@ -1281,8 +1281,8 @@ class VolumeAutoImportTask(Task):
                                     )
                                     continue
 
-                            elif item_type in container_types:
-                                if scope in ['all', 'containers']:
+                            elif scope in ['all', 'containers']:
+                                if item_type in container_types:
                                     try:
                                         self.join_subtasks(self.run_subtask(
                                             'container.import',
