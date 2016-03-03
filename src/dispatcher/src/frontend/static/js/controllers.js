@@ -84,7 +84,7 @@ function RpcController($scope) {
                     // should add some check like doHaveRef(),
                     // then add ref_link for `$ref`
                 // });
-                $("#result").val(JSON.stringify(result, null, 4))
+                $("#result").html(JSON.stringify(result, null, 4));
             }
         );
     });
