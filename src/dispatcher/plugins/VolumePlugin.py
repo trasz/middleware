@@ -1832,7 +1832,7 @@ def _init(dispatcher, plugin):
         dataset, _, name = snapshot['name'].partition('@')
         pool = dataset.partition('/')[0]
 
-        if pool == boot_pool:
+        if pool == boot_pool['id']:
             return None
 
         return {
