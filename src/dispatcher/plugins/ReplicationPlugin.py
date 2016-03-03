@@ -776,7 +776,7 @@ def _init(dispatcher, plugin):
     def sync_failovers(args):
         failovers = dispatcher.call_sync('failover.query')
         for i in args['ids']:
-            snapshot = dispatcher.call_sync('zfs.snapshot.query', [('name', '=', i)])
+            snapshot = dispatcher.call_sync('zfs.snapshot.query', [('name', '=', i)], {'single': True})
             for failover in failovers:
                 if snapshot['pool'] in failover['volumes']:
                     is_master, remote = get_failover_state(dispatcher, failover)
