@@ -763,7 +763,7 @@ def set_failover_state(client, enabled, volumes):
         client.call_task_sync(
             'zfs.update',
             volume, volume,
-            {'readonly': {'value': enabled}}
+            {'readonly': {'value': 'off' if enabled else 'on'}}
         )
 
 
