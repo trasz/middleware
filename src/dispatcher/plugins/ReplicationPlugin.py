@@ -341,7 +341,7 @@ class FailoverReplicationDelete(Task):
 
         if not is_master and scrub:
             for volume in link['volumes']:
-                self.dispatcher.call_task_sync('volume.delete', volume)
+                self.join_subtasks(self.run_subtask('volume.delete', volume))
 
         self.datastore.delete('failover.links', link['id'])
 
