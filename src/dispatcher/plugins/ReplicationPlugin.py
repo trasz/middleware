@@ -249,7 +249,11 @@ class FailoverReplicationCreate(Task):
                             )
                         )
 
-                vol_datasets = self.dispatcher.call_sync('zfs.dataset.query', [('pool', '=', volume)])
+                vol_datasets = self.dispatcher.call_sync(
+                    'zfs.dataset.query',
+                    [('pool', '=', volume)],
+                    {'sort': ['name']}
+                )
                 for dataset in vol_datasets:
                     remote_dataset = remote_client.call_sync(
                         'zfs.dataset.query',
