@@ -258,14 +258,16 @@ class FailoverReplicationCreate(Task):
                     )
                     if not remote_dataset:
                         try:
+                            dataset_properties = {
+                                'id': dataset['name'],
+                                'volume': dataset['pool'],
+                                'type': dataset['type']
+                            }
+                            if dataset['mountpoint']:
+                                dataset_properties['mountpoint'] = dataset['mountpoint']
                             remote_client.call_task_sync(
                                 'volume.dataset.create',
-                                {
-                                    'id': dataset['name'],
-                                    'volume': dataset['pool'],
-                                    'type': dataset['type'],
-                                    'mountpoint': dataset['mountpoint']
-                                }
+                                dataset_properties
                             )
                         except RpcException as e:
                             raise TaskException(
