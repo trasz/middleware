@@ -233,9 +233,7 @@ class ContainerBaseTask(Task):
             ds_name = os.path.join(container_ds, res['name'])
             self.join_subtasks(self.run_subtask(
                 'volume.dataset.delete',
-                container['target'],
-                ds_name,
-                True
+                ds_name
             ))
 
 
@@ -414,7 +412,7 @@ class ContainerDeleteTask(Task):
         container_ds = os.path.join(root_ds, container['name'])
 
         try:
-            self.join_subtasks(self.run_subtask('volume.dataset.delete', pool, container_ds, True))
+            self.join_subtasks(self.run_subtask('volume.dataset.delete', container_ds))
         except RpcException as err:
             if err.code != errno.ENOENT:
                 raise err
