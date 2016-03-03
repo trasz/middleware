@@ -151,7 +151,7 @@ class Context(object):
         if result:
             obj['result'] = result
 
-        if exception:
+        if exception is not None:
             obj['error'] = serialize_error(exception)
 
         self.conn.call_sync('task.put_status', obj)
