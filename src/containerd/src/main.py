@@ -401,7 +401,7 @@ class ManagementService(RpcService):
         if container['type'] == 'VM':
             vm = self.context.containers.get(id)
             if not vm:
-                raise RpcException(errno.ENOENT, 'Container {0} is not started'.format(container['name']))
+                return
 
             vm.stop(force)
             del self.context.containers[id]
