@@ -30,7 +30,7 @@ import gevent
 import gevent.pool
 import logging
 
-from task import Task, Provider, TaskException, VerifyException, query
+from task import Task, Provider, TaskException, VerifyException, ValidationException, query
 from resources import Resource
 from freenas.dispatcher.rpc import RpcException, description, accepts, private, returns
 from freenas.dispatcher.rpc import SchemaHelper as h
@@ -338,7 +338,14 @@ class UpdateServiceConfigTask(Task):
 
         if service_def.get('task'):
             enable = updated_config.pop('enable', None)
-            self.verify_subtask(service_def['task'], updated_config)
+
+            try:
+                self.verify_subtask(service_def['task'], updated_config)
+            except RpcException as err:
+                new_err = ValidationException()
+                new_err.propagate(err, [0], [1, 'config'])
+                raise new_err
+
             result = self.join_subtasks(self.run_subtask(service_def['task'], updated_config))
             restart = result[0] == 'RESTART'
             reload = result[0] == 'RELOAD'
