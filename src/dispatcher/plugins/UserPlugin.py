@@ -654,7 +654,7 @@ def _init(dispatcher, plugin):
             'members': {
                 'type': 'array',
                 'readOnly': True,
-                'items': {'type': 'integer'}
+                'items': {'type': 'string'}
             }
         },
         'additionalProperties': False,
