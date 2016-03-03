@@ -52,26 +52,25 @@ class NTPServerCreateTask(Task):
         return "Creating NTP Server {0}".format(ntp['address'])
 
     def verify(self, ntp, force=False):
-
-        errors = []
+        errors = ValidationException()
 
         try:
             system('ntpdate', '-q', ntp['address'])
         except SubprocessException:
             if not force:
-                errors.append((
-                    'address',
-                    errno.EINVAL,
-                    'Server could not be reached. Check "Force" to continue regardless.'))
+                errors.add(
+                    (0, 'address'),
+                    'Server could not be reached. Check "Force" to continue regardless.'
+                )
 
         minpoll = ntp.get('minpoll', 6)
         maxpoll = ntp.get('maxpoll', 10)
 
         if not maxpoll > minpoll:
-            errors.append(('maxpoll', errno.EINVAL, 'Max Poll should be higher than Min Poll'))
+            errors.add((0, 'maxpoll'), 'Max Poll should be higher than Min Poll')
 
         if errors:
-            raise ValidationException(errors)
+            raise errors
 
         return ['system']
 
@@ -100,7 +99,7 @@ class NTPServerUpdateTask(Task):
         if ntp is None:
             raise VerifyException(errno.ENOENT, 'NTP Server with given ID does not exist')
 
-        errors = []
+        errors = ValidationException()
 
         try:
             if 'address' in updated_fields:

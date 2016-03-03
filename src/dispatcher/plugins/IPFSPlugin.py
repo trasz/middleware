@@ -107,18 +107,14 @@ class IPFSConfigureTask(Task):
         return 'Configuring IPFS service'
 
     def verify(self, ipfs):
-        errors = []
+        errors = ValidationException()
 
         if 'path' in ipfs:
             if ipfs['path'] in [None, ''] or ipfs['path'].isspace():
-                errors.append((
-                    'path',
-                    errno.EINVAL,
-                    "The provided path: '{0}' is not valid".format(ipfs['path'])
-                ))
+                errors.add((0, path), "The provided path: '{0}' is not valid".format(ipfs['path']))
 
         if errors:
-            raise ValidationException(errors)
+            raise errors
 
         return ['system']
 

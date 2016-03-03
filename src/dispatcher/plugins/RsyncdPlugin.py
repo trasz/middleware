@@ -100,13 +100,13 @@ class RsyncdModuleCreateTask(Task):
         return 'Adding rsync module'
 
     def verify(self, rsyncmod):
-        errors = []
+        errors = ValidationException()
 
         if re.search(r'[/\]]', rsyncmod['name']):
-            errors.append('name', errno.EINVAL, 'The name cannot contain slash or a closing square backet.')
+            errors.add((0, 'name'), 'The name cannot contain slash or a closing square backet.')
 
         if errors:
-            raise ValidationException(errors)
+            raise errors
 
         return ['system']
 
@@ -140,15 +140,16 @@ class RsyncdModuleUpdateTask(Task):
         rsyncmod = self.datastore.get_by_id('rsyncd-module', uuid)
         if rsyncmod is None:
             raise VerifyException(errno.ENOENT, 'Rsync module {0} does not exist'.format(uuid))
+
         rsyncmod.update(updated_fields)
 
-        errors = []
+        errors = ValidationException()
 
         if re.search(r'[/\]]', rsyncmod['name']):
-            errors.append('name', errno.EINVAL, 'The name cannot contain slash or a closing square backet.')
+            errors.add((1, 'name'), 'The name cannot contain slash or a closing square backet.')
 
         if errors:
-            raise ValidationException(errors)
+            raise errors
 
         return ['system']
 
@@ -224,7 +225,7 @@ class RsyncCopyTask(ProgressTask):
         return 'Running Rsync Copy Task with user specified arguments'
 
     def verify(self, params):
-        errors = []
+        errors = ValidationException()
 
         if self.datastore.get_one('users', ('username', '=', params.get('user'))) is None:
             raise VerifyException(
