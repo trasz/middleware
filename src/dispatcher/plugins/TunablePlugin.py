@@ -82,25 +82,26 @@ class TunableCreateTask(Task):
 
     def verify(self, tunable):
 
-        errors = []
+        errors = ValidationException()
+
         if self.datastore.exists('tunables', ('var', '=', tunable['var'])):
-            errors.append(('var', errno.EEXIST, 'This variable already exists.'))
+            errors.add((1, 'var'), 'This variable already exists.', code=errno.EEXIST)
 
         if '"' in tunable['value'] or "'" in tunable['value']:
-            errors.append(('value', errno.EINVAL, 'Quotes are not allowed'))
+            errors.add((1, 'value'), 'Quotes are not allowed')
 
         if tunable['type'] in ('LOADER', 'RC') and not VAR_LOADER_RC_RE.match(tunable['var']):
-            errors.append(('var', errno.EINVAL, VAR_SYSCTL_FORMAT))
+            errors.add((1, 'var'), VAR_SYSCTL_FORMAT)
         elif tunable['type'] == 'SYSCTL':
             if not VAR_SYSCTL_RE.match(tunable['var']):
-                errors.append(('var', errno.EINVAL, VAR_LOADER_RC_FORMAT))
+                errors.add((1, 'var'), VAR_LOADER_RC_FORMAT)
             try:
                 sysctl.sysctlnametomib(tunable['var'])
             except OSError:
-                errors.append(('var', errno.EINVAL, 'Sysctl variable does not exist'))
+                errors.add((1, 'var'), 'Sysctl variable does not exist')
 
         if errors:
-            raise ValidationException(errors)
+            raise errors
 
         return ['system']
 
@@ -141,29 +142,29 @@ class TunableUpdateTask(Task):
         if tunable is None:
             raise VerifyException(errno.ENOENT, 'Tunable with given ID does not exist')
 
-        errors = []
+        errors = ValidationException()
 
         if 'var' in updated_fields and self.datastore.exists(
             'tunables', ('and', [('var', '=', updated_fields['var']), ('id', '!=', id)])
         ):
-            errors.append(('var', errno.EEXIST, 'This variable already exists.'))
+            errors.add((1, 'var'), 'This variable already exists.', code=errno.EEXIST)
 
         if 'value' in updated_fields and '"' in updated_fields['value'] or "'" in updated_fields['value']:
-            errors.append(('value', errno.EINVAL, 'Quotes are not allowed'))
+            errors.add((1, 'value'), 'Quotes are not allowed')
 
         if 'type' in updated_fields:
             if updated_fields['type'] in ('LOADER', 'RC') and not VAR_LOADER_RC_RE.match(tunable['var']):
-                errors.append(('var', errno.EINVAL, VAR_SYSCTL_FORMAT))
+                errors.add((1, 'var'), VAR_SYSCTL_FORMAT)
             elif updated_fields['type'] == 'SYSCTL':
                 if not VAR_SYSCTL_RE.match(tunable['var']):
-                    errors.append(('var', errno.EINVAL, VAR_LOADER_RC_FORMAT))
+                    errors.add((1, 'var'), VAR_LOADER_RC_FORMAT)
                 try:
                     sysctl.sysctlnametomib(tunable['var'])
                 except OSError:
-                    errors.append(('var', errno.EINVAL, 'Sysctl variable does not exist'))
+                    errors.add((1, 'var'), 'Sysctl variable does not exist')
 
         if errors:
-            raise ValidationException(errors)
+            raise errors
 
         return ['system']
 

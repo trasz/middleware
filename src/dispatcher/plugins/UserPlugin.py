@@ -51,25 +51,19 @@ def check_unixname(name):
     Returns: an array of errors [composed of a tuple (error code, error message)]
     """
 
-    errors = []
-
     if name.startswith('-'):
-        errors.append((errno.EINVAL, 'Your name cannot start with "-"'))
+        yield errno.EINVAL, 'Your name cannot start with "-"'
 
     if name.find('$') not in (-1, len(name) - 1):
-        errors.append((errno.EINVAL, 'The character $ is only allowed as the final character'))
+        yield errno.EINVAL, 'The character $ is only allowed as the final character'
 
     invalids = []
     for char in name:
         if char in ' ,\t:+&#%\^()!@~\*?<>=|\\/"' and char not in invalids:
             invalids.append(char)
-    if invalids:
-        errors.append((
-            errno.EINVAL,
-            'Your name contains invalid characters ({0}).'.format(''.join(invalids))
-            ))
 
-    return errors
+    if invalids:
+        yield errno.EINVAL, 'Your name contains invalid characters ({0}).'.format(''.join(invalids))
 
 
 def crypted_password(cleartext):
@@ -172,31 +166,32 @@ class UserCreateTask(Task):
         return "Adding user {0}".format(user['username'])
 
     def verify(self, user):
-        errors = []
+        errors = ValidationException()
 
         for code, message in check_unixname(user['username']):
-            errors.append(('name', code, message))
+            errors.add((0, 'username'), message, code=code)
 
         if self.datastore.exists('users', ('username', '=', user['username'])):
             raise VerifyException(errno.EEXIST, 'User with given name already exists')
 
         if 'groups' in user and len(user['groups']) > 64:
-            errors.append(
-                ('groups', errno.EINVAL, 'User cannot belong to more than 64 auxiliary groups'))
+            errors.add(
+                (0, 'groups'),
+                'User cannot belong to more than 64 auxiliary groups'
+            )
 
         if 'full_name' in user and ':' in user['full_name']:
-            errors.append(('full_name', errno.EINVAL, 'The character ":" is not allowed'))
+            errors.add((0, 'full_name'), 'The character ":" is not allowed')
 
         if 'email' in user:
             if not EMAIL_REGEX.match(user['email']):
-                errors.append((
-                    'email',
-                    errno.EINVAL,
+                errors.add(
+                    (0, 'email'),
                     "{0} is an invalid email address".format(user['email'])
-                ))
+                )
 
         if errors:
-            raise ValidationException(errors)
+            raise errors
 
         return ['system']
 
@@ -357,38 +352,44 @@ class UserUpdateTask(Task):
         if not user:
             raise VerifyException(errno.ENOENT, 'User {0} does not exist'.format(id))
 
-        errors = []
+        errors = ValidationException()
+
         if user.get('builtin'):
             if 'home' in updated_fields:
-                errors.append(('home', errno.EPERM, "Cannot change builtin user's home directory"))
+                errors.add((1, 'home'), "Cannot change builtin user's home directory", code=errno.EPERM)
+
             # Similarly ignore uid changes for builtin users
             if 'uid' in updated_fields:
-                errors.append(('uid', errno.EPERM, "Cannot change builtin user's UID"))
+                errors.add((1, 'uid'), "Cannot change builtin user's UID", code=errno.EPERM)
+
             if 'username' in updated_fields:
-                errors.append(('username', errno.EPERM, "Cannot change builtin user's username"))
+                errors.add((1, 'username'), "Cannot change builtin user's username", code=errno.EPERM)
+
             if 'locked' in updated_fields:
-                errors.append(('locked', errno.EPERM, "Cannot change builtin user's locked flag"))
+                errors.add((1, 'locked'), "Cannot change builtin user's locked flag", code=errno.EPERM)
+
         if 'groups' in updated_fields and len(updated_fields['groups']) > 64:
-            errors.append(
-                ('groups', errno.EINVAL, 'User cannot belong to more than 64 auxiliary groups'))
+            errors.add((1, 'groups'), 'User cannot belong to more than 64 auxiliary groups')
 
         if 'full_name' in updated_fields and ':' in updated_fields['full_name']:
-            errors.append(('full_name', errno.EINVAL, 'The character ":" is not allowed'))
+            errors.add((1, 'full_name'), 'The character ":" is not allowed')
 
         if 'username' in updated_fields:
             if self.datastore.exists('users', ('username', '=', updated_fields['username']), ('id', '!=', id)):
-                errors.append(('username', errno.EEXIST, 'Different user with given name already exists'))
+                errors.add((1, 'username'), 'Different user with given name already exists')
+
+            for code, message in check_unixname(updated_fields['username']):
+                errors.add((1, 'username'), message, code=code)
 
         if 'email' in updated_fields:
             if not EMAIL_REGEX.match(updated_fields['email']):
-                errors.append((
-                    'email',
-                    errno.EINVAL,
+                errors.add(
+                    (1, 'email'),
                     "{0} is an invalid email address".format(updated_fields['email'])
-                ))
+                )
 
         if errors:
-            raise ValidationException(errors)
+            raise errors
 
         return ['system']
 
@@ -479,23 +480,27 @@ class GroupCreateTask(Task):
         return "Adding group {0}".format(group['name'])
 
     def verify(self, group):
-        errors = []
+        errors = ValidationException()
 
         for code, message in check_unixname(group['name']):
-            errors.append(('name', code, message))
+            errors.add((0, 'name'), message, code=code)
 
         if self.datastore.exists('groups', ('name', '=', group['name'])):
-            errors.append(
-                ("name", errno.EEXIST, 'Group {0} already exists'.format(group['name']))
+            errors.add(
+                (0, "name"),
+                'Group {0} already exists'.format(group['name']),
+                code=errno.EEXIST
             )
 
         if 'gid' in group and self.datastore.exists('groups', ('gid', '=', group['gid'])):
-            errors.append(
-                ("gid", errno.EEXIST, 'Group with GID {0} already exists'.format(group['gid']))
+            errors.add(
+                (0, "gid"),
+                'Group with GID {0} already exists'.format(group['gid']),
+                code=errno.EEXIST
             )
 
         if errors:
-            raise ValidationException(errors)
+            raise errors
 
         return ['system']
 
@@ -537,20 +542,22 @@ class GroupUpdateTask(Task):
         if group is None:
             raise VerifyException(errno.ENOENT, 'Group with given ID does not exist')
 
-        errors = []
+        errors = ValidationException()
         group.update(updated_fields)
 
         for code, message in check_unixname(group['name']):
-            errors.append(('name', code, message))
+            errors.add((1, 'name'), message, code=code)
 
         # Check if there is another group with same name being renamed to
         if self.datastore.exists('groups', ('name', '=', group['name']), ('gid', '!=', group['gid'])):
-            errors.append(
-                ("name", errno.EEXIST, 'Group {0} already exists'.format(group['name']))
+            errors.add(
+                (1, "name"),
+                'Group {0} already exists'.format(group['name']),
+                code=errno.EEXIST
             )
 
         if errors:
-            raise ValidationException(errors)
+            raise errors
 
         return ['system']
 

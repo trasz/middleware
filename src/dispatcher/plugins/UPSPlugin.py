@@ -146,26 +146,25 @@ class UPSConfigureTask(Task):
         return 'Configuring UPS service'
 
     def verify(self, ups):
-        errors = []
-
+        errors = ValidationException()
         node = ConfigNode('service.ups', self.configstore).__getstate__()
         node.update(ups)
 
         if node['mode'] == 'MASTER' and not node['driver_port']:
-            errors.append(('driver_port', errno.EINVAL, 'This field is required'))
+            errors.add((0, 'driver_port'), 'This field is required')
 
         if node['mode'] == 'SLAVE' and not node['remote_host']:
-            errors.append(('remote_host', errno.EINVAL, 'This field is required'))
+            errors.add((0, 'remote_host'), 'This field is required')
 
         if not re.search(r'^[a-z0-9\.\-_]+$', node['identifier'], re.I):
-            errors.append(('identifier', errno.EINVAL, 'Use alphanumeric characters, ".", "-" and "_"'))
+            errors.add((0, 'identifier'), 'Use alphanumeric characters, ".", "-" and "_"')
 
         for i in ('monitor_user', 'monitor_password'):
             if re.search(r'[ #]', node[i], re.I):
-                errors.append((i, errno.EINVAL, 'Spaces or number signs are not allowed'))
+                errors.add((0, i), 'Spaces or number signs are not allowed')
 
         if errors:
-            raise ValidationException(errors)
+            raise errors
 
         return ['system']
 
