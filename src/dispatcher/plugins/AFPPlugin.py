@@ -53,16 +53,16 @@ class AFPConfigureTask(Task):
 
     def verify(self, afp):
 
-        errors = []
+        errors = ValidationException()
         dbpath = afp.get('dbpath')
         if dbpath:
             if not os.path.exists(dbpath):
-                errors.append(('dbpath', errno.EEXIST, 'Path does not exist'))
+                errors.add((0, 'dbpath'), 'Path does not exist', code=errno.ENOENT)
             elif not os.path.isdir(dbpath):
-                errors.append(('dbpath', errno.EINVAL, 'Path is not a directory'))
+                errors.add((0, 'dbpath'), 'Path is not a directory')
 
         if errors:
-            raise ValidationException(errors)
+            raise errors
 
         return ['system']
 

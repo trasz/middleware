@@ -49,44 +49,37 @@ class FTPConfigureTask(Task):
         return 'Configuring FTP service'
 
     def verify(self, ftp):
-        errors = []
-
+        errors = ValidationException()
         node = ConfigNode('service.ftp', self.configstore).__getstate__()
         node.update(ftp)
 
         pmin = node['passive_ports_min']
         if 'passive_ports_min' in ftp:
             if pmin and (pmin < 1024 or pmin > 65535):
-                errors.append(
-                    ('passive_ports_min', errno.EINVAL, 'This value must be between 1024 and 65535, inclusive.')
-                )
+                errors.add((0, 'passive_ports_min'), 'This value must be between 1024 and 65535, inclusive.')
 
         pmax = node['passive_ports_max']
         if 'passive_ports_max' in ftp:
             if pmax and (pmax < 1024 or pmax > 65535):
-                errors.append(
-                    ('passive_ports_max', errno.EINVAL, 'This value must be between 1024 and 65535, inclusive.')
-                )
+                errors.add((0, 'passive_ports_max'), 'This value must be between 1024 and 65535, inclusive.')
             elif pmax and pmin and pmin >= pmax:
-                errors.append(
-                    ('passive_ports_max', errno.EINVAL, 'This value must be higher than minimum passive port.')
-                )
+                errors.add((0, 'passive_ports_max'),  'This value must be higher than minimum passive port.')
 
         if node['only_anonymous'] and not node['anonymous_path']:
-            errors.append(
-                ('anonymous_path', errno.EINVAL, 'This field is required for anonymous login.')
+            errors.add(
+                ((0, 'anonymous_path'), errno.EINVAL, 'This field is required for anonymous login.')
             )
 
         if node['tls'] is True and not node['tls_ssl_certificate']:
-            errors.append(('tls_ssl_certificate', errno.EINVAL, 'TLS specified without certificate.'))
+            errors.add((0, 'tls_ssl_certificate'), 'TLS specified without certificate.')
 
         if node['tls_ssl_certificate']:
             cert = self.dispatcher.call_sync('crypto.certificate.query', [('id', '=', node['tls_ssl_certificate'])])
             if not cert:
-                errors.append(('tls_ssl_certificate', errno.EINVAL, 'SSL Certificate not found.'))
+                errors.add((0, 'tls_ssl_certificate'), 'SSL Certificate not found.')
 
         if errors:
-            raise ValidationException(errors)
+            raise errors
 
         return ['system']
 
@@ -123,7 +116,7 @@ def _init(dispatcher, plugin):
                 'type': 'integer',
                 'minimum': 1,
                 'maximum': 65535
-                },
+            },
             'max_clients': {'type': 'integer'},
             'ip_connections': {'type': ['integer', 'null']},
             'login_attempt': {'type': 'integer'},

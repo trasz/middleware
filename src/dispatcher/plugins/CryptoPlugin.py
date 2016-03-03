@@ -163,25 +163,27 @@ class CertificateProvider(Provider):
 class CertificateCreateTask(Task):
     def verify(self, certificate):
 
-        errors = []
+        errors = ValidationException()
 
         if certificate['type'] == 'CERT_INTERNAL':
             if self.datastore.exists('crypto.certificates', ('name', '=', certificate['name'])):
-                errors.append(('name', errno.EEXIST, 'Certificate with given name already exists'))
+                errors.add((0, 'name'), 'Certificate with given name already exists', code=errno.EEXIST)
 
             if not self.datastore.exists('crypto.certificates', ('id', '=', certificate['signedby'])):
-                errors.append(('signedby', errno.EEXIST, 'Signing certificate does not exist'))
+                errors.add((0, 'signedby'), 'Signing certificate does not exist', code=errno.EEXIST)
 
             if '"' in certificate['name']:
-                errors.append(
-                    ('name', errno.EINVAL, 'You cannot issue a certificate with a `"` in its name'))
-        if certificate['type'] in ('CERT_INTERNAL', 'CA_INTERMEDIATE'):
+                errors.add((
+                    (0, 'name'),
+                    'You cannot issue a certificate with a `"` in its name')
+                )
 
+        if certificate['type'] in ('CERT_INTERNAL', 'CA_INTERMEDIATE'):
             if 'signedby' not in certificate or not self.datastore.exists('crypto.certificates', ('id', '=', certificate['signedby'])):
-                errors.append(('signedby', errno.EEXIST, 'Signing Certificate does not exist'))
+                errors.add((0, 'signedby'), 'Signing Certificate does not exist', code=errno.EEXIST)
 
         if errors:
-            raise ValidationException(errors)
+            raise errors
 
         return ['system']
 
@@ -308,12 +310,12 @@ class CertificateImportTask(Task):
         if certificate['type'] not in ('CERT_EXISTING', 'CA_EXISTING'):
             raise VerifyException(errno.EINVAL, 'Invalid certificate type')
 
-        errors = []
+        errors = ValidationException()
         for i in ('country', 'state', 'city', 'organization', 'email', 'common'):
             if i in certificate:
-                errors.append((i, errno.EINVAL, '{0} is not valid in certificate import'.format(i)))
+                errors.add((0, i), '{0} is not valid in certificate import'.format(i))
         if errors:
-            raise ValidationException(errors)
+            raise errors
 
         if certificate['type'] == 'CERT_EXISTING' and (
             'privatekey' not in certificate or
