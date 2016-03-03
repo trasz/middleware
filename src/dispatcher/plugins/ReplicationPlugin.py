@@ -132,7 +132,7 @@ class FailoverProvider(Provider):
     @query('failover-link')
     def query(self, filter=None, params=None):
         return self.datastore.query(
-            'failover-links', *(filter or []), **(params or {})
+            'failover.links', *(filter or []), **(params or {})
         )
 
     def get_one(self, name):
