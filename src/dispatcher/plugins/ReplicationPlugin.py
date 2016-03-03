@@ -333,7 +333,12 @@ class FailoverReplicationDelete(Task):
 
         link = self.datastore.get_one('failover.links', ('name', '=', name))
 
-        return ['zpool:{0}'.format(p) for p in link['volumes']]
+        volumes = []
+        for vol in link['volumes']:
+            if self.datastore.exists('volumes', [('id', '=', vol)]):
+                volumes.append(vol)
+
+        return ['zpool:{0}'.format(p) for p in volumes]
 
     def run(self, name, scrub=False):
         link = get_latest_failover_link(self.dispatcher, self.datastore, name)
