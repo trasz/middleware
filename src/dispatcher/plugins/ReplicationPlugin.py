@@ -262,10 +262,12 @@ class FailoverReplicationCreate(Task):
                     )
                     if not remote_dataset:
                         try:
+                            if dataset['type'] == 'VOLUME':
+                                continue
+
                             dataset_properties = {
                                 'id': dataset['name'],
-                                'volume': dataset['pool'],
-                                'type': dataset['type']
+                                'volume': dataset['pool']
                             }
                             if dataset['mountpoint']:
                                 dataset_properties['mountpoint'] = dataset['mountpoint']
