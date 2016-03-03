@@ -347,6 +347,7 @@ class FailoverReplicationDelete(Task):
         is_master, remote = get_failover_state(self.dispatcher, link)
 
         if not is_master and scrub:
+            set_failover_state(self.dispatcher, True, link['volumes'])
             for volume in link['volumes']:
                 self.join_subtasks(self.run_subtask('volume.delete', volume))
 
