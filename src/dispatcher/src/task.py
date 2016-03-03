@@ -25,6 +25,7 @@
 #
 #####################################################################
 
+import copy
 import errno
 import logging
 from freenas.dispatcher.rpc import RpcService, RpcException, RpcWarning
@@ -123,8 +124,9 @@ class TaskWarning(RpcWarning):
 
 
 class ValidationException(TaskException):
-    def __init__(self, errors=None):
+    def __init__(self, errors=None, extra=None):
         super(ValidationException, self).__init__(errno.EBADMSG, 'Validation Exception Errors', extra=[])
+
         if errors:
             for path, code, message in errors:
                 self.extra.append({
@@ -132,6 +134,9 @@ class ValidationException(TaskException):
                     'code': code,
                     'message': message
                 })
+
+        if extra:
+            self.extra = extra
 
     def add(self, path, message, code=errno.EINVAL):
         self.extra.append({
@@ -141,7 +146,11 @@ class ValidationException(TaskException):
         })
 
     def propagate(self, other, src_path, dst_path):
-        pass
+        for err in other.extra:
+            if err['path'][len(src_path):] == src_path:
+                new_err = copy.deepcopy(err)
+                new_err['path'] = dst_path + err['path'][:len(src_path)]
+                self.extra.append(new_err)
 
     def __bool__(self):
         return bool(self.extra)

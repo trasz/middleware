@@ -48,7 +48,7 @@ from freenas.utils import first_or_default
 from resources import Resource
 from auth import Service
 from task import (
-    TaskException, TaskAbortException, VerifyException,
+    TaskException, TaskAbortException, VerifyException, ValidationException,
     TaskStatus, TaskState, MasterProgressTask
 )
 import collections
@@ -458,14 +458,6 @@ class Balancer(object):
             self.logger.warning("Cannot submit task: unknown task type %s", name)
             raise RpcException(errno.EINVAL, "Unknown task type {0}".format(name))
 
-        errors = self.verify_schema(self.dispatcher.tasks[name], args)
-        if len(errors) > 0:
-            errors = list(validator.serialize_errors(errors))
-            self.logger.warning(
-                "Cannot submit task {0}: schema verification failed with errors {1}".format(name, errors)
-            )
-            raise RpcException(errno.EINVAL, "Schema verification failed", extra=errors)
-
         clazz = self.dispatcher.tasks[name]
         if hasattr(clazz, 'private') and not isinstance(sender.user, Service):
             raise RpcException(errno.EPERM, "Permission denied")
@@ -570,6 +562,15 @@ class Balancer(object):
 
             try:
                 self.logger.debug("Picked up task %d: %s with args %s", task.id, task.name, task.args)
+
+                errors = self.verify_schema(self.dispatcher.tasks[task.name], task.args)
+                if len(errors) > 0:
+                    errors = list(validator.serialize_errors(errors))
+                    self.logger.warning(
+                        "Cannot submit task {0}: schema verification failed with errors {1}".format(task.name, errors)
+                    )
+                    raise ValidationException(extra=errors)
+
                 task.instance = task.clazz(self.dispatcher, self.dispatcher.datastore)
                 task.resources = task.instance.verify(*task.args)
 
