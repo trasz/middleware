@@ -5,7 +5,7 @@
                 "uid": 65534,
                 "password_disabled": false,
                 "email": null,
-                "group": 65534,
+                "group": "AE3500A4-C5FD-41D1-BDD7-6831A9D1E4AA",
                 "home": "/nonexistent",
                 "full_name": "Unprivileged user",
                 "username": "nobody",
@@ -15,6 +15,7 @@
                 "unixhash": "*",
                 "sudo": false,
                 "smbhash": "*",
+                "groups": [],
                 "attributes": {},
                 "builtin": true
             },
@@ -22,7 +23,7 @@
                 "uid": 922,
                 "password_disabled": false,
                 "email": null,
-                "group": 922,
+                "group": "4F8F5150-28A0-4215-B822-EC4F4A617F6F",
                 "home": "/data",
                 "full_name": "MongoDB pseudo-user",
                 "username": "mongodb",
@@ -32,6 +33,7 @@
                 "unixhash": "*",
                 "sudo": false,
                 "smbhash": "*",
+                "groups": [],
                 "attributes": {},
                 "builtin": true
             },
@@ -39,7 +41,7 @@
                 "uid": 666,
                 "password_disabled": false,
                 "email": null,
-                "group": 666,
+                "group": "1E5EA5EC-0075-492E-BE6A-0CE85F82F15D",
                 "home": "/nonexistent",
                 "full_name": "WebDAV Anonymous User",
                 "username": "webdav",
@@ -49,6 +51,7 @@
                 "unixhash": "*",
                 "sudo": false,
                 "smbhash": "*",
+                "groups": [],
                 "attributes": {},
                 "builtin": true
             },
@@ -56,7 +59,7 @@
                 "uid": 667,
                 "password_disabled": false,
                 "email": null,
-                "group": 667,
+                "group": "17623FD9-9C3C-4143-8ECB-DD1BD0A072C0",
                 "home": "/usr/local/lib/riak",
                 "full_name": "Riak KV User",
                 "username": "riak",
@@ -66,6 +69,7 @@
                 "unixhash": "*",
                 "sudo": false,
                 "smbhash": "*",
+                "groups": [],
                 "attributes": {},
                 "builtin": true
             },
@@ -73,7 +77,7 @@
                 "uid": 668,
                 "password_disabled": false,
                 "email": null,
-                "group": 667,
+                "group": "17623FD9-9C3C-4143-8ECB-DD1BD0A072C0",
                 "home": "/usr/local/lib/riak-cs",
                 "full_name": "RIAK CS",
                 "username": "riakcs",
@@ -83,6 +87,7 @@
                 "unixhash": "*",
                 "sudo": false,
                 "smbhash": "*",
+                "groups": [],
                 "attributes": {},
                 "builtin": true
             },
@@ -90,7 +95,7 @@
                 "uid": 669,
                 "password_disabled": false,
                 "email": null,
-                "group": 667,
+                "group": "17623FD9-9C3C-4143-8ECB-DD1BD0A072C0",
                 "home": "/usr/local/lib/stanchion",
                 "full_name": "Stanchion User",
                 "username": "stanchion",
@@ -100,6 +105,7 @@
                 "unixhash": "*",
                 "sudo": false,
                 "smbhash": "*",
+                "groups": [],
                 "attributes": {},
                 "builtin": true
             },
@@ -107,7 +113,7 @@
                 "uid": 556,
                 "password_disabled": false,
                 "email": null,
-                "group": 556,
+                "group": "70216FA9-D279-4E5A-B9D4-DBB2824FD218",
                 "home": "/nonexistent",
                 "full_name": "D-BUS Daemon User",
                 "username": "messagebus",
@@ -117,6 +123,7 @@
                 "unixhash": "*",
                 "sudo": false,
                 "smbhash": "*",
+                "groups": [],
                 "attributes": {},
                 "builtin": true
             },
@@ -124,7 +131,7 @@
                 "uid": 187,
                 "password_disabled": false,
                 "email": null,
-                "group": 187,
+                "group": "C25B97F3-C40A-44CF-A3EF-BF80046066FD",
                 "home": "/",
                 "full_name": "SWIFT User",
                 "username": "swift",
@@ -134,6 +141,7 @@
                 "unixhash": "*",
                 "sudo": false,
                 "smbhash": "*",
+                "groups": [],
                 "attributes": {},
                 "builtin": true
             },
@@ -141,7 +149,7 @@
                 "uid": 142,
                 "password_disabled": false,
                 "email": null,
-                "group": 142,
+                "group": "6A5FE6A8-AED3-405D-86F9-CD1936137D2B",
                 "home": "/var/empty",
                 "full_name": "Ladvd User",
                 "username": "ladvd",
@@ -151,6 +159,7 @@
                 "unixhash": "*",
                 "sudo": false,
                 "smbhash": "*",
+                "groups": [],
                 "attributes": {},
                 "builtin": true
             },
@@ -158,7 +167,7 @@
                 "uid": 80,
                 "password_disabled": false,
                 "email": null,
-                "group": 80,
+                "group": "9B9B8F5E-E737-46BC-B215-61F6A0579E9E",
                 "home": "/nonexistent",
                 "full_name": "World Wide Web Owner",
                 "username": "www",
@@ -168,6 +177,7 @@
                 "unixhash": "*",
                 "sudo": false,
                 "smbhash": "*",
+                "groups": [],
                 "attributes": {},
                 "builtin": true
             },
@@ -175,7 +185,7 @@
                 "uid": 78,
                 "password_disabled": false,
                 "email": null,
-                "group": 77,
+                "group": "2941B683-7444-42A4-AA66-F86A8F20A947",
                 "home": "/var/empty",
                 "full_name": "Auditdistd unprivileged user",
                 "username": "auditdistd",
@@ -185,6 +195,7 @@
                 "unixhash": "*",
                 "sudo": false,
                 "smbhash": "*",
+                "groups": [],
                 "attributes": {},
                 "builtin": true
             },
@@ -192,7 +203,7 @@
                 "uid": 68,
                 "password_disabled": false,
                 "email": null,
-                "group": 6,
+                "group": "070ED099-D9AE-4D82-AAD4-C8CF18C7998B",
                 "home": "/nonexistent",
                 "full_name": "Post Office Owner",
                 "username": "pop",
@@ -202,6 +213,7 @@
                 "unixhash": "*",
                 "sudo": false,
                 "smbhash": "*",
+                "groups": [],
                 "attributes": {},
                 "builtin": true
             },
@@ -209,7 +221,7 @@
                 "uid": 66,
                 "password_disabled": false,
                 "email": null,
-                "group": 66,
+                "group": "04E287E2-6FB0-45A8-85CB-F548DBF7FFCF",
                 "home": "/var/spool/uucppublic",
                 "full_name": "UUCP pseudo-user",
                 "username": "uucp",
@@ -219,6 +231,7 @@
                 "unixhash": "*",
                 "sudo": false,
                 "smbhash": "*",
+                "groups": [],
                 "attributes": {},
                 "builtin": true
             },
@@ -226,7 +239,7 @@
                 "uid": 65,
                 "password_disabled": false,
                 "email": null,
-                "group": 65,
+                "group": "901C6195-D94A-4CC9-BF1D-954DFB14F17B",
                 "home": "/var/empty",
                 "full_name": "dhcp programs",
                 "username": "_dhcp",
@@ -236,6 +249,7 @@
                 "unixhash": "*",
                 "sudo": false,
                 "smbhash": "*",
+                "groups": [],
                 "attributes": {},
                 "builtin": true
             },
@@ -243,7 +257,7 @@
                 "uid": 8,
                 "password_disabled": false,
                 "email": null,
-                "group": 8,
+                "group": "75BB5D8A-8A36-46B4-A9BA-323EE310733A",
                 "home": "/",
                 "full_name": "News Subsystem",
                 "username": "news",
@@ -253,6 +267,7 @@
                 "unixhash": "*",
                 "sudo": false,
                 "smbhash": "*",
+                "groups": [],
                 "attributes": {},
                 "builtin": true
             },
@@ -260,7 +275,7 @@
                 "uid": 7,
                 "password_disabled": false,
                 "email": null,
-                "group": 13,
+                "group": "C5B8F090-DB15-4083-BBE3-07FA541E7DAE",
                 "home": "/",
                 "full_name": "Games pseudo-user",
                 "username": "games",
@@ -270,6 +285,7 @@
                 "unixhash": "*",
                 "sudo": false,
                 "smbhash": "*",
+                "groups": [],
                 "attributes": {},
                 "builtin": true
             },
@@ -277,7 +293,7 @@
                 "uid": 5,
                 "password_disabled": false,
                 "email": null,
-                "group": 2,
+                "group": "3EE33D50-8A95-42A7-B6EC-B201CD51C298",
                 "home": "/",
                 "full_name": "KMem Sandbox",
                 "username": "kmem",
@@ -287,6 +303,7 @@
                 "unixhash": "*",
                 "sudo": false,
                 "smbhash": "*",
+                "groups": [],
                 "attributes": {},
                 "builtin": true
             },
@@ -294,7 +311,7 @@
                 "uid": 4,
                 "password_disabled": false,
                 "email": null,
-                "group": 65533,
+                "group": "8980C534-6A71-4BFB-BC72-54CBD5A186DB",
                 "home": "/",
                 "full_name": "Tty Sandbox",
                 "username": "tty",
@@ -304,6 +321,7 @@
                 "unixhash": "*",
                 "sudo": false,
                 "smbhash": "*",
+                "groups": [],
                 "attributes": {},
                 "builtin": true
             },
@@ -311,7 +329,7 @@
                 "uid": 3,
                 "password_disabled": false,
                 "email": null,
-                "group": 7,
+                "group": "566D4055-B736-4AC5-B324-889231381E27",
                 "home": "/",
                 "full_name": "Binaries Commands and Source",
                 "username": "bin",
@@ -321,6 +339,7 @@
                 "unixhash": "*",
                 "sudo": false,
                 "smbhash": "*",
+                "groups": [],
                 "attributes": {},
                 "builtin": true
             },
@@ -328,7 +347,7 @@
                 "uid": 2,
                 "password_disabled": false,
                 "email": null,
-                "group": 5,
+                "group": "872D1632-EADD-431F-8C5F-8BD6222B602F",
                 "home": "/",
                 "full_name": "System &",
                 "username": "operator",
@@ -338,6 +357,7 @@
                 "unixhash": "*",
                 "sudo": false,
                 "smbhash": "*",
+                "groups": [],
                 "attributes": {},
                 "builtin": true
             },
@@ -345,7 +365,7 @@
                 "uid": 1,
                 "password_disabled": false,
                 "email": null,
-                "group": 1,
+                "group": "36DD1308-699E-45B9-BA9E-D3253A14E1D5",
                 "home": "/root",
                 "full_name": "Owner of many system processes",
                 "username": "daemon",
@@ -355,6 +375,7 @@
                 "unixhash": "*",
                 "sudo": false,
                 "smbhash": "*",
+                "groups": [],
                 "attributes": {},
                 "builtin": true
             },
@@ -362,7 +383,7 @@
                 "uid": 0,
                 "password_disabled": false,
                 "email": null,
-                "group": 0,
+                "group": "0562D3BE-679B-45E3-A220-F9D9A2E938A9",
                 "home": "/root",
                 "full_name": "root",
                 "username": "root",
@@ -372,6 +393,7 @@
                 "unixhash": "*",
                 "sudo": false,
                 "smbhash": null,
+                "groups": [],
                 "attributes": {},
                 "builtin": true
             },
@@ -379,7 +401,7 @@
                 "uid": 9,
                 "password_disabled": false,
                 "email": null,
-                "group": 9,
+                "group": "A787B5E4-C875-47EB-BF44-A787581DD98A",
                 "home": "/usr/share/man",
                 "full_name": "Mister Man Pages",
                 "username": "man",
@@ -389,6 +411,7 @@
                 "unixhash": "*",
                 "sudo": false,
                 "smbhash": "*",
+                "groups": [],
                 "attributes": {},
                 "builtin": true
             },
@@ -396,7 +419,7 @@
                 "uid": 14,
                 "password_disabled": false,
                 "email": null,
-                "group": 14,
+                "group": "25E95D6D-AA2D-489C-8DAC-DD60ECC5F707",
                 "home": "/nonexistent",
                 "full_name": "",
                 "username": "ftp",
@@ -406,6 +429,7 @@
                 "unixhash": "*",
                 "sudo": false,
                 "smbhash": "*",
+                "groups": [],
                 "attributes": {},
                 "builtin": true
             },
@@ -413,7 +437,7 @@
                 "uid": 22,
                 "password_disabled": false,
                 "email": null,
-                "group": 22,
+                "group": "C9AC8A31-FAE9-41EE-A8B1-07FA6E509626",
                 "home": "/var/empty",
                 "full_name": "Secure Shell Daemon",
                 "username": "sshd",
@@ -423,6 +447,7 @@
                 "unixhash": "*",
                 "sudo": false,
                 "smbhash": "*",
+                "groups": [],
                 "attributes": {},
                 "builtin": true
             },
@@ -430,7 +455,7 @@
                 "uid": 25,
                 "password_disabled": false,
                 "email": null,
-                "group": 25,
+                "group": "E41D0AED-EC6A-4C86-8063-4215F923135E",
                 "home": "/var/spool/clientmqueue",
                 "full_name": "Sendmail Submission User",
                 "username": "smmsp",
@@ -440,6 +465,7 @@
                 "unixhash": "*",
                 "sudo": false,
                 "smbhash": "*",
+                "groups": [],
                 "attributes": {},
                 "builtin": true
             },
@@ -447,7 +473,7 @@
                 "uid": 26,
                 "password_disabled": false,
                 "email": null,
-                "group": 26,
+                "group": "14FC9B9E-97EA-45C8-970A-8853987F6BCE",
                 "home": "/var/spool/mqueue",
                 "full_name": "Sendmail Default User",
                 "username": "mailnull",
@@ -457,6 +483,7 @@
                 "unixhash": "*",
                 "sudo": false,
                 "smbhash": "*",
+                "groups": [],
                 "attributes": {},
                 "builtin": true
             },
@@ -464,7 +491,7 @@
                 "uid": 53,
                 "password_disabled": false,
                 "email": null,
-                "group": 53,
+                "group": "FD259280-436B-45A6-B5AC-52BFAD816019",
                 "home": "/",
                 "full_name": "Bind Sandbox",
                 "username": "bind",
@@ -474,6 +501,7 @@
                 "unixhash": "*",
                 "sudo": false,
                 "smbhash": "*",
+                "groups": [],
                 "attributes": {},
                 "builtin": true
             },
@@ -481,7 +509,7 @@
                 "uid": 62,
                 "password_disabled": false,
                 "email": null,
-                "group": 62,
+                "group": "3A545AA3-45F7-4E82-BB9F-613E3DF55FD9",
                 "home": "/nonexistent",
                 "full_name": "Packet Filter pseudo-user",
                 "username": "proxy",
@@ -491,6 +519,7 @@
                 "unixhash": "*",
                 "sudo": false,
                 "smbhash": "*",
+                "groups": [],
                 "attributes": {},
                 "builtin": true
             },
@@ -498,7 +527,7 @@
                 "uid": 64,
                 "password_disabled": false,
                 "email": null,
-                "group": 64,
+                "group": "F5E3DBDE-FF46-4E1C-B8C6-47713B28487C",
                 "home": "/var/empty",
                 "full_name": "pflogd privsep user",
                 "username": "_pflogd",
@@ -508,13 +537,17 @@
                 "unixhash": "*",
                 "sudo": false,
                 "smbhash": "*",
+                "groups": [],
                 "attributes": {},
                 "builtin": true
             }
         },
         "metadata": {
             "attributes": {
-                "type": "config"
+                "type": "config",
+                "unique_indexes": [
+                    ["username"]
+                ]
             },
             "migration": "merge-preserve",
             "name": "users",
@@ -733,11 +766,20 @@
                 "builtin": true,
                 "sudo": false,
                 "name": "mailnull"
+            },
+            "3A545AA3-45F7-4E82-BB9F-613E3DF55FD9": {
+                "gid": 62,
+                "builtin": true,
+                "sudo": false,
+                "name": "proxy"
             }
         },
         "metadata": {
             "attributes": {
-                "type": "config"
+                "type": "config",
+                "unique_indexes": [
+                    ["name"]
+                ]
             },
             "migration": "merge-preserve",
             "name": "groups",
