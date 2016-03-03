@@ -123,13 +123,28 @@ class TaskWarning(RpcWarning):
 
 
 class ValidationException(TaskException):
-    def __init__(self, errors):
-        extra = {'fields': {}}
-        for name, code, message in errors:
-            if name not in extra['fields']:
-                extra['fields'][name] = []
-            extra['fields'][name].append((code, message))
-        super(ValidationException, self).__init__(errno.EBADMSG, 'Validation Exception Errors', extra=extra)
+    def __init__(self, errors=None):
+        super(ValidationException, self).__init__(errno.EBADMSG, 'Validation Exception Errors', extra=[])
+        if errors:
+            for path, code, message in errors:
+                self.extra.append({
+                    'path': list(path),
+                    'code': code,
+                    'message': message
+                })
+
+    def add(self, path, message, code=errno.EINVAL):
+        self.extra.append({
+            'path': list(path),
+            'code': code,
+            'message': message
+        })
+
+    def propagate(self, other, src_path, dst_path):
+        pass
+
+    def __bool__(self):
+        return bool(self.extra)
 
 
 class VerifyException(TaskException):
