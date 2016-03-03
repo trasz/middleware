@@ -1633,7 +1633,7 @@ class DatasetCreateTask(Task):
 
 
 @description("Deletes an existing Dataset from a Volume")
-@accepts(str, str)
+@accepts(str)
 class DatasetDeleteTask(Task):
     def verify(self, id):
         pool_name, _, ds = id.partition('/')
