@@ -661,7 +661,7 @@ class VolumeUpdateTask(Task):
             }))
 
             self.join_subtasks(self.run_subtask('zfs.pool.export', id))
-            self.join_subtasks(self.run_subtask('zfs.pool.import', volume['id'], new_name))
+            self.join_subtasks(self.run_subtask('zfs.pool.import', volume['guid'], new_name))
 
             # Configure newly imported volume
             self.join_subtasks(self.run_subtask('zfs.update', new_name, new_name, {}))
@@ -889,7 +889,14 @@ class VolumeImportTask(Task):
             )
 
         if enc_params.get('key', None) is None:
-            return self.verify_subtask('zfs.pool.import', id)
+            return self.verify_subtask(
+                'zfs.pool.import',
+                self.dispatcher.call_sync(
+                    'volume.query',
+                    [('id', '=', id)],
+                    {'single': True, 'select': 'guid'}
+                )
+            )
         else:
             disks = enc_params.get('disks', None)
             if disks is None:
@@ -934,7 +941,11 @@ class VolumeImportTask(Task):
             else:
                 salt = None
                 digest = None
-                real_id = id
+                real_id = self.dispatcher.call_sync(
+                    'volume.query',
+                    [('id', '=', id)],
+                    {'single': True, 'select': 'guid'}
+                )
 
             mountpoint = os.path.join(VOLUMES_ROOT, new_name)
             self.join_subtasks(self.run_subtask('zfs.pool.import', real_id, new_name, params))
@@ -1399,7 +1410,7 @@ class VolumeUnlockTask(Task):
                     ))
             self.join_subtasks(*subtasks)
 
-            self.join_subtasks(self.run_subtask('zfs.pool.import', vol['id'], id, params))
+            self.join_subtasks(self.run_subtask('zfs.pool.import', vol['guid'], id, params))
             self.join_subtasks(self.run_subtask(
                 'zfs.update',
                 id,
