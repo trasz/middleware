@@ -135,6 +135,9 @@ class TaskExecutor(object):
             if error['type'] == 'task.TaskAbortException':
                 cls = TaskAbortException
 
+            if error['type'] == 'ValidationException':
+                cls = ValidationException
+
             self.result.set_exception(cls(
                 code=error['code'],
                 message=error['message'],
@@ -566,9 +569,10 @@ class Balancer(object):
                 errors = self.verify_schema(self.dispatcher.tasks[task.name], task.args)
                 if len(errors) > 0:
                     errors = list(validator.serialize_errors(errors))
-                    self.logger.warning(
-                        "Cannot submit task {0}: schema verification failed with errors {1}".format(task.name, errors)
-                    )
+                    self.logger.warning("Cannot submit task {0}: schema verification failed with errors {1}".format(
+                        task.name,
+                        errors
+                    ))
                     raise ValidationException(extra=errors)
 
                 task.instance = task.clazz(self.dispatcher, self.dispatcher.datastore)
