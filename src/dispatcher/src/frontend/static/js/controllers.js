@@ -13,10 +13,10 @@ function RpcController($scope) {
     sock.connect();
     $scope.init = function () {
         sock.onError = function(err) {
-            if (err.message == "" || err.message == "unknown") {
-                alert("Oops: there's something wrong with your connection, refresh the page");
-            }else {
-                alert("Error: " + err.message);
+            if(typeof err.message != 'undefined'){
+                alert("Error :" + err.message);
+            }else{
+                alert("Connection closed, refresh me");
             }
         };
         sock.onConnect = function() {
