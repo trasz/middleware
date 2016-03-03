@@ -404,6 +404,61 @@ class ReplicationBiDirSwitch(Task):
         set_bidir_link_state(self.dispatcher, is_master, link['volumes'])
 
 
+@description("Triggers replication in bi-directional replication")
+@accepts(str)
+class ReplicationBiDirSync(Task):
+    def verify(self, name):
+        if not self.datastore.exists('replication.bidir.links', ('name', '=', name)):
+            raise VerifyException(errno.ENOENT, 'Bi-directional replication link {0} do not exist.'.format(name))
+
+        link = self.datastore.get_one('replication.bidir.links', ('name', '=', name))
+
+        return ['zpool:{0}'.format(p) for p in link['volumes']]
+
+    def run(self, name):
+        link = get_latest_bidir_link(self.dispatcher, self.datastore, name)
+        is_master, remote = get_bidir_link_state(self.dispatcher, link)
+        remote_client = get_client(remote)
+        if is_master:
+            for volume in link['volumes']:
+                try:
+                    self.join_subtasks(self.run_subtask(
+                        'replication.replicate_dataset',
+                        volume,
+                        volume,
+                        {
+                            'remote': remote,
+                            'remote_dataset': volume,
+                            'recursive': True
+                        }
+                    ))
+                except RpcException as e:
+                    self.add_warning(TaskWarning(
+                        e.code,
+                        'Error during replication of {0}. Message {1}. Retry after fixing this issue.'.format(
+                            volume,
+                            e.message
+                        )
+                    ))
+                    continue
+
+                remote_client.call_task_sync('volume.autoimport', volume, 'containers')
+                remote_client.call_task_sync('volume.autoimport', volume, 'shares')
+
+            set_bidir_link_state(remote_client, False, link['volumes'])
+        else:
+            remote_client.call_task_sync(
+                'replication.bidir.sync',
+                link['name']
+            )
+
+        remote_client.disconnect()
+        self.dispatcher.dispatch_event('replication.bidir.changed', {
+            'operation': 'update',
+            'ids': [link['id']]
+        })
+
+
 @accepts(str, str, bool, str, str, bool)
 @returns(str)
 class SnapshotDatasetTask(Task):
@@ -831,6 +886,7 @@ def _init(dispatcher, plugin):
     plugin.register_task_handler('replication.replicate_dataset', ReplicateDatasetTask)
     plugin.register_task_handler('replication.bidir.create', ReplicationBiDirCreate)
     plugin.register_task_handler('replication.bidir.switch', ReplicationBiDirSwitch)
+    plugin.register_task_handler('replication.bidir.sync', ReplicationBiDirSync)
     plugin.register_task_handler('replication.bidir.delete', ReplicationBiDirDelete)
 
     plugin.register_event_type('replication.bidir.changed')
