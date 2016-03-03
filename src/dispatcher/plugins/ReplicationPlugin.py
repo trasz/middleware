@@ -780,40 +780,6 @@ def set_failover_state(client, enabled, volumes):
 
 
 def _init(dispatcher, plugin):
-
-    def sync_failovers(args):
-        failovers = dispatcher.call_sync('failover.query')
-        for i in args['ids']:
-            snapshot = dispatcher.call_sync('zfs.snapshot.query', [('name', '=', i)], {'single': True})
-            for failover in failovers:
-                if snapshot['pool'] in failover['volumes']:
-                    is_master, remote = get_failover_state(dispatcher, failover)
-                    if is_master:
-                        try:
-                            dispatcher.call_task.sync(
-                                'replication.replicate_dataset',
-                                snapshot['pool'],
-                                snapshot['pool'],
-                                {
-                                    'remote': remote,
-                                    'remote_dataset': snapshot['pool'],
-                                    'recursive': True
-                                }
-                            )
-                        except RpcException as e:
-                            logger.warning(
-                                'Automatic replication of {0} failed. Message {1}.'.format(
-                                    snapshot['pool'],
-                                    e.message
-                                )
-                            )
-                            continue
-                        remote_client = get_client(remote)
-                        remote_client.call_task_sync('volume.autoimport', snapshot['pool'], 'containers')
-                        remote_client.call_task_sync('volume.autoimport', snapshot['pool'], 'shares')
-                        set_failover_state(remote_client, False, failover['volumes'])
-                        remote_client.disconnect()
-
     plugin.register_schema_definition('replication', {
         'type': 'object',
         'properties': {
@@ -864,7 +830,6 @@ def _init(dispatcher, plugin):
     plugin.register_task_handler('replication.failover.switch', FailoverReplicationSwitch)
     plugin.register_task_handler('replication.failover.delete', FailoverReplicationDelete)
 
-    plugin.register_event_handler('zfs.snapshot.changed', sync_failovers)
 
     plugin.register_event_type('replication.failover.changed')
 
