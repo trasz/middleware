@@ -1,6 +1,6 @@
 <%
-    def get_name(uid):
-        user = dispatcher.call_sync('user.query', [('uid', '=', uid)], {'single': True})
+    def get_name(id):
+        user = dispatcher.call_sync('user.query', [('id', '=', id)], {'single': True})
         return user['username']
 
     def members(group):

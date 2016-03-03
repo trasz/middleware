@@ -123,7 +123,7 @@ class GroupProvider(Provider):
     @query('group')
     def query(self, filter=None, params=None):
         def extend(group):
-            group['members'] = [x['uid'] for x in self.datastore.query(
+            group['members'] = [x['id'] for x in self.datastore.query(
                 'users',
                 ('or', (
                     ('groups', 'in', group['gid']),
@@ -234,8 +234,7 @@ class UserCreateTask(Task):
                 except RpcException as err:
                     raise err
 
-                group = self.datastore.get_by_id('groups', result[0])
-                user['group'] = group['gid']
+                user['group'] = result[0]
                 self.created_group = result[0]
 
             id = self.datastore.insert('users', user)
@@ -626,7 +625,7 @@ def _init(dispatcher, plugin):
             'locked': {'type': 'boolean'},
             'sudo': {'type': 'boolean'},
             'password_disabled': {'type': 'boolean'},
-            'group': {'type': ['integer', 'null']},
+            'group': {'type': ['string', 'null']},
             'shell': {'type': 'string'},
             'home': {'type': 'string'},
             'password': {'type': ['string', 'null']},
@@ -637,7 +636,7 @@ def _init(dispatcher, plugin):
             'groups': {
                 'type': 'array',
                 'items': {
-                    'type': 'integer'
+                    'type': 'string'
                 }
             },
         },
