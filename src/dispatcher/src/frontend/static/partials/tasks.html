@@ -34,6 +34,17 @@
     </table>
     <h1>Available task classes</h1>
     <div id="tasks">
-
+        <div class="panel panel-primary" style="width: 70%" ng-repeat="item in item_list | orderBy:'toString()' | filter:searchText">
+            <div class="panel-heading"><b>{{item.name}}</b></div>
+            <div class="panel-body">
+            <ul>
+                <li>Description: {{item.description}}</li>
+                <li>Schema:<br/><pre class="taskSchema" >{{item.schema}}</pre></li>
+            </ul>
+            </div>
+        </div>
     </div>
 </div>
+<script type="text/javascript">
+    // $(".taskSchema")
+</script>

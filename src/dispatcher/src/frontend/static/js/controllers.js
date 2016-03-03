@@ -11,6 +11,7 @@ function RpcController($scope) {
     document.title = "RPC Page";
     var sock = new middleware.DispatcherClient(document.domain);
     sock.connect();
+    $("#result").hide();
     $scope.init = function () {
         sock.onError = function(err) {
             if(typeof err.message != 'undefined'){
@@ -76,15 +77,24 @@ function RpcController($scope) {
     $("#call").click(function () {
         sock.call(
             $("#method").val(),
-            JSON.parse($("#args").val()),
+            parse($("#args").val()),
             function(result) {
+                console.log(result);
+                // if (result.length == undefined) {
+                    // result['extra'] = "<a href='' ng-click='setInput(" + result['extra']+ ")'>" + result['extra'] + "</a>";
+                // }else {
                 // $.each(result, function(idx, i) {
                     // console.log(i);
+                    // there're 3 conditions : [], [object, object], RPCException
                     // Now I got every single object from socket,
                     // should add some check like doHaveRef(),
                     // then add ref_link for `$ref`
+                    // use angular.toJson(obj, pretty);
+                    // and $compile(HTML)(scope);
                 // });
-                $("#result").html(JSON.stringify(result, null, 4));
+                // }
+                $("#result").html(angular.toJson(result, 4));
+                $("#result").show("slow");
             }
         );
     });
@@ -124,7 +134,7 @@ function EventsController($scope) {
             sock.onEvent = function(name, args) {
                 var ctx = {
                     name: name,
-                    args: JSON.stringify(args, undefined, 4)
+                    args: angular.toJson(args, 4)
                 };
                 item_list.push(ctx);
                 $scope.$apply(function(){
@@ -279,7 +289,7 @@ function TasksController($scope) {
             });
         });
     }
-    $scope.init() = function() {
+    $scope.init = function() {
         sock.onError = function(err) {
             alert("Error: " + err.message);
         };
@@ -319,13 +329,15 @@ function TasksController($scope) {
         sock.onLogin = function() {
             sock.subscribe("task.*");
             refresh_tasks();
+            var item_list = [];
             sock.call("discovery.get_tasks", null, function (tasks) {
                 $.each(tasks, function(key, value) {
-                    $("<div/>", {
-                        "class": "panel panel-primary",
-                        style: "width: 40%",
-                        html: template_class({name: key, args: value})
-                    }).prependTo("#tasks");
+                    value['name'] = key;
+                    value['schema'] = angular.toJson(value['schema'], 4);
+                    item_list.push(value);
+                });
+                $scope.$apply(function(){
+                  $scope.item_list = item_list;
                 });
             });
         }
