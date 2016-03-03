@@ -68,38 +68,37 @@ class SMBConfigureTask(Task):
         return 'Configuring SMB service'
 
     def verify(self, smb):
-        errors = []
-
+        errors = ValidationException()
         node = ConfigNode('service.smb', self.configstore).__getstate__()
 
         netbiosname = smb.get('netbiosname')
         if netbiosname is not None:
             for n in netbiosname:
                 if not validate_netbios_name(n):
-                    errors.append(('netbiosname', errno.EINVAL, 'Invalid name {0}'.format(n)))
+                    errors.add((0, 'netbiosname'), 'Invalid name {0}'.format(n))
         else:
             netbiosname = node['netbiosname']
 
         workgroup = smb.get('workgroup')
         if workgroup is not None:
             if not validate_netbios_name(workgroup):
-                errors.append(('workgroup', errno.EINVAL, 'Invalid name'))
+                errors.add((0, 'workgroup'), 'Invalid name')
         else:
             workgroup = node['workgroup']
 
         if workgroup.lower() in [i.lower() for i in netbiosname]:
-            errors.append(('netbiosname', errno.EEXIST, 'NetBIOS and Workgroup must be unique'))
+            errors.add((0, 'netbiosname'), 'NetBIOS and Workgroup must be unique')
 
         dirmask = smb.get('dirmask')
         if dirmask and (int(dirmask, 8) & ~0o11777):
-            errors.append(('dirmask', errno.EINVAL, 'This is not a valid mask'))
+            errors.add((0, 'dirmask'), 'This is not a valid mask')
 
         filemask = smb.get('filemask')
         if filemask and (int(filemask, 8) & ~0o11777):
-            errors.append(('filemask', errno.EINVAL, 'This is not a valid mask'))
+            errors.add((0, 'filemask'), 'This is not a valid mask')
 
         if errors:
-            raise ValidationException(errors)
+            raise errors
 
         return ['system']
 
