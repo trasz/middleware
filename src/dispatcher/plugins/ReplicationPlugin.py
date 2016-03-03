@@ -273,7 +273,7 @@ class FailoverReplicationCreate(Task):
                             raise TaskException(
                                 e.code,
                                 'Cannot create exact duplicate of {0} on {1}. Message: {2}'.format(
-                                    dataset,
+                                    dataset['name'],
                                     remote,
                                     e.message
                                 )
