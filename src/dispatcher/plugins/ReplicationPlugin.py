@@ -307,6 +307,7 @@ class FailoverReplicationCreate(Task):
                 remote_client.call_task_sync('volume.autoimport', volume, 'shares')
 
             set_failover_state(remote_client, False, link['volumes'])
+            remote_client.disconnect()
 
         else:
             id = self.datastore.insert('failover.links', link)
@@ -341,6 +342,7 @@ class FailoverReplicationDelete(Task):
         remote_client = get_client(remote)
         if remote_client.call_sync('failover.get_one', name):
             remote_client.call_task_sync('replication.failover.delete', name, scrub)
+        remote_client.disconnect()
 
         self.dispatcher.dispatch_event('replication.failover.changed', {
             'operation': 'delete',
@@ -379,6 +381,7 @@ class FailoverReplicationSwitch(Task):
                 'replication.failover.switch',
                 link['name']
             )
+        remote_client.disconnect()
 
         is_master, remote = get_failover_state(self.dispatcher, link)
         set_failover_state(self.dispatcher, is_master, link['volumes'])
@@ -673,6 +676,8 @@ class ReplicateDatasetTask(ProgressTask):
                         result['error']['message']
                     ))
 
+        remote_client.disconnect()
+
         return actions
 
 
@@ -703,6 +708,7 @@ def get_latest_failover_link(dispatcher, datastore, name):
         local_link = datastore.get_one('failover.links', ('name', '=', name))
         ips = dispatcher.call_sync('network.config.get_my_ips')
         remote = ''
+        client = None
         for partner in local_link['partners']:
             if partner.split('@', 1)[1] not in ips:
                 remote = partner
@@ -720,7 +726,8 @@ def get_latest_failover_link(dispatcher, datastore, name):
                 return remote_link
 
         except RpcException:
-            client.disconnect()
+            if client:
+                client.disconnect()
             return local_link
 
     else:
@@ -791,6 +798,7 @@ def _init(dispatcher, plugin):
                         remote_client.call_task_sync('volume.autoimport', snapshot['pool'], 'containers')
                         remote_client.call_task_sync('volume.autoimport', snapshot['pool'], 'shares')
                         set_failover_state(remote_client, False, failover['volumes'])
+                        remote_client.disconnect()
 
     plugin.register_schema_definition('replication', {
         'type': 'object',
