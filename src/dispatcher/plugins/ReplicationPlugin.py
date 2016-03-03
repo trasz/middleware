@@ -228,13 +228,13 @@ class FailoverReplicationCreate(Task):
                 )
                 if not remote_vol:
                     try:
-                        vol = self.dispatcher.call_sync('volume.query', [('id', '=', volume)], {'single': True})
+                        vol = self.datastore.get_one('volumes', ('id', '=', volume))
                         remote_client.call_task_sync(
                             'volume.create',
                             {
                                 'id': vol['id'],
                                 'type': vol['type'],
-                                'params': {'encryption': True if password else False},
+                                'params': {'encryption': True if vol.get('encrypted') else False},
                                 'topology': vol['topology']
                             },
                             password
