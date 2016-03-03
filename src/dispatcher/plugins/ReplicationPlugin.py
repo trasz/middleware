@@ -128,16 +128,16 @@ class ReplicationProvider(Provider):
         return self.dispatcher.call_task_sync('replication.scan_hostkey', hostname)
 
 
-class FailoverProvider(Provider):
-    @query('failover-link')
+class ReplicationBiDirProvider(Provider):
+    @query('replication-bidir-link')
     def query(self, filter=None, params=None):
         return self.datastore.query(
-            'failover.links', *(filter or []), **(params or {})
+            'replication.bidir.links', *(filter or []), **(params or {})
         )
 
     def get_one(self, name):
-        if self.datastore.exists('failover.links', ('name', '=', name)):
-            return self.datastore.get_one('failover.links', ('name', '=', name))
+        if self.datastore.exists('replication.bidir.links', ('name', '=', name)):
+            return self.datastore.get_one('replication.bidir.links', ('name', '=', name))
         else:
             return None
 
@@ -157,29 +157,32 @@ class ScanHostKeyTask(Task):
         }
 
 
-@description("Sets up failover connection")
+@description("Sets up bi-directional replication link")
 @accepts(h.all_of(
-        h.ref('failover-link'),
+        h.ref('replication-bidir-link'),
         h.required('name', 'partners', 'master', 'volumes')
     ),
     h.one_of(str, None)
 )
-class FailoverReplicationCreate(Task):
+class ReplicationBiDirCreate(Task):
     def verify(self, link, password=None):
         ip_matches = False
         ips = self.dispatcher.call_sync('network.config.get_my_ips')
         for ip in ips:
             for partner in link['partners']:
                 if '@' not in partner:
-                    raise VerifyException(errno.EINVAL, 'Please provide failover link partners as username@host')
+                    raise VerifyException(
+                        errno.EINVAL,
+                        'Please provide bi-directional replication link partners as username@host'
+                    )
                 if partner.endswith(ip):
                     ip_matches = True
 
         if not ip_matches:
             raise VerifyException(errno.EINVAL, 'Provided partner IPs do not create a valid pair. Check addresses.')
 
-        if self.datastore.exists('failover.links', ('name', '=', link['name'])):
-            raise VerifyException(errno.EEXIST, 'Failover link with same name already exists')
+        if self.datastore.exists('replication.bidir.links', ('name', '=', link['name'])):
+            raise VerifyException(errno.EEXIST, 'Bi-directional replication link with same name already exists')
 
         return ['zpool:{0}'.format(p) for p in link['volumes']]
 
@@ -187,7 +190,7 @@ class FailoverReplicationCreate(Task):
         link['id'] = link['name']
         link['update_date'] = str(datetime.utcnow())
 
-        is_master, remote = get_failover_state(self.dispatcher, link)
+        is_master, remote = get_bidir_link_state(self.dispatcher, link)
 
         if is_master:
             remote_client = get_client(remote)
@@ -285,9 +288,9 @@ class FailoverReplicationCreate(Task):
                                 )
                             )
 
-            remote_client.call_task_sync('replication.failover.create', link)
+            remote_client.call_task_sync('replication.bidir.create', link)
 
-            id = self.datastore.insert('failover.links', link)
+            id = self.datastore.insert('replication.bidir.links', link)
 
             for volume in link['volumes']:
                 try:
@@ -314,26 +317,26 @@ class FailoverReplicationCreate(Task):
                 remote_client.call_task_sync('volume.autoimport', volume, 'containers')
                 remote_client.call_task_sync('volume.autoimport', volume, 'shares')
 
-            set_failover_state(remote_client, False, link['volumes'])
+            set_bidir_link_state(remote_client, False, link['volumes'])
             remote_client.disconnect()
 
         else:
-            id = self.datastore.insert('failover.links', link)
+            id = self.datastore.insert('replication.bidir.links', link)
 
-        self.dispatcher.dispatch_event('replication.failover.changed', {
+        self.dispatcher.dispatch_event('replication.bidir.changed', {
             'operation': 'create',
             'ids': [id]
         })
 
 
-@description("Deletes failover connection")
+@description("Deletes bi-directional replication link")
 @accepts(str, bool)
-class FailoverReplicationDelete(Task):
+class ReplicationBiDirDelete(Task):
     def verify(self, name, scrub=False):
-        if not self.datastore.exists('failover.links', ('name', '=', name)):
-            raise VerifyException(errno.ENOENT, 'Failover link {0} do not exist.'.format(name))
+        if not self.datastore.exists('replication.bidir.links', ('name', '=', name)):
+            raise VerifyException(errno.ENOENT, 'Bi-directional replication link {0} do not exist.'.format(name))
 
-        link = self.datastore.get_one('failover.links', ('name', '=', name))
+        link = self.datastore.get_one('replication.bidir.links', ('name', '=', name))
 
         volumes = []
         for vol in link['volumes']:
@@ -343,62 +346,62 @@ class FailoverReplicationDelete(Task):
         return ['zpool:{0}'.format(p) for p in volumes]
 
     def run(self, name, scrub=False):
-        link = get_latest_failover_link(self.dispatcher, self.datastore, name)
-        is_master, remote = get_failover_state(self.dispatcher, link)
+        link = get_latest_bidir_link(self.dispatcher, self.datastore, name)
+        is_master, remote = get_bidir_link_state(self.dispatcher, link)
 
         if not is_master and scrub:
-            set_failover_state(self.dispatcher, True, link['volumes'])
+            set_bidir_link_state(self.dispatcher, True, link['volumes'])
             for volume in link['volumes']:
                 self.join_subtasks(self.run_subtask('volume.delete', volume))
 
-        self.datastore.delete('failover.links', link['id'])
+        self.datastore.delete('replication.bidir.links', link['id'])
 
         remote_client = get_client(remote)
-        if remote_client.call_sync('failover.get_one', name):
-            remote_client.call_task_sync('replication.failover.delete', name, scrub)
+        if remote_client.call_sync('replication.bidir.get_one', name):
+            remote_client.call_task_sync('replication.bidir.delete', name, scrub)
         remote_client.disconnect()
 
-        self.dispatcher.dispatch_event('replication.failover.changed', {
+        self.dispatcher.dispatch_event('replication.bidir.changed', {
             'operation': 'delete',
             'ids': [link['id']]
         })
 
 
-@description("Switch state of failover connection")
+@description("Switch state of bi-directional replication link")
 @accepts(str)
-class FailoverReplicationSwitch(Task):
+class ReplicationBiDirSwitch(Task):
     def verify(self, name):
-        if not self.datastore.exists('failover.links', ('name', '=', name)):
-            raise VerifyException(errno.ENOENT, 'Failover link {0} do not exist.'.format(name))
+        if not self.datastore.exists('replication.bidir.links', ('name', '=', name)):
+            raise VerifyException(errno.ENOENT, 'Bi-directional replication link {0} do not exist.'.format(name))
 
-        link = self.datastore.get_one('failover.links', ('name', '=', name))
+        link = self.datastore.get_one('replication.bidir.links', ('name', '=', name))
 
         return ['zpool:{0}'.format(p) for p in link['volumes']]
 
     def run(self, name):
-        link = get_latest_failover_link(self.dispatcher, self.datastore, name)
-        is_master, remote = get_failover_state(self.dispatcher, link)
+        link = get_latest_bidir_link(self.dispatcher, self.datastore, name)
+        is_master, remote = get_bidir_link_state(self.dispatcher, link)
         for partner in link['partners']:
             if partner != link['master']:
                 link['master'] = partner
 
-        self.datastore.update('failover.links', link['id'], link)
+        self.datastore.update('replication.bidir.links', link['id'], link)
 
-        self.dispatcher.dispatch_event('replication.failover.changed', {
+        self.dispatcher.dispatch_event('replication.bidir.changed', {
             'operation': 'update',
             'ids': [link['id']]
         })
 
         remote_client = get_client(remote)
-        if link is not remote_client.call_sync('failover.get_one', name):
+        if link is not remote_client.call_sync('replication.bidir.get_one', name):
             remote_client.call_task_sync(
-                'replication.failover.switch',
+                'replication.bidir.switch',
                 link['name']
             )
         remote_client.disconnect()
 
-        is_master, remote = get_failover_state(self.dispatcher, link)
-        set_failover_state(self.dispatcher, is_master, link['volumes'])
+        is_master, remote = get_bidir_link_state(self.dispatcher, link)
+        set_bidir_link_state(self.dispatcher, is_master, link['volumes'])
 
 
 @accepts(str, str, bool, str, str, bool)
@@ -717,9 +720,9 @@ def get_client(remote):
         raise RpcException(errno.EAUTH, 'Cannot connect to {0}'.format(remote))
 
 
-def get_latest_failover_link(dispatcher, datastore, name):
-    if datastore.exists('failover.links', ('name', '=', name)):
-        local_link = datastore.get_one('failover.links', ('name', '=', name))
+def get_latest_bidir_link(dispatcher, datastore, name):
+    if datastore.exists('replication.bidir.links', ('name', '=', name)):
+        local_link = datastore.get_one('replication.bidir.links', ('name', '=', name))
         ips = dispatcher.call_sync('network.config.get_my_ips')
         remote = ''
         client = None
@@ -729,7 +732,7 @@ def get_latest_failover_link(dispatcher, datastore, name):
 
         try:
             client = get_client(remote)
-            remote_link = client.call_sync('failover.get_one', name)
+            remote_link = client.call_sync('replication.bidir.get_one', name)
             client.disconnect()
             if not remote_link:
                 return local_link
@@ -748,7 +751,7 @@ def get_latest_failover_link(dispatcher, datastore, name):
         return None
 
 
-def get_failover_state(dispatcher, link):
+def get_bidir_link_state(dispatcher, link):
     is_master = False
     remote = ''
     ips = dispatcher.call_sync('network.config.get_my_ips')
@@ -763,7 +766,7 @@ def get_failover_state(dispatcher, link):
     return is_master, remote
 
 
-def set_failover_state(client, enabled, volumes):
+def set_bidir_link_state(client, enabled, volumes):
     for volume in volumes:
         vol_path = client.call_sync('volume.get_dataset_path', volume)
         vol_shares = client.call_sync('share.get_related', vol_path)
@@ -802,7 +805,7 @@ def _init(dispatcher, plugin):
         'additionalProperties': False,
     })
 
-    plugin.register_schema_definition('failover-link', {
+    plugin.register_schema_definition('replication-bidir-link', {
         'type': 'object',
         'properties': {
             'id': {'type': 'string'},
@@ -822,16 +825,15 @@ def _init(dispatcher, plugin):
     })
 
     plugin.register_provider('replication', ReplicationProvider)
-    plugin.register_provider('failover', FailoverProvider)
+    plugin.register_provider('replication.bidir', ReplicationBiDirProvider)
     plugin.register_task_handler('volume.snapshot_dataset', SnapshotDatasetTask)
     plugin.register_task_handler('replication.scan_hostkey', ScanHostKeyTask)
     plugin.register_task_handler('replication.replicate_dataset', ReplicateDatasetTask)
-    plugin.register_task_handler('replication.failover.create', FailoverReplicationCreate)
-    plugin.register_task_handler('replication.failover.switch', FailoverReplicationSwitch)
-    plugin.register_task_handler('replication.failover.delete', FailoverReplicationDelete)
+    plugin.register_task_handler('replication.bidir.create', ReplicationBiDirCreate)
+    plugin.register_task_handler('replication.bidir.switch', ReplicationBiDirSwitch)
+    plugin.register_task_handler('replication.bidir.delete', ReplicationBiDirDelete)
 
-
-    plugin.register_event_type('replication.failover.changed')
+    plugin.register_event_type('replication.bidir.changed')
 
     # Generate replication key pair on first run
     if not dispatcher.configstore.get('replication.key.private') or not dispatcher.configstore.get('replication.key.public'):

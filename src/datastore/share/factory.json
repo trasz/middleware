@@ -1921,19 +1921,7 @@
     },
     {
         "metadata": {
-            "name": "replication.links",
-            "migration": "keep",
-            "pkey-type": "native",
-            "attributes": {
-                "type": "config"
-            }
-        },
-        "data": {
-        }
-    },
-    {
-        "metadata": {
-            "name": "failover.links",
+            "name": "replication.bidir.links",
             "migration": "keep",
             "pkey-type": "native",
             "attributes": {
