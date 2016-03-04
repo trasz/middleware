@@ -1241,83 +1241,69 @@ class VolumeAutoImportTask(Task):
                         item_type = config.get('type', '')
                         if item_type != '':
 
-                            if scope in ['all', 'shares']:
-                                if item_type in share_types:
-                                    try:
-                                        self.join_subtasks(self.run_subtask(
-                                            'share.import',
-                                            root,
-                                            config.get('name', ''),
+                            if scope in ['all', 'shares'] and item_type in share_types:
+                                try:
+                                    self.join_subtasks(self.run_subtask(
+                                        'share.import',
+                                        root,
+                                        config.get('name', ''),
+                                        item_type
+                                    ))
+
+                                    imported['shares'].append(
+                                        {
+                                            'path': config_path,
+                                            'type': item_type,
+                                            'name': config.get('name', '')
+                                        }
+                                    )
+                                except RpcException as err:
+                                    self.add_warning(
+                                        TaskWarning(
+                                            err.code,
+                                            'Share import from {0} failed. Message: {1}'.format(
+                                                config_path,
+                                                err.message
+                                            )
+                                        )
+                                    )
+                                    continue
+                            elif scope in ['all', 'containers'] and item_type in container_types:
+                                try:
+                                    self.join_subtasks(self.run_subtask(
+                                        'container.import',
+                                        config.get('name', ''),
+                                        volume
+                                    ))
+
+                                    imported['containers'].append(
+                                        {
+                                            'type': item_type,
+                                            'name': config.get('name', '')
+                                        }
+                                    )
+                                except RpcException as err:
+                                    self.add_warning(
+                                        TaskWarning(
+                                            err.code,
+                                            'Container import from {0} failed. Message: {1}'.format(
+                                                config_path,
+                                                err.message
+                                            )
+                                        )
+                                    )
+                                    continue
+                            else:
+                                self.add_warning(
+                                    TaskWarning(
+                                        errno.EINVAL,
+                                        'Import from {0} failed because {1} is unsupported share/container type'.format(
+                                            config_path,
                                             item_type
-                                        ))
-
-                                        imported['shares'].append(
-                                            {
-                                                'path': config_path,
-                                                'type': item_type,
-                                                'name': config.get('name', '')
-                                            }
-                                        )
-                                    except RpcException as err:
-                                        self.add_warning(
-                                            TaskWarning(
-                                                err.code,
-                                                'Share import from {0} failed. Message: {1}'.format(
-                                                    config_path,
-                                                    err.message
-                                                )
-                                            )
-                                        )
-                                        continue
-                                else:
-                                    self.add_warning(
-                                        TaskWarning(
-                                            errno.EINVAL,
-                                            'Share import from {0} failed because {1} is unsupported share type'.format(
-                                                config_path,
-                                                item_type
-                                            )
                                         )
                                     )
-                                    continue
-
-                            elif scope in ['all', 'containers']:
-                                if item_type in container_types:
-                                    try:
-                                        self.join_subtasks(self.run_subtask(
-                                            'container.import',
-                                            config.get('name', ''),
-                                            volume
-                                        ))
-
-                                        imported['containers'].append(
-                                            {
-                                                'type': item_type,
-                                                'name': config.get('name', '')
-                                            }
-                                        )
-                                    except RpcException as err:
-                                        self.add_warning(
-                                            TaskWarning(
-                                                err.code,
-                                                'Container import from {0} failed. Message: {1}'.format(
-                                                    config_path,
-                                                    err.message
-                                                )
-                                            )
-                                        )
-                                        continue
-                                else:
-                                    self.add_warning(
-                                        TaskWarning(
-                                            errno.EINVAL,
-                                            'Container import from {0} failed because {1} is unsupported container type'.format(
-                                                config_path,
-                                                item_type
-                                            )
-                                        )
-                                    )
-                                    continue
+                                )
+                                continue
                         else:
                             self.add_warning(
                                 TaskWarning(
