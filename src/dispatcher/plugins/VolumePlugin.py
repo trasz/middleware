@@ -1293,7 +1293,7 @@ class VolumeAutoImportTask(Task):
                                         )
                                     )
                                     continue
-                            else:
+                            elif item_type not in itertools.chain(share_types, container_types):
                                 self.add_warning(
                                     TaskWarning(
                                         errno.EINVAL,
