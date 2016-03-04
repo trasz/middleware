@@ -37,6 +37,7 @@ logger = logging.getLogger('WebDAVPlugin')
 
 @description('Provides info about WebDAV service configuration')
 class WebDAVProvider(Provider):
+    @private
     @accepts()
     @returns(h.ref('service-webdav'))
     def get_config(self):

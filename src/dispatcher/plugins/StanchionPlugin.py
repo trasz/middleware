@@ -35,6 +35,7 @@ logger = logging.getLogger('StanchionPlugin')
 
 @description('Provides info about Stanchion service configuration')
 class StanchionProvider(Provider):
+    @private
     @accepts()
     @returns(h.ref('service-stanchion'))
     def get_config(self):

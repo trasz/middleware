@@ -45,6 +45,7 @@ logger = logging.getLogger('RsyncdPlugin')
 
 @description('Provides info about Rsyncd service configuration')
 class RsyncdProvider(Provider):
+    @private
     @accepts()
     @returns(h.ref('service-rsyncd'))
     def get_config(self):

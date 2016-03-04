@@ -38,6 +38,7 @@ logger = logging.getLogger('AFPPlugin')
 
 @description('Provides info about AFP service configuration')
 class AFPProvider(Provider):
+    @private
     @accepts()
     @returns(h.ref('service-afp'))
     def get_config(self):

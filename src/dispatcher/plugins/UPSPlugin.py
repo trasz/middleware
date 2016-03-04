@@ -43,6 +43,7 @@ logger = logging.getLogger('UPSPlugin')
 
 @description('Provides info about UPS service configuration')
 class UPSProvider(Provider):
+    @private
     @accepts()
     @returns(h.ref('service-ups'))
     def get_config(self):

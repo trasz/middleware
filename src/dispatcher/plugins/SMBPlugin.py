@@ -54,6 +54,7 @@ def validate_netbios_name(netbiosname):
 
 @description('Provides info about SMB service configuration')
 class SMBProvider(Provider):
+    @private
     @accepts()
     @returns(h.ref('service-smb'))
     def get_config(self):

@@ -35,6 +35,7 @@ logger = logging.getLogger('RIAKPlugin')
 
 @description('Provides info about RIAK service configuration')
 class RIAKProvider(Provider):
+    @private
     @accepts()
     @returns(h.ref('service-riak'))
     def get_config(self):

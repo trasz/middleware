@@ -35,6 +35,7 @@ logger = logging.getLogger('RIAKCSPlugin')
 
 @description('Provides info about RIAK CS service configuration')
 class RIAKCSProvider(Provider):
+    @private
     @accepts()
     @returns(h.ref('service-riak_cs'))
     def get_config(self):

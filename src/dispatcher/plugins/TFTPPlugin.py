@@ -36,6 +36,7 @@ logger = logging.getLogger('TFTPPlugin')
 
 @description('Provides info about TFTP service configuration')
 class TFTPProvider(Provider):
+    @private
     @accepts()
     @returns(h.ref('service-tftpd'))
     def get_config(self):

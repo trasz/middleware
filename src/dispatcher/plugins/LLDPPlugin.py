@@ -36,6 +36,7 @@ logger = logging.getLogger('LLDPPlugin')
 
 @description('Provides info about LLDP service configuration')
 class LLDPProvider(Provider):
+    @private
     @accepts()
     @returns(h.ref('service-lldp'))
     def get_config(self):

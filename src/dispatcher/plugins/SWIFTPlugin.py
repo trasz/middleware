@@ -35,6 +35,7 @@ logger = logging.getLogger('SWIFTPlugin')
 
 @description('Provides info about SWIFT service configuration')
 class SWIFTProvider(Provider):
+    @private
     @accepts()
     @returns(h.ref('service-swift'))
     def get_config(self):

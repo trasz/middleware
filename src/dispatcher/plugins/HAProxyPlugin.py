@@ -36,6 +36,7 @@ logger = logging.getLogger('HAProxyPlugin')
 
 @description('Provides info about HAProxy service configuration')
 class HAProxyProvider(Provider):
+    @private
     @accepts()
     @returns(h.ref('service-haproxy'))
     def get_config(self):

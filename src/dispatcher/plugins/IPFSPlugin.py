@@ -80,6 +80,7 @@ class IPFSProvider(Provider):
         super(IPFSProvider, self).initialize(context)
         self.ipfs_api = ipfsApi.Client('127.0.0.1', 5001)
 
+    @private
     @accepts()
     @returns(h.ref('service-ipfs'))
     def get_config(self):

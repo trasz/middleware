@@ -35,6 +35,7 @@ logger = logging.getLogger('FTPPlugin')
 
 @description('Provides info about FTP service configuration')
 class FTPProvider(Provider):
+    @private
     @accepts()
     @returns(h.ref('service-ftp'))
     def get_config(self):

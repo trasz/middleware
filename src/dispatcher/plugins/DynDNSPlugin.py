@@ -52,6 +52,7 @@ PROVIDERS = {
 
 @description('Provides info about DynamicDNS service configuration')
 class DynDNSProvider(Provider):
+    @private
     @accepts()
     @returns(h.ref('service-dyndns'))
     def get_config(self):

@@ -38,6 +38,7 @@ logger = logging.getLogger('NFSPlugin')
 
 @description('Provides info about NFS service configuration')
 class NFSProvider(Provider):
+    @private
     @accepts()
     @returns(h.ref('service-nfs'))
     def get_config(self):

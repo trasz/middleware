@@ -35,6 +35,7 @@ logger = logging.getLogger('GlusterdPlugin')
 
 @description('Provides info about Glusterd service configuration')
 class GlusterdProvider(Provider):
+    @private
     @accepts()
     @returns(h.ref('service-glusterd'))
     def get_config(self):

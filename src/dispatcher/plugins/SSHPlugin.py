@@ -37,6 +37,7 @@ logger = logging.getLogger('SSHPlugin')
 
 @description('Provides info about SSH service configuration')
 class SSHProvider(Provider):
+    @private
     @accepts()
     @returns(h.ref('service-sshd'))
     def get_config(self):
