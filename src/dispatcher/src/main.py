@@ -33,7 +33,6 @@ import fnmatch
 import glob
 import imp
 import json
-import fcntl
 import datetime
 import logging
 import logging.config
@@ -57,10 +56,8 @@ from gevent import monkey, Greenlet
 from pyee import EventEmitter
 from gevent.socket import wait_write
 from gevent.os import tp_read, tp_write, forkpty_and_watch
-from gevent.select import select
 from gevent.queue import Queue
 from gevent.lock import RLock
-from gevent.subprocess import Popen
 from gevent.event import AsyncResult, Event
 from gevent.pywsgi import WSGIServer
 from geventwebsocket import (WebSocketServer, WebSocketApplication, Resource,
@@ -72,7 +69,10 @@ from datastore.config import ConfigStore
 from freenas.dispatcher.jsonenc import loads, dumps
 from freenas.dispatcher.rpc import RpcContext, RpcException, ServerLockProxy
 from resources import ResourceGraph
-from services import ManagementService, DebugService, EventService, TaskService, PluginService, ShellService, LockService
+from services import (
+    ManagementService, DebugService, EventService, TaskService,
+    PluginService, ShellService, LockService
+)
 from schemas import register_general_purpose_schemas
 from api.handler import ApiHandler
 from balancer import Balancer
