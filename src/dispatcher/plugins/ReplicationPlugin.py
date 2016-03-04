@@ -293,26 +293,16 @@ class ReplicationBiDirCreate(Task):
             id = self.datastore.insert('replication.bidir.links', link)
 
             for volume in link['volumes']:
-                try:
-                    self.join_subtasks(self.run_subtask(
-                        'replication.replicate_dataset',
-                        volume,
-                        volume,
-                        {
-                            'remote': remote,
-                            'remote_dataset': volume,
-                            'recursive': True
-                        }
-                    ))
-                except RpcException as e:
-                    self.add_warning(TaskWarning(
-                        e.code,
-                        'Error during replication of {0}. Message {1}. Retry after fixing this issue.'.format(
-                            volume,
-                            e.message
-                        )
-                    ))
-                    continue
+                self.join_subtasks(self.run_subtask(
+                    'replication.replicate_dataset',
+                    volume,
+                    volume,
+                    {
+                        'remote': remote,
+                        'remote_dataset': volume,
+                        'recursive': True
+                    }
+                ))
 
                 remote_client.call_task_sync('volume.autoimport', volume, 'containers')
                 remote_client.call_task_sync('volume.autoimport', volume, 'shares')
@@ -422,26 +412,16 @@ class ReplicationBiDirSync(Task):
         if is_master:
             set_bidir_link_state(remote_client, True, link['volumes'], False)
             for volume in link['volumes']:
-                try:
-                    self.join_subtasks(self.run_subtask(
-                        'replication.replicate_dataset',
-                        volume,
-                        volume,
-                        {
-                            'remote': remote,
-                            'remote_dataset': volume,
-                            'recursive': True
-                        }
-                    ))
-                except RpcException as e:
-                    self.add_warning(TaskWarning(
-                        e.code,
-                        'Error during replication of {0}. Message {1}. Retry after fixing this issue.'.format(
-                            volume,
-                            e.message
-                        )
-                    ))
-                    continue
+                self.join_subtasks(self.run_subtask(
+                    'replication.replicate_dataset',
+                    volume,
+                    volume,
+                    {
+                        'remote': remote,
+                        'remote_dataset': volume,
+                        'recursive': True
+                    }
+                ))
 
                 remote_client.call_task_sync('volume.autoimport', volume, 'containers')
                 remote_client.call_task_sync('volume.autoimport', volume, 'shares')
