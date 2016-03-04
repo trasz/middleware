@@ -191,7 +191,7 @@
         };
 
         var blob = file.slice( start, stop );
-        reader.readAsBinaryString( blob );
+        reader.readAsArrayBuffer( blob );
       }
 
       function uploadToSocket ( file ) {
