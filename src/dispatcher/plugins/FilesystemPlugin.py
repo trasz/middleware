@@ -148,7 +148,7 @@ class FilesystemProvider(Provider):
     @returns(str)
     def upload(self, dest_path, size, mode, sender):
         try:
-            f = open(dest_path, 'w')
+            f = open(dest_path, 'wb')
         except OSError as e:
             raise RpcException(e.errno, e.message)
 
