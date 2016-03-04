@@ -1639,7 +1639,6 @@ class DownloadRequestHandler(object):
         self.token = None
 
     def __call__(self, environ, start_response):
-        # body = environ['wsgi.input'].read()
         path = environ['PATH_INFO'][1:].split('/')
         token_str = cgi.parse_qs(environ['QUERY_STRING']).get('token')
 
@@ -1663,13 +1662,17 @@ class DownloadRequestHandler(object):
             ('Content-Disposition', 'attachment; filename="{}"'.format(
                 os.path.basename(self.token.file.name)
             )),
-            ('Content-Length', str(self.token.size))
+            ('Transfer-Encoding', 'chunked')
         ])
-        # This is just temp, will implement chunking later on
-        # (i.e the reading the whole content to ram part is bad and will be fixed later on)
-        file_body = self.token.file.read()
+        # file_body = self.token.file.read()
+        self.token.file.seek(0)
+        chunk = self.token.file.read(1024)
+        while chunk:
+            yield chunk
+            time.sleep(1)
+            chunk = self.token.file.read(1024)
         self.token.file.close()
-        return [file_body]
+        # return [file_body]
 
 
 def run(d, args):
