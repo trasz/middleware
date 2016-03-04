@@ -160,7 +160,7 @@ class ScanHostKeyTask(Task):
 @description("Sets up bi-directional replication link")
 @accepts(h.all_of(
         h.ref('replication-bidir-link'),
-        h.required('name', 'partners', 'master', 'volumes')
+        h.required('name', 'partners', 'master', 'volumes', 'replicate_services')
     ),
     h.one_of(str, None)
 )
@@ -305,8 +305,9 @@ class ReplicationBiDirCreate(Task):
                         }
                     ))
 
-                    remote_client.call_task_sync('volume.autoimport', volume, 'containers')
-                    remote_client.call_task_sync('volume.autoimport', volume, 'shares')
+                    if link['replicate_services']:
+                        remote_client.call_task_sync('volume.autoimport', volume, 'containers')
+                        remote_client.call_task_sync('volume.autoimport', volume, 'shares')
 
                 set_bidir_link_state(remote_client, False, link['volumes'], True)
                 remote_client.disconnect()
@@ -417,8 +418,9 @@ class ReplicationBiDirSync(Task):
                         }
                     ))
 
-                    remote_client.call_task_sync('volume.autoimport', volume, 'containers')
-                    remote_client.call_task_sync('volume.autoimport', volume, 'shares')
+                    if link['replicate_services']:
+                        remote_client.call_task_sync('volume.autoimport', volume, 'containers')
+                        remote_client.call_task_sync('volume.autoimport', volume, 'shares')
 
                 set_bidir_link_state(remote_client, False, link['volumes'], True)
         else:
@@ -855,7 +857,8 @@ def _init(dispatcher, plugin):
             'volumes': {
                 'type': 'array',
                 'items': {'type': 'string'}
-            }
+            },
+            'replicate_services': {'type': 'boolean'}
         },
         'additionalProperties': False,
     })
