@@ -174,4 +174,5 @@ class EventCacheStore(CacheStore):
     def populate(self, collection, callback=None):
         for i in collection:
             obj = callback(i) if callback else i
-            self.put(obj['id'], obj)
+            if obj is not None:
+                self.put(obj['id'], obj)
