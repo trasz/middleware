@@ -805,6 +805,11 @@ def get_bidir_link_state(dispatcher, link):
 def set_bidir_link_state(client, enabled, volumes, set_services):
     for volume in volumes:
         if set_services:
+            client.call_task_sync(
+                'zfs.update',
+                volume, volume,
+                {'readonly': {'value': 'off'}}
+            )
             vol_path = client.call_sync('volume.get_dataset_path', volume)
             vol_shares = client.call_sync('share.get_related', vol_path)
             vol_containers = client.call_sync('container.query', [('target', '=', volume)])
