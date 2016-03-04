@@ -340,8 +340,12 @@ class Task(object):
 
         if state == TaskState.FINISHED:
             self.finished_at = datetime.utcnow()
+            self.progress = TaskStatus(100)
             event['finished_at'] = self.finished_at
             event['result'] = self.result
+
+        if state in (TaskState.FAILED, TaskState.ABORTED):
+            self.progress = TaskStatus(0)
 
         self.dispatcher.dispatch_event('task.created' if state == TaskState.CREATED else 'task.updated', event)
         self.dispatcher.datastore.update('tasks', self.id, self)
@@ -350,7 +354,7 @@ class Task(object):
             'ids': [self.id]
         })
 
-        if progress:
+        if progress and state not in (TaskState.FINISHED, TaskState.FAILED, TaskState.ABORTED):
             self.progress = progress
             self.__emit_progress()
 
