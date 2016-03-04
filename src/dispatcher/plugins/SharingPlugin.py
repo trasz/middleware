@@ -469,9 +469,15 @@ def _init(dispatcher, plugin):
         return True
 
     def set_related_enabled(name, enabled):
-        path = dispatcher.call_sync('volume.resolve_path', name, '')
-        dispatcher.call_task_sync('share.update_related', path, {'enabled': enabled})
-        dispatcher.call_task_sync('share.update_related', os.path.join('/dev/zvol', name), {'enabled': enabled})
+        pool_properties = dispatcher.call_sync(
+            'zfs.pool.query',
+            [('name', '=', name)],
+            {'single': True, 'select': 'properties'}
+        )
+        if pool_properties.get('readonly', 'off') == 'off':
+            path = dispatcher.call_sync('volume.resolve_path', name, '')
+            dispatcher.call_task_sync('share.update_related', path, {'enabled': enabled})
+            dispatcher.call_task_sync('share.update_related', os.path.join('/dev/zvol', name), {'enabled': enabled})
 
     def volume_detach(args):
         set_related_enabled(args['name'], False)
