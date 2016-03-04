@@ -655,6 +655,7 @@ class VolumeUpdateTask(Task):
             # Renaming pool. Need to export and import again using different name
             new_name = updated_params['name']
             self.dispatcher.run_hook('volume.pre_rename', {'name': id, 'new_name': new_name})
+
             # Rename mountpoint
             self.join_subtasks(self.run_subtask('zfs.update', id, id, {
                 'mountpoint': {'value': '{0}/{1}'.format(VOLUMES_ROOT, new_name)}
@@ -665,16 +666,15 @@ class VolumeUpdateTask(Task):
 
             # Configure newly imported volume
             self.join_subtasks(self.run_subtask('zfs.update', new_name, new_name, {}))
-
             self.join_subtasks(self.run_subtask('zfs.mount', new_name))
 
             volume['id'] = new_name
             self.datastore.update('volumes', volume['id'], volume)
             self.dispatcher.run_hook('volume.post_rename', {
                 'name': id,
-                'mountpoint': '{0}/{1}'.format(VOLUMES_ROOT, id),
+                'mountpoint': os.path.join(VOLUMES_ROOT, id),
                 'new_name': new_name,
-                'new_mountpoint': '{0}/{1}'.format(VOLUMES_ROOT, new_name)
+                'new_mountpoint': os.path.join(VOLUMES_ROOT, new_name)
             })
 
         if 'topology' in updated_params:
@@ -760,9 +760,11 @@ class VolumeUpdateTask(Task):
                             if vdev['type'] == 'disk':
                                 new_topology.append({'type': vdev['type'], 'path': vdev['path'], 'guid': vdev['guid']})
                             else:
-                                new_topology.append({'type': vdev['type'],
-                                                     'children': vdev['children'],
-                                                     'guid': vdev['guid']})
+                                new_topology.append({
+                                    'type': vdev['type'],
+                                    'children': vdev['children'],
+                                    'guid': vdev['guid']
+                                })
 
             for vdev, group in iterate_vdevs(new_vdevs):
                 if vdev['type'] == 'disk':
