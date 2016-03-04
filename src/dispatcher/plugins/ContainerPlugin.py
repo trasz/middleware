@@ -352,7 +352,7 @@ class ContainerUpdateTask(ContainerBaseTask):
                 ),
                 'vm-{0}'.format(container['name'])
             )
-        except (RpcException, FileNotFoundError):
+        except (RpcException, OSError):
             pass
 
         if 'devices' in updated_params:
@@ -404,7 +404,7 @@ class ContainerDeleteTask(Task):
                 ),
                 'vm-{0}'.format(container['name'])
             )
-        except (RpcException, FileNotFoundError):
+        except (RpcException, OSError):
             pass
 
         pool = container['target']

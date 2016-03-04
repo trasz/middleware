@@ -251,7 +251,7 @@ class UpdateShareTask(Task):
                 path,
                 '{0}-{1}'.format(share['type'], share['name'])
             )
-        except FileNotFoundError:
+        except OSError:
             pass
 
         if 'type' in updated_fields:
@@ -359,7 +359,7 @@ class DeleteShareTask(Task):
                 path,
                 '{0}-{1}'.format(share['type'], share['name'])
             )
-        except FileNotFoundError:
+        except OSError:
             pass
 
         self.join_subtasks(self.run_subtask('share.{0}.delete'.format(share['type']), name))
