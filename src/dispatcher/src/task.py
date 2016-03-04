@@ -76,6 +76,9 @@ class Task(object):
     def join_subtasks(self, *tasks):
         return self.dispatcher.join_subtasks(*tasks)
 
+    def abort_subtask(self, id):
+        return self.dispatcher.abort_subtask(id)
+
     def chain(self, task, *args):
         self.dispatcher.balancer.submit(task, *args)
 

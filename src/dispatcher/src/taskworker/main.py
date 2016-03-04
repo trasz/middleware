@@ -79,6 +79,9 @@ class DispatcherWrapper(object):
     def __join_subtasks(self, *tasks):
         return self.dispatcher.call_sync('task.join_subtasks', tasks, timeout=None)
 
+    def __abort_subtask(self, id):
+        return self.dispatcher.call_sync('task.abort_subtask', id, timeout=60)
+
     def __add_warning(self, warning):
         self.dispatcher.call_sync('task.put_warning', serialize_error(warning))
 
@@ -97,6 +100,9 @@ class DispatcherWrapper(object):
 
         if item == 'join_subtasks':
             return self.__join_subtasks
+
+        if item == 'abort_subtask':
+            return self.__abort_subtask
 
         if item == 'add_warning':
             return self.__add_warning

@@ -445,6 +445,15 @@ class TaskService(RpcService):
 
         return [t.result for t in subtasks]
 
+    @private
+    @pass_sender
+    def abort_subtask(self, id, sender):
+        executor = self.__balancer.get_executor_by_sender(sender)
+        if not executor:
+            raise RpcException(errno.EPERM, 'Not authorized')
+
+        self.__balancer.abort(id)
+
 
 class LockService(RpcService):
     def initialize(self, context):
