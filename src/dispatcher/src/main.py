@@ -62,7 +62,7 @@ from gevent.queue import Queue
 from gevent.lock import RLock
 from gevent.subprocess import Popen
 from gevent.event import AsyncResult, Event
-from gevent.wsgi import WSGIServer
+from gevent.pywsgi import WSGIServer
 from geventwebsocket import (WebSocketServer, WebSocketApplication, Resource,
                              WebSocketError)
 
