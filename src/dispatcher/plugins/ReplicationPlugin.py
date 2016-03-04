@@ -317,7 +317,7 @@ class ReplicationBiDirCreate(Task):
                 remote_client.call_task_sync('volume.autoimport', volume, 'containers')
                 remote_client.call_task_sync('volume.autoimport', volume, 'shares')
 
-            set_bidir_link_state(remote_client, False, link['volumes'])
+            set_bidir_link_state(remote_client, False, link['volumes'], True)
             remote_client.disconnect()
 
         else:
@@ -350,7 +350,7 @@ class ReplicationBiDirDelete(Task):
         is_master, remote = get_bidir_link_state(self.dispatcher, link)
 
         if not is_master and scrub:
-            set_bidir_link_state(self.dispatcher, True, link['volumes'])
+            set_bidir_link_state(self.dispatcher, True, link['volumes'], False)
             for volume in link['volumes']:
                 self.join_subtasks(self.run_subtask('volume.delete', volume))
 
@@ -401,7 +401,7 @@ class ReplicationBiDirSwitch(Task):
         remote_client.disconnect()
 
         is_master, remote = get_bidir_link_state(self.dispatcher, link)
-        set_bidir_link_state(self.dispatcher, is_master, link['volumes'])
+        set_bidir_link_state(self.dispatcher, is_master, link['volumes'], True)
 
 
 @description("Triggers replication in bi-directional replication")
@@ -420,6 +420,7 @@ class ReplicationBiDirSync(Task):
         is_master, remote = get_bidir_link_state(self.dispatcher, link)
         remote_client = get_client(remote)
         if is_master:
+            set_bidir_link_state(remote_client, True, link['volumes'], False)
             for volume in link['volumes']:
                 try:
                     self.join_subtasks(self.run_subtask(
@@ -445,7 +446,7 @@ class ReplicationBiDirSync(Task):
                 remote_client.call_task_sync('volume.autoimport', volume, 'containers')
                 remote_client.call_task_sync('volume.autoimport', volume, 'shares')
 
-            set_bidir_link_state(remote_client, False, link['volumes'])
+            set_bidir_link_state(remote_client, False, link['volumes'], True)
         else:
             remote_client.call_task_sync(
                 'replication.bidir.sync',
@@ -821,15 +822,16 @@ def get_bidir_link_state(dispatcher, link):
     return is_master, remote
 
 
-def set_bidir_link_state(client, enabled, volumes):
+def set_bidir_link_state(client, enabled, volumes, set_services):
     for volume in volumes:
-        vol_path = client.call_sync('volume.get_dataset_path', volume)
-        vol_shares = client.call_sync('share.get_related', vol_path)
-        vol_containers = client.call_sync('container.query', [('target', '=', volume)])
-        for share in vol_shares:
-            client.call_task_sync('share.update', share['id'], {'enabled': enabled})
-        for container in vol_containers:
-            client.call_task_sync('container.update', container['id'], {'enabled': enabled})
+        if set_services:
+            vol_path = client.call_sync('volume.get_dataset_path', volume)
+            vol_shares = client.call_sync('share.get_related', vol_path)
+            vol_containers = client.call_sync('container.query', [('target', '=', volume)])
+            for share in vol_shares:
+                client.call_task_sync('share.update', share['id'], {'enabled': enabled})
+            for container in vol_containers:
+                client.call_task_sync('container.update', container['id'], {'enabled': enabled})
         client.call_task_sync(
             'zfs.update',
             volume, volume,
