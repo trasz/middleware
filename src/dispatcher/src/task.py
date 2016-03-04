@@ -30,6 +30,7 @@ import errno
 import logging
 from freenas.dispatcher.rpc import RpcService, RpcException, RpcWarning
 from datastore.config import ConfigStore
+from threading import Event
 import collections
 
 
@@ -103,14 +104,17 @@ class MasterProgressTask(ProgressTask):
     def __init__(self, dispatcher, datastore):
         super(MasterProgressTask, self).__init__(dispatcher, datastore)
         self.progress_subtask_id = None
+        self.progress_subtask_running = Event()
         self.progress_subtask_weight = 1  # Can take any value in range: [0.0, 1.0]
 
     def run_and_join_progress_subtask(self, classname, *args, **kwargs):
         if 'weight' in kwargs and kwargs['weight'] >= 0.0 and kwargs['weight'] <= 1.0:
             self.progress_subtask_weight = kwargs.pop('weight')
         self.progress_subtask_id = self.dispatcher.run_subtask(self, classname, args)
+        self.progress_subtask_running.set()
         subtask_result = self.dispatcher.join_subtasks(self.progress_subtask_id)
         self.progress_subtask_id = None
+        self.progress_subtask_running.clear()
         return subtask_result[0]
 
 

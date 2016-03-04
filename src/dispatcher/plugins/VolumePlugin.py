@@ -42,7 +42,7 @@ import uuid
 from cache import EventCacheStore
 from lib.system import system, SubprocessException
 from lib.freebsd import fstyp
-from task import Provider, Task, ProgressTask, TaskException, TaskWarning, VerifyException, query
+from task import Provider, Task, ProgressTask, MasterProgressTask, TaskException, TaskWarning, VerifyException, query
 from freenas.dispatcher.rpc import (
     RpcException, description, accepts, returns, private, SchemaHelper as h
     )
@@ -1577,6 +1577,24 @@ class VolumeRestoreKeysTask(Task):
             self.join_subtasks(*subtasks)
 
 
+@description("Scrubs the volume")
+@accepts(str)
+class VolumeScrubTask(MasterProgressTask):
+    def verify(self, id):
+        vol = self.dispatcher.call_sync('volume.query', [('id', '=', id)], {'single': True})
+        if not vol:
+            raise VerifyException(errno.ENOENT, 'Volume {0} not found'.format(id))
+
+        return ['disk:{0}'.format(d) for d, _ in get_disks(vol['topology'])]
+
+    def abort(self):
+        self.progress_subtask_running.wait()
+        self.abort_subtask(self.progress_subtask_id)
+
+    def run(self, id):
+        self.run_and_join_progress_subtask('zfs.pool.scrub', id)
+
+
 @description("Creates a dataset in an existing volume")
 @accepts(h.ref('volume-dataset'))
 class DatasetCreateTask(Task):
@@ -2095,6 +2113,7 @@ def _init(dispatcher, plugin):
     plugin.register_task_handler('volume.rekey', VolumeRekeyTask)
     plugin.register_task_handler('volume.keys.backup', VolumeBackupKeysTask)
     plugin.register_task_handler('volume.keys.restore', VolumeRestoreKeysTask)
+    plugin.register_task_handler('volume.scrub', VolumeScrubTask)
     plugin.register_task_handler('volume.dataset.create', DatasetCreateTask)
     plugin.register_task_handler('volume.dataset.delete', DatasetDeleteTask)
     plugin.register_task_handler('volume.dataset.update', DatasetConfigureTask)
