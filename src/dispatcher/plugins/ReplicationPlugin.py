@@ -184,7 +184,7 @@ class ReplicationBiDirCreate(Task):
         if self.datastore.exists('replication.bidir.links', ('name', '=', link['name'])):
             raise VerifyException(errno.EEXIST, 'Bi-directional replication link with same name already exists')
 
-        return ['zpool:{0}'.format(p) for p in link['volumes']]
+        return []
 
     def run(self, link, password=None):
         link['id'] = link['name']
@@ -193,122 +193,123 @@ class ReplicationBiDirCreate(Task):
         is_master, remote = get_bidir_link_state(self.dispatcher, link)
 
         if is_master:
-            remote_client = get_client(remote)
+            with self.dispatcher.get_lock('volumes'):
+                remote_client = get_client(remote)
 
-            for volume in link['volumes']:
-                if not self.datastore.exists('volumes', ('id', '=', volume)):
-                    raise TaskException(errno.ENOENT, 'Volume {0} not found'.format(volume))
+                for volume in link['volumes']:
+                    if not self.datastore.exists('volumes', ('id', '=', volume)):
+                        raise TaskException(errno.ENOENT, 'Volume {0} not found'.format(volume))
 
-                for share in self.dispatcher.call_sync('share.get_related', volume):
-                    remote_share = remote_client.call_sync(
-                        'share.query',
-                        [('name', '=', share['name'])],
-                        {'single': True}
-                    )
-                    if remote_share:
-                        raise TaskException(
-                            errno.EEXIST,
-                            'Share {0} already exists on {1}'.format(share['name'], remote.split('@', 1)[1])
+                    for share in self.dispatcher.call_sync('share.get_related', volume):
+                        remote_share = remote_client.call_sync(
+                            'share.query',
+                            [('name', '=', share['name'])],
+                            {'single': True}
                         )
-
-                for container in self.dispatcher.call_sync('container.query', [('target', '=', volume)]):
-                    remote_container = remote_client.call_sync(
-                        'container.query',
-                        [('name', '=', container['name'])],
-                        {'single': True}
-                    )
-                    if remote_container:
-                        raise TaskException(
-                            errno.EEXIST,
-                            'Container {0} already exists on {1}'.format(container['name'], remote.split('@', 1)[1])
-                        )
-
-            for volume in link['volumes']:
-                remote_vol = remote_client.call_sync(
-                    'volume.query',
-                    [('id', '=', volume)],
-                    {'single': True}
-                )
-                if not remote_vol:
-                    try:
-                        vol = self.datastore.get_one('volumes', ('id', '=', volume))
-                        remote_client.call_task_sync(
-                            'volume.create',
-                            {
-                                'id': vol['id'],
-                                'type': vol['type'],
-                                'params': {'encryption': True if vol.get('encrypted') else False},
-                                'topology': vol['topology']
-                            },
-                            password
-                        )
-                    except RpcException as e:
-                        raise TaskException(
-                            e.code,
-                            'Cannot create exact duplicate of {0} on {1}. Message: {2}'.format(
-                                volume,
-                                remote,
-                                e.message
+                        if remote_share:
+                            raise TaskException(
+                                errno.EEXIST,
+                                'Share {0} already exists on {1}'.format(share['name'], remote.split('@', 1)[1])
                             )
-                        )
 
-                vol_datasets = self.dispatcher.call_sync(
-                    'zfs.dataset.query',
-                    [('pool', '=', volume)],
-                    {'sort': ['name']}
-                )
-                for dataset in vol_datasets:
-                    remote_dataset = remote_client.call_sync(
-                        'zfs.dataset.query',
-                        [('name', '=', dataset['name'])],
+                    for container in self.dispatcher.call_sync('container.query', [('target', '=', volume)]):
+                        remote_container = remote_client.call_sync(
+                            'container.query',
+                            [('name', '=', container['name'])],
+                            {'single': True}
+                        )
+                        if remote_container:
+                            raise TaskException(
+                                errno.EEXIST,
+                                'Container {0} already exists on {1}'.format(container['name'], remote.split('@', 1)[1])
+                            )
+
+                for volume in link['volumes']:
+                    remote_vol = remote_client.call_sync(
+                        'volume.query',
+                        [('id', '=', volume)],
                         {'single': True}
                     )
-                    if not remote_dataset:
+                    if not remote_vol:
                         try:
-                            if dataset['type'] == 'VOLUME':
-                                continue
-
-                            dataset_properties = {
-                                'id': dataset['name'],
-                                'volume': dataset['pool']
-                            }
-                            if dataset['mountpoint']:
-                                dataset_properties['mountpoint'] = dataset['mountpoint']
+                            vol = self.datastore.get_one('volumes', ('id', '=', volume))
                             remote_client.call_task_sync(
-                                'volume.dataset.create',
-                                dataset_properties
+                                'volume.create',
+                                {
+                                    'id': vol['id'],
+                                    'type': vol['type'],
+                                    'params': {'encryption': True if vol.get('encrypted') else False},
+                                    'topology': vol['topology']
+                                },
+                                password
                             )
                         except RpcException as e:
                             raise TaskException(
                                 e.code,
                                 'Cannot create exact duplicate of {0} on {1}. Message: {2}'.format(
-                                    dataset['name'],
+                                    volume,
                                     remote,
                                     e.message
                                 )
                             )
 
-            remote_client.call_task_sync('replication.bidir.create', link)
+                    vol_datasets = self.dispatcher.call_sync(
+                        'zfs.dataset.query',
+                        [('pool', '=', volume)],
+                        {'sort': ['name']}
+                    )
+                    for dataset in vol_datasets:
+                        remote_dataset = remote_client.call_sync(
+                            'zfs.dataset.query',
+                            [('name', '=', dataset['name'])],
+                            {'single': True}
+                        )
+                        if not remote_dataset:
+                            try:
+                                if dataset['type'] == 'VOLUME':
+                                    continue
 
-            id = self.datastore.insert('replication.bidir.links', link)
+                                dataset_properties = {
+                                    'id': dataset['name'],
+                                    'volume': dataset['pool']
+                                }
+                                if dataset['mountpoint']:
+                                    dataset_properties['mountpoint'] = dataset['mountpoint']
+                                remote_client.call_task_sync(
+                                    'volume.dataset.create',
+                                    dataset_properties
+                                )
+                            except RpcException as e:
+                                raise TaskException(
+                                    e.code,
+                                    'Cannot create exact duplicate of {0} on {1}. Message: {2}'.format(
+                                        dataset['name'],
+                                        remote,
+                                        e.message
+                                    )
+                                )
 
-            for volume in link['volumes']:
-                self.join_subtasks(self.run_subtask(
-                    'replication.replicate_dataset',
-                    volume,
-                    volume,
-                    {
-                        'remote': remote,
-                        'remote_dataset': volume,
-                        'recursive': True
-                    }
-                ))
+                remote_client.call_task_sync('replication.bidir.create', link)
 
-                remote_client.call_task_sync('volume.autoimport', volume, 'containers')
-                remote_client.call_task_sync('volume.autoimport', volume, 'shares')
+                id = self.datastore.insert('replication.bidir.links', link)
 
-            set_bidir_link_state(remote_client, False, link['volumes'], True)
-            remote_client.disconnect()
+                for volume in link['volumes']:
+                    self.join_subtasks(self.run_subtask(
+                        'replication.replicate_dataset',
+                        volume,
+                        volume,
+                        {
+                            'remote': remote,
+                            'remote_dataset': volume,
+                            'recursive': True
+                        }
+                    ))
+
+                    remote_client.call_task_sync('volume.autoimport', volume, 'containers')
+                    remote_client.call_task_sync('volume.autoimport', volume, 'shares')
+
+                set_bidir_link_state(remote_client, False, link['volumes'], True)
+                remote_client.disconnect()
 
         else:
             id = self.datastore.insert('replication.bidir.links', link)
@@ -326,14 +327,7 @@ class ReplicationBiDirDelete(Task):
         if not self.datastore.exists('replication.bidir.links', ('name', '=', name)):
             raise VerifyException(errno.ENOENT, 'Bi-directional replication link {0} do not exist.'.format(name))
 
-        link = self.datastore.get_one('replication.bidir.links', ('name', '=', name))
-
-        volumes = []
-        for vol in link['volumes']:
-            if self.datastore.exists('volumes', [('id', '=', vol)]):
-                volumes.append(vol)
-
-        return ['zpool:{0}'.format(p) for p in volumes]
+        return []
 
     def run(self, name, scrub=False):
         link = get_latest_bidir_link(self.dispatcher, self.datastore, name)
@@ -341,8 +335,9 @@ class ReplicationBiDirDelete(Task):
 
         if not is_master and scrub:
             set_bidir_link_state(self.dispatcher, True, link['volumes'], False)
-            for volume in link['volumes']:
-                self.join_subtasks(self.run_subtask('volume.delete', volume))
+            with self.dispatcher.get_lock('volumes'):
+                for volume in link['volumes']:
+                    self.join_subtasks(self.run_subtask('volume.delete', volume))
 
         self.datastore.delete('replication.bidir.links', link['id'])
 
@@ -364,9 +359,7 @@ class ReplicationBiDirSwitch(Task):
         if not self.datastore.exists('replication.bidir.links', ('name', '=', name)):
             raise VerifyException(errno.ENOENT, 'Bi-directional replication link {0} do not exist.'.format(name))
 
-        link = self.datastore.get_one('replication.bidir.links', ('name', '=', name))
-
-        return ['zpool:{0}'.format(p) for p in link['volumes']]
+        return []
 
     def run(self, name):
         link = get_latest_bidir_link(self.dispatcher, self.datastore, name)
@@ -410,23 +403,24 @@ class ReplicationBiDirSync(Task):
         is_master, remote = get_bidir_link_state(self.dispatcher, link)
         remote_client = get_client(remote)
         if is_master:
-            set_bidir_link_state(remote_client, True, link['volumes'], False)
-            for volume in link['volumes']:
-                self.join_subtasks(self.run_subtask(
-                    'replication.replicate_dataset',
-                    volume,
-                    volume,
-                    {
-                        'remote': remote,
-                        'remote_dataset': volume,
-                        'recursive': True
-                    }
-                ))
+            with self.dispatcher.get_lock('volumes'):
+                set_bidir_link_state(remote_client, True, link['volumes'], False)
+                for volume in link['volumes']:
+                    self.join_subtasks(self.run_subtask(
+                        'replication.replicate_dataset',
+                        volume,
+                        volume,
+                        {
+                            'remote': remote,
+                            'remote_dataset': volume,
+                            'recursive': True
+                        }
+                    ))
 
-                remote_client.call_task_sync('volume.autoimport', volume, 'containers')
-                remote_client.call_task_sync('volume.autoimport', volume, 'shares')
+                    remote_client.call_task_sync('volume.autoimport', volume, 'containers')
+                    remote_client.call_task_sync('volume.autoimport', volume, 'shares')
 
-            set_bidir_link_state(remote_client, False, link['volumes'], True)
+                set_bidir_link_state(remote_client, False, link['volumes'], True)
         else:
             remote_client.call_task_sync(
                 'replication.bidir.sync',
