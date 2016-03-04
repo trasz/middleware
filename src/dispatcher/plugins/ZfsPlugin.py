@@ -262,10 +262,8 @@ class ZpoolScrubTask(Task):
         except libzfs.ZFSException as err:
             raise TaskException(errno.EFAULT, str(err))
 
-        self.finish_event.set()
-        # set the abort flag to True so that run() can raise
-        # propoer exception
         self.abort_flag = True
+        self.finish_event.set()
         return True
 
     def get_status(self):
