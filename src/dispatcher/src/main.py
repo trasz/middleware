@@ -1576,22 +1576,24 @@ class FileConnection(WebSocketApplication, EventEmitter):
         #     worker = gevent.spawn(write_worker)
         # else:
         #     worker = gevent.spawn(read_worker)
-        if self.token.direction == "download":
-            file.seek(0)
-            while file.tell() <= self.bytes_total:
-                data = file.read(self.BUFSIZE)
-                if not data:
-                    break
-                self.ws.send(data)
-                self.bytes_done = file.tell()
-        else:
-            for i in self.inq:
-                file.write(i)
-                self.bytes_done = file.tell()
-        file.close()
-        self.done.set()
-        self.ws.close()
-        # gevent.joinall([worker])
+        try:
+            if self.token.direction == "download":
+                file.seek(0)
+                while file.tell() <= self.bytes_total:
+                    data = file.read(self.BUFSIZE)
+                    if not data:
+                        break
+                    self.ws.send(data)
+                    self.bytes_done = file.tell()
+            else:
+                for i in self.inq:
+                    file.write(i)
+                    self.bytes_done = file.tell()
+        finally:
+            file.close()
+            self.done.set()
+            self.ws.close()
+            # gevent.joinall([worker])
 
     def on_open(self, *args, **kwargs):
         self.logger.info("FileConnection Opened")
@@ -1626,8 +1628,7 @@ class FileConnection(WebSocketApplication, EventEmitter):
             self.ws.send(dumps({'status': 'ok'}))
             return
 
-        # Not doing for i in message since websocket is sending data as binary string
-        self.inq.put(message.decode('utf8'))
+        self.inq.put(message)
 
 
 # Custom handler for enabling downloading of files
