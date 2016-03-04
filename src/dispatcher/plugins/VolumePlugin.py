@@ -1756,33 +1756,39 @@ class DatasetConfigureTask(Task):
 
 
 @description("Creates a snapshot")
-@accepts(str, str, str, h.any_of(bool, None))
+@accepts(h.all_of(
+    h.ref('volume-snapshot'),
+    h.required('volume', 'dataset', 'name'),
+    h.forbidden('id')
+))
 class SnapshotCreateTask(Task):
-    def verify(self, pool_name, dataset_name, snapshot_name, recursive=False):
-        return ['zfs:{0}'.format(dataset_name)]
+    def verify(self, snapshot):
+        return ['zfs:{0}'.format(snapshot['dataset'])]
 
-    def run(self, pool_name, dataset_name, snapshot_name, recursive=False):
+    def run(self, snapshot, recursive=False):
         self.join_subtasks(self.run_subtask(
             'zfs.create_snapshot',
-            pool_name,
-            dataset_name,
-            snapshot_name,
+            snapshot['volume'],
+            snapshot['dataset'],
+            snapshot['name'],
             recursive
         ))
 
 
 @description("Deletes the specified snapshot")
-@accepts(str, str, str)
+@accepts(str)
 class SnapshotDeleteTask(Task):
-    def verify(self, pool_name, dataset_name, snapshot_name):
-        return ['zfs:{0}'.format(dataset_name)]
+    def verify(self, id):
+        pool, ds, snap = split_snapshot_name(id)
+        return ['zfs:{0}'.format(ds)]
 
-    def run(self, pool_name, dataset_name, snapshot_name):
+    def run(self, id):
+        pool, ds, snap = split_snapshot_name(id)
         self.join_subtasks(self.run_subtask(
             'zfs.delete_snapshot',
-            pool_name,
-            dataset_name,
-            snapshot_name,
+            pool,
+            ds,
+            snap
         ))
 
 
