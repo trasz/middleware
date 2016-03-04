@@ -1634,7 +1634,10 @@ class VolumeOnlineVdevTask(Task):
 
 
 @description("Creates a dataset in an existing volume")
-@accepts(h.ref('volume-dataset'))
+@accepts(h.all_of(
+    h.ref('volume-dataset'),
+    h.required('id', 'volume')
+))
 class DatasetCreateTask(Task):
     def verify(self, dataset):
         if not self.datastore.exists('volumes', ('id', '=', dataset['volume'])):
