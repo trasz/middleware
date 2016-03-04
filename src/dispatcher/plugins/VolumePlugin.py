@@ -1597,6 +1597,42 @@ class VolumeScrubTask(MasterProgressTask):
         self.run_and_join_progress_subtask('zfs.pool.scrub', id)
 
 
+@description("Makes vdev in a volume offline")
+@accepts(str, str)
+class VolumeOfflineVdevTask(Task):
+    def verify(self, id, vdev_guid):
+        vol = self.dispatcher.call_sync('volume.query', [('id', '=', id)], {'single': True})
+        if not vol:
+            raise VerifyException(errno.ENOENT, 'Volume {0} not found'.format(id))
+
+        return ['disk:{0}'.format(d) for d, _ in get_disks(vol['topology'])]
+
+    def run(self, id, vdev_guid):
+        self.join_subtasks(self.run_subtask(
+            'zfs.pool.offline_disk',
+            id,
+            vdev_guid
+        ))
+
+
+@description("Makes vdev in a volume online")
+@accepts(str, str)
+class VolumeOnlineVdevTask(Task):
+    def verify(self, id, vdev_guid):
+        vol = self.dispatcher.call_sync('volume.query', [('id', '=', id)], {'single': True})
+        if not vol:
+            raise VerifyException(errno.ENOENT, 'Volume {0} not found'.format(id))
+
+        return ['disk:{0}'.format(d) for d, _ in get_disks(vol['topology'])]
+
+    def run(self, id, vdev_guid):
+        self.join_subtasks(self.run_subtask(
+            'zfs.pool.online_disk',
+            id,
+            vdev_guid
+        ))
+
+
 @description("Creates a dataset in an existing volume")
 @accepts(h.ref('volume-dataset'))
 class DatasetCreateTask(Task):
@@ -2116,6 +2152,8 @@ def _init(dispatcher, plugin):
     plugin.register_task_handler('volume.keys.backup', VolumeBackupKeysTask)
     plugin.register_task_handler('volume.keys.restore', VolumeRestoreKeysTask)
     plugin.register_task_handler('volume.scrub', VolumeScrubTask)
+    plugin.register_task_handler('volume.vdev.online', VolumeOnlineVdevTask)
+    plugin.register_task_handler('volume.vdev.offline', VolumeOfflineVdevTask)
     plugin.register_task_handler('volume.dataset.create', DatasetCreateTask)
     plugin.register_task_handler('volume.dataset.delete', DatasetDeleteTask)
     plugin.register_task_handler('volume.dataset.update', DatasetConfigureTask)
