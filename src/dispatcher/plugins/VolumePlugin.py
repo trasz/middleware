@@ -1801,6 +1801,29 @@ class SnapshotDeleteTask(Task):
         ))
 
 
+@description("Updates configuration of specified snapshot")
+@accepts(str, h.all_of(
+    h.ref('volume-snapshot'),
+    h.forbidden('id')
+))
+class SnapshotConfigureTask(Task):
+    def verify(self, id, updated_params):
+        pool, ds, snap = split_snapshot_name(id)
+        return ['zfs:{0}'.format(ds)]
+
+    def run(self, id, updated_params):
+        pool, ds, snap = split_snapshot_name(id)
+        params = {}
+
+        if 'lifetime' in updated_params:
+            params['org.freenas:lifetime'] = {'value': updated_params['lifetime']}
+
+        if 'replicable' in updated_params:
+            params['org.freenas:replicable'] = {'value': 'yes' if updated_params['replicable'] else 'no'}
+
+        self.join_subtasks(self.run_subtask('zfs.update', pool, id, params))
+
+
 def compare_vdevs(vd1, vd2):
     if vd1 is None or vd2 is None:
         return False
@@ -2188,6 +2211,7 @@ def _init(dispatcher, plugin):
     plugin.register_task_handler('volume.dataset.update', DatasetConfigureTask)
     plugin.register_task_handler('volume.snapshot.create', SnapshotCreateTask)
     plugin.register_task_handler('volume.snapshot.delete', SnapshotDeleteTask)
+    plugin.register_task_handler('volume.snapshot.update', SnapshotConfigureTask)
 
     plugin.register_hook('volume.pre_destroy')
     plugin.register_hook('volume.pre_detach')

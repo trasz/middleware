@@ -700,7 +700,7 @@ class ZfsConfigureTask(ZfsBaseTask):
     def run(self, pool_name, name, properties):
         try:
             zfs = get_zfs()
-            dataset = zfs.get_dataset(name)
+            dataset = zfs.get_object(name)
             for k, v in list(properties.items()):
                 if k in dataset.properties:
                     if v['value'] is None:
