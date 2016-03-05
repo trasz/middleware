@@ -1880,17 +1880,26 @@ def _init(dispatcher, plugin):
     boot_pool = dispatcher.call_sync('zfs.pool.get_boot_pool')
 
     def convert_snapshot(snapshot):
+        snapshot = wrap(snapshot)
         dataset, _, name = snapshot['name'].partition('@')
         pool = dataset.partition('/')[0]
+        lifetime = None
 
         if pool == boot_pool['id']:
             return None
+
+        try:
+            lifetime = int(snapshot.get('properties.org\\.freenas:lifetime.value'))
+        except ValueError:
+            pass
 
         return {
             'id': snapshot['name'],
             'volume': pool,
             'dataset': dataset,
             'name': name,
+            'lifetime': lifetime,
+            'replicable': snapshot.get('properties.org\\.freenas:replicable.value') or False,
             'properties': include(
                 snapshot['properties'],
                 'used', 'referenced', 'compressratio', 'clones'
@@ -2058,6 +2067,8 @@ def _init(dispatcher, plugin):
             'volume': {'type': 'string'},
             'dataset': {'type': 'string'},
             'name': {'type': 'string'},
+            'replicable': {'type': 'boolean'},
+            'lifetime': {'type': ['integer', 'null']},
             'properties': {'type': 'object'},
             'holds': {'type': 'object'}
         }
