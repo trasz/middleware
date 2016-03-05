@@ -1664,15 +1664,14 @@ class DownloadRequestHandler(object):
             )),
             ('Transfer-Encoding', 'chunked')
         ])
-        # file_body = self.token.file.read()
-        self.token.file.seek(0)
-        chunk = self.token.file.read(1024)
-        while chunk:
-            yield chunk
-            time.sleep(1)
+        try:
+            self.token.file.seek(0)
             chunk = self.token.file.read(1024)
-        self.token.file.close()
-        # return [file_body]
+            while chunk:
+                yield chunk
+                chunk = self.token.file.read(1024)
+        finally:
+            self.token.file.close()
 
 
 def run(d, args):
