@@ -1963,7 +1963,7 @@
     },
     {
         "metadata": {
-            "name": "replication.bidir.links",
+            "name": "replication.links",
             "migration": "keep",
             "pkey-type": "native",
             "attributes": {

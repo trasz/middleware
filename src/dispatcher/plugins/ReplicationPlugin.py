@@ -132,12 +132,12 @@ class ReplicationBiDirProvider(Provider):
     @query('replication-bidir-link')
     def query(self, filter=None, params=None):
         return self.datastore.query(
-            'replication.bidir.links', *(filter or []), **(params or {})
+            'replication.links', *(filter or []), **(params or {})
         )
 
     def get_one(self, name):
-        if self.datastore.exists('replication.bidir.links', ('name', '=', name)):
-            return self.datastore.get_one('replication.bidir.links', ('name', '=', name))
+        if self.datastore.exists('replication.links', ('name', '=', name)):
+            return self.datastore.get_one('replication.links', ('name', '=', name))
         else:
             return None
 
@@ -160,7 +160,7 @@ class ScanHostKeyTask(Task):
 @description("Sets up bi-directional replication link")
 @accepts(h.all_of(
         h.ref('replication-bidir-link'),
-        h.required('name', 'partners', 'master', 'volumes', 'replicate_services')
+        h.required('name', 'partners', 'master', 'volumes', 'replicate_services', 'bidirectional')
     ),
     h.one_of(str, None)
 )
@@ -181,7 +181,7 @@ class ReplicationBiDirCreate(Task):
         if not ip_matches:
             raise VerifyException(errno.EINVAL, 'Provided partner IPs do not create a valid pair. Check addresses.')
 
-        if self.datastore.exists('replication.bidir.links', ('name', '=', link['name'])):
+        if self.datastore.exists('replication.links', ('name', '=', link['name'])):
             raise VerifyException(errno.EEXIST, 'Bi-directional replication link with same name already exists')
 
         return []
@@ -291,7 +291,7 @@ class ReplicationBiDirCreate(Task):
 
                 remote_client.call_task_sync('replication.bidir.create', link)
 
-                id = self.datastore.insert('replication.bidir.links', link)
+                id = self.datastore.insert('replication.links', link)
 
                 for volume in link['volumes']:
                     self.join_subtasks(self.run_subtask(
@@ -313,7 +313,7 @@ class ReplicationBiDirCreate(Task):
                 remote_client.disconnect()
 
         else:
-            id = self.datastore.insert('replication.bidir.links', link)
+            id = self.datastore.insert('replication.links', link)
 
         self.dispatcher.dispatch_event('replication.bidir.changed', {
             'operation': 'create',
@@ -325,7 +325,7 @@ class ReplicationBiDirCreate(Task):
 @accepts(str, bool)
 class ReplicationBiDirDelete(Task):
     def verify(self, name, scrub=False):
-        if not self.datastore.exists('replication.bidir.links', ('name', '=', name)):
+        if not self.datastore.exists('replication.links', ('name', '=', name)):
             raise VerifyException(errno.ENOENT, 'Bi-directional replication link {0} do not exist.'.format(name))
 
         return []
@@ -340,7 +340,7 @@ class ReplicationBiDirDelete(Task):
                 for volume in link['volumes']:
                     self.join_subtasks(self.run_subtask('volume.delete', volume))
 
-        self.datastore.delete('replication.bidir.links', link['id'])
+        self.datastore.delete('replication.links', link['id'])
 
         remote_client = get_client(remote)
         if remote_client.call_sync('replication.bidir.get_one', name):
@@ -357,7 +357,7 @@ class ReplicationBiDirDelete(Task):
 @accepts(str)
 class ReplicationBiDirSwitch(Task):
     def verify(self, name):
-        if not self.datastore.exists('replication.bidir.links', ('name', '=', name)):
+        if not self.datastore.exists('replication.links', ('name', '=', name)):
             raise VerifyException(errno.ENOENT, 'Bi-directional replication link {0} do not exist.'.format(name))
 
         return []
@@ -369,7 +369,7 @@ class ReplicationBiDirSwitch(Task):
             if partner != link['master']:
                 link['master'] = partner
 
-        self.datastore.update('replication.bidir.links', link['id'], link)
+        self.datastore.update('replication.links', link['id'], link)
 
         self.dispatcher.dispatch_event('replication.bidir.changed', {
             'operation': 'update',
@@ -392,10 +392,10 @@ class ReplicationBiDirSwitch(Task):
 @accepts(str)
 class ReplicationBiDirSync(Task):
     def verify(self, name):
-        if not self.datastore.exists('replication.bidir.links', ('name', '=', name)):
+        if not self.datastore.exists('replication.links', ('name', '=', name)):
             raise VerifyException(errno.ENOENT, 'Bi-directional replication link {0} do not exist.'.format(name))
 
-        link = self.datastore.get_one('replication.bidir.links', ('name', '=', name))
+        link = self.datastore.get_one('replication.links', ('name', '=', name))
 
         return ['zpool:{0}'.format(p) for p in link['volumes']]
 
@@ -753,8 +753,8 @@ def get_client(remote):
 
 
 def get_latest_bidir_link(dispatcher, datastore, name):
-    if datastore.exists('replication.bidir.links', ('name', '=', name)):
-        local_link = datastore.get_one('replication.bidir.links', ('name', '=', name))
+    if datastore.exists('replication.links', ('name', '=', name)):
+        local_link = datastore.get_one('replication.links', ('name', '=', name))
         ips = dispatcher.call_sync('network.config.get_my_ips')
         remote = ''
         client = None
@@ -858,6 +858,7 @@ def _init(dispatcher, plugin):
                 'type': 'array',
                 'items': {'type': 'string'}
             },
+            'bidirectional': {'type': 'boolean'},
             'replicate_services': {'type': 'boolean'}
         },
         'additionalProperties': False,
