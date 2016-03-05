@@ -1766,12 +1766,21 @@ class SnapshotCreateTask(Task):
         return ['zfs:{0}'.format(snapshot['dataset'])]
 
     def run(self, snapshot, recursive=False):
+        normalize(snapshot, {
+            'replicable': True,
+            'lifetime': None
+        })
+
         self.join_subtasks(self.run_subtask(
             'zfs.create_snapshot',
             snapshot['volume'],
             snapshot['dataset'],
             snapshot['name'],
-            recursive
+            recursive,
+            {
+                'org.freenas:replicable': {'value': 'yes' if snapshot['replicable'] else 'no'},
+                'org.freenas:lifetime': {'value': str(snapshot['replicable'] or 'no')}
+            }
         ))
 
 
@@ -1890,7 +1899,7 @@ def _init(dispatcher, plugin):
 
         try:
             lifetime = int(snapshot.get('properties.org\\.freenas:lifetime.value'))
-        except ValueError:
+        except (ValueError, TypeError):
             pass
 
         return {
