@@ -139,13 +139,11 @@
                 { file: file
                 , type: file.type || "n/a"
                 , modifiedDate: date
+              }),
+              $( "<button/>", {
+                text: "Upload",
+                click: function () { uploadToSocket( file ) }
               })
-          );
-          $( "#outputfilelist" ).append(
-            $( "<button/>", {
-              text: "Upload",
-              click: function () { uploadToSocket( file ) }
-            })
           );
         });
       }
