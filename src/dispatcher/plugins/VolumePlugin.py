@@ -340,7 +340,7 @@ class VolumeProvider(Provider):
                 if dev in disks:
                     ret[dev] = {
                         'type': 'VOLUME',
-                        'name': vol['name']
+                        'name': vol['id']
                     }
 
         return ret
