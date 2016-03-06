@@ -259,7 +259,7 @@ class VolumeProvider(Provider):
         volname = tokens[1]
         vol = self.dispatcher.call_sync('volume.query', [('id', '=', volname)], {'single': True})
         if vol:
-            datasets = [d['name'] for d in vol['datasets']]
+            datasets = self.dispatcher.call_sync('volume.dataset.query', [('volume', '=', volname)])
         else:
             raise RpcException(errno.ENOENT, "Volume '{0}' does not exist".format(volname))
         n = len(tokens)
