@@ -242,7 +242,7 @@ class UserCreateTask(Task):
                 )
 
                 user['smbhash'] = system('/usr/local/bin/pdbedit', '-d', '0', '-w', user['username'])[0]
-                self.datastore.update('users', uid, user)
+                self.datastore.update('users', id, user)
 
         except SubprocessException as e:
             raise TaskException(
@@ -349,12 +349,9 @@ class UserUpdateTask(Task):
 
     def verify(self, id, updated_fields):
         user = self.datastore.get_by_id('users', id)
-        if not user:
-            raise VerifyException(errno.ENOENT, 'User {0} does not exist'.format(id))
-
         errors = ValidationException()
 
-        if user.get('builtin'):
+        if user and user.get('builtin'):
             if 'home' in updated_fields:
                 errors.add((1, 'home'), "Cannot change builtin user's home directory", code=errno.EPERM)
 
@@ -396,6 +393,9 @@ class UserUpdateTask(Task):
     def run(self, id, updated_fields):
         try:
             user = self.datastore.get_by_id('users', id)
+            if not user:
+                raise TaskException(errno.ENOENT, 'User {0} not found'.format(id))
+
             self.original_user = copy.deepcopy(user)
 
             home_before = user.get('home')
