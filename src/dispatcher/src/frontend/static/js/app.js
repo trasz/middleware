@@ -2,11 +2,11 @@
 
 /* App Module */
 
-angular.module('Debugger', [
+var DebuggerApp = angular.module('Debugger', [
 	'ngRoute',
     'ui.bootstrap'
-]).
-config(['$routeProvider', function($routeProvider) {
+]);
+DebuggerApp.config(['$routeProvider', function($routeProvider) {
   $routeProvider.
       when('/',
         {
@@ -16,6 +16,10 @@ config(['$routeProvider', function($routeProvider) {
       when('/rpc',{
           templateUrl: '../static/partials/rpc.html',
           controller: RpcController
+      }).
+      when('/term',{
+          templateUrl: '../static/partials/term.html' ,
+          controller: TermController
       }).
 	  when('/events',{
 		  templateUrl: '../static/partials/events.html',
@@ -50,4 +54,25 @@ config(['$routeProvider', function($routeProvider) {
           controller: HTTPStatusController
       }).
       otherwise({redirectTo: '/'});
+}]);
+
+DebuggerApp.service('synchronousService', [function () {
+    var serviceMethod = function (url) {
+        var request;
+        if (window.XMLHttpRequest) {
+            request = new XMLHttpRequest();
+        } else if (window.ActiveXObject) {
+            request = new ActiveXObject("Microsoft.XMLHTTP");
+        } else {
+            throw new Error("Your browser don't support XMLHttpRequest");
+        }
+
+        request.open('GET', url, false);
+        request.send(null);
+
+        if (request.status === 200) {
+            return request.responseText;
+        }
+    };
+    return serviceMethod;
 }]);

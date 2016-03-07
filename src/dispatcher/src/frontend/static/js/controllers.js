@@ -77,7 +77,7 @@ function RpcController($scope) {
     $("#call").click(function () {
         sock.call(
             $("#method").val(),
-            parse($("#args").val()),
+            JSON.parse($("#args").val()),
             function(result) {
                 console.log(result);
                 // if (result.length == undefined) {
@@ -106,13 +106,93 @@ function RpcController($scope) {
     }
 }
 
+function TermController($scope, synchronousService) {
+    console.log("200");
+    document.title = "System Events";
+    var sock = new middleware.DispatcherClient(document.domain);
+    sock.connect();
+    function connect_term(client, command){
+        var conn = new middleware.ShellClient(client);
+        conn.connect(command);
+        conn.onOpen = function() {
+            var term = new Terminal({
+                cols: 80,
+                rows: 24,
+                screenKeys: true
+            });
+
+            term.on('data', function (data) {
+                conn.send(data);
+            });
+
+            conn.onData = function (data) {
+                term.write(data);
+            };
+
+            term.open($("#terminal")[0])
+        }
+    }
+    $scope.init = function () {
+        var syncUrl = "/static/term.js";
+        synchronousService(syncUrl);
+        // var s = document.createElement('script');
+        // s.src = '/static/term.js';
+        // document.body.appendChild(s);
+        sock.onError = function(err) {
+            if(typeof err.message != 'undefined'){
+                alert("Error :" + err.message);
+            }else{
+                alert("Connection closed, refresh me");
+            }
+        };
+    };
+
+    sock.onConnect = function() {
+        if (!sessionStorage.getItem("freenas:username")) {
+            var username = prompt("Username:");
+            var password = prompt("Password:");
+            sessionStorage.setItem("freenas:username", username);
+            sessionStorage.setItem("freenas:password", password);
+        }
+
+        sock.login(
+            sessionStorage.getItem("freenas:username"),
+            sessionStorage.getItem("freenas:password")
+        );
+    };
+    sock.onLogin = function() {
+        sock.call("shell.get_shells", null, function(response) {
+            $.each(response, function(idx, i) {
+                var li = $("<li/>")
+                    .appendTo($("#shells"));
+                var a = $("<a/>")
+                    .addClass("shell-entry")
+                    .attr("role", "menuitem")
+                    .attr("href", "#")
+                    .text(i)
+                    .appendTo(li);
+            });
+        });
+
+        connect_term(sock, "/bin/sh")
+    };
+    $("#shells").on("click", "a.shell-entry", function() {
+        term.destroy();
+        connect_term(sock, this.text)
+    })
+}
+
 function EventsController($scope) {
     document.title = "System Events";
     var sock = new middleware.DispatcherClient(document.domain);
     sock.connect();
     $scope.init = function () {
         sock.onError = function(err) {
-            alert("Error: " + err.message);
+            if(typeof err.message != 'undefined'){
+                alert("Error :" + err.message);
+            }else{
+                alert("Connection closed, refresh me");
+            }
         };
         sock.onConnect = function() {
             if (!sessionStorage.getItem("freenas:username")) {
@@ -150,7 +230,11 @@ function SyslogController($scope) {
     sock.connect();
     $scope.init = function () {
         sock.onError = function(err) {
-            alert("Error: " + err.message);
+            if(typeof err.message != 'undefined'){
+                alert("Error :" + err.message);
+            }else{
+                alert("Connection closed, refresh me");
+            }
         };
         sock.onConnect = function() {
             if (!sessionStorage.getItem("freenas:username")) {
@@ -232,7 +316,11 @@ function StatsController($scope) {
     }
     $scope.init = function () {
         sock.onError = function(err) {
-            alert("Error: " + err.message);
+            if(typeof err.message != 'undefined'){
+                alert("Error :" + err.message);
+            }else{
+                alert("Connection closed, refresh me");
+            }
         };
         sock.onConnect = function() {
             if (!sessionStorage.getItem("freenas:username")) {
@@ -291,7 +379,11 @@ function TasksController($scope) {
     }
     $scope.init = function() {
         sock.onError = function(err) {
-            alert("Error: " + err.message);
+            if(typeof err.message != 'undefined'){
+                alert("Error :" + err.message);
+            }else{
+                alert("Connection closed, refresh me");
+            }
         };
         sock.onEvent = function(name, args) {
             if (name == "task.created") {

@@ -1,0 +1,36 @@
+<style type="text/css">
+    body {
+        margin: 20px;
+        padding-top: 50px;
+    }
+
+    .terminal {
+        float: left;
+        border: #000 solid 5px;
+        font-family: "DejaVu Sans Mono", "Liberation Mono", monospace;
+        font-size: 11px;
+        color: #f0f0f0;
+        background: #000;
+        margin-top: 15px;
+    }
+
+    .terminal-cursor {
+        color: #000;
+        background: #f0f0f0;
+    }
+</style>
+<div ng-init="init()">
+</div>
+<div class="row">
+    <h1>Terminal</h1>
+    <div class="dropdown">
+      <button class="btn btn-default dropdown-toggle" type="button" data-toggle="dropdown">
+        Shell type
+        <span class="caret"></span>
+      </button>
+      <ul id="shells" class="dropdown-menu" dropdown-menu>
+      </ul>
+    </div>
+    <div id="terminal">
+    </div
+</div>
