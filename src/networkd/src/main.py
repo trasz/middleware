@@ -339,6 +339,46 @@ class ConfigurationService(RpcService):
 
         raise RpcException(errno.EBUSY, 'No free interfaces left')
 
+    def get_dns_config(self):
+        proc = subprocess.Popen(
+            ['/sbin/resolvconf', '-l'],
+            stdout=subprocess.PIPE
+        )
+
+        result = {
+            'addresses': [],
+            'search': []
+        }
+
+        out, err = proc.communicate()
+
+        for i in out.splitlines():
+            line = i.decode('utf-8')
+
+            if len(line.strip()) == 0:
+                continue
+
+            if line[0] == '#':
+                continue
+
+            cmd, val = line.split()
+            if cmd == 'nameserver':
+                result['addresses'].append(val)
+
+            if cmd == 'search':
+                result['search'].append(val)
+
+        return result
+
+    def get_default_routes(self):
+        routes = self.query_routes()
+        default_ipv4 = first_or_default(lambda r: r.netmask == ipaddress.ip_address('0.0.0.0'), routes)
+        default_ipv6 = first_or_default(lambda r: r.netmask == ipaddress.ip_address('::'), routes)
+        return {
+            'ipv4': default_ipv4.gateway if default_ipv4 else None,
+            'ipv6': default_ipv6.gateway if default_ipv6 else None
+        }
+
     def get_default_interface(self):
         routes = self.query_routes()
         default = first_or_default(lambda r: r.netmask == ipaddress.ip_address('0.0.0.0'), routes)

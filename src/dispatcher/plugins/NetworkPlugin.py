@@ -50,6 +50,13 @@ class NetworkProvider(Provider):
     def get_config(self):
         return ConfigNode('network', self.configstore)
 
+    @returns(h.ref('network-status'))
+    def get_status(self):
+        return {
+            'gateway': self.dispatcher.call_sync('networkd.configuration.get_default_routes'),
+            'dns': self.dispatcher.call_sync('networkd.configuration.get_dns_config')
+        }
+
     @returns(h.array(str))
     def get_my_ips(self):
         ips = []
@@ -716,6 +723,29 @@ def _init(dispatcher, plugin):
                         'type': 'array',
                         'items': {'$ref': 'ip-address'}
                     }
+                }
+            }
+        }
+    })
+
+    plugin.register_schema_definition('network-status', {
+        'type': 'object',
+        'additionalProperties': False,
+        'properties': {
+            'gateway': {
+                'type': 'object',
+                'additionalProperties': False,
+                'properties': {
+                    'ipv4': {'oneOf': [{'$ref': 'ipv4-address'}, {'type': 'null'}]},
+                    'ipv6': {'oneOf': [{'$ref': 'ipv6-address'}, {'type': 'null'}]}
+                }
+            },
+            'dns': {
+                'type': 'object',
+                'additionalProperties': False,
+                'properties': {
+                    'addresses': {'type': 'array', 'items': {'$ref': 'ip-address'}},
+                    'search': {'type': 'array', 'items': {'type': 'string'}}
                 }
             }
         }
