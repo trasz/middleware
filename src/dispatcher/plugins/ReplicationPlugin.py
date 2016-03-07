@@ -160,7 +160,7 @@ class ScanHostKeyTask(Task):
 @description("Sets up bi-directional replication link")
 @accepts(h.all_of(
         h.ref('replication-link'),
-        h.required('name', 'partners', 'master', 'volumes', 'replicate_services', 'bidirectional')
+        h.required('name', 'partners', 'master', 'datasets', 'replicate_services', 'bidirectional')
     ),
     h.one_of(str, None)
 )
@@ -196,7 +196,7 @@ class ReplicationCreate(Task):
             with self.dispatcher.get_lock('volumes'):
                 remote_client = get_client(remote)
 
-                for volume in link['volumes']:
+                for volume in link['datasets']:
                     if not self.datastore.exists('volumes', ('id', '=', volume)):
                         raise TaskException(errno.ENOENT, 'Volume {0} not found'.format(volume))
 
@@ -224,7 +224,7 @@ class ReplicationCreate(Task):
                                 'Container {0} already exists on {1}'.format(container['name'], remote.split('@', 1)[1])
                             )
 
-                for volume in link['volumes']:
+                for volume in link['datasets']:
                     remote_vol = remote_client.call_sync(
                         'volume.query',
                         [('id', '=', volume)],
@@ -293,7 +293,7 @@ class ReplicationCreate(Task):
 
                 id = self.datastore.insert('replication.links', link)
 
-                for volume in link['volumes']:
+                for volume in link['datasets']:
                     self.join_subtasks(self.run_subtask(
                         'replication.replicate_dataset',
                         volume,
@@ -309,7 +309,7 @@ class ReplicationCreate(Task):
                         remote_client.call_task_sync('volume.autoimport', volume, 'containers')
                         remote_client.call_task_sync('volume.autoimport', volume, 'shares')
 
-                set_bidir_link_state(remote_client, False, link['volumes'], True)
+                set_bidir_link_state(remote_client, False, link['datasets'], True)
                 remote_client.disconnect()
 
         else:
@@ -335,9 +335,9 @@ class ReplicationDelete(Task):
         is_master, remote = get_bidir_link_state(self.dispatcher, link)
 
         if not is_master and scrub:
-            set_bidir_link_state(self.dispatcher, True, link['volumes'], False)
+            set_bidir_link_state(self.dispatcher, True, link['datasets'], False)
             with self.dispatcher.get_lock('volumes'):
-                for volume in link['volumes']:
+                for volume in link['datasets']:
                     self.join_subtasks(self.run_subtask('volume.delete', volume))
 
         self.datastore.delete('replication.links', link['id'])
@@ -389,7 +389,7 @@ class ReplicationUpdate(Task):
         remote_client.disconnect()
 
         is_master, remote = get_bidir_link_state(self.dispatcher, link)
-        set_bidir_link_state(self.dispatcher, is_master, link['volumes'], True)
+        set_bidir_link_state(self.dispatcher, is_master, link['datasets'], True)
 
 
 @description("Triggers replication in bi-directional replication")
@@ -401,7 +401,7 @@ class ReplicationSync(Task):
 
         link = self.datastore.get_one('replication.links', ('name', '=', name))
 
-        return ['zpool:{0}'.format(p) for p in link['volumes']]
+        return ['zpool:{0}'.format(p) for p in link['datasets']]
 
     def run(self, name):
         link = get_latest_bidir_link(self.dispatcher, self.datastore, name)
@@ -409,8 +409,8 @@ class ReplicationSync(Task):
         remote_client = get_client(remote)
         if is_master:
             with self.dispatcher.get_lock('volumes'):
-                set_bidir_link_state(remote_client, True, link['volumes'], False)
-                for volume in link['volumes']:
+                set_bidir_link_state(remote_client, True, link['datasets'], False)
+                for volume in link['datasets']:
                     self.join_subtasks(self.run_subtask(
                         'replication.replicate_dataset',
                         volume,
@@ -426,7 +426,7 @@ class ReplicationSync(Task):
                         remote_client.call_task_sync('volume.autoimport', volume, 'containers')
                         remote_client.call_task_sync('volume.autoimport', volume, 'shares')
 
-                set_bidir_link_state(remote_client, False, link['volumes'], True)
+                set_bidir_link_state(remote_client, False, link['datasets'], True)
         else:
             remote_client.call_task_sync(
                 'replication.sync',
@@ -802,8 +802,8 @@ def get_bidir_link_state(dispatcher, link):
     return is_master, remote
 
 
-def set_bidir_link_state(client, enabled, volumes, set_services):
-    for volume in volumes:
+def set_bidir_link_state(client, enabled, datasets, set_services):
+    for volume in datasets:
         if set_services:
             client.call_task_sync(
                 'zfs.update',
@@ -858,7 +858,7 @@ def _init(dispatcher, plugin):
             },
             'master': {'type': 'string'},
             'update_date': {'type': 'string'},
-            'volumes': {
+            'datasets': {
                 'type': 'array',
                 'items': {'type': 'string'}
             },
