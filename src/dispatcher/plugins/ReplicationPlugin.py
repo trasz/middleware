@@ -863,7 +863,8 @@ def _init(dispatcher, plugin):
                 'items': {'type': 'string'}
             },
             'bidirectional': {'type': 'boolean'},
-            'replicate_services': {'type': 'boolean'}
+            'replicate_services': {'type': 'boolean'},
+            'recursive': {'type': 'boolean'}
         },
         'additionalProperties': False,
     })
