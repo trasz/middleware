@@ -387,7 +387,6 @@ class ManagementService(RpcService):
             vm.devices = container['devices']
             vm.files_root = self.context.client.call_sync(
                 'volume.get_dataset_path',
-                container['target'],
                 os.path.join(container['target'], 'vm', container['name'], 'files')
             )
             vm.start()

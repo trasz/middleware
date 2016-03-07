@@ -244,7 +244,7 @@ class VolumeProvider(Provider):
 
         return os.path.join(volume['mountpoint'], path)
 
-    @accepts(str, str)
+    @accepts(str)
     @returns(str)
     def get_dataset_path(self, dsname):
         return os.path.join(VOLUMES_ROOT, dsname)
