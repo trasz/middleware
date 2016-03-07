@@ -354,17 +354,20 @@ class ReplicationDelete(Task):
 
 
 @description("Switch state of bi-directional replication link")
-@accepts(str)
+@accepts(str, h.ref('replication-link'))
 class ReplicationUpdate(Task):
-    def verify(self, name):
+    def verify(self, name, updated_fields):
         if not self.datastore.exists('replication.links', ('name', '=', name)):
             raise VerifyException(errno.ENOENT, 'Bi-directional replication link {0} do not exist.'.format(name))
 
         return []
 
-    def run(self, name):
+    def run(self, name, updated_fields):
         link = get_latest_bidir_link(self.dispatcher, self.datastore, name)
         is_master, remote = get_bidir_link_state(self.dispatcher, link)
+        if 'update_date' not in updated_fields:
+            link['update_date'] = str(datetime.utcnow())
+
         for partner in link['partners']:
             if partner != link['master']:
                 link['master'] = partner
@@ -379,8 +382,9 @@ class ReplicationUpdate(Task):
         remote_client = get_client(remote)
         if link is not remote_client.call_sync('replication.link.get_one', name):
             remote_client.call_task_sync(
-                'replication.switch',
-                link['name']
+                'replication.update',
+                link['name'],
+                updated_fields
             )
         remote_client.disconnect()
 
