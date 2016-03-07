@@ -264,10 +264,13 @@ class ContainerCreateTask(ContainerBaseTask):
                 'devices': []
             })
 
+        normalize(container, {
+            'enabled': True
+        })
+
         normalize(container['config'], {
             'memsize': 512,
-            'ncpus': 1,
-            'enabled': True
+            'ncpus': 1
         })
 
         self.init_dataset(container)
