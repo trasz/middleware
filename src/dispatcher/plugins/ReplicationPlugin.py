@@ -128,8 +128,8 @@ class ReplicationProvider(Provider):
         return self.dispatcher.call_task_sync('replication.scan_hostkey', hostname)
 
 
-class ReplicationBiDirProvider(Provider):
-    @query('replication-bidir-link')
+class ReplicationLinkProvider(Provider):
+    @query('replication-link')
     def query(self, filter=None, params=None):
         return self.datastore.query(
             'replication.links', *(filter or []), **(params or {})
@@ -159,12 +159,12 @@ class ScanHostKeyTask(Task):
 
 @description("Sets up bi-directional replication link")
 @accepts(h.all_of(
-        h.ref('replication-bidir-link'),
+        h.ref('replication-link'),
         h.required('name', 'partners', 'master', 'volumes', 'replicate_services', 'bidirectional')
     ),
     h.one_of(str, None)
 )
-class ReplicationBiDirCreate(Task):
+class ReplicationCreate(Task):
     def verify(self, link, password=None):
         ip_matches = False
         ips = self.dispatcher.call_sync('network.config.get_my_ips')
@@ -289,7 +289,7 @@ class ReplicationBiDirCreate(Task):
                                     )
                                 )
 
-                remote_client.call_task_sync('replication.bidir.create', link)
+                remote_client.call_task_sync('replication.create', link)
 
                 id = self.datastore.insert('replication.links', link)
 
@@ -315,7 +315,7 @@ class ReplicationBiDirCreate(Task):
         else:
             id = self.datastore.insert('replication.links', link)
 
-        self.dispatcher.dispatch_event('replication.bidir.changed', {
+        self.dispatcher.dispatch_event('replication.changed', {
             'operation': 'create',
             'ids': [id]
         })
@@ -323,7 +323,7 @@ class ReplicationBiDirCreate(Task):
 
 @description("Deletes bi-directional replication link")
 @accepts(str, bool)
-class ReplicationBiDirDelete(Task):
+class ReplicationDelete(Task):
     def verify(self, name, scrub=False):
         if not self.datastore.exists('replication.links', ('name', '=', name)):
             raise VerifyException(errno.ENOENT, 'Bi-directional replication link {0} do not exist.'.format(name))
@@ -343,11 +343,11 @@ class ReplicationBiDirDelete(Task):
         self.datastore.delete('replication.links', link['id'])
 
         remote_client = get_client(remote)
-        if remote_client.call_sync('replication.bidir.get_one', name):
-            remote_client.call_task_sync('replication.bidir.delete', name, scrub)
+        if remote_client.call_sync('replication.link.get_one', name):
+            remote_client.call_task_sync('replication.delete', name, scrub)
         remote_client.disconnect()
 
-        self.dispatcher.dispatch_event('replication.bidir.changed', {
+        self.dispatcher.dispatch_event('replication.changed', {
             'operation': 'delete',
             'ids': [link['id']]
         })
@@ -355,7 +355,7 @@ class ReplicationBiDirDelete(Task):
 
 @description("Switch state of bi-directional replication link")
 @accepts(str)
-class ReplicationBiDirSwitch(Task):
+class ReplicationSwitch(Task):
     def verify(self, name):
         if not self.datastore.exists('replication.links', ('name', '=', name)):
             raise VerifyException(errno.ENOENT, 'Bi-directional replication link {0} do not exist.'.format(name))
@@ -371,15 +371,15 @@ class ReplicationBiDirSwitch(Task):
 
         self.datastore.update('replication.links', link['id'], link)
 
-        self.dispatcher.dispatch_event('replication.bidir.changed', {
+        self.dispatcher.dispatch_event('replication.changed', {
             'operation': 'update',
             'ids': [link['id']]
         })
 
         remote_client = get_client(remote)
-        if link is not remote_client.call_sync('replication.bidir.get_one', name):
+        if link is not remote_client.call_sync('replication.link.get_one', name):
             remote_client.call_task_sync(
-                'replication.bidir.switch',
+                'replication.switch',
                 link['name']
             )
         remote_client.disconnect()
@@ -390,7 +390,7 @@ class ReplicationBiDirSwitch(Task):
 
 @description("Triggers replication in bi-directional replication")
 @accepts(str)
-class ReplicationBiDirSync(Task):
+class ReplicationSync(Task):
     def verify(self, name):
         if not self.datastore.exists('replication.links', ('name', '=', name)):
             raise VerifyException(errno.ENOENT, 'Bi-directional replication link {0} do not exist.'.format(name))
@@ -425,12 +425,12 @@ class ReplicationBiDirSync(Task):
                 set_bidir_link_state(remote_client, False, link['volumes'], True)
         else:
             remote_client.call_task_sync(
-                'replication.bidir.sync',
+                'replication.sync',
                 link['name']
             )
 
         remote_client.disconnect()
-        self.dispatcher.dispatch_event('replication.bidir.changed', {
+        self.dispatcher.dispatch_event('replication.changed', {
             'operation': 'update',
             'ids': [link['id']]
         })
@@ -764,7 +764,7 @@ def get_latest_bidir_link(dispatcher, datastore, name):
 
         try:
             client = get_client(remote)
-            remote_link = client.call_sync('replication.bidir.get_one', name)
+            remote_link = client.call_sync('replication.link.get_one', name)
             client.disconnect()
             if not remote_link:
                 return local_link
@@ -843,7 +843,7 @@ def _init(dispatcher, plugin):
         'additionalProperties': False,
     })
 
-    plugin.register_schema_definition('replication-bidir-link', {
+    plugin.register_schema_definition('replication-link', {
         'type': 'object',
         'properties': {
             'id': {'type': 'string'},
@@ -865,16 +865,16 @@ def _init(dispatcher, plugin):
     })
 
     plugin.register_provider('replication', ReplicationProvider)
-    plugin.register_provider('replication.bidir', ReplicationBiDirProvider)
+    plugin.register_provider('replication.link', ReplicationLinkProvider)
     plugin.register_task_handler('volume.snapshot_dataset', SnapshotDatasetTask)
     plugin.register_task_handler('replication.scan_hostkey', ScanHostKeyTask)
     plugin.register_task_handler('replication.replicate_dataset', ReplicateDatasetTask)
-    plugin.register_task_handler('replication.bidir.create', ReplicationBiDirCreate)
-    plugin.register_task_handler('replication.bidir.switch', ReplicationBiDirSwitch)
-    plugin.register_task_handler('replication.bidir.sync', ReplicationBiDirSync)
-    plugin.register_task_handler('replication.bidir.delete', ReplicationBiDirDelete)
+    plugin.register_task_handler('replication.create', ReplicationCreate)
+    plugin.register_task_handler('replication.switch', ReplicationSwitch)
+    plugin.register_task_handler('replication.sync', ReplicationSync)
+    plugin.register_task_handler('replication.delete', ReplicationDelete)
 
-    plugin.register_event_type('replication.bidir.changed')
+    plugin.register_event_type('replication.changed')
 
     # Generate replication key pair on first run
     if not dispatcher.configstore.get('replication.key.private') or not dispatcher.configstore.get('replication.key.public'):
