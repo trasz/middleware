@@ -473,7 +473,8 @@ class UserUpdateTask(Task):
 @description("Creates a group")
 @accepts(h.all_of(
     h.ref('group'),
-    h.required('name')
+    h.required('name'),
+    h.forbidden('builtin')
 ))
 class GroupCreateTask(Task):
     def describe(self, group):
@@ -531,7 +532,13 @@ class GroupCreateTask(Task):
 
 
 @description("Updates a group")
-@accepts(str, h.ref('group'))
+@accepts(
+    str,
+    h.all_of(
+        h.ref('group'),
+        h.forbidden('builtin')
+    )
+)
 class GroupUpdateTask(Task):
     def describe(self, id, updated_fields):
         return "Deleting group {0}".format(id)
