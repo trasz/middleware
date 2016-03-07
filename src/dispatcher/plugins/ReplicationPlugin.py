@@ -355,7 +355,7 @@ class ReplicationDelete(Task):
 
 @description("Switch state of bi-directional replication link")
 @accepts(str)
-class ReplicationSwitch(Task):
+class ReplicationUpdate(Task):
     def verify(self, name):
         if not self.datastore.exists('replication.links', ('name', '=', name)):
             raise VerifyException(errno.ENOENT, 'Bi-directional replication link {0} do not exist.'.format(name))
@@ -870,7 +870,7 @@ def _init(dispatcher, plugin):
     plugin.register_task_handler('replication.scan_hostkey', ScanHostKeyTask)
     plugin.register_task_handler('replication.replicate_dataset', ReplicateDatasetTask)
     plugin.register_task_handler('replication.create', ReplicationCreate)
-    plugin.register_task_handler('replication.switch', ReplicationSwitch)
+    plugin.register_task_handler('replication.update', ReplicationUpdate)
     plugin.register_task_handler('replication.sync', ReplicationSync)
     plugin.register_task_handler('replication.delete', ReplicationDelete)
 
