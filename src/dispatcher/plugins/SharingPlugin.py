@@ -416,6 +416,7 @@ def _init(dispatcher, plugin):
                 'enum': ['DATASET', 'ZVOL', 'DIRECTORY', 'FILE']
             },
             'target_path': {'type': 'string'},
+            'filesystem_path': {'type': 'string'},
             'permissions': {'$ref': 'permissions'},
             'properties': {'$ref': 'share-properties'}
         }
