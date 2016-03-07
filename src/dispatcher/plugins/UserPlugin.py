@@ -537,24 +537,19 @@ class GroupUpdateTask(Task):
         return "Deleting group {0}".format(id)
 
     def verify(self, id, updated_fields):
-        # Check if group exists
-        group = self.datastore.get_by_id('groups', id)
-        if group is None:
-            raise VerifyException(errno.ENOENT, 'Group with given ID does not exist')
-
         errors = ValidationException()
-        group.update(updated_fields)
 
-        for code, message in check_unixname(group['name']):
-            errors.add((1, 'name'), message, code=code)
+        if 'name' in updated_fields:
+            for code, message in check_unixname(updated_fields['name']):
+                errors.add((1, 'name'), message, code=code)
 
-        # Check if there is another group with same name being renamed to
-        if self.datastore.exists('groups', ('name', '=', group['name']), ('gid', '!=', group['gid'])):
-            errors.add(
-                (1, "name"),
-                'Group {0} already exists'.format(group['name']),
-                code=errno.EEXIST
-            )
+            # Check if there is another group with same name being renamed to
+            if self.datastore.exists('groups', ('name', '=', updated_fields['name']), ('id', '!=', id)):
+                errors.add(
+                    (1, "name"),
+                    'Group {0} already exists'.format(updated_fields['name']),
+                    code=errno.EEXIST
+                )
 
         if errors:
             raise errors
@@ -564,6 +559,9 @@ class GroupUpdateTask(Task):
     def run(self, id, updated_fields):
         try:
             group = self.datastore.get_by_id('groups', id)
+            if group is None:
+                raise TaskException(errno.ENOENT, 'Group {0} does not exist'.format(id))
+
             group.update(updated_fields)
             self.datastore.update('groups', id, group)
             self.dispatcher.call_sync('etcd.generation.generate_group', 'accounts')
