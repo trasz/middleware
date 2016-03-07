@@ -53,7 +53,7 @@ from freenas.dispatcher.rpc import RpcService, RpcException
 from datastore import DatastoreException, get_datastore
 from ringbuffer import MemoryRingBuffer, PersistentRingBuffer
 from freenas.utils.debug import DebugService
-from freenas.utils import configure_logging, to_timedelta
+from freenas.utils import configure_logging, to_timedelta, materialized_paths_to_tree
 
 
 DEFAULT_CONFIGFILE = '/usr/local/etc/middleware.conf'
@@ -305,6 +305,9 @@ class OutputService(RpcService):
 
     def get_data_sources(self):
         return list(self.context.data_sources.keys())
+
+    def get_data_sources_tree(self):
+        return materialized_paths_to_tree(self.context.data_sources.keys())
 
     def get_current_state(self):
         stats = []
