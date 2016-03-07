@@ -1934,7 +1934,7 @@ def _init(dispatcher, plugin):
             'replicable': snapshot.get('properties.org\\.freenas:replicable.value') or False,
             'properties': include(
                 snapshot['properties'],
-                'used', 'referenced', 'compressratio', 'clones'
+                'used', 'referenced', 'compressratio', 'clones', 'creation'
             ),
             'holds': snapshot['holds']
         }
