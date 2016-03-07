@@ -38,6 +38,7 @@ import bsd
 import bsd.kld
 import hashlib
 import json
+import time
 import uuid
 from cache import EventCacheStore
 from lib.system import system, SubprocessException
@@ -1824,6 +1825,27 @@ class SnapshotConfigureTask(Task):
         self.join_subtasks(self.run_subtask('zfs.update', pool, id, params))
 
 
+class SnapshotScrubTask(ProgressTask):
+    def verify(self):
+        return []
+
+    def run(self):
+        tasks = []
+        ts = int(time.time())
+        for snap in self.dispatcher.call_sync('volume.snapshot.query'):
+            snap = wrap(snap)
+            creation = int(snap['properties.creation.rawvalue'])
+            lifetime = snap['lifetime']
+
+            if lifetime is None:
+                continue
+
+            if creation + lifetime <= ts:
+                tasks.append(self.run_subtask('volume.snapshot.delete', snap['id']))
+
+        self.join_subtasks(*tasks)
+
+
 def compare_vdevs(vd1, vd2):
     if vd1 is None or vd2 is None:
         return False
@@ -2212,6 +2234,7 @@ def _init(dispatcher, plugin):
     plugin.register_task_handler('volume.snapshot.create', SnapshotCreateTask)
     plugin.register_task_handler('volume.snapshot.delete', SnapshotDeleteTask)
     plugin.register_task_handler('volume.snapshot.update', SnapshotConfigureTask)
+    plugin.register_task_handler('volume.snapshot.scrub', SnapshotScrubTask)
 
     plugin.register_hook('volume.pre_destroy')
     plugin.register_hook('volume.pre_detach')
