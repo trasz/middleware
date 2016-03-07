@@ -28,6 +28,7 @@
 import errno
 import os
 import re
+import gevent
 import logging
 import tempfile
 import shutil
@@ -78,6 +79,7 @@ DISKS_PER_VDEV = {
     'raidz3': 5
 }
 
+SNAPSHOT_SCRUB_INTERVAL = 300
 VOLUMES_ROOT = '/mnt'
 DEFAULT_ACLS = [
     {'text': 'owner@:rwxpDdaARWcCos:fd:allow'},
@@ -1825,27 +1827,6 @@ class SnapshotConfigureTask(Task):
         self.join_subtasks(self.run_subtask('zfs.update', pool, id, params))
 
 
-class SnapshotScrubTask(ProgressTask):
-    def verify(self):
-        return []
-
-    def run(self):
-        tasks = []
-        ts = int(time.time())
-        for snap in self.dispatcher.call_sync('volume.snapshot.query'):
-            snap = wrap(snap)
-            creation = int(snap['properties.creation.rawvalue'])
-            lifetime = snap['lifetime']
-
-            if lifetime is None:
-                continue
-
-            if creation + lifetime <= ts:
-                tasks.append(self.run_subtask('volume.snapshot.delete', snap['id']))
-
-        self.join_subtasks(*tasks)
-
-
 def compare_vdevs(vd1, vd2):
     if vd1 is None or vd2 is None:
         return False
@@ -2060,6 +2041,21 @@ def _init(dispatcher, plugin):
             'severity': 'WARNING'
         })
 
+    def scrub_snapshots():
+        while True:
+            gevent.sleep(SNAPSHOT_SCRUB_INTERVAL)
+            ts = int(time.time())
+            for snap in dispatcher.call_sync('volume.snapshot.query'):
+                snap = wrap(snap)
+                creation = int(snap['properties.creation.rawvalue'])
+                lifetime = snap['lifetime']
+
+                if lifetime is None:
+                    continue
+
+                if creation + lifetime <= ts:
+                    dispatcher.call_task_sync('volume.snapshot.delete', snap['id'])
+
     plugin.register_schema_definition('volume', {
         'type': 'object',
         'title': 'volume',
@@ -2234,7 +2230,6 @@ def _init(dispatcher, plugin):
     plugin.register_task_handler('volume.snapshot.create', SnapshotCreateTask)
     plugin.register_task_handler('volume.snapshot.delete', SnapshotDeleteTask)
     plugin.register_task_handler('volume.snapshot.update', SnapshotConfigureTask)
-    plugin.register_task_handler('volume.snapshot.scrub', SnapshotScrubTask)
 
     plugin.register_hook('volume.pre_destroy')
     plugin.register_hook('volume.pre_detach')
@@ -2297,3 +2292,5 @@ def _init(dispatcher, plugin):
         'entity-subscriber.zfs.dataset.changed',
         on_dataset_change
     )
+
+    gevent.spawn(scrub_snapshots)
