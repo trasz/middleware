@@ -101,6 +101,18 @@ class SharesProvider(Provider):
 
         return result
 
+    @description("Get shares related to provided filesystem path without recursive paths. Includes disabled shares")
+    @accepts(str)
+    @returns(h.array(h.ref('share')))
+    def get_related_not_recursively(self, path):
+        result = []
+        for i in self.datastore.query('shares'):
+            target_path = self.translate_path(i['id'])
+            if target_path == path:
+                result.append(i)
+
+        return result
+
     @private
     def translate_path(self, share_id):
         root = self.dispatcher.call_sync('volume.get_volumes_root')
