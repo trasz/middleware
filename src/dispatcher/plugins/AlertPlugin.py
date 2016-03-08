@@ -229,7 +229,6 @@ def _depends():
 
 
 def _init(dispatcher, plugin):
-
     plugin.register_schema_definition('alert-severity', {
         'type': 'string',
         'enum': ['CRITICAL', 'WARNING', 'INFO'],
@@ -239,42 +238,72 @@ def _init(dispatcher, plugin):
         'type': 'object',
         'properties': {
             'id': {'type': 'integer'},
-            'name': {'type': 'string'},
+            'class': {'type': 'string'},
+            'type': {'type': 'string'},
+            'subtype': {'type': 'string'},
+            'target': {'type': 'string'},
             'description': {'type': 'string'},
-            'severity': {'$ref': 'alert-severity'},
+            'source': {'type': 'string'},
             'when': {'type': 'string'},
-            'dismissed': {'type': 'boolean'}
+            'active': {'type': 'boolean'},
+            'dismissed': {'type': 'boolean'},
+            'send_count': {'type': 'integer'}
         },
         'additionalProperties': False,
         'required': ['name', 'severity'],
     })
 
+    plugin.register_schema_definition('alert-emitter-email', {
+        'type': 'object',
+        'additionalProperties': False,
+        'properties': {
+            'type': {'enum': ['alert-emitter-email']},
+            'address': {'type': 'string'}
+        }
+    })
+
     plugin.register_schema_definition('alert-filter', {
         'type': 'object',
         'properties': {
-            'name': {'type': 'string'},
-            'severity': {
-                'type': 'array',
-                'items': {'$ref': 'alert-severity'},
+            'id': {'type': 'string'},
+            'emitter': {'type': 'string'},
+            'parameters': {
+                'discriminator': 'type',
+                'oneOf': [
+                    'alert-emitter-email'
+                ]
             },
-            'emitters': {
+            'predicates': {
                 'type': 'array',
                 'items': {
-                    'type': 'string',
-                    'enum': ['UI', 'EMAIL'],
-                },
-            },
+                    'type': 'object',
+                    'additionalProperties': False,
+                    'properties': {
+                        'property': {
+                            'type': 'string',
+                            'enum': ['class', 'type', 'subtype', 'target', 'description', 'active', 'dismissed']
+                        },
+                        'operator': {
+                            'type': 'string',
+                            'enum': ['=', '!=', '<=', '>=', '>', '<', '~']
+                        },
+                        'value': {'type': ['string', 'integer', 'boolean', 'null']}
+                    }
+                }
+            }
         },
         'additionalProperties': False,
     })
 
-    plugin.register_schema_definition('alert-registration', {
+    plugin.register_schema_definition('alert-class', {
         'type': 'object',
         'additionalProperties': {
             'type': 'object',
             'properties': {
-                'name': {'type': 'string'},
-                'verbose_name': {'type': 'string'},
+                'id': {'type': 'string'},
+                'type': {'type': 'string'},
+                'subtype': {'type': 'string'},
+                'severity': {'$ref': 'alert-severity'}
             },
             'additionalProperties': False,
         }
