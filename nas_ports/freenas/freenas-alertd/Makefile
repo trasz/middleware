@@ -26,13 +26,13 @@ do-install:
 	${MAKE} -C ${WRKSRC} install PREFIX=${STAGEDIR}${PREFIX} PYTHON=${PYTHON_CMD}
 
 post-install:
-	${PYTHON_CMD} -m compileall ${STAGEDIR}${PREFIX}/lib/etcd
+	${PYTHON_CMD} -m compileall ${STAGEDIR}${PREFIX}/lib/alertd
 	(cd ${STAGEDIR}${PREFIX}/lib/alertd; ${FIND} -E . -type f -regex ".*.pyc?" \
 		| ${SED} -e 's,^\./,,g' \
 		| ${AWK} '{print length, $$0}' | ${SORT} -rn \
 		| ${AWK} '{print "lib/alertd/"$$2 }' >> ${TMPPLIST})
 
-	(cd ${STAGEDIR}${PREFIX}/lib/alertd/emitters; ${FIND} . -type f \
+	(cd ${STAGEDIR}${PREFIX}/lib/alertd/emitters; ${FIND} . -type f -regex ".*.pyc?" \
 		| ${SED} -e 's,^\./,,g' \
 		| ${AWK} '{print length, $$0}' | ${SORT} -rn \
 		| ${AWK} '{print "lib/alertd/emitters/"$$2 }' >> ${TMPPLIST})
