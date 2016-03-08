@@ -130,6 +130,9 @@ function TermController($scope, synchronousService) {
             };
 
             term.open($("#terminal")[0])
+            $scope.$apply(function(){
+                $scope.term = term;
+            });
         }
     }
     $scope.init = function () {
@@ -162,24 +165,22 @@ function TermController($scope, synchronousService) {
     };
     sock.onLogin = function() {
         sock.call("shell.get_shells", null, function(response) {
+            var dataSource_list = [];
             $.each(response, function(idx, i) {
-                var li = $("<li/>")
-                    .appendTo($("#shells"));
-                var a = $("<a/>")
-                    .addClass("shell-entry")
-                    .attr("role", "menuitem")
-                    .attr("href", "#")
-                    .text(i)
-                    .appendTo(li);
+                dataSource_list.push(i);
+            });
+            $scope.$apply(function(){
+                $scope.dataSource_list = dataSource_list;
             });
         });
 
         connect_term(sock, "/bin/sh")
     };
-    $("#shells").on("click", "a.shell-entry", function() {
-        term.destroy();
-        connect_term(sock, this.text)
-    })
+    $scope.loadShell = function(source_name) {
+        $("#terminal").html("");
+        connect_term(sock, source_name);
+    }
+
 }
 
 function EventsController($scope) {

@@ -23,12 +23,15 @@
 </div>
 <div class="row">
     <h1>Terminal</h1>
-    <div class="dropdown">
-      <button class="btn btn-default dropdown-toggle" type="button" data-toggle="dropdown">
+    <div class="dropdown" dropdown>
+      <button class="btn btn-primary dropdown-toggle" dropdown-toggle>
         Shell type
         <span class="caret"></span>
       </button>
       <ul id="shells" class="dropdown-menu" dropdown-menu>
+          <li ng-repeat="source in dataSource_list">
+              <a href="" class="shell-entry" role="menuitem" ng-click="loadShell(source)">{{source}}</a>
+          </li
       </ul>
     </div>
     <div id="terminal">
