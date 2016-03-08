@@ -127,6 +127,31 @@ class ReplicationProvider(Provider):
     def scan_keys_on_host(self, hostname):
         return self.dispatcher.call_task_sync('replication.scan_hostkey', hostname)
 
+    def datasets_from_link(self, link):
+        datasets = []
+        for dataset in link['datasets']:
+            if link['recursive']:
+                try:
+                    dependencies = self.dispatcher.call_sync(
+                        'zfs.dataset.query',
+                        [('name', '~', '^{0}(/|$)'.format(dataset))],
+                    )
+                except RpcException:
+                    raise RpcException(errno.ENOENT, 'Dataset {0} not found'.format(dataset))
+
+                for dependency in dependencies:
+                    if dependency not in datasets:
+                        datasets.append(dependency)
+            else:
+                dependency = self.dispatcher.call_sync('zfs.dataset.query', [('name', '=', dataset)], {'single': True})
+                if dependency:
+                    if dependency not in datasets:
+                        datasets.append(dependency)
+                else:
+                    raise RpcException(errno.ENOENT, 'Dataset {0} not found'.format(dataset))
+
+        return sorted(datasets, key=lambda d: d['name'])
+
 
 class ReplicationLinkProvider(Provider):
     @query('replication-link')
