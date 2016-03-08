@@ -1271,6 +1271,7 @@ def _init(dispatcher, plugin):
         'properties': {
             'pool': {'type': 'string'},
             'dataset': {'type': 'string'},
+            'type': {'$ref': 'dataset-type'},
             'name': {'type': 'string'},
             'holds': {'type': 'object'},
             'properties': {'type': 'object'}
