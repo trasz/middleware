@@ -70,12 +70,12 @@ class SharesProvider(Provider):
     @description("Returns list of clients connected to particular share")
     @accepts(str)
     @returns(h.array(h.ref('share-client')))
-    def get_connected_clients(self, share_name):
-        share = self.datastore.get_by_id('share', share_name)
+    def get_connected_clients(self, id):
+        share = self.datastore.get_by_id('shares', id)
         if not share:
             raise RpcException(errno.ENOENT, 'Share not found')
 
-        return self.dispatcher.call_sync('share.{0}.get_connected_clients'.format(share['type']), share_name)
+        return self.dispatcher.call_sync('share.{0}.get_connected_clients'.format(share['type']), id)
 
     @description("Get shares dependent on provided filesystem path")
     @accepts(str)
