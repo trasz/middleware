@@ -27,6 +27,7 @@
 
 import enum
 import io
+import os
 import errno
 import re
 import logging
@@ -185,16 +186,18 @@ class ScanHostKeyTask(Task):
 @description("Sets up a replication link")
 @accepts(h.all_of(
         h.ref('replication-link'),
-        h.required('name', 'partners', 'master', 'datasets', 'replicate_services', 'bidirectional')
-    ),
-    h.one_of(str, None)
+        h.required('name', 'partners', 'master', 'datasets', 'replicate_services', 'bidirectional', 'recursive')
+    )
 )
 class ReplicationCreate(Task):
-    def verify(self, link, password=None):
+    def verify(self, link):
+        partners = link['partners']
+        name = link['name']
         ip_matches = False
+
         ips = self.dispatcher.call_sync('network.config.get_my_ips')
         for ip in ips:
-            for partner in link['partners']:
+            for partner in partners:
                 if '@' not in partner:
                     raise VerifyException(
                         errno.EINVAL,
@@ -206,144 +209,197 @@ class ReplicationCreate(Task):
         if not ip_matches:
             raise VerifyException(errno.EINVAL, 'Provided partner IPs do not create a valid pair. Check addresses.')
 
-        if self.datastore.exists('replication.links', ('name', '=', link['name'])):
-            raise VerifyException(errno.EEXIST, 'Bi-directional replication link with same name already exists')
+        if self.datastore.exists('replication.links', ('name', '=', name)):
+            raise VerifyException(errno.EEXIST, 'Replication link with name {0} already exists'.format(name))
+
+        if len(partners) != 2:
+            raise VerifyException(
+                errno.EINVAL,
+                'Replication link can only have 2 partners. Value {0} is not permitted.'.format(len(partners))
+            )
+
+        usernames = [partners[0].split('@')[0], partners[1].split('@')[0]]
+        if self.dispatcher.call_sync('user.query', [('username', '=', usernames[0])], {'single': True}):
+            pass
+        elif not self.dispatcher.call_sync('user.query', [('username', '=', usernames[1])], {'single': True}):
+            raise VerifyException(
+                errno.ENOENT,
+                'At least one of provided user names is not valid: {0}, {1}'.format(usernames[0], usernames[1])
+            )
+
+        if link['master'] not in partners:
+            raise VerifyException(
+                errno.EINVAL,
+                'Replication master must be one of replication partners {0}, {1}'.format(partners[0], partners[1])
+            )
+
+        if link['replicate_services'] and not link['bidirectional']:
+            raise VerifyException(
+                errno.EINVAL,
+                'Replication of services is available only when bi-directional replication is selected'
+            )
 
         return []
 
-    def run(self, link, password=None):
+    def run(self, link):
         link['id'] = link['name']
-        link['update_date'] = str(datetime.utcnow())
+        if 'update_date' not in link:
+            link['update_date'] = str(datetime.utcnow())
 
         is_master, remote = get_replication_state(self.dispatcher, link)
+        remote_client = get_remote_client(remote)
 
         if is_master:
             with self.dispatcher.get_lock('volumes'):
-                remote_client = get_client(remote)
-
-                for volume in link['datasets']:
-                    if not self.datastore.exists('volumes', ('id', '=', volume)):
-                        raise TaskException(errno.ENOENT, 'Volume {0} not found'.format(volume))
-
-                    for share in self.dispatcher.call_sync('share.get_related', volume):
-                        remote_share = remote_client.call_sync(
-                            'share.query',
-                            [('name', '=', share['name'])],
-                            {'single': True}
+                remote_link = remote_client.call_sync('replication.link.get_one', link['name'])
+                if remote_link:
+                    if remote_link != link:
+                        raise TaskException(
+                            errno.EEXIST,
+                            'Replication link {0} already exists on {1}'.format(link['name'], remote)
                         )
-                        if remote_share:
-                            raise TaskException(
-                                errno.EEXIST,
-                                'Share {0} already exists on {1}'.format(share['name'], remote.split('@', 1)[1])
-                            )
 
-                    for container in self.dispatcher.call_sync('container.query', [('target', '=', volume)]):
-                        remote_container = remote_client.call_sync(
-                            'container.query',
-                            [('name', '=', container['name'])],
-                            {'single': True}
+                datasets_to_replicate = self.dispatcher.call_sync('replication.datasets_from_link', link)
+                root = self.dispatcher.call_sync('volume.get_volumes_root')
+
+                for dataset in datasets_to_replicate:
+                    if link['replicate_services']:
+                        for share in self.dispatcher.call_sync('share.get_related_not_recursively', os.path.join(root, dataset)):
+                            remote_share = remote_client.call_sync(
+                                'share.query',
+                                [('name', '=', share['name'])],
+                                {'single': True}
+                            )
+                            if remote_share:
+                                raise TaskException(
+                                    errno.EEXIST,
+                                    'Share {0} already exists on {1}'.format(share['name'], remote.split('@', 1)[1])
+                                )
+
+                        container = self.dispatcher.call_sync('container.get_dependent', dataset)
+                        if container:
+                            remote_container = remote_client.call_sync(
+                                'container.query',
+                                [('name', '=', container['name'])],
+                                {'single': True}
+                            )
+                            if remote_container:
+                                raise TaskException(
+                                    errno.EEXIST,
+                                    'Container {0} already exists on {1}'.format(container['name'], remote.split('@', 1)[1])
+                                )
+
+                    split_dataset = dataset.split('/', 1)
+                    volume_name = split_dataset[0]
+                    dataset_name = None
+                    if len(split_dataset) == 2:
+                        dataset_name = split_dataset[1]
+
+                    vol = self.datastore.get_one('volumes', ('id', '=', volume_name))
+                    if vol.get('encrypted'):
+                        raise TaskException(
+                            errno.EINVAL,
+                            'Encrypted volumes cannot be included in replication links: {0}'.format(volume_name)
                         )
-                        if remote_container:
-                            raise TaskException(
-                                errno.EEXIST,
-                                'Container {0} already exists on {1}'.format(container['name'], remote.split('@', 1)[1])
-                            )
 
-                for volume in link['datasets']:
-                    remote_vol = remote_client.call_sync(
+                    remote_volume = remote_client.call_sync(
                         'volume.query',
-                        [('id', '=', volume)],
+                        [('id', '=', volume_name)],
                         {'single': True}
                     )
-                    if not remote_vol:
-                        try:
-                            vol = self.datastore.get_one('volumes', ('id', '=', volume))
-                            remote_client.call_task_sync(
-                                'volume.create',
-                                {
-                                    'id': vol['id'],
-                                    'type': vol['type'],
-                                    'params': {'encryption': True if vol.get('encrypted') else False},
-                                    'topology': vol['topology']
-                                },
-                                password
-                            )
-                        except RpcException as e:
+                    if remote_volume:
+                        if remote_volume.get('encrypted'):
                             raise TaskException(
-                                e.code,
-                                'Cannot create exact duplicate of {0} on {1}. Message: {2}'.format(
-                                    volume,
-                                    remote,
-                                    e.message
-                                )
+                                errno.EINVAL,
+                                'Encrypted volumes cannot be included in replication links: {0}'.format(volume_name)
                             )
 
-                    vol_datasets = self.dispatcher.call_sync(
+                    remote_dataset = remote_client.call_sync(
                         'zfs.dataset.query',
-                        [('pool', '=', volume)],
-                        {'sort': ['name']}
+                        [('name', '=', dataset)],
+                        {'single': True}
                     )
-                    for dataset in vol_datasets:
-                        remote_dataset = remote_client.call_sync(
-                            'zfs.dataset.query',
-                            [('name', '=', dataset['name'])],
-                            {'single': True}
-                        )
-                        if not remote_dataset:
-                            try:
-                                if dataset['type'] == 'VOLUME':
-                                    continue
 
-                                dataset_properties = {
-                                    'id': dataset['name'],
-                                    'volume': dataset['pool']
-                                }
-                                if dataset['mountpoint']:
-                                    dataset_properties['mountpoint'] = dataset['mountpoint']
+                    if not remote_dataset:
+                        if not remote_volume:
+                            try:
                                 remote_client.call_task_sync(
-                                    'volume.dataset.create',
-                                    dataset_properties
+                                    'volume.create',
+                                    {
+                                        'id': vol['id'],
+                                        'type': vol['type'],
+                                        'params': {'encryption': False},
+                                        'topology': vol['topology']
+                                    }
                                 )
                             except RpcException as e:
                                 raise TaskException(
                                     e.code,
                                     'Cannot create exact duplicate of {0} on {1}. Message: {2}'.format(
-                                        dataset['name'],
+                                        volume_name,
                                         remote,
                                         e.message
-                                    )
+                                    ),
+                                    stacktrace=e.stacktrace
                                 )
 
-                remote_client.call_task_sync('replication.create', link)
+                        if dataset_name:
+                            for sub_dataset in dataset_name.split('/'):
+                                sub_dataset_name = dataset[:dataset.index(sub_dataset) - 1]
+                                remote_sub_dataset = remote_client.call_sync(
+                                    'zfs.dataset.query',
+                                    [('name', '=', sub_dataset_name)],
+                                    {'single': True}
+                                )
+                                if not remote_sub_dataset:
+                                    local_sub_dataset = self.dispatcher.call_sync(
+                                        'zfs.dataset.query',
+                                        [('name', '=', sub_dataset_name)],
+                                        {'single': True}
+                                    )
+                                    try:
+                                        dataset_properties = {
+                                            'id': local_sub_dataset['name'],
+                                            'volume': local_sub_dataset['pool']
+                                        }
+                                        if local_sub_dataset['mountpoint']:
+                                            dataset_properties['mountpoint'] = local_sub_dataset['mountpoint']
+                                        remote_client.call_task_sync(
+                                            'volume.dataset.create',
+                                            dataset_properties
+                                        )
+                                    except RpcException as e:
+                                        raise TaskException(
+                                            e.code,
+                                            'Cannot create exact duplicate of {0} on {1}. Message: {2}'.format(
+                                                sub_dataset_name,
+                                                remote,
+                                                e.message
+                                            ),
+                                            stacktrace=e.stacktrace
+                                        )
 
                 id = self.datastore.insert('replication.links', link)
+                remote_client.call_task_sync('replication.create', link)
 
-                for volume in link['datasets']:
-                    self.join_subtasks(self.run_subtask(
-                        'replication.replicate_dataset',
-                        volume,
-                        volume,
-                        {
-                            'remote': remote,
-                            'remote_dataset': volume,
-                            'recursive': True
-                        }
-                    ))
-
-                    if link['replicate_services']:
-                        remote_client.call_task_sync('volume.autoimport', volume, 'containers')
-                        remote_client.call_task_sync('volume.autoimport', volume, 'shares')
-
-                set_replicated_datasets_enabled(remote_client, False, link['datasets'], True)
-                remote_client.disconnect()
-
+                set_replicated_datasets_enabled(remote_client, False, datasets_to_replicate, False)
         else:
+            remote_link = remote_client.call_sync('replication.link.get_one', link['name'])
+            if not remote_link:
+                remote_client.call_task_sync('replication.create', link)
+            else:
+                if remote_link != link:
+                    raise TaskException(
+                        errno.EEXIST,
+                        'Replication link {0} already exists on {1}'.format(link['name'], remote)
+                    )
             id = self.datastore.insert('replication.links', link)
 
         self.dispatcher.dispatch_event('replication.changed', {
             'operation': 'create',
             'ids': [id]
         })
+        remote_client.disconnect()
 
 
 @description("Deletes bi-directional replication link")
@@ -367,7 +423,7 @@ class ReplicationDelete(Task):
 
         self.datastore.delete('replication.links', link['id'])
 
-        remote_client = get_client(remote)
+        remote_client = get_remote_client(remote)
         if remote_client.call_sync('replication.link.get_one', name):
             remote_client.call_task_sync('replication.delete', name, scrub)
         remote_client.disconnect()
@@ -404,7 +460,7 @@ class ReplicationUpdate(Task):
             'ids': [link['id']]
         })
 
-        remote_client = get_client(remote)
+        remote_client = get_remote_client(remote)
         if link is not remote_client.call_sync('replication.link.get_one', name):
             remote_client.call_task_sync(
                 'replication.update',
@@ -431,7 +487,7 @@ class ReplicationSync(Task):
     def run(self, name):
         link = get_latest_replication_link(self.dispatcher, self.datastore, name)
         is_master, remote = get_replication_state(self.dispatcher, link)
-        remote_client = get_client(remote)
+        remote_client = get_remote_client(remote)
         if is_master:
             with self.dispatcher.get_lock('volumes'):
                 set_replicated_datasets_enabled(remote_client, True, link['datasets'], False)
@@ -560,7 +616,7 @@ class ReplicateDatasetTask(ProgressTask):
         remote_datasets = []
         actions = []
 
-        remote_client = get_client(options['remote'])
+        remote_client = get_remote_client(options['remote'])
 
         def is_replicated(snapshot):
             if snapshot.get('properties.org\\.freenas:replicate.value') != 'yes':
@@ -767,7 +823,7 @@ def send_dataset(remote, hostkey, fromsnap, tosnap, dataset, remotefs, compressi
     zfs.send(remote, hostkey, fromsnap, tosnap, dataset, remotefs, compression, throttle, 1024*1024, None)
 
 
-def get_client(remote):
+def get_remote_client(remote):
     with open('/etc/replication/key') as f:
         pkey = RSAKey.from_private_key(f)
 
@@ -792,7 +848,7 @@ def get_latest_replication_link(dispatcher, datastore, name):
                 remote = partner
 
         try:
-            client = get_client(remote)
+            client = get_remote_client(remote)
             remote_link = client.call_sync('replication.link.get_one', name)
             client.disconnect()
             if not remote_link:
