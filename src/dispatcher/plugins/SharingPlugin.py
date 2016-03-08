@@ -80,36 +80,21 @@ class SharesProvider(Provider):
     @description("Get shares dependent on provided filesystem path")
     @accepts(str)
     @returns(h.array(h.ref('share')))
-    def get_dependencies(self, path):
+    def get_dependencies(self, path, enabled_only=True, recursive=True):
         result = []
-        for i in self.datastore.query('shares', ('enabled', '=', True)):
+        if enabled_only:
+            shares = self.datastore.query('shares', ('enabled', '=', True))
+        else:
+            shares = self.datastore.query('shares')
+
+        for i in shares:
             target_path = self.translate_path(i['id'])
-            if target_path.startswith(path):
-                result.append(i)
-
-        return result
-
-    @description("Get shares related to provided filesystem path. Includes disabled shares")
-    @accepts(str)
-    @returns(h.array(h.ref('share')))
-    def get_related(self, path):
-        result = []
-        for i in self.datastore.query('shares'):
-            target_path = self.translate_path(i['id'])
-            if target_path.startswith(path):
-                result.append(i)
-
-        return result
-
-    @description("Get shares related to provided filesystem path without recursive paths. Includes disabled shares")
-    @accepts(str)
-    @returns(h.array(h.ref('share')))
-    def get_related_not_recursively(self, path):
-        result = []
-        for i in self.datastore.query('shares'):
-            target_path = self.translate_path(i['id'])
-            if target_path == path:
-                result.append(i)
+            if recursive:
+                if target_path.startswith(path):
+                    result.append(i)
+            else:
+                if target_path == path:
+                    result.append(i)
 
         return result
 
@@ -404,7 +389,7 @@ class UpdateRelatedShares(Task):
 
     def run(self, path, updated_fields):
         subtasks = []
-        for i in self.dispatcher.call_sync('share.get_related', path):
+        for i in self.dispatcher.call_sync('share.get_dependencies', path, False):
             subtasks.append(self.run_subtask('share.update', i['id'], updated_fields))
 
         self.join_subtasks(*subtasks)

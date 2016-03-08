@@ -264,7 +264,7 @@ class ReplicationCreate(Task):
 
                 for dataset in datasets_to_replicate:
                     if link['replicate_services']:
-                        for share in self.dispatcher.call_sync('share.get_related_not_recursively', os.path.join(root, dataset)):
+                        for share in self.dispatcher.call_sync('share.get_dependencies', os.path.join(root, dataset), False, False):
                             remote_share = remote_client.call_sync(
                                 'share.query',
                                 [('name', '=', share['name'])],
@@ -892,7 +892,7 @@ def set_replicated_datasets_enabled(client, enabled, datasets, set_services):
                 {'readonly': {'value': 'off'}}
             )
             vol_path = client.call_sync('volume.get_dataset_path', volume)
-            vol_shares = client.call_sync('share.get_related', vol_path)
+            vol_shares = client.call_sync('share.get_dependencies', vol_path, False)
             vol_containers = client.call_sync('container.query', [('target', '=', volume)])
             for share in vol_shares:
                 client.call_task_sync('share.update', share['id'], {'enabled': enabled})
