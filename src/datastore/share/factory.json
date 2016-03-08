@@ -2144,18 +2144,18 @@
         },
         "data": {
             "VolumeUpgradePossible": {
-                "class": "VOLUME",
-                "subclass": "ZFS",
+                "type": "VOLUME",
+                "subtype": "ZFS",
                 "severity": "WARNING"
             },
             "VolumeDegraded": {
-                "class": "VOLUME",
-                "subclass": "ZFS",
+                "type": "VOLUME",
+                "subtype": "ZFS",
                 "severity": "CRITICAL"
             },
             "DiskControllerFirmwareMismatch": {
-                "class": "DISK",
-                "subclass": "MPS",
+                "type": "DISK",
+                "subtype": "MPS",
                 "severity": "WARNING"
             }
         }
