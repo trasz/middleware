@@ -60,13 +60,35 @@ def register_general_purpose_schemas(dispatcher):
         'format': 'email'
     })
 
+    dispatcher.register_schema_definition('validation-error', {
+        'type': 'array',
+        'items': {
+            'type': 'object',
+            'additionalProperties': False,
+            'properties': {
+                'path': {
+                    'type': 'array',
+                    'items': {'type': 'string'}
+                },
+                'code': {'type': 'integer'},
+                'message': {'type': 'string'}
+            }
+        }
+    })
+
     dispatcher.register_schema_definition('error', {
         'type': 'object',
         'properties': {
             'type': {'type': 'string'},
             'code': {'type': 'integer'},
             'stacktrace': {'type': 'string'},
-            'message': {'type': 'string'}
+            'message': {'type': 'string'},
+            'extra': {
+                'oneOf': {
+                    {'type': 'null'},
+                    {'$ref': 'validation-error'}
+                }
+            }
         }
     })
 
