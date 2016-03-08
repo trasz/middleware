@@ -8,4 +8,4 @@ install:
 	install -d ${PREFIX}/lib/alertd/src
 	install -d ${PREFIX}/lib/alertd/emitters
 	cp -a src/ ${PREFIX}/lib/alertd/src/
-	cp -a src/emitters/ ${PREFIX}/lib/alertd/emitters/
+	cp -a emitters/ ${PREFIX}/lib/alertd/emitters/
