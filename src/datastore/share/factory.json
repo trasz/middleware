@@ -2134,8 +2134,35 @@
         }
     },
     {
+        "metadata": {
+            "name": "alert.types",
+            "migration": "replace",
+            "pkey-type": "native",
+            "attributes": {
+                "type": "persistent"
+            }
+        },
+        "data": {
+            "VolumeUpgradePossible": {
+                "class": "VOLUME",
+                "subclass": "ZFS",
+                "severity": "WARNING"
+            },
+            "VolumeDegraded": {
+                "class": "VOLUME",
+                "subclass": "ZFS",
+                "severity": "CRITICAL"
+            },
+            "DiskControllerFirmwareMismatch": {
+                "class": "DISK",
+                "subclass": "MPS",
+                "severity": "WARNING"
+            }
+        }
+    },
+    {
          "metadata": {
-            "name": "alert-filters",
+            "name": "alert.filters",
             "migration": "keep",
             "pkey-type": "uuid",
             "attributes": {
