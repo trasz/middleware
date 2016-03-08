@@ -215,6 +215,8 @@ class Context(object):
                     self.put_status('FAILED', exception=err)
                 else:
                     self.put_status('FINISHED', result=result)
+                finally:
+                    self.running.clear()
 
             except RpcException as err:
                 print("RPC failed: {0}".format(str(err)), file=sys.stderr)
