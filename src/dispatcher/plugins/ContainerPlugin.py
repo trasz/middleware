@@ -94,6 +94,20 @@ class ContainerProvider(Provider):
 
         return vol['properties']['destination']
 
+    @description('Returns container if provided dataset is its root')
+    def get_dependent(self, dataset):
+        path_parts = dataset.split('/')
+        if len(path_parts) != 3:
+            return None
+        if path_parts[1] != 'vm':
+            return None
+
+        return self.dispatcher.call_sync(
+            'container.query',
+            [('name', '=', path_parts[2]), ('target', '=', path_parts[0])],
+            {'single': True}
+        )
+
     def generate_mac(self):
         return VM_OUI + ':' + ':'.join('{0:02x}'.format(random.randint(0, 255)) for _ in range(0, 3))
 
