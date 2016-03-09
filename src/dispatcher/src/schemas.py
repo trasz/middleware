@@ -84,10 +84,10 @@ def register_general_purpose_schemas(dispatcher):
             'stacktrace': {'type': 'string'},
             'message': {'type': 'string'},
             'extra': {
-                'oneOf': {
+                'oneOf': [
                     {'type': 'null'},
                     {'$ref': 'validation-error'}
-                }
+                ]
             }
         }
     })
