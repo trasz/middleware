@@ -2135,7 +2135,7 @@
     },
     {
         "metadata": {
-            "name": "alert.types",
+            "name": "alert.classes",
             "migration": "replace",
             "pkey-type": "native",
             "attributes": {
@@ -2164,12 +2164,20 @@
          "metadata": {
             "name": "alert.filters",
             "migration": "keep",
-            "pkey-type": "uuid",
+            "pkey-type": "native",
             "attributes": {
                 "type": "config"
             }
         },
         "data": {
+            "default": {
+                "emitter": "EMAIL",
+                "parameters": {
+                    "destination": null
+                },
+                "predicates": [
+                ]
+            }
         }
     },
     {

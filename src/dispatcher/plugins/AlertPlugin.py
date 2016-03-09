@@ -24,9 +24,9 @@
 # POSSIBILITY OF SUCH DAMAGE.
 #
 #####################################################################
+
 import errno
 import logging
-import socket
 from datetime import datetime
 
 from datastore import DatastoreException
@@ -38,6 +38,7 @@ from freenas.dispatcher.rpc import (
     returns,
 )
 from task import Provider, Task, TaskException, VerifyException, query
+from freenas.utils import normalize
 
 logger = logging.getLogger('AlertPlugin')
 registered_alerts = {}
@@ -70,70 +71,26 @@ class AlertsProvider(Provider):
     @accepts(h.ref('alert'))
     @returns(int)
     def emit(self, alert):
-        alertprops = registered_alerts.get(alert['name'])
-        if alertprops is None:
-            raise RpcException(
-                errno.ENOENT,
-                "Alert {0} not registered".format(alert['name'])
-            )
+        normalize(alert, {
+            'when': datetime.utcnow(),
+            'dismissed': False,
+            'active': True
+        })
 
-        if 'when' not in alert:
-            alert['when'] = datetime.utcnow()
-
-        # Try to find the first matching namespace
-        emitters = None
-        dot = alert['name'].split('.')
-        for i in range(len(dot), 0, -1):
-            namespace = '.'.join(dot[0:i])
-            afilter = self.datastore.get_one(
-                'alert-filters', ('name', '=', namespace),
-                ('severity', '=', alert['severity']),
-            )
-            if afilter:
-                emitters = afilter['emitters']
-
-        # If there are no filters configured, set default emitters
-        if emitters is None:
-            if alert['severity'] == 'CRITICAL':
-                emitters = ['UI', 'EMAIL']
-            else:
-                emitters = ['UI']
-
-        alert['dismissed'] = False
         id = self.datastore.insert('alerts', alert)
         self.dispatcher.dispatch_event('alert.changed', {
-                'operation': 'create',
+            'operation': 'create',
             'ids': [id]
         })
 
-        if 'EMAIL' in emitters:
-            try:
-                self.dispatcher.call_sync('mail.send', {
-                    'subject': '{0}: {1}'.format(socket.gethostname(), alertprops['verbose_name']),
-                    'message': '{0} - {1}'.format(alert['severity'], alert['description']),
-                })
-            except RpcException:
-                logger.error('Failed to send email alert', exc_info=True)
-
+        self.dispatcher.call_sync('alertd.alert.emit', id)
         return id
 
     @description("Returns list of registered alerts")
     @accepts()
-    @returns(h.ref('alert-registration'))
-    def get_registered_alerts(self):
-        return registered_alerts
-
-    @description("Registers an alert")
-    @accepts(str, h.any_of(str, None))
-    @returns(bool)
-    def register_alert(self, name, verbose_name=None):
-        if name not in registered_alerts:
-            registered_alerts[name] = {
-                'name': name,
-                'verbose_name': verbose_name,
-            }
-            return True
-        return False
+    @returns(h.ref('alert-class'))
+    def get_alert_classes(self):
+        return self.datastore.query('alert.classes')
 
 
 @description('Provides access to the alerts filters')
@@ -142,7 +99,7 @@ class AlertsFiltersProvider(Provider):
     @query('alert-filter')
     def query(self, filter=None, params=None):
         return self.datastore.query(
-            'alert-filters', *(filter or []), **(params or {})
+            'alert.filters', *(filter or []), **(params or {})
         )
 
 
@@ -156,7 +113,7 @@ class AlertFilterCreateTask(Task):
         return []
 
     def run(self, alertfilter):
-        id = self.datastore.insert('alert-filters', alertfilter)
+        id = self.datastore.insert('alert.filters', alertfilter)
 
         self.dispatcher.dispatch_event('alert.filter.changed', {
             'operation': 'create',
@@ -168,12 +125,12 @@ class AlertFilterCreateTask(Task):
 @accepts(str)
 class AlertFilterDeleteTask(Task):
     def describe(self, id):
-        alertfilter = self.datastore.get_by_id('alert-filters', id)
+        alertfilter = self.datastore.get_by_id('alert.filters', id)
         return 'Deleting alert filter {0}'.format(alertfilter['name'])
 
     def verify(self, id):
 
-        alertfilter = self.datastore.get_by_id('alert-filters', id)
+        alertfilter = self.datastore.get_by_id('alert.filters', id)
         if alertfilter is None:
             raise VerifyException(
                 errno.ENOENT,
@@ -184,7 +141,7 @@ class AlertFilterDeleteTask(Task):
 
     def run(self, id):
         try:
-            self.datastore.delete('alert-filters', id)
+            self.datastore.delete('alert.filters', id)
         except DatastoreException as e:
             raise TaskException(
                 errno.EBADMSG,
@@ -201,7 +158,7 @@ class AlertFilterDeleteTask(Task):
 @accepts(str, h.ref('alert-filter'))
 class AlertFilterUpdateTask(Task):
     def describe(self, id, alertfilter):
-        alertfilter = self.datastore.get_by_id('alert-filters', id)
+        alertfilter = self.datastore.get_by_id('alert.filters', id)
         return 'Updating alert filter {0}'.format(alertfilter['name'])
 
     def verify(self, id, updated_fields):
@@ -209,9 +166,9 @@ class AlertFilterUpdateTask(Task):
 
     def run(self, id, updated_fields):
         try:
-            alertfilter = self.datastore.get_by_id('alert-filters', id)
+            alertfilter = self.datastore.get_by_id('alert.filters', id)
             alertfilter.update(updated_fields)
-            self.datastore.update('alert-filters', id, alertfilter)
+            self.datastore.update('alert.filters', id, alertfilter)
         except DatastoreException as e:
             raise TaskException(
                 errno.EBADMSG,
@@ -242,6 +199,7 @@ def _init(dispatcher, plugin):
             'type': {'type': 'string'},
             'subtype': {'type': 'string'},
             'target': {'type': 'string'},
+            'title': {'type': 'string'},
             'description': {'type': 'string'},
             'source': {'type': 'string'},
             'when': {'type': 'string'},
@@ -258,7 +216,10 @@ def _init(dispatcher, plugin):
         'additionalProperties': False,
         'properties': {
             'type': {'enum': ['alert-emitter-email']},
-            'address': {'type': 'string'}
+            'addresses': {
+                'type': 'array',
+                'items': {'type': 'string'}
+            }
         }
     })
 
@@ -281,11 +242,14 @@ def _init(dispatcher, plugin):
                     'properties': {
                         'property': {
                             'type': 'string',
-                            'enum': ['class', 'type', 'subtype', 'target', 'description', 'active', 'dismissed']
+                            'enum': [
+                                'class', 'type', 'subtype', 'target', 'description',
+                                'severity', 'active', 'dismissed'
+                            ]
                         },
                         'operator': {
                             'type': 'string',
-                            'enum': ['=', '!=', '<=', '>=', '>', '<', '~']
+                            'enum': ['==', '!=', '<=', '>=', '>', '<', '~']
                         },
                         'value': {'type': ['string', 'integer', 'boolean', 'null']}
                     }
