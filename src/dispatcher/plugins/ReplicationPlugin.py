@@ -402,30 +402,24 @@ class ReplicationCreate(Task):
         remote_client.disconnect()
 
 
-@description("Deletes bi-directional replication link")
-@accepts(str, bool)
+@description("Deletes replication link")
+@accepts(str)
 class ReplicationDelete(Task):
-    def verify(self, name, scrub=False):
+    def verify(self, name):
         if not self.datastore.exists('replication.links', ('name', '=', name)):
-            raise VerifyException(errno.ENOENT, 'Bi-directional replication link {0} do not exist.'.format(name))
+            raise VerifyException(errno.ENOENT, 'Replication link {0} do not exist.'.format(name))
 
         return []
 
-    def run(self, name, scrub=False):
+    def run(self, name):
         link = get_latest_replication_link(self.dispatcher, self.datastore, name)
         is_master, remote = get_replication_state(self.dispatcher, link)
-
-        if not is_master and scrub:
-            set_replicated_datasets_enabled(self.dispatcher, True, link['datasets'], False)
-            with self.dispatcher.get_lock('volumes'):
-                for volume in link['datasets']:
-                    self.join_subtasks(self.run_subtask('volume.delete', volume))
 
         self.datastore.delete('replication.links', link['id'])
 
         remote_client = get_remote_client(remote)
         if remote_client.call_sync('replication.link.get_one', name):
-            remote_client.call_task_sync('replication.delete', name, scrub)
+            remote_client.call_task_sync('replication.delete', name)
         remote_client.disconnect()
 
         self.dispatcher.dispatch_event('replication.changed', {
