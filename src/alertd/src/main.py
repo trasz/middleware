@@ -30,13 +30,12 @@ import os
 import sys
 import logging
 import argparse
-import json
-import errno
+import re
 import datastore
 import time
+import json
 import imp
 import setproctitle
-import renderers
 from datastore.config import ConfigStore
 from freenas.dispatcher.client import Client, ClientError
 from freenas.dispatcher.rpc import RpcService, RpcException
@@ -45,6 +44,29 @@ from freenas.utils.debug import DebugService
 
 
 DEFAULT_CONFIGFILE = '/usr/local/etc/middleware.conf'
+operators_table = {
+    '=': lambda x, y: x == y,
+    '!=': lambda x, y: x != y,
+    '>': lambda x, y: x > y,
+    '<': lambda x, y: x < y,
+    '>=': lambda x, y: x >= y,
+    '<=': lambda x, y: x <= y,
+    '~': lambda x, y: re.search(str(y), str(x)),
+}
+
+
+class AlertEmitter(object):
+    def __init__(self, context):
+        self.context = context
+
+    def emit_first(self, alert, options):
+        raise NotImplementedError()
+
+    def emit_again(self, alert, options):
+        raise NotImplementedError()
+
+    def cancel(self, alert, options):
+        raise NotImplementedError()
 
 
 class ManagementService(RpcService):
@@ -62,22 +84,23 @@ class AlertService(RpcService):
     def emit(self, id):
         pass
 
+    def cancel(self, id):
+        pass
+
 
 class Main(object):
     def __init__(self):
         self.logger = logging.getLogger('alertd')
-        self.root = None
         self.config = None
         self.datastore = None
         self.configstore = None
         self.client = None
         self.plugin_dirs = []
-        self.renderers = {}
-        self.managed_files = {}
+        self.emitters = {}
 
     def init_datastore(self):
         try:
-            self.datastore = datastore.get_datastore(self.config)
+            self.datastore = datastore.get_datastore()
         except datastore.DatastoreException as err:
             self.logger.error('Cannot initialize datastore: %s', str(err))
             sys.exit(1)
@@ -93,6 +116,20 @@ class Main(object):
         self.client = Client()
         self.client.on_error(on_error)
         self.connect()
+
+    def parse_config(self, filename):
+        try:
+            f = open(filename, 'r')
+            self.config = json.load(f)
+            f.close()
+        except IOError as err:
+            self.logger.error('Cannot read config file: %s', err.message)
+            sys.exit(1)
+        except ValueError:
+            self.logger.error('Config file has unreadable format (not valid JSON)')
+            sys.exit(1)
+
+        self.plugin_dirs = self.config['alertd']['plugin-dirs']
 
     def connect(self):
         while True:
@@ -115,14 +152,39 @@ class Main(object):
 
     def scan_plugin_dir(self, dir):
         self.logger.debug('Scanning plugin directory %s', dir)
-        for root, dirs, files in os.walk(dir):
-            for name in files:
-                abspath = os.path.join(root, name)
-                path = os.path.relpath(abspath, dir)
-                name, ext = os.path.splitext(path)
+        for f in os.listdir(dir):
+            name, ext = os.path.splitext(os.path.basename(f))
+            if ext != '.py':
+                continue
 
-                if name in self.managed_files.keys():
+            try:
+                plugin = imp.load_source(name, os.path.join(dir, f))
+                plugin._init(self)
+            except:
+                self.logger.error('Cannot initialize plugin {0}'.format(f), exc_info=True)
+
+    def emit_alert(self, alert):
+        for i in self.datastore.query('alert.filters'):
+            for predicate in i['predicates']:
+                if not operators_table[predicate['op']](alert[predicate['property']], predicate['value']):
+                    break
+            else:
+                emitter = self.emitters.get(i['emitter'])
+                if not emitter:
+                    self.logger.warning('Invalid emitter {0} for alert filter {1}'.format(i['emitter'], i['id']))
                     continue
+
+                if alert['send_count'] > 0:
+                    emitter.emit_again(alert, i['parameters'])
+                else:
+                    emitter.emit_first(alert, i['parameters'])
+
+        alert['send_count'] += 1
+        self.datastore.update('alerts', alert['id'], alert)
+
+    def register_emitter(self, name, cls):
+        self.emitters[name] = cls(self)
+        self.logger.info('Registered emitter {0} (class {1})'.format(name, cls))
 
     def main(self):
         parser = argparse.ArgumentParser()
@@ -131,13 +193,13 @@ class Main(object):
         configure_logging('/var/log/alertd.log', 'DEBUG')
 
         setproctitle.setproctitle('alertd')
-        self.root = args.mountpoint
         self.config = args.c
-        self.scan_plugins()
-        self.init_renderers()
+        self.parse_config(self.config)
         self.init_datastore()
         self.init_dispatcher()
+        self.scan_plugins()
         self.client.wait_forever()
+
 
 if __name__ == '__main__':
     m = Main()
