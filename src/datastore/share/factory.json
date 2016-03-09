@@ -2143,6 +2143,16 @@
             }
         },
         "data": {
+            "SystemShutdown": {
+                "type": "SYSTEM",
+                "subtype": "POWER",
+                "severity": "WARNING"
+            },
+            "SystemReboot": {
+                "type": "SYSTEM",
+                "subtype": "POWER",
+                "severity": "WARNING"
+            },
             "VolumeUpgradePossible": {
                 "type": "VOLUME",
                 "subtype": "ZFS",
