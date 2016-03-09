@@ -12,10 +12,10 @@ COMMENT=	Load, configure, and compose WSGI applications and servers
 
 LICENSE=	MIT
 
-BUILD_DEPENDS=	${PYTHON_PKGNAMEPREFIX}Paste>=1.6:${PORTSDIR}/www/py-paste
+BUILD_DEPENDS=	${PYTHON_PKGNAMEPREFIX}Paste>=1.6:${PORTSDIR}/www/py2-paste
 RUN_DEPENDS:=	${BUILD_DEPENDS}
 
-USES=		python
+USES=		python:2
 USE_PYTHON=	distutils autoplist
 
 .include <bsd.port.mk>
