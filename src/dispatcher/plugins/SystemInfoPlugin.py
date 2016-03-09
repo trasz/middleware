@@ -50,7 +50,7 @@ from freenas.dispatcher.rpc import (
 )
 from lib.system import SubprocessException, system
 from lib.freebsd import get_sysctl
-from task import Provider, Task, TaskException, TaskAbortException
+from task import Provider, Task, TaskException, TaskAbortException, ValidationException
 
 if '/usr/local/lib' not in sys.path:
     sys.path.append('/usr/local/lib')
@@ -243,6 +243,15 @@ class SystemGeneralConfigureTask(Task):
         return "System General Settings Configure"
 
     def verify(self, props):
+        errors = ValidationException()
+        if 'timezone' in props:
+            timezones = self.dispatcher.call_sync('system.general.timezones')
+            if props['timezone'] not in timezones:
+                errors.add((0, 'timezone'), 'Invalid timezone: {0}'.format(props['timezone']))
+
+        if errors:
+            raise errors
+
         return ['system']
 
     def run(self, props):
