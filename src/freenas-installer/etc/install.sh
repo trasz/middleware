@@ -891,6 +891,8 @@ menu_shell()
 menu_reboot()
 {
     echo "Rebooting..."
+    # Clear the kernel buffer.
+    /sbin/dmesg -c > /dev/null
     reboot >/dev/null
 }
 
