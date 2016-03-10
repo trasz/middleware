@@ -471,7 +471,7 @@ class ReplicationDeleteTask(ReplicationBaseTask):
         if not self.datastore.exists('replication.links', ('name', '=', name)):
             raise VerifyException(errno.ENOENT, 'Replication link {0} do not exist.'.format(name))
 
-        return []
+        return ['replication:{0}'.format(name)]
 
     def run(self, name, scrub=False):
         link = self.join_subtasks(self.run_subtask('replication.get_latest_link', name))[0]
@@ -516,7 +516,7 @@ class ReplicationUpdateTask(ReplicationBaseTask):
         if 'id' in updated_fields:
             raise VerifyException(errno.EINVAL, 'Id of replication link cannot be updated')
 
-        return []
+        return ['replication:{0}'.format(name)]
 
     def run(self, name, updated_fields):
         link = self.join_subtasks(self.run_subtask('replication.get_latest_link', name))[0]
@@ -584,9 +584,7 @@ class ReplicationSyncTask(ReplicationBaseTask):
         if not self.datastore.exists('replication.links', ('name', '=', name)):
             raise VerifyException(errno.ENOENT, 'Bi-directional replication link {0} do not exist.'.format(name))
 
-        link = self.datastore.get_one('replication.links', ('name', '=', name))
-
-        return ['zpool:{0}'.format(p) for p in link['datasets']]
+        return ['replication:{0}'.format(name)]
 
     def run(self, name):
         link = self.join_subtasks(self.run_subtask('replication.get_latest_link', name))[0]
