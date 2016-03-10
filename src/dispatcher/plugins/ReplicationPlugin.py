@@ -206,7 +206,7 @@ class ReplicationBaseTask(Task):
 
         return is_master, remote
 
-    def set_datasets_enabled(self, datasets, enabled, client=None):
+    def set_datasets_readonly(self, datasets, enabled, client=None):
         for dataset in datasets:
             if client:
                 client.call_task_sync(
@@ -421,7 +421,7 @@ class ReplicationCreate(ReplicationBaseTask):
                 id = self.datastore.insert('replication.links', link)
                 remote_client.call_task_sync('replication.create', link)
 
-                self.set_datasets_enabled(datasets_to_replicate, False, remote_client)
+                self.set_datasets_readonly(datasets_to_replicate, False, remote_client)
         else:
             remote_link = remote_client.call_sync('replication.link.get_one_local', link['name'])
             if not remote_link:
@@ -503,7 +503,7 @@ class ReplicationUpdate(ReplicationBaseTask):
         remote_client.disconnect()
 
         is_master, remote = self.get_replication_state(link)
-        self.set_datasets_enabled(link['datasets'], is_master)
+        self.set_datasets_readonly(link['datasets'], is_master)
 
 
 @description("Triggers replication in bi-directional replication")
@@ -523,7 +523,7 @@ class ReplicationSync(ReplicationBaseTask):
         remote_client = get_remote_client(remote)
         if is_master:
             with self.dispatcher.get_lock('volumes'):
-                self.set_datasets_enabled(link['datasets'], True, remote_client)
+                self.set_datasets_readonly(link['datasets'], True, remote_client)
                 for volume in link['datasets']:
                     self.join_subtasks(self.run_subtask(
                         'replication.replicate_dataset',
@@ -540,7 +540,7 @@ class ReplicationSync(ReplicationBaseTask):
                         remote_client.call_task_sync('volume.autoimport', volume, 'containers')
                         remote_client.call_task_sync('volume.autoimport', volume, 'shares')
 
-                self.set_datasets_enabled(link['datasets'], False, remote_client)
+                self.set_datasets_readonly(link['datasets'], False, remote_client)
         else:
             remote_client.call_task_sync(
                 'replication.sync',
