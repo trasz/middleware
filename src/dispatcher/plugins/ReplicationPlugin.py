@@ -1023,3 +1023,6 @@ def _init(dispatcher, plugin):
         dispatcher.call_sync('etcd.generation.generate_group', 'replication')
 
     plugin.register_event_handler('plugin.service_resume', on_etcd_resume)
+
+    # Query, if possible, performs sync of replication links cache at both ends of each link
+    dispatcher.call_sync('replication.link.query')
