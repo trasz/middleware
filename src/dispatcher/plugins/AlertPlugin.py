@@ -68,13 +68,27 @@ class AlertsProvider(Provider):
             )
 
     @description("Emits an event for the provided alert")
-    @accepts(h.ref('alert'))
+    @accepts(h.all_of(
+        h.ref('alert'),
+        h.required('class')
+    ))
     @returns(int)
     def emit(self, alert):
+        cls = self.datastore.get_by_id('alert.classes', alert['class'])
+        if not cls:
+            raise RpcException(errno.ENOENT, 'Alert class {0} not found'.format(alert['class']))
+
         normalize(alert, {
             'when': datetime.utcnow(),
             'dismissed': False,
             'active': True
+        })
+
+        alert.update({
+            'type': cls['type'],
+            'subtype': cls['subtype'],
+            'severity': cls['severity'],
+            'send_count': 0
         })
 
         id = self.datastore.insert('alerts', alert)
@@ -85,6 +99,29 @@ class AlertsProvider(Provider):
 
         self.dispatcher.call_sync('alertd.alert.emit', id)
         return id
+
+    @description("Cancels already scheduled alert")
+    @accepts(int)
+    def cancel(self, id):
+        alert = self.datastore.get_by_id('alerts', id)
+        if not alert:
+            raise RpcException(errno.ENOENT, 'Alert {0} not found'.format(id))
+
+        if not alert['active']:
+            raise RpcException(errno.ENOENT, 'Alert {0} is already cancelled'.format(id))
+
+        alert.update({
+            'active': False,
+            'cancelled_at': datetime.utcnow()
+        })
+
+        self.datastore.update('alerts', id, alert)
+        self.dispatcher.dispatch_event('alert.changed', {
+            'operation': 'update',
+            'ids': [id]
+        })
+
+        self.dispatcher.call_sync('alertd.alert.cancel', id)
 
     @description("Returns list of registered alerts")
     @accepts()
@@ -202,13 +239,14 @@ def _init(dispatcher, plugin):
             'title': {'type': 'string'},
             'description': {'type': 'string'},
             'source': {'type': 'string'},
-            'when': {'type': 'string'},
+            'happened_at': {'type': 'string'},
+            'cancelled_at': {'type': ['string', 'null']},
+            'dismissed_at': {'type': ['string', 'null']},
             'active': {'type': 'boolean'},
             'dismissed': {'type': 'boolean'},
             'send_count': {'type': 'integer'}
         },
-        'additionalProperties': False,
-        'required': ['name', 'severity'],
+        'additionalProperties': False
     })
 
     plugin.register_schema_definition('alert-emitter-email', {
