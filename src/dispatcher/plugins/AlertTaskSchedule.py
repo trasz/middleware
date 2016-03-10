@@ -34,4 +34,4 @@ def _depends():
 
 
 def _init(dispatcher, plugin):
-    dispatcher.call_sync('alert.register_alert', 'schedule.task.failed', 'Scheduled Tasks Failure')
+    pass

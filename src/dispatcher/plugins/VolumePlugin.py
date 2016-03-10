@@ -2246,8 +2246,6 @@ def _init(dispatcher, plugin):
     plugin.register_event_type('volume.dataset.changed')
     plugin.register_event_type('volume.snapshot.changed')
 
-    dispatcher.call_sync('alert.register_alert', 'volume.disk_removed', 'Volume disk removed')
-
     for vol in dispatcher.call_sync('volume.query'):
         if vol.get('providers_presence', 'ALL') == 'NONE':
             continue
