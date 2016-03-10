@@ -228,7 +228,7 @@ class ReplicationBaseTask(Task):
         h.required('name', 'partners', 'master', 'datasets', 'replicate_services', 'bidirectional', 'recursive')
     )
 )
-class ReplicationCreate(ReplicationBaseTask):
+class ReplicationCreateTask(ReplicationBaseTask):
     def verify(self, link):
         partners = link['partners']
         name = link['name']
@@ -443,7 +443,7 @@ class ReplicationCreate(ReplicationBaseTask):
 
 @description("Deletes replication link")
 @accepts(str, bool)
-class ReplicationDelete(ReplicationBaseTask):
+class ReplicationDeleteTask(ReplicationBaseTask):
     def verify(self, name, scrub=False):
         if not self.datastore.exists('replication.links', ('name', '=', name)):
             raise VerifyException(errno.ENOENT, 'Replication link {0} do not exist.'.format(name))
@@ -479,7 +479,7 @@ class ReplicationDelete(ReplicationBaseTask):
 
 @description("Switch state of bi-directional replication link")
 @accepts(str, h.ref('replication-link'))
-class ReplicationUpdate(ReplicationBaseTask):
+class ReplicationUpdateTask(ReplicationBaseTask):
     def verify(self, name, updated_fields):
         if not self.datastore.exists('replication.links', ('name', '=', name)):
             raise VerifyException(errno.ENOENT, 'Bi-directional replication link {0} do not exist.'.format(name))
@@ -518,7 +518,7 @@ class ReplicationUpdate(ReplicationBaseTask):
 
 @description("Triggers replication in bi-directional replication")
 @accepts(str)
-class ReplicationSync(ReplicationBaseTask):
+class ReplicationSyncTask(ReplicationBaseTask):
     def verify(self, name):
         if not self.datastore.exists('replication.links', ('name', '=', name)):
             raise VerifyException(errno.ENOENT, 'Bi-directional replication link {0} do not exist.'.format(name))
@@ -1005,10 +1005,10 @@ def _init(dispatcher, plugin):
     plugin.register_task_handler('replication.replicate_dataset', ReplicateDatasetTask)
     plugin.register_task_handler('replication.get_latest_link', ReplicationGetLatestLinkTask)
     plugin.register_task_handler('replication.update_link', ReplicationUpdateLinkTask)
-    plugin.register_task_handler('replication.create', ReplicationCreate)
-    plugin.register_task_handler('replication.update', ReplicationUpdate)
-    plugin.register_task_handler('replication.sync', ReplicationSync)
-    plugin.register_task_handler('replication.delete', ReplicationDelete)
+    plugin.register_task_handler('replication.create', ReplicationCreateTask)
+    plugin.register_task_handler('replication.update', ReplicationUpdateTask)
+    plugin.register_task_handler('replication.sync', ReplicationSyncTask)
+    plugin.register_task_handler('replication.delete', ReplicationDeleteTask)
 
     plugin.register_event_type('replication.changed')
 
