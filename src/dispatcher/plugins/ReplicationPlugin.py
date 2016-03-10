@@ -497,24 +497,72 @@ class ReplicationDeleteTask(ReplicationBaseTask):
         })
 
 
-@description("Switch state of bi-directional replication link")
+@description("Update a replication link")
 @accepts(str, h.ref('replication-link'))
 class ReplicationUpdateTask(ReplicationBaseTask):
     def verify(self, name, updated_fields):
         if not self.datastore.exists('replication.links', ('name', '=', name)):
-            raise VerifyException(errno.ENOENT, 'Bi-directional replication link {0} do not exist.'.format(name))
+            raise VerifyException(errno.ENOENT, 'Replication link {0} do not exist.'.format(name))
+
+        if 'partners' in updated_fields:
+            raise VerifyException(errno.EINVAL, 'Partners of replication link cannot be updated')
+
+        if 'name' in updated_fields:
+            raise VerifyException(errno.EINVAL, 'Name of replication link cannot be updated')
+
+        if 'id' in updated_fields:
+            raise VerifyException(errno.EINVAL, 'Id of replication link cannot be updated')
 
         return []
 
     def run(self, name, updated_fields):
         link = self.join_subtasks(self.run_subtask('replication.get_latest_link', name))[0]
         is_master, remote = self.get_replication_state(link)
-        if 'update_date' not in updated_fields:
-            link['update_date'] = str(datetime.utcnow())
+        remote_client = get_remote_client(remote)
+        partners = link['partners']
+        old_slave_datasets = []
 
-        for partner in link['partners']:
-            if partner != link['master']:
-                link['master'] = partner
+        updated_fields['update_date'] = str(datetime.utcnow())
+
+        if 'master' in updated_fields:
+            if not updated_fields['master'] in partners:
+                raise TaskException(
+                    errno.EINVAL,
+                    'Replication master must be one of replication partners {0}, {1}'.format(partners[0], partners[1])
+                )
+
+        if 'datasets' in updated_fields:
+            client = self.dispatcher
+            if is_master:
+                client = remote_client
+            old_slave_datasets = client.call_sync('replication.datasets_from_link', link)
+
+        link.update(updated_fields)
+
+        if link['replicate_services'] and not link['bidirectional']:
+            raise TaskException(
+                errno.EINVAL,
+                'Replication of services is available only when bi-directional replication is selected'
+            )
+
+        if 'datasets' in updated_fields:
+            self.set_datasets_readonly(
+                old_slave_datasets,
+                False,
+                remote_client if is_master else None
+            )
+
+            try:
+                self.join_subtasks(self.run_subtask('replication.prepare_slave', link))
+            except RpcException:
+                self.set_datasets_readonly(
+                    old_slave_datasets,
+                    True,
+                    remote_client if is_master else None
+                )
+                raise
+
+        remote_client.call_task_sync('replication.update_link', link)
 
         self.datastore.update('replication.links', link['id'], link)
 
@@ -523,17 +571,7 @@ class ReplicationUpdateTask(ReplicationBaseTask):
             'ids': [link['id']]
         })
 
-        remote_client = get_remote_client(remote)
-        if link is not remote_client.call_sync('replication.link.get_one_local', name):
-            remote_client.call_task_sync(
-                'replication.update',
-                link['name'],
-                updated_fields
-            )
         remote_client.disconnect()
-
-        is_master, remote = self.get_replication_state(link)
-        self.set_datasets_readonly(link['datasets'], is_master)
 
 
 @description("Triggers replication in bi-directional replication")
