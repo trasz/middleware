@@ -442,21 +442,31 @@ class ReplicationCreate(ReplicationBaseTask):
 
 
 @description("Deletes replication link")
-@accepts(str)
+@accepts(str, bool)
 class ReplicationDelete(ReplicationBaseTask):
-    def verify(self, name):
+    def verify(self, name, scrub=False):
         if not self.datastore.exists('replication.links', ('name', '=', name)):
             raise VerifyException(errno.ENOENT, 'Replication link {0} do not exist.'.format(name))
 
         return []
 
-    def run(self, name):
+    def run(self, name, scrub=False):
         link = self.join_subtasks(self.run_subtask('replication.get_latest_link', name))[0]
         is_master, remote = self.get_replication_state(link)
 
         self.datastore.delete('replication.links', link['id'])
 
         remote_client = get_remote_client(remote)
+
+        if not is_master and scrub:
+            with self.dispatcher.get_lock('volumes'):
+                datasets = reversed(self.dispatcher.call_sync('replication.datasets_from_link', link))
+                for dataset in datasets:
+                    if len(dataset.split('/')) == 1:
+                        self.join_subtasks(self.run_subtask('volume.delete', dataset))
+                    else:
+                        self.join_subtasks(self.run_subtask('volume.dataset.delete', dataset))
+
         if remote_client.call_sync('replication.link.get_one_local', name):
             remote_client.call_task_sync('replication.delete', name)
         remote_client.disconnect()
