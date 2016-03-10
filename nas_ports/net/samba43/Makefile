@@ -1,12 +1,7 @@
 PORTNAME?=		${SAMBA4_BASENAME}43
 PORTVERSION?=		${SAMBA4_VERSION}
-PORTREVISION?=		1
+PORTREVISION?=		${REVISION}
 CATEGORIES?=		net
-MASTER_SITES=		https://github.com/freenas/samba/archive/
-
-#DISTNAME=		${SAMBA4_DISTNAME}
-#DISTNAME=		v4-3-stable
-DISTNAME=		${SAMBA4_BASENAME}-4-3-stable
 
 MAINTAINER?=		john@ixsystems.com
 COMMENT?=		Free SMB/CIFS and AD/DC server and client for Unix
@@ -28,9 +23,9 @@ GH_BRANCH=		v4-3-stable
 DISTFILES=		${GH_BRANCH}.zip
 
 NO_CHECKSUM=		yes
+EXTRACT_ONLY=
 
-WRKSRC=			${WRKDIR}/${SAMBA4_BASENAME}-4-3-stable
-#WRKSRC=			${WRKDIR}/${DISTNAME}
+WRKSRC=			/usr/samba_src
 
 .if !defined(SAMBA4_SUBPORT)
 CPE_VENDOR=		samba
@@ -457,10 +452,8 @@ PLIST_SUB+=		MODULE_${module:tu}="@comment "
 
 .include <bsd.port.pre.mk>
 
-pre-fetch:
-.if exists(${DISTDIR}/${DISTFILES})
-	@rm -f ${DISTDIR}/${DISTFILES}
-.endif
+checksum extract fetch:
+	${ECHO_CMD} ${.TARGET} not needed because building direct
 
 .if !defined(SAMBA4_SUBPORT)
 
