@@ -828,34 +828,36 @@ class ReplicationGetLatestLinkTask(Task):
         return []
 
     def run(self, name):
-        if self.datastore.exists('replication.links', ('name', '=', name)):
-            local_link = self.datastore.get_one('replication.links', ('name', '=', name))
-            ips = self.dispatcher.call_sync('network.config.get_my_ips')
-            remote = ''
-            client = None
-            for partner in local_link['partners']:
-                if partner.split('@', 1)[1] not in ips:
-                    remote = partner
+        local_link = self.dispatcher.call_sync('replication.link.get_one_local', name)
+        ips = self.dispatcher.call_sync('network.config.get_my_ips')
+        remote = ''
+        client = None
+        remote_link = None
+        latest_link = local_link
 
-            try:
-                client = get_remote_client(remote)
-                remote_link = client.call_sync('replication.link.get_one_local', name)
-                client.disconnect()
-                if not remote_link:
-                    return local_link
+        for partner in local_link['partners']:
+            if partner.split('@', 1)[1] not in ips:
+                remote = partner
 
-                if parse_datetime(local_link['update_date']) > parse_datetime(remote_link['update_date']):
-                    return local_link
-                else:
-                    return remote_link
+        try:
+            client = get_remote_client(remote)
+            remote_link = client.call_sync('replication.link.get_one_local', name)
+        except RpcException:
+            pass
 
-            except RpcException:
-                if client:
-                    client.disconnect()
-                return local_link
+        if remote_link:
+            local_update_date = parse_datetime(local_link['update_date'])
+            remote_update_date = parse_datetime(remote_link['update_date'])
 
-        else:
-            return None
+            if local_update_date > remote_update_date:
+                client.call_task_sync('replication.update_link', local_link)
+            elif local_update_date < remote_update_date:
+                self.join_subtasks(self.run_subtask('replication.update_link', remote_link))
+                latest_link = remote_link
+
+        if client:
+            client.disconnect()
+        return latest_link
 
 
 @description("Updates local replication link entry if provided remote entry is newer")
