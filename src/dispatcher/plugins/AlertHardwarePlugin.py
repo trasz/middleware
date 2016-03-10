@@ -72,9 +72,5 @@ def _init(dispatcher, plugin):
                     'severity': 'WARNING',
                 })
 
-    dispatcher.rpc.call_sync(
-        'alert.register_alert', 'hardware.controller.firmware_mismatch', 'Controller Firmware Version Mismatch'
-    )
-
     avago_firmware('mps')
     avago_firmware('mpr')

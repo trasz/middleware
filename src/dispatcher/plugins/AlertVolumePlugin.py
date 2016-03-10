@@ -73,9 +73,6 @@ def _init(dispatcher, plugin):
                 'severity': 'WARNING',
             })
 
-    dispatcher.call_sync('alert.register_alert', 'volume.status', 'Volume Status')
-    dispatcher.call_sync('alert.register_alert', 'volume.version', 'Volume Version')
-
     for i in dispatcher.call_sync('volume.query'):
         volume_status(i)
 
