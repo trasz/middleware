@@ -224,10 +224,6 @@ class AlertFilterUpdateTask(Task):
         })
 
 
-def _depends():
-    return ['MailPlugin']
-
-
 def _init(dispatcher, plugin):
     plugin.register_schema_definition('alert-severity', {
         'type': 'string',
