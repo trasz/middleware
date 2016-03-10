@@ -289,15 +289,50 @@ class ReplicationCreateTask(ReplicationBaseTask):
         remote_client = get_remote_client(remote)
 
         if is_master:
-            with self.dispatcher.get_lock('volumes'):
-                remote_link = remote_client.call_sync('replication.link.get_one_local', link['name'])
-                if remote_link:
-                    if remote_link != link:
-                        raise TaskException(
-                            errno.EEXIST,
-                            'Replication link {0} already exists on {1}'.format(link['name'], remote)
-                        )
+            remote_link = remote_client.call_sync('replication.link.get_one_local', link['name'])
+            if remote_link:
+                if remote_link != link:
+                    raise TaskException(
+                        errno.EEXIST,
+                        'Replication link {0} already exists on {1}'.format(link['name'], remote)
+                    )
 
+            self.join_subtasks(self.run_subtask('replication.prepare_slave', link))
+
+            id = self.datastore.insert('replication.links', link)
+            remote_client.call_task_sync('replication.create', link)
+
+        else:
+            remote_link = remote_client.call_sync('replication.link.get_one_local', link['name'])
+            if not remote_link:
+                remote_client.call_task_sync('replication.create', link)
+            else:
+                if remote_link != link:
+                    raise TaskException(
+                        errno.EEXIST,
+                        'Replication link {0} already exists on {1}'.format(link['name'], remote)
+                    )
+            id = self.datastore.insert('replication.links', link)
+
+        self.dispatcher.dispatch_event('replication.changed', {
+            'operation': 'create',
+            'ids': [id]
+        })
+        remote_client.disconnect()
+
+
+@description("Ensures slave datasets have been created. Checks if services names are available on slave.")
+@accepts(h.ref('replication-link'))
+class ReplicationPrepareSlaveTask(ReplicationBaseTask):
+    def verify(self, link):
+        return []
+
+    def run(self, link):
+        is_master, remote = self.get_replication_state(link)
+        remote_client = get_remote_client(remote)
+
+        if is_master:
+            with self.dispatcher.get_lock('volumes'):
                 datasets_to_replicate = self.dispatcher.call_sync('replication.datasets_from_link', link)
                 root = self.dispatcher.call_sync('volume.get_volumes_root')
 
@@ -418,26 +453,11 @@ class ReplicationCreateTask(ReplicationBaseTask):
                                             stacktrace=e.stacktrace
                                         )
 
-                id = self.datastore.insert('replication.links', link)
-                remote_client.call_task_sync('replication.create', link)
+                self.set_datasets_readonly(datasets_to_replicate, True, remote_client)
 
-                self.set_datasets_readonly(datasets_to_replicate, False, remote_client)
         else:
-            remote_link = remote_client.call_sync('replication.link.get_one_local', link['name'])
-            if not remote_link:
-                remote_client.call_task_sync('replication.create', link)
-            else:
-                if remote_link != link:
-                    raise TaskException(
-                        errno.EEXIST,
-                        'Replication link {0} already exists on {1}'.format(link['name'], remote)
-                    )
-            id = self.datastore.insert('replication.links', link)
+            remote_client.call_task_sync('replication.prepare_slave', link)
 
-        self.dispatcher.dispatch_event('replication.changed', {
-            'operation': 'create',
-            'ids': [id]
-        })
         remote_client.disconnect()
 
 
@@ -1006,6 +1026,7 @@ def _init(dispatcher, plugin):
     plugin.register_task_handler('replication.get_latest_link', ReplicationGetLatestLinkTask)
     plugin.register_task_handler('replication.update_link', ReplicationUpdateLinkTask)
     plugin.register_task_handler('replication.create', ReplicationCreateTask)
+    plugin.register_task_handler('replication.prepare_slave', ReplicationPrepareSlaveTask)
     plugin.register_task_handler('replication.update', ReplicationUpdateTask)
     plugin.register_task_handler('replication.sync', ReplicationSyncTask)
     plugin.register_task_handler('replication.delete', ReplicationDeleteTask)
