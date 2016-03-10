@@ -157,11 +157,19 @@ class ReplicationProvider(Provider):
 class ReplicationLinkProvider(Provider):
     @query('replication-link')
     def query(self, filter=None, params=None):
+        links = self.datastore.query('replication.links')
+        latest_links = []
+        for link in links:
+            latest_links.append(self.dispatcher.call_task_sync('replication.get_latest_link', link['name']))
+
+        return wrap(latest_links).query(*(filter or []), **(params or {}))
+
+    def local_query(self, filter=None, params=None):
         return self.datastore.query(
             'replication.links', *(filter or []), **(params or {})
         )
 
-    def get_one(self, name):
+    def get_one_local(self, name):
         if self.datastore.exists('replication.links', ('name', '=', name)):
             return self.datastore.get_one('replication.links', ('name', '=', name))
         else:
@@ -251,7 +259,7 @@ class ReplicationCreate(Task):
 
         if is_master:
             with self.dispatcher.get_lock('volumes'):
-                remote_link = remote_client.call_sync('replication.link.get_one', link['name'])
+                remote_link = remote_client.call_sync('replication.link.get_one_local', link['name'])
                 if remote_link:
                     if remote_link != link:
                         raise TaskException(
@@ -384,7 +392,7 @@ class ReplicationCreate(Task):
 
                 set_replicated_datasets_enabled(remote_client, False, datasets_to_replicate, False)
         else:
-            remote_link = remote_client.call_sync('replication.link.get_one', link['name'])
+            remote_link = remote_client.call_sync('replication.link.get_one_local', link['name'])
             if not remote_link:
                 remote_client.call_task_sync('replication.create', link)
             else:
@@ -412,13 +420,13 @@ class ReplicationDelete(Task):
         return []
 
     def run(self, name):
-        link = get_latest_replication_link(self.dispatcher, self.datastore, name)
+        link = self.join_subtasks(self.run_subtask('replication.get_latest_link', name))[0]
         is_master, remote = get_replication_state(self.dispatcher, link)
 
         self.datastore.delete('replication.links', link['id'])
 
         remote_client = get_remote_client(remote)
-        if remote_client.call_sync('replication.link.get_one', name):
+        if remote_client.call_sync('replication.link.get_one_local', name):
             remote_client.call_task_sync('replication.delete', name)
         remote_client.disconnect()
 
@@ -438,7 +446,7 @@ class ReplicationUpdate(Task):
         return []
 
     def run(self, name, updated_fields):
-        link = get_latest_replication_link(self.dispatcher, self.datastore, name)
+        link = self.join_subtasks(self.run_subtask('replication.get_latest_link', name))[0]
         is_master, remote = get_replication_state(self.dispatcher, link)
         if 'update_date' not in updated_fields:
             link['update_date'] = str(datetime.utcnow())
@@ -455,7 +463,7 @@ class ReplicationUpdate(Task):
         })
 
         remote_client = get_remote_client(remote)
-        if link is not remote_client.call_sync('replication.link.get_one', name):
+        if link is not remote_client.call_sync('replication.link.get_one_local', name):
             remote_client.call_task_sync(
                 'replication.update',
                 link['name'],
@@ -479,7 +487,7 @@ class ReplicationSync(Task):
         return ['zpool:{0}'.format(p) for p in link['datasets']]
 
     def run(self, name):
-        link = get_latest_replication_link(self.dispatcher, self.datastore, name)
+        link = self.join_subtasks(self.run_subtask('replication.get_latest_link', name))[0]
         is_master, remote = get_replication_state(self.dispatcher, link)
         remote_client = get_remote_client(remote)
         if is_master:
@@ -809,6 +817,47 @@ class ReplicateDatasetTask(ProgressTask):
         return actions
 
 
+@description("Returns latest replication link of given name")
+@accepts(str)
+@returns(h.ref('replication-link'))
+class ReplicationGetLatestLinkTask(Task):
+    def verify(self, name):
+        if not self.datastore.exists('replication.links', ('name', '=', name)):
+            raise VerifyException(errno.ENOENT, 'Replication link {0} do not exist.'.format(name))
+
+        return []
+
+    def run(self, name):
+        if self.datastore.exists('replication.links', ('name', '=', name)):
+            local_link = self.datastore.get_one('replication.links', ('name', '=', name))
+            ips = self.dispatcher.call_sync('network.config.get_my_ips')
+            remote = ''
+            client = None
+            for partner in local_link['partners']:
+                if partner.split('@', 1)[1] not in ips:
+                    remote = partner
+
+            try:
+                client = get_remote_client(remote)
+                remote_link = client.call_sync('replication.link.get_one_local', name)
+                client.disconnect()
+                if not remote_link:
+                    return local_link
+
+                if parse_datetime(local_link['update_date']) > parse_datetime(remote_link['update_date']):
+                    return local_link
+                else:
+                    return remote_link
+
+            except RpcException:
+                if client:
+                    client.disconnect()
+                return local_link
+
+        else:
+            return None
+
+
 #
 # Attempt to send a snapshot or increamental stream to remote.
 #
@@ -829,37 +878,6 @@ def get_remote_client(remote):
 
     except AuthenticationException:
         raise RpcException(errno.EAUTH, 'Cannot connect to {0}'.format(remote))
-
-
-def get_latest_replication_link(dispatcher, datastore, name):
-    if datastore.exists('replication.links', ('name', '=', name)):
-        local_link = datastore.get_one('replication.links', ('name', '=', name))
-        ips = dispatcher.call_sync('network.config.get_my_ips')
-        remote = ''
-        client = None
-        for partner in local_link['partners']:
-            if partner.split('@', 1)[1] not in ips:
-                remote = partner
-
-        try:
-            client = get_remote_client(remote)
-            remote_link = client.call_sync('replication.link.get_one', name)
-            client.disconnect()
-            if not remote_link:
-                return local_link
-
-            if parse_datetime(local_link['update_date']) > parse_datetime(remote_link['update_date']):
-                return local_link
-            else:
-                return remote_link
-
-        except RpcException:
-            if client:
-                client.disconnect()
-            return local_link
-
-    else:
-        return None
 
 
 def get_replication_state(dispatcher, link):
@@ -949,6 +967,7 @@ def _init(dispatcher, plugin):
     plugin.register_task_handler('volume.snapshot_dataset', SnapshotDatasetTask)
     plugin.register_task_handler('replication.scan_hostkey', ScanHostKeyTask)
     plugin.register_task_handler('replication.replicate_dataset', ReplicateDatasetTask)
+    plugin.register_task_handler('replication.get_latest_link', ReplicationGetLatestLinkTask)
     plugin.register_task_handler('replication.create', ReplicationCreate)
     plugin.register_task_handler('replication.update', ReplicationUpdate)
     plugin.register_task_handler('replication.sync', ReplicationSync)
