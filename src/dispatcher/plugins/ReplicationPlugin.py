@@ -206,19 +206,19 @@ class ReplicationBaseTask(Task):
 
         return is_master, remote
 
-    def set_datasets_readonly(self, datasets, enabled, client=None):
+    def set_datasets_readonly(self, datasets, readonly, client=None):
         for dataset in datasets:
             if client:
                 client.call_task_sync(
                     'zfs.update',
                     dataset, dataset,
-                    {'readonly': {'value': 'off' if enabled else 'on'}}
+                    {'readonly': {'value': 'on' if readonly else 'off'}}
                 )
             else:
                 self.join_subtasks(self.run_subtask(
                     'zfs.update',
                     dataset, dataset,
-                    {'readonly': {'value': 'off' if enabled else 'on'}}
+                    {'readonly': {'value': 'on' if readonly else 'off'}}
                 ))
 
 
