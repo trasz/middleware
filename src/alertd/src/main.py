@@ -81,8 +81,12 @@ class ManagementService(RpcService):
 
 
 class AlertService(RpcService):
+    def __init__(self, context):
+        self.context = context
+
     def emit(self, id):
-        pass
+        alert = self.context.datastore.get_by_id('alerts', id)
+        self.context.emit_alert(alert)
 
     def cancel(self, id):
         pass
@@ -138,8 +142,10 @@ class Main(object):
                 self.client.login_service('alertd')
                 self.client.enable_server()
                 self.client.register_service('alertd.management', ManagementService(self))
+                self.client.register_service('alertd.alert', AlertService(self))
                 self.client.register_service('alertd.debug', DebugService())
                 self.client.resume_service('alertd.management')
+                self.client.resume_service('alertd.alert')
                 self.client.resume_service('alertd.debug')
                 return
             except (OSError, RpcException) as err:
@@ -164,6 +170,7 @@ class Main(object):
                 self.logger.error('Cannot initialize plugin {0}'.format(f), exc_info=True)
 
     def emit_alert(self, alert):
+        self.logger.debug('Emitting alert <id:{0}> (class {1})'.format(alert['id'], alert['class']))
         for i in self.datastore.query('alert.filters'):
             for predicate in i['predicates']:
                 if not operators_table[predicate['op']](alert[predicate['property']], predicate['value']):
@@ -174,6 +181,7 @@ class Main(object):
                     self.logger.warning('Invalid emitter {0} for alert filter {1}'.format(i['emitter'], i['id']))
                     continue
 
+                self.logger.debug('Alert <id:{0}> matched filter {1}'.format(alert['id'], i['id']))
                 if alert['send_count'] > 0:
                     emitter.emit_again(alert, i['parameters'])
                 else:

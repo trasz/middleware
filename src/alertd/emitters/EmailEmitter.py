@@ -31,13 +31,13 @@ from main import AlertEmitter
 
 class EmailEmitter(AlertEmitter):
     def emit_first(self, alert, options):
-        self.dispatcher.call_sync('mail.send', {
+        self.context.client.call_sync('mail.send', {
             'subject': '{0}: {1}'.format(socket.gethostname(), alert['title']),
             'message': '{0} - {1}'.format(alert['severity'], alert['description']),
         })
 
     def emit_again(self, alert, options):
-        self.dispatcher.call_sync('mail.send', {
+        self.context.client.call_sync('mail.send', {
             'subject': '{0}: {1}'.format(socket.gethostname(), alert['title']),
             'message': '{0} - {1}'.format(alert['severity'], alert['description']),
         })
