@@ -32,6 +32,7 @@ import errno
 import re
 import logging
 import paramiko
+from resources import Resource
 from paramiko import RSAKey, AuthenticationException
 from datetime import datetime
 from dateutil.parser import parse as parse_datetime
@@ -318,6 +319,8 @@ class ReplicationCreateTask(ReplicationBaseTask):
             'operation': 'create',
             'ids': [id]
         })
+
+        self.dispatcher.register_resource(Resource('replication:{0}'.format(link['name'])), parents=['replication'])
         remote_client.disconnect()
 
 
@@ -1056,6 +1059,7 @@ def _init(dispatcher, plugin):
         'additionalProperties': False,
     })
 
+    dispatcher.register_resource(Resource('replication'))
     plugin.register_provider('replication', ReplicationProvider)
     plugin.register_provider('replication.link', ReplicationLinkProvider)
     plugin.register_task_handler('volume.snapshot_dataset', SnapshotDatasetTask)
@@ -1088,4 +1092,6 @@ def _init(dispatcher, plugin):
     plugin.register_event_handler('plugin.service_resume', on_etcd_resume)
 
     # Query, if possible, performs sync of replication links cache at both ends of each link
-    dispatcher.call_sync('replication.link.query')
+    links = dispatcher.call_sync('replication.link.query')
+    for link in links:
+        dispatcher.register_resource(Resource('replication:{0}'.format(link['name'])), parents=['replication'])
