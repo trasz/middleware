@@ -162,7 +162,7 @@ class AlertsFiltersProvider(Provider):
 @accepts(h.all_of(
     h.ref('alert-filter'),
     h.required('id')
-)
+))
 class AlertFilterCreateTask(Task):
     def describe(self, alertfilter):
         return 'Creating alert filter {0}'.format(alertfilter['name'])
