@@ -55,17 +55,23 @@ class AlertsProvider(Provider):
     @description("Dismisses/Deletes an alert from the database")
     @accepts(int)
     def dismiss(self, id):
-        try:
-            self.datastore.delete('alerts', id)
-            self.dispatcher.dispatch_event('alert.changed', {
-                'operation': 'delete',
-                'ids': [id]
-            })
-        except DatastoreException as e:
-            raise TaskException(
-                errno.EBADMSG,
-                'Cannot delete alert: {0}'.format(str(e))
-            )
+        alert = self.datastore.get_by_id('alerts', id)
+        if not alert:
+            raise RpcException(errno.ENOENT, 'Alert {0} not found'.format(id))
+
+        if alert['dismissed']:
+            raise RpcException(errno.ENOENT, 'Alert {0} is already dismissed'.format(id))
+
+        alert.update({
+            'dismissed': True,
+            'dismissed_at': datetime.utcnow()
+        })
+
+        self.datastore.update('alerts', id, alert)
+        self.dispatcher.dispatch_event('alert.changed', {
+            'operation': 'update',
+            'ids': [id]
+        })
 
     @description("Emits an event for the provided alert")
     @accepts(h.all_of(
