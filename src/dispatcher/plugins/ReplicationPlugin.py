@@ -858,6 +858,36 @@ class ReplicationGetLatestLinkTask(Task):
             return None
 
 
+@description("Updates local replication link entry if provided remote entry is newer")
+@accepts(h.ref('replication-link'))
+class ReplicationUpdateLinkTask(Task):
+    def verify(self, remote_link):
+        if not self.datastore.exists('replication.links', ('name', '=', remote_link['name'])):
+            raise VerifyException(errno.ENOENT, 'Replication link {0} do not exist.'.format(remote_link['name']))
+
+        return []
+
+    def run(self, remote_link):
+        local_link = self.dispatcher.call_sync('replication.link.get_one_local', remote_link['name'])
+        for partner in local_link['partners']:
+            if partner not in remote_link.get('partners', []):
+                raise TaskException(
+                    errno.EINVAL,
+                    'One of remote link partners {0} do not match local link partners {2}, {3}'.format(
+                        partner,
+                        remote_link['partners'][0],
+                        remote_link['partners'][1]
+                    )
+                )
+
+        if parse_datetime(local_link['update_date']) < parse_datetime(remote_link['update_date']):
+            self.datastore.update('replication.links', remote_link['id'], remote_link)
+            self.dispatcher.dispatch_event('replication.changed', {
+                'operation': 'update',
+                'ids': [remote_link['id']]
+            })
+
+
 #
 # Attempt to send a snapshot or increamental stream to remote.
 #
@@ -968,6 +998,7 @@ def _init(dispatcher, plugin):
     plugin.register_task_handler('replication.scan_hostkey', ScanHostKeyTask)
     plugin.register_task_handler('replication.replicate_dataset', ReplicateDatasetTask)
     plugin.register_task_handler('replication.get_latest_link', ReplicationGetLatestLinkTask)
+    plugin.register_task_handler('replication.update_link', ReplicationUpdateLinkTask)
     plugin.register_task_handler('replication.create', ReplicationCreate)
     plugin.register_task_handler('replication.update', ReplicationUpdate)
     plugin.register_task_handler('replication.sync', ReplicationSync)
