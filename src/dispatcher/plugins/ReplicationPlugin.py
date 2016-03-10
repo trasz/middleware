@@ -191,13 +191,44 @@ class ScanHostKeyTask(Task):
         }
 
 
+class ReplicationBaseTask(Task):
+    def get_replication_state(self, link):
+        is_master = False
+        remote = ''
+        ips = self.dispatcher.call_sync('network.config.get_my_ips')
+        for ip in ips:
+            for partner in link['partners']:
+                if partner.endswith(ip) and partner == link['master']:
+                    is_master = True
+        for partner in link['partners']:
+            if partner.split('@', 1)[1] not in ips:
+                remote = partner
+
+        return is_master, remote
+
+    def set_datasets_enabled(self, datasets, enabled, client=None):
+        for dataset in datasets:
+            if client:
+                client.call_task_sync(
+                    'zfs.update',
+                    dataset, dataset,
+                    {'readonly': {'value': 'off' if enabled else 'on'}}
+                )
+            else:
+                self.join_subtasks(self.run_subtask(
+                    'zfs.update',
+                    dataset, dataset,
+                    {'readonly': {'value': 'off' if enabled else 'on'}}
+                ))
+
+
 @description("Sets up a replication link")
 @accepts(h.all_of(
         h.ref('replication-link'),
         h.required('name', 'partners', 'master', 'datasets', 'replicate_services', 'bidirectional', 'recursive')
     )
 )
-class ReplicationCreate(Task):
+class ReplicationCreate(ReplicationBaseTask):
     def verify(self, link):
         partners = link['partners']
         name = link['name']
@@ -254,7 +285,7 @@ class ReplicationCreate(Task):
         if 'update_date' not in link:
             link['update_date'] = str(datetime.utcnow())
 
-        is_master, remote = get_replication_state(self.dispatcher, link)
+        is_master, remote = self.get_replication_state(link)
         remote_client = get_remote_client(remote)
 
         if is_master:
@@ -390,7 +421,7 @@ class ReplicationCreate(Task):
                 id = self.datastore.insert('replication.links', link)
                 remote_client.call_task_sync('replication.create', link)
 
-                set_replicated_datasets_enabled(remote_client, False, datasets_to_replicate, False)
+                self.set_datasets_enabled(datasets_to_replicate, False, remote_client)
         else:
             remote_link = remote_client.call_sync('replication.link.get_one_local', link['name'])
             if not remote_link:
@@ -412,7 +443,7 @@ class ReplicationCreate(Task):
 
 @description("Deletes replication link")
 @accepts(str)
-class ReplicationDelete(Task):
+class ReplicationDelete(ReplicationBaseTask):
     def verify(self, name):
         if not self.datastore.exists('replication.links', ('name', '=', name)):
             raise VerifyException(errno.ENOENT, 'Replication link {0} do not exist.'.format(name))
@@ -421,7 +452,7 @@ class ReplicationDelete(Task):
 
     def run(self, name):
         link = self.join_subtasks(self.run_subtask('replication.get_latest_link', name))[0]
-        is_master, remote = get_replication_state(self.dispatcher, link)
+        is_master, remote = self.get_replication_state(link)
 
         self.datastore.delete('replication.links', link['id'])
 
@@ -438,7 +469,7 @@ class ReplicationDelete(Task):
 
 @description("Switch state of bi-directional replication link")
 @accepts(str, h.ref('replication-link'))
-class ReplicationUpdate(Task):
+class ReplicationUpdate(ReplicationBaseTask):
     def verify(self, name, updated_fields):
         if not self.datastore.exists('replication.links', ('name', '=', name)):
             raise VerifyException(errno.ENOENT, 'Bi-directional replication link {0} do not exist.'.format(name))
@@ -447,7 +478,7 @@ class ReplicationUpdate(Task):
 
     def run(self, name, updated_fields):
         link = self.join_subtasks(self.run_subtask('replication.get_latest_link', name))[0]
-        is_master, remote = get_replication_state(self.dispatcher, link)
+        is_master, remote = self.get_replication_state(link)
         if 'update_date' not in updated_fields:
             link['update_date'] = str(datetime.utcnow())
 
@@ -471,13 +502,13 @@ class ReplicationUpdate(Task):
             )
         remote_client.disconnect()
 
-        is_master, remote = get_replication_state(self.dispatcher, link)
-        set_replicated_datasets_enabled(self.dispatcher, is_master, link['datasets'], True)
+        is_master, remote = self.get_replication_state(link)
+        self.set_datasets_enabled(link['datasets'], is_master)
 
 
 @description("Triggers replication in bi-directional replication")
 @accepts(str)
-class ReplicationSync(Task):
+class ReplicationSync(ReplicationBaseTask):
     def verify(self, name):
         if not self.datastore.exists('replication.links', ('name', '=', name)):
             raise VerifyException(errno.ENOENT, 'Bi-directional replication link {0} do not exist.'.format(name))
@@ -488,11 +519,11 @@ class ReplicationSync(Task):
 
     def run(self, name):
         link = self.join_subtasks(self.run_subtask('replication.get_latest_link', name))[0]
-        is_master, remote = get_replication_state(self.dispatcher, link)
+        is_master, remote = self.get_replication_state(link)
         remote_client = get_remote_client(remote)
         if is_master:
             with self.dispatcher.get_lock('volumes'):
-                set_replicated_datasets_enabled(remote_client, True, link['datasets'], False)
+                self.set_datasets_enabled(link['datasets'], True, remote_client)
                 for volume in link['datasets']:
                     self.join_subtasks(self.run_subtask(
                         'replication.replicate_dataset',
@@ -509,7 +540,7 @@ class ReplicationSync(Task):
                         remote_client.call_task_sync('volume.autoimport', volume, 'containers')
                         remote_client.call_task_sync('volume.autoimport', volume, 'shares')
 
-                set_replicated_datasets_enabled(remote_client, False, link['datasets'], True)
+                self.set_datasets_enabled(link['datasets'], False, remote_client)
         else:
             remote_client.call_task_sync(
                 'replication.sync',
@@ -910,43 +941,6 @@ def get_remote_client(remote):
 
     except AuthenticationException:
         raise RpcException(errno.EAUTH, 'Cannot connect to {0}'.format(remote))
-
-
-def get_replication_state(dispatcher, link):
-    is_master = False
-    remote = ''
-    ips = dispatcher.call_sync('network.config.get_my_ips')
-    for ip in ips:
-        for partner in link['partners']:
-            if partner.endswith(ip) and partner == link['master']:
-                is_master = True
-    for partner in link['partners']:
-        if partner.split('@', 1)[1] not in ips:
-            remote = partner
-
-    return is_master, remote
-
-
-def set_replicated_datasets_enabled(client, enabled, datasets, set_services):
-    for volume in datasets:
-        if set_services:
-            client.call_task_sync(
-                'zfs.update',
-                volume, volume,
-                {'readonly': {'value': 'off'}}
-            )
-            vol_path = client.call_sync('volume.get_dataset_path', volume)
-            vol_shares = client.call_sync('share.get_dependencies', vol_path, False)
-            vol_containers = client.call_sync('container.query', [('target', '=', volume)])
-            for share in vol_shares:
-                client.call_task_sync('share.update', share['id'], {'enabled': enabled})
-            for container in vol_containers:
-                client.call_task_sync('container.update', container['id'], {'enabled': enabled})
-        client.call_task_sync(
-            'zfs.update',
-            volume, volume,
-            {'readonly': {'value': 'off' if enabled else 'on'}}
-        )
 
 
 def _init(dispatcher, plugin):
