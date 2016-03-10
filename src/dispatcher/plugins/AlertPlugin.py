@@ -37,7 +37,7 @@ from freenas.dispatcher.rpc import (
     description,
     returns,
 )
-from task import Provider, Task, TaskException, VerifyException, query
+from task import Provider, Task, TaskException, VerifyException, query, private
 from freenas.utils import normalize
 
 logger = logging.getLogger('AlertPlugin')
@@ -50,6 +50,16 @@ class AlertsProvider(Provider):
     def query(self, filter=None, params=None):
         return self.datastore.query(
             'alerts', *(filter or []), **(params or {})
+        )
+
+    @private
+    @accepts(str, str)
+    @returns(h.one_of(int, None))
+    def get_active_alert(self, cls, target):
+        return self.datastore.query(
+            'alerts',
+            ('class', '=', cls), ('target', '=', target), ('active', '=', True),
+            single=True
         )
 
     @description("Dismisses/Deletes an alert from the database")
@@ -73,6 +83,7 @@ class AlertsProvider(Provider):
             'ids': [id]
         })
 
+    @private
     @description("Emits an event for the provided alert")
     @accepts(h.all_of(
         h.ref('alert'),
@@ -106,6 +117,7 @@ class AlertsProvider(Provider):
         self.dispatcher.call_sync('alertd.alert.emit', id)
         return id
 
+    @private
     @description("Cancels already scheduled alert")
     @accepts(int)
     def cancel(self, id):
@@ -147,7 +159,10 @@ class AlertsFiltersProvider(Provider):
 
 
 @description("Creates an Alert Filter")
-@accepts(h.ref('alert-filter'))
+@accepts(h.all_of(
+    h.ref('alert-filter'),
+    h.required('id')
+)
 class AlertFilterCreateTask(Task):
     def describe(self, alertfilter):
         return 'Creating alert filter {0}'.format(alertfilter['name'])
@@ -246,6 +261,7 @@ def _init(dispatcher, plugin):
             'dismissed_at': {'type': ['string', 'null']},
             'active': {'type': 'boolean'},
             'dismissed': {'type': 'boolean'},
+            'one_shot': {'type': 'boolean'},
             'send_count': {'type': 'integer'}
         },
         'additionalProperties': False
