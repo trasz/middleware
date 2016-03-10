@@ -36,9 +36,7 @@ def _depends():
 
 
 def _init(dispatcher, plugin):
-
     def avago_firmware(driver):
-
         devs = defaultdict(dict)
         try:
             sysctls = list(sysctl.filter('{0}.mps'.format(driver)))
@@ -62,15 +60,26 @@ def _init(dispatcher, plugin):
             firmware_ver = mibs.get('firmware_version')
             driver_ver = mibs.get('driver_version')
             if int(firmware_ver) != int(driver_ver):
-                dispatcher.rpc.call_sync('alert.emit', {
-                    'name': 'hardware.controller.firmware_mismatch',
+                dispatcher.call_sync('alert.emit', {
+                    'class': 'DiskControllerFirmwareMismatch',
+                    'title': 'Firmware/driver version mismatch',
+                    'target': '{0}.{1}'.format(driver, number),
                     'description': 'Firmware version {0} does not match driver version {1} for {2}'.format(
                         firmware_ver,
                         driver_ver,
                         driver,
-                    ),
-                    'severity': 'WARNING',
+                    )
                 })
+            else:
+                # Check if alert was issued
+                alert = dispatcher.call_sync(
+                    'alert.get_active_alert',
+                    'DiskControllerFirmwareMismatch',
+                    '{0}.{1}'.format(driver, number)
+                )
+
+                if alert:
+                    alert.cancel(alert['id'])
 
     avago_firmware('mps')
     avago_firmware('mpr')
