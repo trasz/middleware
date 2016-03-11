@@ -25,25 +25,39 @@
 #
 #####################################################################
 
+import os
 import socket
+from mako.template import Template
 from main import AlertEmitter
+
+
+TEMPLATES_ROOT = '/usr/local/lib/alertd/templates'
 
 
 class EmailEmitter(AlertEmitter):
     def emit_first(self, alert, options):
+        tmpl = Template(filename=os.path.join(TEMPLATES_ROOT, 'email_first.mako'))
         self.context.client.call_sync('mail.send', {
+            'to': options.get('addresses'),
             'subject': '{0}: {1}'.format(socket.gethostname(), alert['title']),
-            'message': '{0} - {1}'.format(alert['severity'], alert['description']),
+            'message': tmpl.render(cls=alert['class'], **alert),
         })
 
     def emit_again(self, alert, options):
+        tmpl = Template(filename=os.path.join(TEMPLATES_ROOT, 'email_again.mako'))
         self.context.client.call_sync('mail.send', {
+            'to': options.get('addresses'),
             'subject': '{0}: {1}'.format(socket.gethostname(), alert['title']),
-            'message': '{0} - {1}'.format(alert['severity'], alert['description']),
+            'message': tmpl.render(cls=alert['class'], **alert),
         })
 
     def cancel(self, alert, options):
-        pass
+        tmpl = Template(filename=os.path.join(TEMPLATES_ROOT, 'email_cancel.mako'))
+        self.context.client.call_sync('mail.send', {
+            'to': options.get('addresses'),
+            'subject': '{0}: {1} cancelled'.format(socket.gethostname(), alert['title']),
+            'message': tmpl.render(cls=alert['class'], **alert),
+        })
 
 
 def _init(context):
