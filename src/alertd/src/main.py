@@ -188,6 +188,9 @@ class Main(object):
                     emitter.emit_first(alert, i['parameters'])
 
         alert['send_count'] += 1
+        if alert['one_shot']:
+            alert['active'] = False
+
         self.datastore.update('alerts', alert['id'], alert)
 
     def register_emitter(self, name, cls):
