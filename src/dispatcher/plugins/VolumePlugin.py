@@ -129,7 +129,12 @@ class VolumeProvider(Provider):
                     'root_vdev': config['root_vdev'],
                     'status': config['status'],
                     'scan': config['scan'],
-                    'properties': config['properties']
+                    'properties': include(
+                        config['properties'],
+                        'size', 'capacity', 'health', 'version', 'delegation', 'failmode',
+                        'autoreplace', 'dedupratio', 'free', 'allocated', 'readonly',
+                        'comment', 'expandsize', 'fragmentation', 'leaked'
+                    )
                 })
 
                 if config['status'] != 'UNAVAIL':
@@ -2074,8 +2079,43 @@ def _init(dispatcher, plugin):
                 'type': 'string',
                 'enum': ['ALL', 'PART', 'NONE']
             },
-            'params': {'type': 'object'},
+            'properties': {'$ref': 'volume-properties'},
             'attributes': {'type': 'object'}
+        }
+    })
+
+    plugin.register_schema_definition('volume-property', {
+        'type': 'object',
+        'additionalProperties': False,
+        'properties': {
+            'value': {'type': 'string'},
+            'rawvalue': {'type': 'string'},
+            'source': {
+                'type': 'string',
+                'enum': ['NONE', 'DEFAULT', 'LOCAL', 'INHERITED']
+            }
+        }
+    })
+
+    plugin.register_schema_definition('volume-properties', {
+        'type': 'object',
+        'additionalProperties': False,
+        'properties': {
+            'size': {'$ref': 'volume-property'},
+            'capacity': {'$ref': 'volume-property'},
+            'health': {'$ref': 'volume-property'},
+            'version': {'$ref': 'volume-property'},
+            'delegation': {'$ref': 'volume-property'},
+            'failmode': {'$ref': 'volume-property'},
+            'autoreplace': {'$ref': 'volume-property'},
+            'dedupratio': {'$ref': 'volume-property'},
+            'free': {'$ref': 'volume-property'},
+            'allocated': {'$ref': 'volume-property'},
+            'readonly': {'$ref': 'volume-property'},
+            'comment': {'$ref': 'volume-property'},
+            'expandsize': {'$ref': 'volume-property'},
+            'fragmentation': {'$ref': 'volume-property'},
+            'leaked': {'$ref': 'volume-property'}
         }
     })
 
