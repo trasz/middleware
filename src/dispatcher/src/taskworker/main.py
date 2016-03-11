@@ -118,12 +118,13 @@ class TaskProxyService(RpcService):
         self.context.running.wait()
         return self.context.instance.get_status()
 
-    def get_progress_subtask_info(self):
+    def set_master_progress_detail(self, detail):
         self.context.running.wait()
-        return {
-            'id': self.context.instance.progress_subtask_id,
-            'weight': self.context.instance.progress_subtask_weight
-        }
+        self.context.instance.set_master_progress_detail(detail)
+
+    def get_master_progress_info(self):
+        self.context.running.wait()
+        return self.context.instance.get_master_progress_info()
 
     def abort(self):
         if not hasattr(self.context.instance, 'abort'):

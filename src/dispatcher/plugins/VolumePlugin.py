@@ -1598,11 +1598,18 @@ class VolumeScrubTask(MasterProgressTask):
         return ['disk:{0}'.format(d) for d, _ in get_disks(vol['topology'])]
 
     def abort(self):
-        self.progress_subtask_running.wait()
-        self.abort_subtask(self.progress_subtask_id)
+        # We only have one task in here so just wait till it joins and/or ends
+        # to begin the abort
+        subtask = next(iter(self.progress_subtasks.values()))
+        while True:
+            if subtask.joining.wait(1):
+                break
+            if subtask.ended.wait(0.1):
+                break
+        self.abort_subtask(subtask.tid)
 
     def run(self, id):
-        self.run_and_join_progress_subtask('zfs.pool.scrub', id)
+        self.join_subtasks(self.run_subtask('zfs.pool.scrub', id))
 
 
 @description("Makes vdev in a volume offline")

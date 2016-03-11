@@ -745,10 +745,10 @@ class CheckFetchUpdateTask(MasterProgressTask):
 
     def run(self, mail=False):
         self.set_progress(0, 'Checking for new updates from update server...')
-        self.run_and_join_progress_subtask('update.check', weight=0.1)
+        self.join_subtasks(self.run_subtask('update.check', weight=0.1))
         if self.dispatcher.call_sync('update.is_update_available'):
-            self.set_progress(10, 'New updates found. Downloading them now...')
-            self.run_and_join_progress_subtask('update.download', weight=0.9)
+            self.message = "New updates found. Downloading them now..."
+            self.join_subtasks(self.run_subtask('update.download', weight=0.9))
 
             if mail:
                 changelog = self.dispatcher.call_sync('update.obtain_changelog')
@@ -780,10 +780,10 @@ class UpdateNowTask(MasterProgressTask):
 
     def run(self, reboot_post_install=False):
         self.set_progress(0, 'Checking for new updates...')
-        self.run_and_join_progress_subtask('update.checkfetch', weight=0.5)
+        self.join_subtasks(self.run_subtask('update.checkfetch', weight=0.5))
         if self.dispatcher.call_sync('update.is_update_available'):
-            self.set_progress(50, "Installing downloaded updates now...")
-            self.run_and_join_progress_subtask('update.apply', reboot_post_install, weight=0.5)
+            self.message = "Installing downloaded updates now..."
+            self.join_subtasks(self.run_subtask('update.apply', reboot_post_install, weight=0.5))
         else:
             self.add_warning(TaskWarning(errno.ENOENT, 'No Updates Available for Install'))
             self.set_progress(100)

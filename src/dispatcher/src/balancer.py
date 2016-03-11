@@ -90,22 +90,41 @@ class TaskExecutor(object):
 
         try:
             st = TaskStatus(0)
-            st.__setstate__(self.conn.call_client_sync('taskproxy.get_status'))
             if issubclass(self.task.clazz, MasterProgressTask):
                 progress_subtask_info = self.conn.call_client_sync(
-                    'taskproxy.get_progress_subtask_info'
+                    'taskproxy.get_master_progress_info'
                 )
-                if progress_subtask_info['id'] is not None:
-                    subtask_status = self.balancer.get_task(
-                        progress_subtask_info['id']
-                    ).executor.get_status()
-                    st.__setstate__({
-                        'percentage':
-                            st.percentage +
-                            int(progress_subtask_info['weight'] * subtask_status.percentage),
-                        'message': subtask_status.message,
-                        'extra': subtask_status.extra
-                    })
+                if progress_subtask_info['increment_progress'] != 0:
+                    progress_subtask_info['progress'] += progress_subtask_info['increment_progress']
+                    progress_subtask_info['increment_progress'] = 0
+                    self.conn.call_client_sync(
+                        'taskproxy.set_master_progress_detail',
+                        {
+                            'progress': progress_subtask_info['progress'],
+                            'increment_progress': progress_subtask_info['increment_progress']
+                        }
+                    )
+                if progress_subtask_info['active_tids']:
+                    progress_to_increment = 0
+                    concurent_weight = progress_subtask_info['concurent_subtask_detail']['average_weight']
+                    for tid in progress_subtask_info['concurent_subtask_detail']['tids']:
+                        subtask_status = self.balancer.get_task(tid).executor.get_status()
+                        progress_to_increment += subtask_status.percentage * concurent_weight * \
+                            progress_subtask_info['subtask_weights'][str(tid)]
+                    for tid in set(progress_subtask_info['active_tids']).symmetric_difference(
+                        set(progress_subtask_info['concurent_subtask_detail']['tids'])
+                    ):
+                        subtask_status = self.balancer.get_task(tid).executor.get_status()
+                        progress_to_increment += subtask_status.percentage * \
+                            progress_subtask_info['subtask_weights'][str(tid)]
+                    progress_subtask_info['progress'] += int(progress_to_increment)
+                    if progress_subtask_info['pass_subtask_details']:
+                        progress_subtask_info['message'] = subtask_status.message
+                st = TaskStatus(
+                    progress_subtask_info['progress'], progress_subtask_info['message']
+                )
+            else:
+                st.__setstate__(self.conn.call_client_sync('taskproxy.get_status'))
             return st
 
         except RpcException as err:

@@ -31,7 +31,7 @@ import logging
 from freenas.dispatcher.rpc import RpcService, RpcException, RpcWarning
 from freenas.utils import SmartEventSet
 from datastore.config import ConfigStore
-from threading import Event
+from threading import Event, Lock
 import collections
 
 
@@ -100,22 +100,80 @@ class ProgressTask(Task):
             self.message = message
 
 
+class ProgressSubtask(object):
+
+    def __init__(self, *args, **kwargs):
+        self.tid = kwargs.get('tid')
+        if 'weight' in kwargs and 0.0 <= kwargs['weight'] <= 1.0:
+            self.weight = kwargs['weight']
+        else:
+            self.weight = 1
+        self.classname = kwargs.get('classname')
+        self.joining = Event()
+        self.ended = Event()
+        self.result = None
+
+
 class MasterProgressTask(ProgressTask):
 
     def __init__(self, dispatcher, datastore):
         super(MasterProgressTask, self).__init__(dispatcher, datastore)
-        self.progress_subtask_id = None
-        self.progress_subtask_running = Event()
-        self.progress_subtask_weight = 1  # Can take any value in range: [0.0, 1.0]
+        self.progress_subtasks = {}
+        self.concurent_subtask_detail = {
+            'tids': [],
+            'average_weight': 1,
+        }
+        self.active_tids = []
+        self.increment_progress = 0
+        # only works well if a single subtask is executing at a time
+        # else might lead to confusion
+        self.pass_subtask_details = True
+        self.state_lock = Lock()
 
-    def run_and_join_progress_subtask(self, classname, *args, **kwargs):
-        if 'weight' in kwargs and kwargs['weight'] >= 0.0 and kwargs['weight'] <= 1.0:
-            self.progress_subtask_weight = kwargs.pop('weight')
-        self.progress_subtask_id = self.dispatcher.run_subtask(self, classname, args)
-        with SmartEventSet(self.progress_subtask_running):
-            subtask_result = self.dispatcher.join_subtasks(self.progress_subtask_id)
-        self.progress_subtask_id = None
-        return subtask_result[0]
+    def get_master_progress_info(self):
+        with self.state_lock:
+            state_obj = {
+                'subtask_weights': {x: v.weight for x, v in self.progress_subtasks.items()},
+                'increment_progress': self.increment_progress,
+                'active_tids': self.active_tids,
+                'concurent_subtask_detail': self.concurent_subtask_detail,
+                'progress': self.progress,
+                'message': self.message,
+                'pass_subtask_details': self.pass_subtask_details
+            }
+        return state_obj
+
+    def set_master_progress_detail(self, detail):
+        with self.state_lock:
+            self.progress = int(detail.get('progress', self.progress))
+            self.increment_progress = int(detail.get('increment_progress', self.increment_progress))
+
+    def run_subtask(self, classname, *args, **kwargs):
+        weight = kwargs.pop('weight', 1)
+        tid = self.dispatcher.run_subtask(self, classname, args)
+        subtask = ProgressSubtask(tid=tid, weight=weight, classname=classname)
+        with self.state_lock:
+            self.progress_subtasks[tid] = subtask
+            self.active_tids.append(tid)
+        return tid
+
+    def join_subtasks(self, *tasks):
+        subtask_results = []
+        for tid in tasks:
+            with SmartEventSet(self.progress_subtasks[tid].joining):
+                result = self.dispatcher.join_subtasks(tid)
+            with self.state_lock:
+                self.progress_subtasks[tid].ended.set()
+                self.progress_subtasks[tid].result = result
+                subtask_results.extend(result)
+                self.active_tids.remove(tid)
+                self.increment_progress = self.progress_subtasks[tid].weight * 100
+                if tid in self.concurent_subtask_detail['tids']:
+                    self.concurent_subtask_detail['task_ids'].remove(tid)
+                    self.increment_progress *= self.concurent_subtask_detail['average_weight']
+                self.increment_progress = int(self.increment_progress)
+
+        return subtask_results
 
 
 class TaskException(RpcException):
