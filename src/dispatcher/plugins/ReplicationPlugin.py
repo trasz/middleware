@@ -331,6 +331,13 @@ class ReplicationPrepareSlaveTask(ReplicationBaseTask):
         return []
 
     def run(self, link):
+        def match_disk(empty_disks, path):
+            disk_config = self.dispatcher.call_sync('disk.get_disk_config', path)
+            matching_disks = sorted(empty_disks, key=lambda d: d['mediasize'])
+            disk = first_or_default(lambda d: d['mediasize'] >= disk_config['mediasize'], matching_disks)
+            del empty_disks[empty_disks.index(disk)]
+            return disk
+
         is_master, remote = self.get_replication_state(link)
         remote_client = get_remote_client(remote)
 
@@ -399,6 +406,18 @@ class ReplicationPrepareSlaveTask(ReplicationBaseTask):
 
                     if not remote_dataset:
                         if not remote_volume:
+
+                            empty_disks = remote_client.call_sync('disk.query', [('status.empty', '=', True)])
+                            topology = vol['topology']
+
+                            for group_type in topology:
+                                for item in topology[group_type]:
+                                    if item['type'] == 'disk':
+                                        item['path'] = match_disk(empty_disks, item['path'])
+                                    else:
+                                        for vdev in item['children']:
+                                            vdev['path'] = match_disk(empty_disks, vdev['path'])
+
                             try:
                                 remote_client.call_task_sync(
                                     'volume.create',
@@ -406,7 +425,7 @@ class ReplicationPrepareSlaveTask(ReplicationBaseTask):
                                         'id': vol['id'],
                                         'type': vol['type'],
                                         'params': {'encryption': False},
-                                        'topology': vol['topology']
+                                        'topology': topology
                                     }
                                 )
                             except RpcException as e:
