@@ -881,7 +881,10 @@ class Main:
             'type': 'object',
             'properties': {
                 'name': {'type': 'string'},
-                'link_state': {'type': 'string'},
+                'link_state': {
+                    'type': 'string',
+                    'enum': list(netif.InterfaceLinkState.__members__.keys())
+                },
                 'link_address': {'type': 'string'},
                 'mtu': {'type': 'integer'},
                 'media_type': {'type': 'string'},
