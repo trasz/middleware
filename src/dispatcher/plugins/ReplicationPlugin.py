@@ -650,6 +650,69 @@ class ReplicationSyncTask(ReplicationBaseTask):
         })
 
 
+@description("Creates name reservation for services subject to replication")
+@accepts(str)
+class ReplicationReserveServicesTask(ReplicationBaseTask):
+    def verify(self, name):
+        if not self.datastore.exists('replication.links', ('name', '=', name)):
+            raise VerifyException(errno.ENOENT, 'Replication link {0} do not exist.'.format(name))
+
+        return []
+
+    def run(self, name):
+        service_types = ['shares', 'containers']
+        link = self.join_subtasks(self.run_subtask('replication.get_latest_link', name))[0]
+        is_master, remote = self.get_replication_state(link)
+        if not is_master:
+            if link['replicate_services']:
+                datasets = self.dispatcher.call_sync('replication.datasets_from_link', link)
+                configs = []
+                for dataset in datasets:
+                    dataset_path = self.dispatcher.call_sync('volume.get_dataset_path', dataset)
+                    files = [f for f in os.listdir(dataset_path) if os.path.isfile(os.path.join(dataset_path, f))]
+
+                    for file in files:
+                        config_name = re.match('(\.config-)(.*)(\.json)', file)
+                        if config_name:
+                            configs.append(load_config(dataset_path, config_name.group(2)))
+
+                for service in service_types:
+                    for reserved_item in self.dispatcher.call_sync('replication.get_reserved_{0}'.format(service), name):
+                        if not wrap(configs).query([('type', '=', reserved_item['type']), ('name', '=', reserved_item['name'])]):
+                            self.datastore.delete('replication.reserved_{0}'.format(service), reserved_item['id'])
+
+                for config in configs:
+                    item_type = config.get('type', '')
+                    for service in service_types:
+                        if item_type in self.dispatcher.call_sync('{0}.supported_types'.format(service[:-1])):
+                            if self.datastore.exists('{0}'.format(service), ('type', '=', config['type']), ('name', '=', config['name'])):
+                                raise TaskException(
+                                    errno.EEXIST,
+                                    'Cannot create name reservation for {0} {1} of type {2}. {0} already exists.'.format(
+                                        service[:-1],
+                                        config['name'],
+                                        config['type']
+                                    )
+                                )
+
+                            if not self.datastore.exists('replication.reserved_{0}'.format(service), ('id', '=', config['name'])):
+                                self.datastore.insert(
+                                    'replication.reserved_{0}'.format(service),
+                                    {
+                                        'id': config['name'],
+                                        'name': config['name'],
+                                        'type': config['type'],
+                                        'link_name': name
+                                    }
+                                )
+            else:
+                raise TaskException(errno.EINVAL, 'Selected link is not allowed to replicate services')
+        else:
+            remote_client = get_remote_client(remote)
+            remote_client.call_task_sync('replication.reserve_services', name)
+            remote_client.disconnect()
+
+
 @accepts(str, str, bool, str, str, bool)
 @returns(str)
 class SnapshotDatasetTask(Task):
@@ -1107,6 +1170,7 @@ def _init(dispatcher, plugin):
     plugin.register_task_handler('replication.prepare_slave', ReplicationPrepareSlaveTask)
     plugin.register_task_handler('replication.update', ReplicationUpdateTask)
     plugin.register_task_handler('replication.sync', ReplicationSyncTask)
+    plugin.register_task_handler('replication.reserve_services', ReplicationReserveServicesTask)
     plugin.register_task_handler('replication.delete', ReplicationDeleteTask)
 
     plugin.register_event_type('replication.changed')
