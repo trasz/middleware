@@ -41,6 +41,7 @@ from freenas.dispatcher.rpc import RpcException, SchemaHelper as h, description,
 from freenas.dispatcher.client import Client
 from freenas.utils import to_timedelta, first_or_default
 from freenas.utils.query import wrap
+from utils import load_config
 from lib import sendzfs
 
 """
@@ -604,12 +605,12 @@ class ReplicationUpdateTask(ReplicationBaseTask):
         remote_client.disconnect()
 
 
-@description("Triggers replication in bi-directional replication")
+@description("Runs replication process based on saved link")
 @accepts(str)
 class ReplicationSyncTask(ReplicationBaseTask):
     def verify(self, name):
         if not self.datastore.exists('replication.links', ('name', '=', name)):
-            raise VerifyException(errno.ENOENT, 'Bi-directional replication link {0} do not exist.'.format(name))
+            raise VerifyException(errno.ENOENT, 'Replication link {0} do not exist.'.format(name))
 
         return ['replication:{0}'.format(name)]
 
@@ -619,24 +620,22 @@ class ReplicationSyncTask(ReplicationBaseTask):
         remote_client = get_remote_client(remote)
         if is_master:
             with self.dispatcher.get_lock('volumes'):
-                self.set_datasets_readonly(link['datasets'], True, remote_client)
-                for volume in link['datasets']:
+                datasets_to_replicate = self.dispatcher.call_sync('replication.datasets_from_link', link)
+                for dataset in datasets_to_replicate:
                     self.join_subtasks(self.run_subtask(
                         'replication.replicate_dataset',
-                        volume,
-                        volume,
+                        dataset,
+                        dataset,
                         {
                             'remote': remote,
-                            'remote_dataset': volume,
-                            'recursive': True
+                            'remote_dataset': dataset,
+                            'recursive': link['recursive']
                         }
                     ))
 
-                    if link['replicate_services']:
-                        remote_client.call_task_sync('volume.autoimport', volume, 'containers')
-                        remote_client.call_task_sync('volume.autoimport', volume, 'shares')
+                if link['replicate_services']:
+                    remote_client.call_task_sync('replication.reserve_services', name)
 
-                self.set_datasets_readonly(link['datasets'], False, remote_client)
         else:
             remote_client.call_task_sync(
                 'replication.sync',
