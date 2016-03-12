@@ -257,6 +257,16 @@ class ContainerCreateTask(ContainerBaseTask):
         if not self.dispatcher.call_sync('volume.query', [('id', '=', container['target'])], {'single': True}):
             raise VerifyException(errno.ENXIO, 'Volume {0} doesn\'t exist'.format(container['target']))
 
+        if self.datastore.exists('replication.reserved_containers', ('type', '=', container['type']), ('name', '=', container['name'])):
+            reserved_item = self.datastore.get_by_id('replication.reserved_containers', container['name'])
+            raise VerifyException(
+                errno.EEXIST,
+                'Container {0} name is reserved by {1} replication task'.format(
+                    container['name'],
+                    reserved_item['link_name']
+                )
+            )
+
         return ['zpool:{0}'.format(container['target'])]
 
     def run(self, container):
@@ -320,6 +330,16 @@ class ContainerImportTask(ContainerBaseTask):
 
         if self.datastore.exists('containers', ('name', '=', name)):
             raise VerifyException(errno.EEXIST, 'Container {0} already exists'.format(name))
+
+        if self.datastore.exists('replication.reserved_containers', ('name', '=', name)):
+            reserved_item = self.datastore.get_by_id('replication.reserved_containers', name)
+            raise VerifyException(
+                errno.EEXIST,
+                'Container {0} name is reserved by {1} replication task'.format(
+                    name,
+                    reserved_item['link_name']
+                )
+            )
 
         return ['zpool:{0}'.format(volume)]
 

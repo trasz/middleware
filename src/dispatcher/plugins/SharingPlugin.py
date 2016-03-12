@@ -154,6 +154,16 @@ class CreateShareTask(Task):
                 share['type']
             ))
 
+        if self.datastore.exists('replication.reserved_shares', ('type', '=', share['type']), ('name', '=', share['name'])):
+            reserved_item = self.datastore.get_by_id('replication.reserved_shares', share['name'])
+            raise VerifyException(
+                errno.EEXIST,
+                'Share {0} name is reserved by {1} replication task'.format(
+                    share['name'],
+                    reserved_item['link_name']
+                )
+            )
+
         return ['system']
 
     def run(self, share):
@@ -327,6 +337,16 @@ class ImportShareTask(Task):
     def run(self, config_path, name, type):
 
         share = load_config(config_path, '{0}-{1}'.format(type, name))
+
+        if self.datastore.exists('replication.reserved_shares', ('type', '=', share['type']), ('name', '=', share['name'])):
+            reserved_item = self.datastore.get_by_id('replication.reserved_shares', share['name'])
+            raise TaskException(
+                errno.EEXIST,
+                'Share {0} name is reserved by {1} replication task'.format(
+                    share['name'],
+                    reserved_item['link_name']
+                )
+            )
 
         ids = self.join_subtasks(self.run_subtask('share.{0}.import'.format(share['type']), share))
 
