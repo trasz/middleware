@@ -154,6 +154,14 @@ class ReplicationProvider(Provider):
 
         return sorted(datasets, key=lambda d: d['name'])
 
+    @returns(h.array(h.ref('reserved-service')))
+    def get_reserved_shares(self, link_name):
+        return self.datastore.query('replication.reserved_shares', ('link_name', '=', link_name))
+
+    @returns(h.array(h.ref('reserved-service')))
+    def get_reserved_containers(self, link_name):
+        return self.datastore.query('replication.reserved_containers', ('link_name', '=', link_name))
+
 
 class ReplicationLinkProvider(Provider):
     @query('replication-link')
