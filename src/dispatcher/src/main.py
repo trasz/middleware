@@ -1154,10 +1154,13 @@ class ServerConnection(WebSocketApplication, EventEmitter):
             return
 
         self.user = token.user
+        self.open_session()
+
         self.token = self.dispatcher.token_store.issue_token(
             Token(
                 user=self.user,
                 lifetime=lifetime,
+                session_id=self.session_id,
                 revocation_function=self.logout
             )
         )
@@ -1169,7 +1172,6 @@ class ServerConnection(WebSocketApplication, EventEmitter):
             'args': [self.token, lifetime, self.user.name]
         })
 
-        self.open_session()
         self.dispatcher.dispatch_event('server.client_loggin', {
             'address': client_addr,
             'port': client_port,
@@ -1214,9 +1216,11 @@ class ServerConnection(WebSocketApplication, EventEmitter):
             lifetime = None
 
         self.user = user
+        self.open_session()
         self.token = self.dispatcher.token_store.issue_token(Token(
             user=user,
             lifetime=lifetime,
+            session_id=self.session_id,
             revocation_function=self.logout
         ))
 
@@ -1227,7 +1231,6 @@ class ServerConnection(WebSocketApplication, EventEmitter):
             "args": [self.token, lifetime, self.user.name]
         })
 
-        self.open_session()
         self.dispatcher.dispatch_event('server.client_login', {
             'address': client_addr,
             'port': client_port,
