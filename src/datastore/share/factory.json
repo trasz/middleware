@@ -1975,6 +1975,30 @@
     },
     {
         "metadata": {
+            "name": "replication.reserved_shares",
+            "migration": "keep",
+            "pkey-type": "native",
+            "attributes": {
+                "type": "config"
+            }
+        },
+        "data": {
+        }
+    },
+    {
+        "metadata": {
+            "name": "replication.reserved_containers",
+            "migration": "keep",
+            "pkey-type": "native",
+            "attributes": {
+                "type": "config"
+            }
+        },
+        "data": {
+        }
+    },
+    {
+        "metadata": {
             "name": "disks",
             "migration": "keep",
             "pkey-type": "native",
