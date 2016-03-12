@@ -314,7 +314,7 @@ class ContainerCreateTask(ContainerBaseTask):
 
 @accepts(str, str, bool)
 class ContainerImportTask(ContainerBaseTask):
-    def verify(self, name, volume, import_disabled=False):
+    def verify(self, name, volume):
         if not self.dispatcher.call_sync('volume.query', [('id', '=', volume)], {'single': True}):
             raise VerifyException(errno.ENXIO, 'Volume {0} doesn\'t exist'.format(volume))
 
@@ -323,7 +323,7 @@ class ContainerImportTask(ContainerBaseTask):
 
         return ['zpool:{0}'.format(volume)]
 
-    def run(self, name, volume, import_disabled=False):
+    def run(self, name, volume):
         try:
             container = load_config(
                 self.dispatcher.call_sync(
@@ -340,9 +340,6 @@ class ContainerImportTask(ContainerBaseTask):
                 errno.EINVAL,
                 'Cannot read configuration file. File is not a valid JSON file'
             )
-
-        if import_disabled:
-            container['enabled'] = False
 
         id = self.datastore.insert('containers', container)
         self.dispatcher.dispatch_event('container.changed', {

@@ -289,7 +289,7 @@ class UpdateShareTask(Task):
 @description("Imports existing share")
 @accepts(str, str, str, bool)
 class ImportShareTask(Task):
-    def verify(self, config_path, name, type, import_disabled=False):
+    def verify(self, config_path, name, type):
         try:
             share = load_config(config_path, '{0}-{1}'.format(type, name))
         except FileNotFoundError:
@@ -324,15 +324,11 @@ class ImportShareTask(Task):
 
         return ['system']
 
-    def run(self, config_path, name, type, import_disabled=False):
+    def run(self, config_path, name, type):
 
         share = load_config(config_path, '{0}-{1}'.format(type, name))
 
         ids = self.join_subtasks(self.run_subtask('share.{0}.import'.format(share['type']), share))
-        if import_disabled:
-            share = self.datastore.get_by_id('shares', ids[0])
-            share['enabled'] = False
-            self.datastore.update('shares', ids[0], share)
 
         self.dispatcher.dispatch_event('share.changed', {
             'operation': 'create',
