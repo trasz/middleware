@@ -1084,6 +1084,17 @@ def _init(dispatcher, plugin):
         'additionalProperties': False,
     })
 
+    plugin.register_schema_definition('reserved-service', {
+        'type': 'object',
+        'properties': {
+            'id': {'type': 'string'},
+            'name': {'type': 'string'},
+            'type': {'type': 'string'},
+            'link_name': {'type': 'string'}
+        },
+        'additionalProperties': False,
+    })
+
     dispatcher.register_resource(Resource('replication'))
     plugin.register_provider('replication', ReplicationProvider)
     plugin.register_provider('replication.link', ReplicationLinkProvider)
