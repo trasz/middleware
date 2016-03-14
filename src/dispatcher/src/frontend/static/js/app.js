@@ -37,6 +37,10 @@ DebuggerApp.config(['$routeProvider', function($routeProvider) {
           templateUrl: '../static/partials/tasks.html' ,
           controller: TasksController
       }).
+      when('/filebrowser',{
+          templateUrl: '../static/partials/filebrowser.html' ,
+          controller: FileBrowserController
+      }).
       when('/apidocs/', {
           templateUrl: '../static/partials/apidocs.html',
           controller: APIdocController
