@@ -51,12 +51,12 @@ def _init(dispatcher, plugin):
         if volume['status'] != 'ONLINE' and volume['id'] not in degraded_volumes:
             degraded_volumes.append(volume['id'])
             dispatcher.rpc.call_sync('alert.emit', {
-                'name': 'volume.status',
+                'name': 'VolumeDegraded',
+                'target': volume['id'],
                 'description': 'The volume {0} state is {1}'.format(
                     volume['id'],
                     volume['status'],
-                ),
-                'severity': 'CRITICAL',
+                )
             })
 
     def volumes_upgraded():
@@ -68,9 +68,10 @@ def _init(dispatcher, plugin):
                 continue
 
             dispatcher.rpc.call_sync('alert.emit', {
-                'name': 'volume.version',
+                'class': 'VolumeUpgradePossible',
+                'target': volume['id'],
+                'title': 'Volume {0} can be upgraded'.format(volume['id']),
                 'description': 'New feature flags are available for volume {0}'.format(volume['id']),
-                'severity': 'WARNING',
             })
 
     for i in dispatcher.call_sync('volume.query'):
