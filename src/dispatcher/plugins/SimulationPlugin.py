@@ -119,6 +119,7 @@ def _init(dispatcher, plugin):
         'type': 'object',
         'additionalProperties': False,
         'properties': {
+            'type': {'enum': ['service-simulator']},
             'enable': {'type': 'boolean'}
         }
     })
