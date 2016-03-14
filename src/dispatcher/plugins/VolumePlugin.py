@@ -2148,7 +2148,7 @@ def _init(dispatcher, plugin):
                 'enum': ['FILESYSTEM', 'VOLUME']
             },
             'volsize': {'type': ['integer', 'null']},
-            'properties': {'type': 'object'},
+            'properties': {'$ref': 'volume-dataset-properties'},
             'permissions': {'$ref': 'permissions'},
             'permissions_type': {
                 'type': 'string',
@@ -2156,6 +2156,37 @@ def _init(dispatcher, plugin):
             }
         }
     })
+
+    plugin.register_schema_definition('volume-dataset-properties', {
+        'type': 'object',
+        'additionalProperties': False,
+        'properties': {
+            'used': {'$ref': 'volume-property'},
+            'available': {'$ref': 'volume-property'},
+            'compression': {'$ref': 'volume-property'},
+            'atime': {'$ref': 'volume-property'},
+            'dedup': {'$ref': 'volume-property'},
+            'quota': {'$ref': 'volume-property'},
+            'refquota': {'$ref': 'volume-property'},
+            'reservation': {'$ref': 'volume-property'},
+            'refreservation': {'$ref': 'volume-property'},
+            'casesensitivity': {'$ref': 'volume-property'},
+            'volsize': {'$ref': 'volume-property'},
+            'volblocksize': {'$ref': 'volume-property'},
+            'refcompressratio': {'$ref': 'volume-property'},
+            'numclones': {'$ref': 'volume-property'},
+            'compressratio': {'$ref': 'volume-property'},
+            'written': {'$ref': 'volume-property'},
+            'referenced': {'$ref': 'volume-property'},
+            'usedbyrefreservation': {'$ref': 'volume-property'},
+            'usedbysnapshots': {'$ref': 'volume-property'},
+            'usedbydataset': {'$ref': 'volume-property'},
+            'usedbychildren': {'$ref': 'volume-property'},
+            'logicalused': {'$ref': 'volume-property'},
+            'logicalreferenced': {'$ref': 'volume-property'}
+        }
+    })
+
 
     plugin.register_schema_definition('volume-snapshot', {
         'type': 'object',
