@@ -217,7 +217,7 @@ class AlertFilterDeleteTask(Task):
 @description("Updates the specified Alert Filter")
 @accepts(str, h.ref('alert-filter'))
 class AlertFilterUpdateTask(Task):
-    def describe(self, id, alertfilter):
+    def describe(self, id, updated_fields):
         alertfilter = self.datastore.get_by_id('alert.filters', id)
         return 'Updating alert filter {0}'.format(alertfilter['id'])
 
@@ -261,6 +261,7 @@ def _init(dispatcher, plugin):
             'happened_at': {'type': 'string'},
             'cancelled_at': {'type': ['string', 'null']},
             'dismissed_at': {'type': ['string', 'null']},
+            'last_emitted_at': {'type': ['string', 'null']},
             'active': {'type': 'boolean'},
             'dismissed': {'type': 'boolean'},
             'one_shot': {'type': 'boolean'},
@@ -289,7 +290,7 @@ def _init(dispatcher, plugin):
             'parameters': {
                 'discriminator': 'type',
                 'oneOf': [
-                    'alert-emitter-email'
+                    {'$ref': 'alert-emitter-email'}
                 ]
             },
             'predicates': {
