@@ -2177,6 +2177,11 @@
                 "subtype": "POWER",
                 "severity": "WARNING"
             },
+            "UpdateAvailable": {
+                "type": "SYSTEM",
+                "subtype": "UPDATES",
+                "severity": "INFO"
+            },
             "VolumeUpgradePossible": {
                 "type": "VOLUME",
                 "subtype": "ZFS",
