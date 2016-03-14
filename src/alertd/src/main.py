@@ -35,7 +35,9 @@ import datastore
 import time
 import json
 import imp
+import threading
 import setproctitle
+from datetime import timedelta, datetime
 from datastore.config import ConfigStore
 from freenas.dispatcher.client import Client, ClientError
 from freenas.dispatcher.rpc import RpcService, RpcException
@@ -44,6 +46,13 @@ from freenas.utils.debug import DebugService
 
 
 DEFAULT_CONFIGFILE = '/usr/local/etc/middleware.conf'
+REMINDER_SECONDS = 3600
+REMINDER_SCHEDULE = {
+    'CRITICAL': 1,
+    'WARNING': 12,
+    'INFO': None
+}
+
 operators_table = {
     '=': lambda x, y: x == y,
     '!=': lambda x, y: x != y,
@@ -121,6 +130,11 @@ class Main(object):
         self.client.on_error(on_error)
         self.connect()
 
+    def init_reminder(self):
+        t = threading.Thread(target=self.reminder_thread)
+        t.daemon = True
+        t.start()
+
     def parse_config(self, filename):
         try:
             f = open(filename, 'r')
@@ -188,14 +202,42 @@ class Main(object):
                     emitter.emit_first(alert, i['parameters'])
 
         alert['send_count'] += 1
+        alert['last_emitted_at'] = datetime.utcnow()
+
         if alert['one_shot']:
             alert['active'] = False
+
+        self.datastore.update('alerts', alert['id'], alert)
+
+    def cancel_alert(self, alert):
+        self.logger.debug('Cancelling alert <id:{0}> (class {1})'.format(alert['id'], alert['class']))
+
+        alert.update({
+            'active': False,
+            'cancelled': datetime.utcnow()
+        })
 
         self.datastore.update('alerts', alert['id'], alert)
 
     def register_emitter(self, name, cls):
         self.emitters[name] = cls(self)
         self.logger.info('Registered emitter {0} (class {1})'.format(name, cls))
+
+    def reminder_thread(self):
+        while True:
+            time.sleep(REMINDER_SECONDS)
+            for i in self.datastore.query('alerts'):
+                if not i['active'] or i['dismissed']:
+                    continue
+
+                last_emission = i.get('last_emitted_at') or i['created_at']
+                interval = REMINDER_SCHEDULE[i['severity']]
+
+                if not interval:
+                    continue
+
+                if last_emission + timedelta(seconds=interval) <= datetime.utcnow():
+                    self.emit_alert(i)
 
     def main(self):
         parser = argparse.ArgumentParser()
@@ -209,6 +251,7 @@ class Main(object):
         self.init_datastore()
         self.init_dispatcher()
         self.scan_plugins()
+        self.init_reminder()
         self.client.wait_forever()
 
 
