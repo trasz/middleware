@@ -1816,14 +1816,14 @@
                 "builtin": false,
                 "name": "iscsi",
                 "dependencies": [
-                    "ctl"
+                    "793867C5-BF29-4464-B7F1-7B77A9E2B97C"
                 ]
             },
             "5C9B15F0-0362-4B64-A1B0-0464787D37C2": {
                 "builtin": false,
                 "name": "simulator",
                 "dependencies": [
-                    "ctl"
+                    "793867C5-BF29-4464-B7F1-7B77A9E2B97C"
                 ]
             }
         },
