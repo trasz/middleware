@@ -2187,7 +2187,6 @@ def _init(dispatcher, plugin):
         }
     })
 
-
     plugin.register_schema_definition('volume-snapshot', {
         'type': 'object',
         'properties': {
@@ -2197,8 +2196,20 @@ def _init(dispatcher, plugin):
             'name': {'type': 'string'},
             'replicable': {'type': 'boolean'},
             'lifetime': {'type': ['integer', 'null']},
-            'properties': {'type': 'object'},
+            'properties': {'$ref': 'volume-snapshot-properties'},
             'holds': {'type': 'object'}
+        }
+    })
+
+    plugin.register_schema_definition('volume-snapshot-properties', {
+        'type': 'object',
+        'additionalProperties': False,
+        'properties': {
+            'used': {'$ref': 'volume-property'},
+            'referenced': {'$ref': 'volume-property'},
+            'compressratio': {'$ref': 'volume-property'},
+            'clones': {'$ref': 'volume-property'},
+            'creation': {'$ref': 'volume-property'}
         }
     })
 
