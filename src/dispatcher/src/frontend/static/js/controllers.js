@@ -363,6 +363,15 @@ function StatsController($scope) {
     }
 }
 
+function FileBrowserController($scope) {
+    document.title = "File Browser";
+    var sock = new middleware.DispatcherClient(document.domain);
+    sock.connect();
+    $scope.init = function () {
+        console.log("file Browser");
+    }
+}
+
 function TasksController($scope) {
     document.title = "System Tasks";
     var sock = new middleware.DispatcherClient(document.domain);
