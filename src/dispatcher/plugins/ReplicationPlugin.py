@@ -221,13 +221,13 @@ class ReplicationBaseTask(Task):
             if client:
                 client.call_task_sync(
                     'zfs.update',
-                    dataset, dataset,
+                    dataset['name'], dataset['name'],
                     {'readonly': {'value': 'on' if readonly else 'off'}}
                 )
             else:
                 self.join_subtasks(self.run_subtask(
                     'zfs.update',
-                    dataset, dataset,
+                    dataset['name'], dataset['name'],
                     {'readonly': {'value': 'on' if readonly else 'off'}}
                 ))
 
@@ -357,7 +357,7 @@ class ReplicationPrepareSlaveTask(ReplicationBaseTask):
 
                 for dataset in datasets_to_replicate:
                     if link['replicate_services']:
-                        for share in self.dispatcher.call_sync('share.get_dependencies', os.path.join(root, dataset), False, False):
+                        for share in self.dispatcher.call_sync('share.get_dependencies', os.path.join(root, dataset['name']), False, False):
                             remote_share = remote_client.call_sync(
                                 'share.query',
                                 [('name', '=', share['name'])],
@@ -369,7 +369,7 @@ class ReplicationPrepareSlaveTask(ReplicationBaseTask):
                                     'Share {0} already exists on {1}'.format(share['name'], remote.split('@', 1)[1])
                                 )
 
-                        container = self.dispatcher.call_sync('container.get_dependent', dataset)
+                        container = self.dispatcher.call_sync('container.get_dependent', dataset['name'])
                         if container:
                             remote_container = remote_client.call_sync(
                                 'container.query',
@@ -382,7 +382,7 @@ class ReplicationPrepareSlaveTask(ReplicationBaseTask):
                                     'Container {0} already exists on {1}'.format(container['name'], remote.split('@', 1)[1])
                                 )
 
-                    split_dataset = dataset.split('/', 1)
+                    split_dataset = dataset['name'].split('/', 1)
                     volume_name = split_dataset[0]
                     dataset_name = None
                     if len(split_dataset) == 2:
@@ -409,7 +409,7 @@ class ReplicationPrepareSlaveTask(ReplicationBaseTask):
 
                     remote_dataset = remote_client.call_sync(
                         'zfs.dataset.query',
-                        [('name', '=', dataset)],
+                        [('name', '=', dataset['name'])],
                         {'single': True}
                     )
 
@@ -518,10 +518,10 @@ class ReplicationDeleteTask(ReplicationBaseTask):
                 with self.dispatcher.get_lock('volumes'):
                     datasets = reversed(self.dispatcher.call_sync('replication.datasets_from_link', link))
                     for dataset in datasets:
-                        if len(dataset.split('/')) == 1:
-                            self.join_subtasks(self.run_subtask('volume.delete', dataset))
+                        if len(dataset['name'].split('/')) == 1:
+                            self.join_subtasks(self.run_subtask('volume.delete', dataset['name']))
                         else:
-                            self.join_subtasks(self.run_subtask('volume.dataset.delete', dataset))
+                            self.join_subtasks(self.run_subtask('volume.dataset.delete', dataset['name']))
 
         if remote_client.call_sync('replication.link.get_one_local', name):
             remote_client.call_task_sync('replication.delete', name)
@@ -640,11 +640,11 @@ class ReplicationSyncTask(ReplicationBaseTask):
                 for dataset in datasets_to_replicate:
                     self.join_subtasks(self.run_subtask(
                         'replication.replicate_dataset',
-                        dataset,
-                        dataset,
+                        dataset['name'],
+                        dataset['name'],
                         {
                             'remote': remote,
-                            'remote_dataset': dataset,
+                            'remote_dataset': dataset['name'],
                             'recursive': link['recursive']
                         }
                     ))
@@ -683,7 +683,7 @@ class ReplicationReserveServicesTask(ReplicationBaseTask):
                 datasets = self.dispatcher.call_sync('replication.datasets_from_link', link)
                 configs = []
                 for dataset in datasets:
-                    dataset_path = self.dispatcher.call_sync('volume.get_dataset_path', dataset)
+                    dataset_path = self.dispatcher.call_sync('volume.get_dataset_path', dataset['name'])
                     files = [f for f in os.listdir(dataset_path) if os.path.isfile(os.path.join(dataset_path, f))]
 
                     for file in files:
