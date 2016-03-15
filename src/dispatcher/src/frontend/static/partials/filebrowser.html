@@ -4,4 +4,40 @@
 <div ng-init="init()">
 </div>
 <div class="row">
+    <h1>File Browser</h1>
+    <nav id="context-menu" class="context-menu">
+      <ul class="context-menu__items">
+        <li class="context-menu__item">
+          <a href="#" class="context-menu__link" data-action="download">
+            <i class="glyphicon glyphicon-download"></i>
+            Download File
+          </a>
+        </li>
+      </ul>
+    </nav>
+    <div class="panel panel-info">
+      <div class="panel-heading">
+        <h3 class="panel-title" id="cwd"></h3>
+      </div>
+      <div class="panel-body">
+       <button type="button" class="btn btn-primary" id="cdup">Up (..)</button>
+      </div>
+
+      <div class="dropcontainer">
+        <div id="drop_zone" class="drop_zone">File Upload: Drop files here</div>
+        <output id="outputfilelist"></output>
+      </div>
+      <table class="table" id="dirlist">
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Size</th>
+            <th>Modified</th>
+          </tr>
+        </thead>
+        <tbody>
+        </tbody>
+      </table>
+
+    </div>
 </div>
