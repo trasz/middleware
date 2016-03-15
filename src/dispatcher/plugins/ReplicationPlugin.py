@@ -1095,6 +1095,106 @@ class ReplicationUpdateLinkTask(Task):
             })
 
 
+@description("Performs synchronization of actual role (master/slave) with replication link state")
+@accepts(str)
+class ReplicationRoleUpdateTask(ReplicationBaseTask):
+    def verify(self, name):
+        if not self.datastore.exists('replication.links', ('name', '=', name)):
+            raise VerifyException(errno.ENOENT, 'Replication link {0} do not exist.'.format(name))
+
+        return ['replication:{0}'.format(name)]
+
+    def run(self, name):
+        link = self.join_subtasks(self.run_subtask('replication.get_latest_link', name))[0]
+        if not link['bidirectional']:
+            return
+
+        is_master, remote = self.get_replication_state(link)
+        datasets = self.dispatcher.call_sync('replication.datasets_from_link', link)
+        current_readonly = self.dispatcher.call_sync(
+            'zfs.dataset.query',
+            [('name', '=', datasets[0]['name'])],
+            {'single': True, 'select': 'properties.readonly.value'}
+        )
+
+        if is_master:
+            if current_readonly:
+                self.set_datasets_readonly(datasets, False)
+
+                for service in ['shares', 'containers']:
+                    for reserved_item in self.dispatcher.call_sync('replication.get_reserved_{0}'.format(service), name):
+                        self.datastore.delete('replication.reserved_{0}'.format(service), reserved_item['id'])
+
+                if link['replicate_services']:
+                    share_types = self.dispatcher.call_sync('share.supported_types')
+                    container_types = self.dispatcher.call_sync('container.supported_types')
+                    for dataset in datasets:
+                        dataset_path = self.dispatcher.call_sync('volume.get_dataset_path', dataset['name'])
+                        for item in os.listdir(dataset_path):
+                            if os.path.isfile(item):
+                                config_name = re.match('(\.config-)(.*)(\.json)', item)
+                                config_path = os.path.join(dataset_path, item)
+                                if config_name:
+                                    try:
+                                        config = load_config(dataset_path, config_name.group(2))
+                                    except ValueError:
+                                        raise TaskException(
+                                            errno.EINVAL,
+                                            'Cannot read {0}. This file is not a valid JSON file'.format(config_path)
+                                        )
+
+                                    item_type = config.get('type', '')
+                                    if item_type in share_types:
+                                        self.join_subtasks(self.run_subtask(
+                                            'share.import',
+                                            dataset_path,
+                                            config.get('name', ''),
+                                            item_type
+                                        ))
+                                    elif item_type in container_types:
+                                        self.join_subtasks(self.run_subtask(
+                                            'container.import',
+                                            config.get('name', ''),
+                                            dataset['name'].split('/', 1)[0]
+                                        ))
+                                    else:
+                                        raise TaskException(
+                                            errno.EINVAL,
+                                            'Unknown importable item type {0}.'.format(item_type)
+                                        )
+        else:
+            if not current_readonly:
+                self.set_datasets_readonly(datasets, True)
+
+                if link['replicate_services']:
+                    for dataset in datasets:
+                        dataset_path = self.dispatcher.call_sync('volume.get_dataset_path', dataset['name'])
+                        for share in self.dispatcher.call_sync('share.get_dependencies', dataset_path, False, False):
+                            self.datastore.insert(
+                                'replication.reserved_shares',
+                                {
+                                    'id': share['name'],
+                                    'name': share['name'],
+                                    'type': share['type'],
+                                    'link_name': name
+                                }
+                            )
+                            self.join_subtasks(self.run_subtask('share.export', share['name']))
+
+                        for container in self.dispatcher.call_sync('container.get_dependent', dataset['name']):
+                            self.datastore.insert(
+                                'replication.reserved_shares',
+                                {
+                                    'id': container['name'],
+                                    'name': container['name'],
+                                    'type': container['type'],
+                                    'link_name': name
+                                }
+                            )
+
+                            self.join_subtasks(self.run_subtask('container.export', container['name']))
+
+
 #
 # Attempt to send a snapshot or increamental stream to remote.
 #
@@ -1185,6 +1285,7 @@ def _init(dispatcher, plugin):
     plugin.register_task_handler('replication.prepare_slave', ReplicationPrepareSlaveTask)
     plugin.register_task_handler('replication.update', ReplicationUpdateTask)
     plugin.register_task_handler('replication.sync', ReplicationSyncTask)
+    plugin.register_task_handler('replication.role_update', ReplicationRoleUpdateTask)
     plugin.register_task_handler('replication.reserve_services', ReplicationReserveServicesTask)
     plugin.register_task_handler('replication.delete', ReplicationDeleteTask)
 
@@ -1203,6 +1304,10 @@ def _init(dispatcher, plugin):
             return
 
         dispatcher.call_sync('etcd.generation.generate_group', 'replication')
+
+    def on_replication_change(args):
+        for i in args['ids']:
+            dispatcher.call_task_sync('replication.role_update', i)
 
     plugin.register_event_handler('plugin.service_resume', on_etcd_resume)
     plugin.register_event_handler('replication.changed', on_replication_change)
