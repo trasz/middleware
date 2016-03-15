@@ -1942,6 +1942,11 @@ def _init(dispatcher, plugin):
         except (ValueError, TypeError):
             pass
 
+        if not snapshot.get('properties.org\\.freenas:uuid.source'):
+            dispatcher.submit_task('zfs.update', pool, snapshot['name'], {
+                'org.freenas:uuid': {'value': str(uuid.uuid4())}
+            })
+
         return {
             'id': snapshot['name'],
             'volume': pool,
@@ -1960,11 +1965,19 @@ def _init(dispatcher, plugin):
         ds = wrap(ds)
         perms = None
 
+        if pool == boot_pool['id']:
+            return None
+
         if ds['mountpoint']:
             try:
                 perms = dispatcher.call_sync('filesystem.stat', ds['mountpoint'])
             except RpcException:
                 pass
+
+        if not ds.get('properties.org\\.freenas:uuid.source'):
+            dispatcher.submit_task('zfs.update', ds['pool'], ds['name'], {
+                'org.freenas:uuid': {'value': str(uuid.uuid4())}
+            })
 
         return {
             'id': ds['name'],
