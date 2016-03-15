@@ -2311,5 +2311,17 @@
         },
         "data": {
         }
+    },
+    {
+        "metadata": {
+            "name": "backup",
+            "migration": "keep",
+            "pkey-type": "uuid",
+            "attributes": {
+                "type": "config"
+            }
+        },
+        "data": {
+        }
     }
 ]
