@@ -297,7 +297,7 @@ class UpdateShareTask(Task):
 
 
 @description("Imports existing share")
-@accepts(str, str, str, bool)
+@accepts(str, str, str)
 class ImportShareTask(Task):
     def verify(self, config_path, name, type):
         try:
