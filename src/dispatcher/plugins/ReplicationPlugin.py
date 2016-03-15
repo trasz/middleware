@@ -593,7 +593,13 @@ class ReplicationUpdateTask(ReplicationBaseTask):
                 )
                 raise
 
-        remote_client.call_task_sync('replication.update_link', link)
+        try:
+            remote_client.call_task_sync('replication.update_link', link)
+        except RpcException as e:
+            self.add_warning(TaskWarning(
+                e.code,
+                'Link update at remote side failed because of: {0}'.format(e.message)
+            ))
 
         self.datastore.update('replication.links', link['id'], link)
 
