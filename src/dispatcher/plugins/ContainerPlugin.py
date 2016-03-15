@@ -322,7 +322,7 @@ class ContainerCreateTask(ContainerBaseTask):
         return id
 
 
-@accepts(str, str, bool)
+@accepts(str, str)
 class ContainerImportTask(ContainerBaseTask):
     def verify(self, name, volume):
         if not self.dispatcher.call_sync('volume.query', [('id', '=', volume)], {'single': True}):
