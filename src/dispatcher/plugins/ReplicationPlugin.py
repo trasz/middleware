@@ -581,6 +581,11 @@ class ReplicationUpdateTask(ReplicationBaseTask):
                 'Replication of services is available only when bi-directional replication is selected'
             )
 
+        if not link['replicate_services']:
+            for service in ['shares', 'containers']:
+                for reserved_item in self.dispatcher.call_sync('replication.get_reserved_{0}'.format(service), name):
+                    self.datastore.delete('replication.reserved_{0}'.format(service), reserved_item['id'])
+
         if 'datasets' in updated_fields:
             self.set_datasets_readonly(
                 old_slave_datasets,
