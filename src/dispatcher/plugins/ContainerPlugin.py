@@ -462,6 +462,22 @@ class ContainerDeleteTask(Task):
 
 
 @accepts(str)
+class ContainerExportTask(Task):
+    def verify(self, id):
+        if not self.datastore.exists('containers', ('id', '=', id)):
+            raise VerifyException(errno.ENOENT, 'Container {0} not found'.format(id))
+
+        return ['system']
+
+    def run(self, id):
+        self.datastore.delete('containers', id)
+        self.dispatcher.dispatch_event('container.changed', {
+            'operation': 'delete',
+            'ids': [id]
+        })
+
+
+@accepts(str)
 class ContainerStartTask(Task):
     def verify(self, id):
         container = self.dispatcher.call_sync('container.query', [('id', '=', id)], {'single': True})
@@ -701,6 +717,7 @@ def _init(dispatcher, plugin):
     plugin.register_task_handler('container.import', ContainerImportTask)
     plugin.register_task_handler('container.update', ContainerUpdateTask)
     plugin.register_task_handler('container.delete', ContainerDeleteTask)
+    plugin.register_task_handler('container.export', ContainerExportTask)
     plugin.register_task_handler('container.start', ContainerStartTask)
     plugin.register_task_handler('container.stop', ContainerStopTask)
     plugin.register_task_handler('container.download_image', DownloadImageTask)
