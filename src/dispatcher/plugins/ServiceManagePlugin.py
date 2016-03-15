@@ -433,7 +433,7 @@ def get_status(dispatcher, service):
         state = 'RUNNING'
 
         for i in service['dependencies']:
-            d_service = dispatcher.datastore.get_one('service_definitions', ('name', '=', i))
+            d_service = dispatcher.datastore.get_one('service_definitions', ('id', '=', i))
             d_state, d_pid = get_status(dispatcher, d_service)
             if d_state != 'RUNNING':
                 state = d_state
