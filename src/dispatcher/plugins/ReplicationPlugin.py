@@ -509,14 +509,19 @@ class ReplicationDeleteTask(ReplicationBaseTask):
 
         remote_client = get_remote_client(remote)
 
-        if not is_master and scrub:
-            with self.dispatcher.get_lock('volumes'):
-                datasets = reversed(self.dispatcher.call_sync('replication.datasets_from_link', link))
-                for dataset in datasets:
-                    if len(dataset.split('/')) == 1:
-                        self.join_subtasks(self.run_subtask('volume.delete', dataset))
-                    else:
-                        self.join_subtasks(self.run_subtask('volume.dataset.delete', dataset))
+        if not is_master:
+            for service in ['shares', 'containers']:
+                for reserved_item in self.dispatcher.call_sync('replication.get_reserved_{0}'.format(service), name):
+                    self.datastore.delete('replication.reserved_{0}'.format(service), reserved_item['id'])
+
+            if scrub:
+                with self.dispatcher.get_lock('volumes'):
+                    datasets = reversed(self.dispatcher.call_sync('replication.datasets_from_link', link))
+                    for dataset in datasets:
+                        if len(dataset.split('/')) == 1:
+                            self.join_subtasks(self.run_subtask('volume.delete', dataset))
+                        else:
+                            self.join_subtasks(self.run_subtask('volume.dataset.delete', dataset))
 
         if remote_client.call_sync('replication.link.get_one_local', name):
             remote_client.call_task_sync('replication.delete', name)
