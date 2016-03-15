@@ -1677,6 +1677,7 @@ class DatasetCreateTask(Task):
         if dataset['type'] == 'VOLUME':
             props['volsize'] = str(dataset['volsize'])
 
+        props['org.freenas:uuid'] = uuid.uuid4()
         self.join_subtasks(self.run_subtask(
             'zfs.create_dataset',
             dataset['volume'],
@@ -1794,7 +1795,8 @@ class SnapshotCreateTask(Task):
             recursive,
             {
                 'org.freenas:replicable': {'value': 'yes' if snapshot['replicable'] else 'no'},
-                'org.freenas:lifetime': {'value': str(snapshot['replicable'] or 'no')}
+                'org.freenas:lifetime': {'value': str(snapshot['replicable'] or 'no')},
+                'org.freenas.uuid': {'value': str(uuid.uuid4())}
             }
         ))
 
