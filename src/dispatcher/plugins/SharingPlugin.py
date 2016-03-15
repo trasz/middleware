@@ -387,6 +387,26 @@ class DeleteShareTask(Task):
         })
 
 
+@description("Export share")
+@accepts(str)
+class ExportShareTask(Task):
+    def verify(self, name):
+        share = self.datastore.get_by_id('shares', name)
+        if not share:
+            raise VerifyException(errno.ENOENT, 'Share not found')
+
+        return ['system']
+
+    def run(self, name):
+        share = self.datastore.get_by_id('shares', name)
+
+        self.join_subtasks(self.run_subtask('share.{0}.delete'.format(share['type']), name))
+        self.dispatcher.dispatch_event('share.changed', {
+            'operation': 'delete',
+            'ids': [name]
+        })
+
+
 @description("Deletes all shares dependent on specified volume/dataset")
 @accepts(str)
 class DeleteDependentShares(Task):
@@ -521,6 +541,7 @@ def _init(dispatcher, plugin):
     plugin.register_task_handler('share.create', CreateShareTask)
     plugin.register_task_handler('share.update', UpdateShareTask)
     plugin.register_task_handler('share.delete', DeleteShareTask)
+    plugin.register_task_handler('share.export', ExportShareTask)
     plugin.register_task_handler('share.import', ImportShareTask)
     plugin.register_task_handler('share.delete_dependent', DeleteDependentShares)
     plugin.register_task_handler('share.update_related', UpdateRelatedShares)
