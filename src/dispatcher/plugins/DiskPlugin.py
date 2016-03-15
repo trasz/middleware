@@ -148,7 +148,7 @@ class DiskProvider(Provider):
     def path_to_id(self, path):
         disk_info = self.dispatcher.call_sync(
             'disk.query',
-            [('path', 'in', path), ('online', '=', True)],
+            [('path', '=', path), ('online', '=', True)],
             {'single': True}
         )
         return disk_info['id'] if disk_info else None
