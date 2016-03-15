@@ -361,8 +361,12 @@ class UpdateServiceConfigTask(Task):
             if 'enable' in updated_config:
                 # Propagate to dependent services
                 for i in service_def.get('dependencies', []):
+                    svc_dep = self.datastore.get_by_id('service_definitions', i)
                     self.join_subtasks(self.run_subtask('service.update', i, {
-                        'enable': updated_config['enable']
+                        'config': {
+                            'type': 'service-{0}'.format(svc_dep['name']),
+                            'enable': updated_config['enable']
+                        }
                     }))
 
                 if service_def.get('auto_enable'):
