@@ -1501,7 +1501,10 @@ class ServerConnection(WebSocketApplication, EventEmitter):
 
         with self.rlock:
             try:
-                self.ws.send(data, fds=fds)
+                if fds:
+                    self.ws.send(data, fds=fds)
+                else:
+                    self.ws.send(data)
             except WebSocketError as err:
                 self.dispatcher.logger.error(
                     'Cannot send message to %s: %s', self.real_client_address, str(err))
