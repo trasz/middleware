@@ -30,7 +30,7 @@ import copy
 import os
 import sys
 import fnmatch
-import glob
+import array
 import imp
 import json
 import datetime
@@ -68,6 +68,7 @@ from datastore.migrate import migrate_db, MigrationException
 from datastore.config import ConfigStore
 from freenas.dispatcher.jsonenc import loads, dumps
 from freenas.dispatcher.rpc import RpcContext, RpcException, ServerLockProxy
+from freenas.dispatcher.client import FileDescriptor
 from resources import ResourceGraph
 from services import (
     ManagementService, DebugService, EventService, TaskService,
@@ -80,6 +81,7 @@ from auth import PasswordAuthenticator, TokenStore, Token, TokenException, User,
 from freenas.utils import FaultTolerantLogHandler
 
 
+MAXFDS = 128
 DEFAULT_CONFIGFILE = '/usr/local/etc/middleware.conf'
 LOGGING_FORMAT = '%(asctime)s %(levelname)s %(filename)s:%(lineno)d %(message)s'
 trace_log_file = None
@@ -855,7 +857,10 @@ class UnixSocketServer(object):
             self.conn = None
             self.wlock = RLock()
 
-        def send(self, message):
+        def send(self, message, fds=None):
+            if fds is None:
+                fds = []
+
             with self.wlock:
                 data = message.encode('utf-8')
                 header = struct.pack('II', 0xdeadbeef, len(data))
@@ -865,11 +870,12 @@ class UnixSocketServer(object):
                         return
 
                     wait_write(fd, 10)
-                    self.wfd.write(header)
-                    self.wfd.write(data)
-                    self.wfd.flush()
-                except (OSError, ValueError, socket.timeout):
-                    self.server.logger.info('Send failed; closing connection')
+                    self.connfd.sendmsg([header])
+                    self.connfd.sendmsg([data], [
+                        (socket.SOL_SOCKET, socket.SCM_RIGHTS, array.array('i', fds))
+                    ])
+                except (OSError, ValueError, socket.timeout) as err:
+                    self.server.logger.info('Send failed: {0}; closing connection'.format(str(err)))
                     self.connfd.shutdown(socket.SHUT_RDWR)
 
         def handle_connection(self):
@@ -878,7 +884,7 @@ class UnixSocketServer(object):
 
             while True:
                 try:
-                    header = self.rfd.read(8)
+                    header, _, _, _ = self.connfd.recvmsg(8)
                     if header == b'' or len(header) != 8:
                         break
 
@@ -887,15 +893,21 @@ class UnixSocketServer(object):
                         self.server.logger.info('Message with wrong magic dropped')
                         continue
 
-                    msg = self.rfd.read(length)
+                    fds = array.array('i')
+                    msg, ancdata, flags, addr = self.connfd.recvmsg(length, socket.CMSG_LEN(MAXFDS * fds.itemsize))
                     if msg == b'' or len(msg) != length:
                         self.server.logger.info('Message with wrong length dropped; closing connection')
                         break
-                except (OSError, ValueError):
-                    self.server.logger.info('Receive failed; closing connection')
+
+                    for cmsg_level, cmsg_type, cmsg_data in ancdata:
+                        if cmsg_level == socket.SOL_SOCKET and cmsg_type == socket.SCM_RIGHTS:
+                            fds.fromstring(cmsg_data[:len(cmsg_data) - (len(cmsg_data) % fds.itemsize)])
+
+                except (OSError, ValueError) as err:
+                    self.server.logger.info('Receive failed: {0}; closing connection'.format(str(err)), exc_info=True)
                     break
 
-                self.conn.on_message(msg)
+                self.conn.on_message(msg, fds=fds)
 
             self.close()
 
@@ -970,6 +982,42 @@ class ServerConnection(WebSocketApplication, EventEmitter):
             'address': str(self.real_client_address)
         }
 
+    def __collect_fds(self, obj, start=0):
+        idx = start
+
+        if isinstance(obj, dict):
+            for k, v in list(obj.items()):
+                if isinstance(v, FileDescriptor):
+                    obj[k] = {'$fd': idx}
+                    idx += 1
+                    yield v
+                else:
+                    yield from self.__collect_fds(v, idx)
+
+        if isinstance(obj, (list, tuple)):
+            for i, o in enumerate(obj):
+                if isinstance(o, FileDescriptor):
+                    obj[i] = {'$fd': idx}
+                    idx += 1
+                    yield o
+                else:
+                    yield from self.__collect_fds(o, idx)
+
+    def __replace_fds(self, obj, fds):
+        if isinstance(obj, dict):
+            for k, v in list(obj.items()):
+                if isinstance(v, dict) and len(v) == 1 and '$fd' in v:
+                    obj[k] = FileDescriptor(fds[v['$fd']]) if v['$fd'] < len(fds) else None
+                else:
+                    self.__replace_fds(v, fds)
+
+        if isinstance(obj, list):
+            for i, o in enumerate(obj):
+                if isinstance(o, dict) and len(o) == 1 and '$fd' in o:
+                    obj[i] = FileDescriptor(fds[o['$fd']]) if o['$fd'] < len(fds) else None
+                else:
+                    self.__replace_fds(o, fds)
+
     def on_open(self):
         self.real_client_address = self.ws.handler.client_address
         client_addr, client_port = self.real_client_address[:2]
@@ -1002,6 +1050,7 @@ class ServerConnection(WebSocketApplication, EventEmitter):
         })
 
     def on_message(self, message, *args, **kwargs):
+        fds = kwargs.pop('fds', [])
         trace_log('{0} -> {1}', self.real_client_address, str(message))
 
         if not type(message) is bytes:
@@ -1012,6 +1061,8 @@ class ServerConnection(WebSocketApplication, EventEmitter):
         except ValueError:
             self.emit_rpc_error(None, errno.EINVAL, 'Request is not valid JSON')
             return
+
+        self.__replace_fds(message, fds)
 
         if 'namespace' not in message:
             self.emit_rpc_error(None, errno.EINVAL, 'Invalid request')
@@ -1409,6 +1460,7 @@ class ServerConnection(WebSocketApplication, EventEmitter):
             })
 
     def emit_rpc_call(self, id, method, args):
+        fds = self.__collect_fds(args)
         payload = {
             "namespace": "rpc",
             "name": "call",
@@ -1419,7 +1471,7 @@ class ServerConnection(WebSocketApplication, EventEmitter):
             }
         }
 
-        return self.send_json(payload)
+        return self.send_json(payload, fds)
 
     def emit_rpc_error(self, id, code, message, extra=None):
         payload = {
@@ -1437,7 +1489,7 @@ class ServerConnection(WebSocketApplication, EventEmitter):
 
         return self.send_json(payload)
 
-    def send_json(self, obj):
+    def send_json(self, obj, fds=None):
         try:
             data = dumps(obj)
         except UnicodeDecodeError as e:
@@ -1449,7 +1501,7 @@ class ServerConnection(WebSocketApplication, EventEmitter):
 
         with self.rlock:
             try:
-                self.ws.send(data)
+                self.ws.send(data, fds=fds)
             except WebSocketError as err:
                 self.dispatcher.logger.error(
                     'Cannot send message to %s: %s', self.real_client_address, str(err))
