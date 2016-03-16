@@ -78,7 +78,7 @@ from schemas import register_general_purpose_schemas
 from api.handler import ApiHandler
 from balancer import Balancer
 from auth import PasswordAuthenticator, TokenStore, Token, TokenException, User, Service
-from freenas.utils import FaultTolerantLogHandler
+from freenas.utils import FaultTolerantLogHandler, xrecvmsg, xsendmsg
 
 
 MAXFDS = 128
@@ -870,8 +870,8 @@ class UnixSocketServer(object):
                         return
 
                     wait_write(fd, 10)
-                    self.connfd.sendmsg([header])
-                    self.connfd.sendmsg([data], [
+                    xsendmsg(self.connfd, header)
+                    xsendmsg(self.connfd, data, [
                         (socket.SOL_SOCKET, socket.SCM_RIGHTS, array.array('i', fds))
                     ])
                 except (OSError, ValueError, socket.timeout) as err:
@@ -884,17 +884,17 @@ class UnixSocketServer(object):
 
             while True:
                 try:
-                    header, _, _, _ = self.connfd.recvmsg(8)
+                    header, _ = xrecvmsg(self.connfd, 8)
                     if header == b'' or len(header) != 8:
                         break
 
                     magic, length = struct.unpack('II', header)
                     if magic != 0xdeadbeef:
-                        self.server.logger.info('Message with wrong magic dropped')
+                        self.server.logger.info('Message with wrong magic dropped (magic {0:x})'.format(magic))
                         continue
 
                     fds = array.array('i')
-                    msg, ancdata, flags, addr = self.connfd.recvmsg(length, socket.CMSG_LEN(MAXFDS * fds.itemsize))
+                    msg, ancdata = xrecvmsg(self.connfd, length, socket.CMSG_LEN(MAXFDS * fds.itemsize))
                     if msg == b'' or len(msg) != length:
                         self.server.logger.info('Message with wrong length dropped; closing connection')
                         break
