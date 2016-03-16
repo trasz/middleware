@@ -32,10 +32,22 @@
           <tr>
             <th>Name</th>
             <th>Size</th>
-            <th>Modified</th>
+            <th>Last Modified</th>
           </tr>
         </thead>
-        <tbody>
+        <tbody ng-repeat='item in current_dir_items | filter:searchText'>
+            <tr>
+                    <td ng-if=" item['type'] == 'DIRECTORY'" class="fileElement" data-id="{{item.name}}">
+                      <i class="glyphicon glyphicon-folder-close"/>
+                      <span class="label label-primary">{{item.name}}</span>
+                    </td>
+                    <td ng-if="item['type'] == 'FILE'" class="fileElement" data-id="{{item.name}}">
+                      <i class="glyphicon glyphicon-file"/>
+                      {{item.name}}
+                    </td>
+                    <td><span class="label label-primary">{{item.size}} </span></td>
+                    <td> {{item.modified}} </td>
+            </tr>
         </tbody>
       </table>
 

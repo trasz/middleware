@@ -365,11 +365,142 @@ function StatsController($scope) {
 
 function FileBrowserController($scope) {
     document.title = "File Browser";
-    var sock = new middleware.DispatcherClient(document.domain);
+    var BUFSIZE = 1024;
+    var sock = new middleware.DispatcherClient( document.domain );
     sock.connect();
     $scope.init = function () {
         console.log("file Browser");
+        sock.onError = function(err) {
+            if(typeof err.message != 'undefined'){
+                alert("Error :" + err.message);
+            }else{
+                alert("Connection closed, refresh me");
+            }
+        };
+
+        sock.onConnect = function ( ) {
+          if ( !sessionStorage.getItem( "freenas:username" ) ) {
+            var username = prompt( "Username:" );
+            var password = prompt( "Password:" );
+            sessionStorage.setItem( "freenas:username", username );
+            sessionStorage.setItem( "freenas:password", password );
+          }
+
+          sock.login
+          ( sessionStorage.getItem( "freenas:username" )
+          , sessionStorage.getItem( "freenas:password" )
+          );
+        };
+
+        sock.onLogin = function ( ) {
+          listDir( "/root" );
+        };
     }
+    // Utility Helper functions
+    function pathJoin ( parts, sep ) {
+      var separator = sep || "/";
+      var replace   = new RegExp( separator + "{1,}", "g" );
+      return parts.join( separator ).replace( replace, separator );
+    }
+
+    function humanFileSize ( bytes, si ) {
+      var thresh = si ? 1000 : 1024;
+      if ( Math.abs( bytes ) < thresh ) {
+        return bytes + " B";
+      }
+      var units = si
+          ? [ "kB", "MB", "GB", "TB", "PB", "EB", "ZB", "YB" ]
+          : [ "KiB", "MiB", "GiB", "TiB", "PiB", "EiB", "ZiB", "YiB" ];
+      var u = -1;
+      do {
+        bytes /= thresh;
+        ++u;
+      } while ( Math.abs( bytes ) >= thresh && u < units.length - 1 );
+      return bytes.toFixed( 1 ) + " " + units[u];
+    };
+    // Utility Helper functions
+
+    function humanizeDirItem(item) {
+        var date = new Date( 0 );
+        item.modified = new Date( date.setUTCSeconds( item.modified ) );
+        item.size = humanFileSize( item.size, false );
+        return item
+    }
+
+    var listDir = function ( path, relative ) {
+      if ( relative === true ) {
+        path = pathJoin( [ sessionStorage.getItem( "filebrowser:cwd" ), path ] );
+      }
+      if ( path === "" ) { path = "/"; }
+      sock.call( "filesystem.list_dir", [ path ], function ( dirs ) {
+        $( "#dirlist tbody" ).empty();
+        $( "#cwd" ).html( "Current Path: " + path );
+        $( "#cdup" ).on( "click", function ( e ) {
+          if ( path !== "/" ) {
+            listDir( path.substring( 0, path.lastIndexOf( "/" ) ) );
+          };
+        });
+        sessionStorage.setItem( "filebrowser:cwd", path );
+        console.log("this is path:" + path);
+        console.log(dirs);
+        // $scope.current_dirs = dirs.map(humanizeDirItem);
+        $scope.$apply(function(){
+            $scope.current_dir_items = dirs.map(humanizeDirItem);
+            // $scope.current_dir_items = [1,2,3,4,5,6,7,8,9];
+        });
+        // $.each( dirs, function ( key, value ) {
+
+        //   var date = new Date( 0 );
+        //   value.modified = new Date( date.setUTCSeconds( value.modified ) );
+        //   value.size = humanFileSize( value.size, false );
+        //   var resultingHtml;
+        //   console.log(value);
+        //   if ( value.type === "DIRECTORY" ) {
+            //resultingHtml = directoryTemplate({args: value});
+        //   } else {
+            // resultingHtml = fileTemplate({args: value});
+        //   }
+        //   $( "<tr/>"
+        //    , { "data-id": key, "html": resultingHtml }
+        //   ).prependTo( "#dirlist tbody" );
+        // });
+      });
+
+      function handleFileSelect ( evt ) {
+        evt.stopPropagation();
+        evt.preventDefault();
+
+        var files = evt.dataTransfer.files; // FileList object.
+
+        $( "#outputfilelist" ).empty();
+        $.each( files, function ( key, file ) {
+          var date = file.lastModifiedDate ? file.lastModifiedDate.toLocaleDateString() : "n/a";
+          $( "#outputfilelist" ).append(
+              outputfiles(
+                { file: file
+                , type: file.type || "n/a"
+                , modifiedDate: date
+              }),
+              $( "<button/>", {
+                text: "Upload",
+                click: function () { uploadToSocket( file ) }
+              })
+          );
+        });
+      }
+
+      function handleDragOver ( evt ) {
+        evt.stopPropagation();
+        evt.preventDefault();
+        evt.dataTransfer.dropEffect = "copy"; // Explicitly show this is a copy.
+      }
+
+      // Setup the dnd listeners.
+      var dropZone = document.getElementById( "drop_zone" );
+      dropZone.addEventListener( "dragover", handleDragOver, false );
+      dropZone.addEventListener( "drop", handleFileSelect, false );
+
+    };
 }
 
 function TasksController($scope) {
