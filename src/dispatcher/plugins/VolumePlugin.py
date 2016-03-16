@@ -1942,7 +1942,9 @@ def _init(dispatcher, plugin):
         except (ValueError, TypeError):
             pass
 
-        if not snapshot.get('properties.org\\.freenas:uuid.source'):
+        uuid = snapshot.get('properties.org\\.freenas:uuid.value')
+        uuid_source = snapshot.get('properties.org\\.freenas:uuid.source')
+        if not uuid or uuid_source == 'INHERITED':
             dispatcher.submit_task('zfs.update', pool, snapshot['name'], {
                 'org.freenas:uuid': {'value': str(uuid.uuid4())}
             })
@@ -1974,7 +1976,9 @@ def _init(dispatcher, plugin):
             except RpcException:
                 pass
 
-        if not ds.get('properties.org\\.freenas:uuid.source'):
+        uuid = ds.get('properties.org\\.freenas:uuid.value')
+        uuid_source = ds.get('properties.org\\.freenas:uuid.source')
+        if not uuid or uuid_source == 'INHERITED':
             dispatcher.submit_task('zfs.update', ds['pool'], ds['name'], {
                 'org.freenas:uuid': {'value': str(uuid.uuid4())}
             })
