@@ -25,10 +25,20 @@
 #
 #####################################################################
 
+import os
 import errno
-from freenas.dispatcher.rpc import accepts, returns, description, SchemaHelper as h
+import json
+import gevent
+import logging
+from gevent.fileobject import FileObjectThread
+from freenas.dispatcher.client import FileDescriptor
+from freenas.dispatcher.rpc import RpcException, accepts, returns, description, SchemaHelper as h
 from task import Provider, Task, ProgressTask, VerifyException, TaskException
 from freenas.utils import normalize
+
+
+logger = logging.getLogger(__name__)
+MANIFEST_FILENAME = 'FREENAS_MANIFEST'
 
 
 class BackupProvider(Provider):
@@ -37,6 +47,44 @@ class BackupProvider(Provider):
             return backup
 
         return self.datastore.query('backup', *(filter or []), callback=extend, **(params or {}))
+
+    def download(self, backup, path):
+        rfd, wfd = os.pipe()
+        fd = FileObjectThread(rfd, 'rb')
+        result = None
+
+        def worker():
+            nonlocal result
+            result = fd.read()
+
+        thr = gevent.spawn(worker)
+        self.dispatcher.call_task_sync('backup.ssh.get', backup, path, FileDescriptor(wfd))
+
+        thr.join(timeout=1)
+        os.close(rfd)
+
+        return result.decode('utf-8')
+
+    def get_state(self, id):
+        backup = self.datastore.get_by_id('backup', id)
+        if not backup:
+            raise RpcException(errno.ENOENT, 'Backup {0} not found'.format(id))
+
+        dirlist = self.dispatcher.call_sync(
+            'backup.{0}.list_objects'.format(backup['provider']),
+            backup['properties']
+        )
+
+        if MANIFEST_FILENAME not in dirlist:
+            return None
+
+        data = self.download(backup['properties'], MANIFEST_FILENAME)
+        try:
+            manifest = json.loads(data)
+        except ValueError:
+            raise RpcException('Invalid backup manifest')
+
+        return manifest
 
     @description("Returns list of supported backup providers")
     @accepts()
