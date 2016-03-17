@@ -176,7 +176,7 @@ def _init(dispatcher, plugin):
             'default_directory_perms': {'$ref': 'unix-permissions'},
             'default_umask': {'$ref': 'unix-permissions'},
             'ro_list': {
-                'type': 'array',
+                'type': ['array', 'null'],
                 'items': {'type': 'string'}
             },
             'rw_list': {
