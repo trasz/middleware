@@ -344,6 +344,16 @@ class ReplicationPrepareSlaveTask(ReplicationBaseTask):
             disk_config = self.dispatcher.call_sync('disk.get_disk_config', path)
             matching_disks = sorted(empty_disks, key=lambda d: d['mediasize'])
             disk = first_or_default(lambda d: d['mediasize'] >= disk_config['mediasize'], matching_disks)
+            if not disk:
+                raise TaskException(
+                    errno.ENOENT,
+                    'Cannot create a disk match for local disk {0}.'
+                    'There are no empty disks left on {1} with mediasize equal or greater than {2}.'.format(
+                        disk_config['gdisk_name'],
+                        remote,
+                        disk_config['mediasize']
+                    )
+                )
             del empty_disks[empty_disks.index(disk)]
             return disk
 
@@ -417,6 +427,11 @@ class ReplicationPrepareSlaveTask(ReplicationBaseTask):
                         if not remote_volume:
 
                             empty_disks = remote_client.call_sync('disk.query', [('status.empty', '=', True)])
+                            if len(empty_disks) == 0:
+                                raise TaskException(
+                                    errno.ENOENT,
+                                    'There are no empty disks left on {0} to be choose from'.format(remote)
+                                )
                             topology = vol['topology']
 
                             for group_type in topology:
