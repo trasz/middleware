@@ -872,8 +872,13 @@ class UnixSocketServer(object):
                     wait_write(fd, 10)
                     xsendmsg(self.connfd, header)
                     xsendmsg(self.connfd, data, [
-                        (socket.SOL_SOCKET, socket.SCM_RIGHTS, array.array('i', fds))
+                        (socket.SOL_SOCKET, socket.SCM_RIGHTS, array.array('i', [i.fd for i in fds]))
                     ])
+
+                    for i in fds:
+                        if i.close:
+                            os.close(i)
+
                 except (OSError, ValueError, socket.timeout) as err:
                     self.server.logger.info('Send failed: {0}; closing connection'.format(str(err)))
                     self.connfd.shutdown(socket.SHUT_RDWR)
@@ -1503,7 +1508,7 @@ class ServerConnection(WebSocketApplication, EventEmitter):
         with self.rlock:
             try:
                 if fds:
-                    self.ws.send(data, fds=[i.fd for i in fds])
+                    self.ws.send(data, fds=fds)
                 else:
                     self.ws.send(data)
             except WebSocketError as err:
