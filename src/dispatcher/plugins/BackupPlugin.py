@@ -26,8 +26,9 @@
 #####################################################################
 
 import errno
-from dispatcher.rpc import accepts, returns, description, SchemaHelper as h
+from freenas.dispatcher.rpc import accepts, returns, description, SchemaHelper as h
 from task import Provider, Task, ProgressTask, VerifyException, TaskException
+from freenas.utils import normalize
 
 
 class BackupProvider(Provider):
@@ -51,24 +52,37 @@ class BackupProvider(Provider):
 
 @accepts(h.all_of(
     h.ref('backup'),
-    h.required('name')
+    h.required('name', 'provider', 'dataset')
 ))
 class CreateBackupTask(Task):
     def verify(self, backup):
         if 'id' in backup and self.datastore.exists('backup', ('id', '=', backup['id'])):
             raise VerifyException('Backup with ID {0} already exists'.format(backup['id']))
 
-        if self.datastore.exists('backup', ('name', '=', backup['id'])):
+        if self.datastore.exists('backup', ('name', '=', backup['name'])):
             raise VerifyException('Backup with name {0} already exists'.format(backup['name']))
 
         return ['system']
 
     def run(self, backup):
+        normalize(backup, {
+            'properties': {}
+        })
+
         id = self.datastore.insert('backup', backup)
+
+        self.dispatcher.emit_event('backup.changed', {
+            'operation': 'create',
+            'ids': [id]
+        })
+
         return id
 
 
-@accepts(str, h.ref('backup'))
+@accepts(str, h.all_of(
+    h.ref('backup'),
+    h.forbidden('id', 'provider', 'dataset')
+))
 class UpdateBackupTask(Task):
     def verify(self, id, updated_params):
         if not self.datastore.exists('backup', ('id', '=', id)):
@@ -77,7 +91,16 @@ class UpdateBackupTask(Task):
         return ['system']
 
     def run(self, id, updated_params):
-        pass
+        backup = self.datastore.get_by_id('backup', id)
+        backup.update(updated_params)
+        self.datastore.update('backup', id, backup)
+
+        self.dispatcher.emit_event('backup.changed', {
+            'operation': 'update',
+            'ids': [id]
+        })
+
+        return id
 
 
 @accepts(str)
@@ -89,7 +112,11 @@ class DeleteBackupTask(Task):
         return ['system']
 
     def run(self, id):
-        pass
+        self.datastore.delete('backup', id)
+        self.dispatcher.emit_event('backup.changed', {
+            'operation': 'delete',
+            'ids': [id]
+        })
 
 
 @accepts(str)
@@ -117,10 +144,7 @@ def _init(dispatcher, plugin):
                 'type': 'string',
                 'enum': ['NONE', 'GZIP']
             },
-            'provider': {
-                'type': 'string',
-                'enum': []
-            },
+            'provider': {'type': 'string'},
             'properties': {'$ref': 'backup-properties'}
         }
     })
@@ -136,7 +160,7 @@ def _init(dispatcher, plugin):
     })
 
     def update_backup_properties_schema():
-        plugin.register_schema_definition('share-properties', {
+        plugin.register_schema_definition('backup-properties', {
             'discriminator': 'type',
             'oneOf': [
                 {'$ref': 'backup-{0}'.format(name)} for name in dispatcher.call_sync('backup.supported_types')
@@ -145,6 +169,7 @@ def _init(dispatcher, plugin):
 
     plugin.register_event_type('backup.changed')
 
+    plugin.register_provider('backup', BackupProvider)
     plugin.register_task_handler('backup.create', CreateBackupTask)
     plugin.register_task_handler('backup.update', UpdateBackupTask)
     plugin.register_task_handler('backup.delete', DeleteBackupTask)
