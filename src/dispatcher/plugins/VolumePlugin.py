@@ -1820,8 +1820,7 @@ class SnapshotDeleteTask(Task):
 
 @description("Updates configuration of specified snapshot")
 @accepts(str, h.all_of(
-    h.ref('volume-snapshot'),
-    h.forbidden('id')
+    h.ref('volume-snapshot')
 ))
 class SnapshotConfigureTask(Task):
     def verify(self, id, updated_params):
@@ -1831,6 +1830,15 @@ class SnapshotConfigureTask(Task):
     def run(self, id, updated_params):
         pool, ds, snap = split_snapshot_name(id)
         params = {}
+
+        if 'id' in updated_params:
+            self.join_subtasks(self.run_subtask('zfs.rename', id, updated_params['id']))
+            id = updated_params['id']
+
+        if 'name' in updated_params:
+            new_id = '{0}@{1}'.format(ds, updated_params['name'])
+            self.join_subtasks(self.run_subtask('zfs.rename', id, new_id))
+            id = new_id
 
         if 'lifetime' in updated_params:
             params['org.freenas:lifetime'] = {'value': updated_params['lifetime']}

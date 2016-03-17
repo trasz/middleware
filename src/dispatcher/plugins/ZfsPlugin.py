@@ -997,7 +997,7 @@ def _init(dispatcher, plugin):
         with dispatcher.get_lock('zfs-cache'):
             if '@' in args['ds']:
                 logger.info('Snapshot {0} renamed to: {1}'.format(args['ds'], args['new_ds']))
-                sync_snapshot_cache(dispatcher, args['new_ds'], args['old_ds'])
+                sync_snapshot_cache(dispatcher, args['new_ds'])
             else:
                 logger.info('Dataset {0} renamed to: {1}'.format(args['ds'], args['new_ds']))
                 sync_dataset_cache(dispatcher, args['new_ds'])
