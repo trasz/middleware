@@ -25,7 +25,13 @@
 
       <div class="dropcontainer">
         <div id="drop_zone" class="drop_zone">File Upload: Drop files here</div>
-        <output id="outputfilelist"></output>
+        <output id="outputfilelist" ng-if="hasFileSelected == true">
+            <li ng-repeat=" file in uploadFileList">
+              <strong>{{ file.name }}</strong>
+              {{ file.type }} - {{ file.size }} bytes, last modified: {{ file.modifiedDate }}
+            </li>
+            <buttontype="button" class="btn btn-primary" name="upload" ng-click="uploadFiles()">Upload</button>
+        </output>
       </div>
       <table class="table" id="dirlist">
         <thead>

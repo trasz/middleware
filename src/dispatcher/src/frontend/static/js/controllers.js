@@ -427,6 +427,68 @@ function FileBrowserController($scope) {
         return item
     }
 
+    function sendBlob ( fileconn, file, optStartByte, optStopByte ) {
+      var start = parseInt( optStartByte ) || 0;
+      var stop = parseInt( optStopByte ) || file.size;
+
+      var reader = new FileReader();
+
+      reader.onloadend = function ( evt ) {
+        if ( evt.target.readyState == FileReader.DONE ) { // DONE == 2
+          console.log
+            ( "readBlob byte_range: Read bytes: "
+            , start
+            , " - "
+            , stop
+            , " of "
+            , file.size
+            , " byte file"
+          );
+          fileconn.send( evt.target.result );
+          if ( stop == file.size ) {
+            // we are done with the transfer, AWESOME!
+            // disconnet after a small delay
+            setTimeout( function ( ) {
+                fileconn.disconnect();
+              }, 2000 );
+          }
+        }
+      };
+
+      var blob = file.slice( start, stop );
+      reader.readAsArrayBuffer( blob );
+    }
+
+    function uploadToSocket ( file ) {
+      console.log( "uploadToSocket: Initializing FileClient now" );
+      var fileconn = new middleware.FileClient( sock );
+      fileconn.onOpen = function ( ) {
+        console.log( "FileConnection opened, Websocket resdyState: ", fileconn.socket.readyState );
+        var filePos = 0;
+        while ( filePos + BUFSIZE <= file.size ) {
+          sendBlob( fileconn, file, filePos, filePos + BUFSIZE );
+          filePos = filePos + BUFSIZE;
+        }
+        if ( filePos < file.size ) {
+          sendBlob( fileconn, file, filePos, file.size );
+        }
+      };
+      fileconn.onData = function ( msg ) {
+        console.log( "FileConnection message recieved is ", msg );
+      };
+      fileconn.onClose = function ( ) {
+        console.log( "FileConnection closed" );
+      };
+      fileconn.upload(
+          pathJoin(
+            [ sessionStorage.getItem( "filebrowser:cwd" ), file.name ]
+          )
+        , file.size
+        , "777"
+      );
+
+    }
+
     var listDir = function ( path, relative ) {
       if ( relative === true ) {
         path = pathJoin( [ sessionStorage.getItem( "filebrowser:cwd" ), path ] );
@@ -441,30 +503,16 @@ function FileBrowserController($scope) {
           };
         });
         sessionStorage.setItem( "filebrowser:cwd", path );
-        console.log("this is path:" + path);
-        console.log(dirs);
         // $scope.current_dirs = dirs.map(humanizeDirItem);
         $scope.$apply(function(){
             $scope.current_dir_items = dirs.map(humanizeDirItem);
-            // $scope.current_dir_items = [1,2,3,4,5,6,7,8,9];
         });
-        // $.each( dirs, function ( key, value ) {
-
-        //   var date = new Date( 0 );
-        //   value.modified = new Date( date.setUTCSeconds( value.modified ) );
-        //   value.size = humanFileSize( value.size, false );
-        //   var resultingHtml;
-        //   console.log(value);
-        //   if ( value.type === "DIRECTORY" ) {
-            //resultingHtml = directoryTemplate({args: value});
-        //   } else {
-            // resultingHtml = fileTemplate({args: value});
-        //   }
-        //   $( "<tr/>"
-        //    , { "data-id": key, "html": resultingHtml }
-        //   ).prependTo( "#dirlist tbody" );
-        // });
       });
+
+      $scope.uploadFiles = function() {
+          console.log("this is where we upload files");
+          $scope.uploadFileList.map(uploadToSocket);
+      }
 
       function handleFileSelect ( evt ) {
         evt.stopPropagation();
@@ -473,19 +521,26 @@ function FileBrowserController($scope) {
         var files = evt.dataTransfer.files; // FileList object.
 
         $( "#outputfilelist" ).empty();
+        console.log(files);
+        $scope.uploadFileList = [];
         $.each( files, function ( key, file ) {
           var date = file.lastModifiedDate ? file.lastModifiedDate.toLocaleDateString() : "n/a";
-          $( "#outputfilelist" ).append(
-              outputfiles(
-                { file: file
-                , type: file.type || "n/a"
-                , modifiedDate: date
-              }),
-              $( "<button/>", {
-                text: "Upload",
-                click: function () { uploadToSocket( file ) }
-              })
-          );
+        //   $( "#outputfilelist" ).append(
+        //       outputfiles(
+        //         { file: file
+        //         , type: file.type || "n/a"
+        //         , modifiedDate: date
+        //       }),
+        //       $( "<button/>", {
+        //         text: "Upload",
+        //         click: function () { uploadToSocket( file ) }
+        //       })
+        //   );
+            $scope.uploadFileList.push(file);
+        });
+        $scope.$apply(function(){
+            $scope.hasFileSelected = true;
+            $scope.uploadFileList;
         });
       }
 
