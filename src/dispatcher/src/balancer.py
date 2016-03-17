@@ -39,6 +39,7 @@ import bsd
 import signal
 from datetime import datetime
 from freenas.dispatcher import validator
+from freenas.dispatcher.client import FileDescriptor
 from freenas.dispatcher.rpc import RpcException
 from gevent.queue import Queue
 from gevent.lock import RLock
