@@ -1460,7 +1460,8 @@ class ServerConnection(WebSocketApplication, EventEmitter):
             })
 
     def emit_rpc_call(self, id, method, args):
-        fds = self.__collect_fds(args)
+        args = list(copy.deepcopy(args))
+        fds = list(self.__collect_fds(args))
         payload = {
             "namespace": "rpc",
             "name": "call",
@@ -1502,7 +1503,7 @@ class ServerConnection(WebSocketApplication, EventEmitter):
         with self.rlock:
             try:
                 if fds:
-                    self.ws.send(data, fds=fds)
+                    self.ws.send(data, fds=[i.fd for i in fds])
                 else:
                     self.ws.send(data)
             except WebSocketError as err:
