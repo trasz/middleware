@@ -525,17 +525,6 @@ function FileBrowserController($scope) {
         $scope.uploadFileList = [];
         $.each( files, function ( key, file ) {
           var date = file.lastModifiedDate ? file.lastModifiedDate.toLocaleDateString() : "n/a";
-        //   $( "#outputfilelist" ).append(
-        //       outputfiles(
-        //         { file: file
-        //         , type: file.type || "n/a"
-        //         , modifiedDate: date
-        //       }),
-        //       $( "<button/>", {
-        //         text: "Upload",
-        //         click: function () { uploadToSocket( file ) }
-        //       })
-        //   );
             $scope.uploadFileList.push(file);
         });
         $scope.$apply(function(){
@@ -548,6 +537,33 @@ function FileBrowserController($scope) {
         evt.stopPropagation();
         evt.preventDefault();
         evt.dataTransfer.dropEffect = "copy"; // Explicitly show this is a copy.
+      }
+
+      function downloadFromHttp ( filename ) {
+        console.log( "downloadFromHttp: Starting download of file: ", filename );
+        var path = pathJoin(
+              [ sessionStorage.getItem( "filebrowser:cwd" ), filename ]
+          );
+        fileconn = new middleware.FileClient( sock );
+        fileconn.download ( path, filename, "static" );
+      }
+
+      function downloadFromSocket ( filename ) {
+        console.log( "downloadFromSocket: Initializing FileClient now" );
+        var path = pathJoin(
+              [ sessionStorage.getItem( "filebrowser:cwd" ), filename ]
+          );
+        fileconn = new middleware.FileClient( sock );
+        fileconn.onOpen = function ( ) {
+          console.log( "FileConnection opened, Websocket resdyState: ", fileconn.socket.readyState );
+        };
+        fileconn.onData = function ( msg ) {
+          console.log( "FileConnection message recieved is ", msg );
+        };
+        fileconn.onClose = function ( ) {
+          console.log( "FileConnection closed" );
+        };
+        fileconn.download( path, filename, "stream" );
       }
 
       // Setup the dnd listeners.
