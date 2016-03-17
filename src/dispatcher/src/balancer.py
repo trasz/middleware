@@ -512,6 +512,7 @@ class Balancer(object):
         return instance.verify(*args)
 
     def run_subtask(self, parent, name, args):
+        args = list(args)
         task = Task(self.dispatcher, name)
         task.created_at = datetime.utcnow()
         task.clazz = self.dispatcher.tasks[name]
@@ -690,6 +691,9 @@ def serialize_error(err):
 
 
 def remove_dots(obj):
+    if isinstance(obj, FileDescriptor):
+        return {'fd': obj.fd}
+
     if isinstance(obj, dict):
         return {k.replace('.', '+'): remove_dots(v) for k, v in obj.items()}
 
