@@ -247,6 +247,19 @@ class UpdateShareTask(Task):
         if not share:
             raise VerifyException(errno.ENOENT, 'Share not found')
 
+        if 'name' in updated_fields or 'type' in updated_fields:
+            share.update(updated_fields)
+            if self.datastore.exists(
+                'shares',
+                ('id', '!=', id),
+                ('type', '=', share['type']),
+                ('name', '=', share['name'])
+            ):
+                raise VerifyException(errno.EEXIST, 'Share {0} of type {1} already exists'.format(
+                    share['name'],
+                    share['type']
+                ))
+
         return ['system']
 
     def run(self, id, updated_fields):
