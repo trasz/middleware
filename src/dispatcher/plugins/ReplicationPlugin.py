@@ -1217,6 +1217,10 @@ def get_remote_client(remote):
         raise RpcException(errno.EAUTH, 'Cannot connect to {0}'.format(remote))
 
 
+def _depends():
+    return ['NetworkPlugin']
+
+
 def _init(dispatcher, plugin):
     plugin.register_schema_definition('replication', {
         'type': 'object',
