@@ -86,7 +86,7 @@ class DispatcherWrapper(object):
         self.dispatcher.call_sync('task.put_warning', serialize_error(warning))
 
     def __register_resource(self, resource, parents):
-        self.dispatcher.call_sync('task.register_resource', resource, parents)
+        self.dispatcher.call_sync('task.register_resource', resource.name, parents)
 
     def __getattr__(self, item):
         if item == 'dispatch_event':

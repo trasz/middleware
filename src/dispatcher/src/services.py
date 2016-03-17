@@ -31,6 +31,7 @@ import traceback
 import errno
 import subprocess
 import gevent
+from resources import Resource
 from gevent.event import Event
 from gevent.lock import Semaphore
 from gevent.backdoor import BackdoorServer
@@ -408,7 +409,7 @@ class TaskService(RpcService):
         if not executor:
             raise RpcException(errno.EPERM, 'Not authorized')
 
-        self.__dispatcher.register_resource(resource, parents)
+        self.__dispatcher.register_resource(Resource(resource), parents)
 
     @private
     @pass_sender
