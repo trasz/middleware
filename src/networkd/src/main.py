@@ -361,12 +361,12 @@ class ConfigurationService(RpcService):
             if line[0] == '#':
                 continue
 
-            cmd, val = line.split()
-            if cmd == 'nameserver':
-                result['addresses'].append(val)
+            tokens = line.split()
+            if tokens[0] == 'nameserver':
+                result['addresses'].append(tokens[1])
 
-            if cmd == 'search':
-                result['search'].append(val)
+            if tokens[0] == 'search':
+                result['search'].extend(tokens[1:])
 
         return result
 
