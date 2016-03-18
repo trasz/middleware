@@ -9,7 +9,8 @@
         "ncpus" : 1,
         "bootloader" : "GRUB",
         "memsize" : 4096,
-        "boot_directory" : "/usr/local/share/containerd/rancheros"
+        "boot_directory": "../rancheros",
+        "cloud_init": "../rancheros/cloud-init.yml"
     },
     "devices" : [
         {

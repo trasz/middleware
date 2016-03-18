@@ -188,12 +188,36 @@ def _init(dispatcher, plugin):
             'name': {'type': 'string'},
             'dataset': {'type': 'string'},
             'recursive': {'type': 'boolean'},
-            'compression': {
-                'type': 'string',
-                'enum': ['NONE', 'GZIP']
-            },
+            'compression': {'$ref': 'backup-compression-type'},
             'provider': {'type': 'string'},
             'properties': {'$ref': 'backup-properties'}
+        }
+    })
+
+    plugin.register_schema_definition('backup-compression-type', {
+        'type': 'string',
+        'enum': ['NONE', 'GZIP']
+    })
+
+    plugin.register_schema_definition('backup-state', {
+        'type': 'object',
+        'additionalProperties': False,
+        'properties': {
+            'hostname': {'type': 'string'},
+            'dataset': {'type': 'string'},
+            'snapshots': {
+                'type': 'array',
+                'items': {
+                    'type': 'object',
+                    'additionalProperties': False,
+                    'properties': {
+                        'name': {'type': 'string'},
+                        'created_at': {'type': 'string'},
+                        'uuid': {'type': 'string'},
+                        'compression': {'$ref': 'backup-compression-type'},
+                    }
+                }
+            }
         }
     })
 
