@@ -63,7 +63,7 @@ class ContainerProvider(Provider):
         if not container:
             return None
 
-        return os.path.join('/mnt', container['target'], 'vm', container['name'])
+        pass # XXX
 
     def get_disk_path(self, container_id, disk_name):
         container = self.datastore.get_by_id('containers', container_id)

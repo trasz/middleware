@@ -64,14 +64,15 @@ class NFSSharesProvider(Provider):
 @accepts(h.ref('share'))
 class CreateNFSShareTask(Task):
     def describe(self, share):
-        return "Creating NFS share {0}".format(share['name'])
-
-    def verify(self, share):
         properties = share['properties']
+
         if (properties.get('maproot_user') or properties.get('maproot_group')) and \
            (properties.get('mapall_user') or properties.get('mapall_group')):
             raise VerifyException(errno.EINVAL, 'Cannot set maproot and mapall properties simultaneously')
 
+        return "Creating NFS share {0}".format(share['name'])
+
+    def verify(self, share):
         return ['service:nfs']
 
     def run(self, share):
@@ -145,14 +146,15 @@ class DeleteNFSShareTask(Task):
 @accepts(h.ref('share'))
 class ImportNFSShareTask(CreateNFSShareTask):
     def describe(self, share):
-        return "Importing NFS share {0}".format(share['name'])
-
-    def verify(self, share):
         properties = share['properties']
+
         if (properties.get('maproot_user') or properties.get('maproot_group')) and \
            (properties.get('mapall_user') or properties.get('mapall_group')):
             raise VerifyException(errno.EINVAL, 'Cannot set maproot and mapall properties simultaneously')
 
+        return "Importing NFS share {0}".format(share['name'])
+
+    def verify(self, share):
         return super(ImportNFSShareTask, self).verify(share)
 
     def run(self, share):
