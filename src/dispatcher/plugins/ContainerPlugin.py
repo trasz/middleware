@@ -600,6 +600,10 @@ class VMTemplateFetchTask(ProgressTask):
         self.set_progress(100, 'Templates downloaded')
 
 
+def _depends():
+    return ['VolumePlugin']
+
+
 def _init(dispatcher, plugin):
     plugin.register_schema_definition('container', {
         'type': 'object',
