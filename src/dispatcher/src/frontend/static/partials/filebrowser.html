@@ -40,6 +40,9 @@
             <th>Size</th>
             <th>Last Modified</th>
           </tr>
+          <tr>
+              <label>Search: <input ng-model="searchText" placeholder="search file"></label>
+          </tr>
         </thead>
         <tbody ng-repeat='item in current_dir_items | filter:searchText'>
             <tr>
