@@ -378,7 +378,7 @@ class UserUpdateTask(Task):
             for code, message in check_unixname(updated_fields['username']):
                 errors.add((1, 'username'), message, code=code)
 
-        if 'email' in updated_fields:
+        if updated_fields.get('email'):
             if not EMAIL_REGEX.match(updated_fields['email']):
                 errors.add(
                     (1, 'email'),
