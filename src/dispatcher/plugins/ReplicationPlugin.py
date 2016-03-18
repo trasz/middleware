@@ -231,6 +231,14 @@ class ReplicationBaseTask(Task):
                     {'readonly': {'value': 'on' if readonly else 'off'}}
                 ))
 
+    def remove_datastore_timestamps(self, link):
+        out_link = {}
+        for key in link:
+            if '_at' not in key:
+                out_link[key] = link[key]
+
+        return out_link
+
 
 @description("Sets up a replication link")
 @accepts(h.all_of(
@@ -301,7 +309,7 @@ class ReplicationCreateTask(ReplicationBaseTask):
         if is_master:
             remote_link = remote_client.call_sync('replication.link.get_one_local', link['name'])
             if remote_link:
-                if remote_link != link:
+                if self.remove_datastore_timestamps(remote_link) != self.remove_datastore_timestamps(link):
                     raise TaskException(
                         errno.EEXIST,
                         'Replication link {0} already exists on {1}'.format(link['name'], remote)
@@ -319,7 +327,7 @@ class ReplicationCreateTask(ReplicationBaseTask):
             if not remote_link:
                 remote_client.call_task_sync('replication.create', link)
             else:
-                if remote_link != link:
+                if self.remove_datastore_timestamps(remote_link) != self.remove_datastore_timestamps(link):
                     raise TaskException(
                         errno.EEXIST,
                         'Replication link {0} already exists on {1}'.format(link['name'], remote)
