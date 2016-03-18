@@ -749,6 +749,31 @@ class ZfsCloneTask(ZfsBaseTask):
             raise TaskException(errno.EFAULT, str(err))
 
 
+@private
+class ZfsSendTask(ZfsBaseTask):
+    def run(self, name, fromsnap, fd):
+        try:
+            zfs = get_zfs()
+            obj = zfs.get_object(name)
+            obj.send(fd, fromname=fromsnap, flags={
+                libzfs.SendFlag.PROGRESS,
+                libzfs.SendFlag.PROPS
+            })
+        except libzfs.ZFSException as err:
+            raise TaskException(errno.EFAULT, str(err))
+
+
+@private
+class ZfsReceiveTask(ZfsBaseTask):
+    def run(self, name, fd, force=False, nomount=False, props=None, limitds=None):
+        try:
+            zfs = get_zfs()
+            obj = zfs.get_dataset(name)
+            obj.receive(fd, force, nomount, props, limitds)
+        except libzfs.ZFSException as err:
+            raise TaskException(errno.EFAULT, str(err))
+
+
 def convert_topology(zfs, topology):
     nvroot = {}
     for group, vdevs in topology.items():
@@ -1360,6 +1385,8 @@ def _init(dispatcher, plugin):
     plugin.register_task_handler('zfs.destroy', ZfsDestroyTask)
     plugin.register_task_handler('zfs.rename', ZfsRenameTask)
     plugin.register_task_handler('zfs.clone', ZfsCloneTask)
+    plugin.register_task_handler('zfs.send', ZfsSendTask)
+    plugin.register_task_handler('zfs.receive', ZfsReceiveTask)
 
     if not os.path.isdir('/data/zfs'):
         os.mkdir('/data/zfs')
