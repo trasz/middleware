@@ -521,6 +521,12 @@ class ReplicationDeleteTask(ReplicationBaseTask):
         is_master, remote = self.get_replication_state(link)
 
         self.datastore.delete('replication.links', link['id'])
+        self.dispatcher.unregister_resource('replication:{0}'.format(link['name']))
+
+        self.dispatcher.dispatch_event('replication.link.changed', {
+            'operation': 'delete',
+            'ids': [link['id']]
+        })
 
         remote_client = get_remote_client(remote)
 
@@ -541,13 +547,6 @@ class ReplicationDeleteTask(ReplicationBaseTask):
         if remote_client.call_sync('replication.link.get_one_local', name):
             remote_client.call_task_sync('replication.delete', name)
         remote_client.disconnect()
-
-        self.dispatcher.unregister_resource('replication:{0}'.format(link['name']))
-
-        self.dispatcher.dispatch_event('replication.link.changed', {
-            'operation': 'delete',
-            'ids': [link['id']]
-        })
 
 
 @description("Update a replication link")
