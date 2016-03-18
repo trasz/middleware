@@ -847,11 +847,16 @@ class ReplicateDatasetTask(ProgressTask):
 
             return True
 
-        def matches(pair):
-            src, tgt = pair
+        def matches(src, tgt):
             srcsnap = src['snapshot_name']
             tgtsnap = tgt['snapshot_name']
             return srcsnap == tgtsnap and src['properties.creation.rawvalue'] == tgt['properties.creation.rawvalue']
+
+        def match_snapshots(local, remote):
+            for i in local:
+                match = first_or_default(lambda s: matches(i, s), remote)
+                if match:
+                    yield i, match
 
         if recursive:
             datasets = self.dispatcher.call_sync(
@@ -896,7 +901,7 @@ class ReplicateDatasetTask(ProgressTask):
 
             if remote_snapshots_full:
                 # Find out the last common snapshot.
-                pairs = list(filter(matches, zip(local_snapshots, remote_snapshots)))
+                pairs = list(match_snapshots(local_snapshots, remote_snapshots))
                 if pairs:
                     pairs.sort(key=lambda p: int(p[0]['properties.creation.rawvalue']), reverse=True)
                     found, _ = first_or_default(None, pairs)
