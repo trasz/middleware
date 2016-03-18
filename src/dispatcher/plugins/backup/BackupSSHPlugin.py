@@ -50,6 +50,8 @@ class BackupSSHListTask(Task):
             return sftp.listdir()
         except ssh_exception.SSHException as err:
             raise TaskException(errno.EFAULT, 'Cannot list objects: {0}'.format(str(err)))
+        finally:
+            conn.close()
 
 
 class BackupSSHPutTask(ProgressTask):
@@ -66,7 +68,8 @@ class BackupSSHPutTask(ProgressTask):
                 sftp.putfo(name, f)
         except ssh_exception.SSHException as err:
             raise TaskException(errno.EFAULT, 'Cannot get object: {0}'.format(str(err)))
-
+        finally:
+            conn.close()
 
 
 class BackupSSHGetTask(Task):
@@ -83,6 +86,8 @@ class BackupSSHGetTask(Task):
                 sftp.getfo(name, f)
         except ssh_exception.SSHException as err:
             raise TaskException(errno.EFAULT, 'Cannot get object: {0}'.format(str(err)))
+        finally:
+            conn.close()
 
 
 def split_hostport(str):
