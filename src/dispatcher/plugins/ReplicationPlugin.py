@@ -306,6 +306,8 @@ class ReplicationCreateTask(ReplicationBaseTask):
                         errno.EEXIST,
                         'Replication link {0} already exists on {1}'.format(link['name'], remote)
                     )
+                else:
+                    return
 
             self.join_subtasks(self.run_subtask('replication.prepare_slave', link))
 
@@ -322,6 +324,9 @@ class ReplicationCreateTask(ReplicationBaseTask):
                         errno.EEXIST,
                         'Replication link {0} already exists on {1}'.format(link['name'], remote)
                     )
+                else:
+                    return
+
             id = self.datastore.insert('replication.links', link)
 
         self.dispatcher.dispatch_event('replication.link.changed', {
