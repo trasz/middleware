@@ -88,6 +88,9 @@ class DispatcherWrapper(object):
     def __register_resource(self, resource, parents):
         self.dispatcher.call_sync('task.register_resource', resource.name, parents)
 
+    def __unregister_resource(self, resource):
+        self.dispatcher.call_sync('task.unregister_resource', resource)
+
     def __getattr__(self, item):
         if item == 'dispatch_event':
             return self.dispatcher.emit_event
@@ -112,6 +115,9 @@ class DispatcherWrapper(object):
 
         if item == 'register_resource':
             return self.__register_resource
+
+        if item == 'unregister_resource':
+            return self.__unregister_resource
 
         return getattr(self.dispatcher, item)
 

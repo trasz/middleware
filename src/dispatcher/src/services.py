@@ -413,6 +413,15 @@ class TaskService(RpcService):
 
     @private
     @pass_sender
+    def unregister_resource(self, resource, sender):
+        executor = self.__balancer.get_executor_by_sender(sender)
+        if not executor:
+            raise RpcException(errno.EPERM, 'Not authorized')
+
+        self.__dispatcher.unregister_resource(resource)
+
+    @private
+    @pass_sender
     def run_hook(self, hook, args, sender):
         executor = self.__balancer.get_executor_by_sender(sender)
         if not executor:
