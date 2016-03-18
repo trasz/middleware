@@ -542,6 +542,8 @@ class ReplicationDeleteTask(ReplicationBaseTask):
             remote_client.call_task_sync('replication.delete', name)
         remote_client.disconnect()
 
+        self.dispatcher.unregister_resource('replication:{0}'.format(link['name']))
+
         self.dispatcher.dispatch_event('replication.link.changed', {
             'operation': 'delete',
             'ids': [link['id']]
