@@ -67,6 +67,8 @@ def dump_task(ds, task):
     for idx, arg in enumerate(task['args']):
         arg_indented(idx, json.dumps(arg, default=json_util.default, indent=4))
 
+    print("Result:")
+    print(json.dumps(task['result'], default=json_util.default, indent=4))
     print()
     print("Task output:")
     print(task['output'].strip() or '(none)')
