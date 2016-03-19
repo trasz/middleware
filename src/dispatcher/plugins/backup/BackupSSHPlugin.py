@@ -32,11 +32,6 @@ from task import Provider, Task, ProgressTask, TaskException
 from paramiko import transport, sftp_client, ssh_exception, rsakey, dsskey
 
 
-class BackupSSHProvider(Provider):
-    def list_objects(self, backup):
-        return self.dispatcher.call_task_sync('backup.ssh.list', backup)
-
-
 class BackupSSHListTask(Task):
     def verify(self, backup):
         return []
@@ -54,6 +49,14 @@ class BackupSSHListTask(Task):
             conn.close()
 
 
+class BackupSSHInitTask(Task):
+    def verify(self, backup):
+        pass
+
+    def run(self, backup):
+        pass
+
+
 class BackupSSHPutTask(ProgressTask):
     def verify(self, backup, name, fd):
         return []
@@ -65,7 +68,7 @@ class BackupSSHPutTask(ProgressTask):
         try:
             with os.fdopen(fd.fd, 'rb') as f:
                 sftp.chdir(backup['directory'])
-                sftp.putfo(name, f)
+                sftp.putfo(f, name)
         except ssh_exception.SSHException as err:
             raise TaskException(errno.EFAULT, 'Cannot get object: {0}'.format(str(err)))
         finally:
@@ -155,6 +158,7 @@ def _init(dispatcher, plugin):
         'type': 'object',
         'additionalProperties': False,
         'properties': {
+            'type': {'enum': ['backup-ssh']},
             'hostport': {'type': 'string'},
             'username': {'type ': 'string'},
             'password': {'type': ['string', 'null']},
@@ -164,7 +168,7 @@ def _init(dispatcher, plugin):
         }
     })
 
-    plugin.register_provider('backup.ssh', BackupSSHProvider)
+    plugin.register_task_handler('backup.init', BackupSSHInitTask)
     plugin.register_task_handler('backup.ssh.list', BackupSSHListTask)
     plugin.register_task_handler('backup.ssh.get', BackupSSHGetTask)
     plugin.register_task_handler('backup.ssh.put', BackupSSHPutTask)
