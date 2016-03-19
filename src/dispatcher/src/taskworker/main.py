@@ -71,10 +71,10 @@ class DispatcherWrapper(object):
         return self.dispatcher.call_sync('task.run_hook', name, args, timeout=300)
 
     def __verify_subtask(self, task, name, args):
-        return self.dispatcher.call_sync('task.verify_subtask', name, args)
+        return self.dispatcher.call_sync('task.verify_subtask', name, list(args))
 
     def __run_subtask(self, task, name, args):
-        return self.dispatcher.call_sync('task.run_subtask', name, args, timeout=60)
+        return self.dispatcher.call_sync('task.run_subtask', name, list(args), timeout=60)
 
     def __join_subtasks(self, *tasks):
         return self.dispatcher.call_sync('task.join_subtasks', tasks, timeout=None)
@@ -167,7 +167,7 @@ class Context(object):
             'result': None
         }
 
-        if result:
+        if result is not None:
             obj['result'] = result
 
         if exception is not None:
