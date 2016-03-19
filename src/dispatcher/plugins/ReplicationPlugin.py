@@ -450,10 +450,10 @@ class ReplicationPrepareSlaveTask(ReplicationBaseTask):
                             for group_type in topology:
                                 for item in topology[group_type]:
                                     if item['type'] == 'disk':
-                                        item['path'] = match_disk(empty_disks, item['path'])
+                                        item['path'] = match_disk(empty_disks, item['path'])['path']
                                     else:
                                         for vdev in item['children']:
-                                            vdev['path'] = match_disk(empty_disks, vdev['path'])
+                                            vdev['path'] = match_disk(empty_disks, vdev['path'])['path']
 
                             try:
                                 remote_client.call_task_sync(
