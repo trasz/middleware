@@ -338,8 +338,7 @@ class UserDeleteTask(Task):
     str,
     h.all_of(
         h.ref('user'),
-        h.forbidden('builtin'),
-        h.object(properties={'password': {'type': 'string'}}),
+        h.forbidden('builtin')
     )
 )
 class UserUpdateTask(Task):
