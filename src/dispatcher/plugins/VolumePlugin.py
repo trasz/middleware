@@ -2112,7 +2112,8 @@ def _init(dispatcher, plugin):
                 'enum': ['ALL', 'PART', 'NONE']
             },
             'properties': {'$ref': 'volume-properties'},
-            'attributes': {'type': 'object'}
+            'attributes': {'type': 'object'},
+            'params': {'type': 'object'}
         }
     })
 
