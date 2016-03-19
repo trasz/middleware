@@ -755,10 +755,12 @@ class ZfsSendTask(ZfsBaseTask):
         try:
             zfs = get_zfs()
             obj = zfs.get_object(name)
-            obj.send(fd, fromname=fromsnap, flags={
+            obj.send(fd.fd, fromname=fromsnap, flags={
                 libzfs.SendFlag.PROGRESS,
                 libzfs.SendFlag.PROPS
             })
+
+            os.close(fd.fd)
         except libzfs.ZFSException as err:
             raise TaskException(errno.EFAULT, str(err))
 
@@ -769,7 +771,7 @@ class ZfsReceiveTask(ZfsBaseTask):
         try:
             zfs = get_zfs()
             obj = zfs.get_dataset(name)
-            obj.receive(fd, force, nomount, props, limitds)
+            obj.receive(fd.fd, force, nomount, props, limitds)
         except libzfs.ZFSException as err:
             raise TaskException(errno.EFAULT, str(err))
 
