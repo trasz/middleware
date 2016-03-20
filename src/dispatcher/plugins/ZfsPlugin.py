@@ -759,10 +759,10 @@ class ZfsSendTask(ZfsBaseTask):
                 libzfs.SendFlag.PROGRESS,
                 libzfs.SendFlag.PROPS
             })
-
-            os.close(fd.fd)
         except libzfs.ZFSException as err:
             raise TaskException(errno.EFAULT, str(err))
+        finally:
+            os.close(fd.fd)
 
 
 @private
@@ -774,6 +774,8 @@ class ZfsReceiveTask(ZfsBaseTask):
             obj.receive(fd.fd, force, nomount, props, limitds)
         except libzfs.ZFSException as err:
             raise TaskException(errno.EFAULT, str(err))
+        finally:
+            os.close(fd.fd)
 
 
 def convert_topology(zfs, topology):
