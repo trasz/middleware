@@ -611,7 +611,7 @@ class ZfsDatasetMountTask(ZfsBaseTask):
 
 
 @private
-@accepts(str)
+@accepts(str, bool)
 class ZfsDatasetUmountTask(ZfsBaseTask):
     def run(self, name, recursive=False):
         try:
