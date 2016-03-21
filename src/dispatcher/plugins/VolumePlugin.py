@@ -1796,7 +1796,7 @@ class SnapshotCreateTask(Task):
             {
                 'org.freenas:replicable': {'value': 'yes' if snapshot['replicable'] else 'no'},
                 'org.freenas:lifetime': {'value': str(snapshot['replicable'] or 'no')},
-                'org.freenas.uuid': {'value': str(uuid.uuid4())}
+                'org.freenas:uuid': {'value': str(uuid.uuid4())}
             }
         ))
 
