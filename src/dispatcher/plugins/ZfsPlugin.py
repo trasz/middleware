@@ -613,11 +613,14 @@ class ZfsDatasetMountTask(ZfsBaseTask):
 @private
 @accepts(str)
 class ZfsDatasetUmountTask(ZfsBaseTask):
-    def run(self, name):
+    def run(self, name, recursive=False):
         try:
             zfs = get_zfs()
             dataset = zfs.get_dataset(name)
-            dataset.umount()
+            if recursive:
+                dataset.umount_recursive()
+            else:
+                dataset.umount()
         except libzfs.ZFSException as err:
             raise TaskException(errno.EFAULT, str(err))
 
