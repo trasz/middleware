@@ -309,9 +309,9 @@ class ReplicationCreateTask(ReplicationBaseTask):
 
         remote_link = remote_client.call_sync('replication.link.get_one_local', link['name'])
         id = self.datastore.insert('replication.links', link)
+        if is_master:
+            self.join_subtasks(self.run_subtask('replication.prepare_slave', link))
         if not remote_link:
-            if is_master:
-                self.join_subtasks(self.run_subtask('replication.prepare_slave', link))
             remote_client.call_task_sync('replication.create', link)
         else:
             if self.remove_datastore_timestamps(remote_link) != self.remove_datastore_timestamps(link):
