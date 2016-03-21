@@ -307,36 +307,18 @@ class ReplicationCreateTask(ReplicationBaseTask):
         is_master, remote = self.get_replication_state(link)
         remote_client = get_remote_client(remote)
 
-        if is_master:
-            remote_link = remote_client.call_sync('replication.link.get_one_local', link['name'])
-            if remote_link:
-                if self.remove_datastore_timestamps(remote_link) != self.remove_datastore_timestamps(link):
-                    raise TaskException(
-                        errno.EEXIST,
-                        'Replication link {0} already exists on {1}'.format(link['name'], remote)
-                    )
-                else:
-                    return
-
-            self.join_subtasks(self.run_subtask('replication.prepare_slave', link))
-
-            id = self.datastore.insert('replication.links', link)
+        remote_link = remote_client.call_sync('replication.link.get_one_local', link['name'])
+        id = self.datastore.insert('replication.links', link)
+        if not remote_link:
+            if is_master:
+                self.join_subtasks(self.run_subtask('replication.prepare_slave', link))
             remote_client.call_task_sync('replication.create', link)
-
         else:
-            remote_link = remote_client.call_sync('replication.link.get_one_local', link['name'])
-            if not remote_link:
-                remote_client.call_task_sync('replication.create', link)
-            else:
-                if self.remove_datastore_timestamps(remote_link) != self.remove_datastore_timestamps(link):
-                    raise TaskException(
-                        errno.EEXIST,
-                        'Replication link {0} already exists on {1}'.format(link['name'], remote)
-                    )
-                else:
-                    return
-
-            id = self.datastore.insert('replication.links', link)
+            if self.remove_datastore_timestamps(remote_link) != self.remove_datastore_timestamps(link):
+                raise TaskException(
+                    errno.EEXIST,
+                    'Replication link {0} already exists on {1}'.format(link['name'], remote)
+                )
 
         self.dispatcher.dispatch_event('replication.link.changed', {
             'operation': 'create',
