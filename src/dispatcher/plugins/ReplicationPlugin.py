@@ -460,8 +460,8 @@ class ReplicationPrepareSlaveTask(ReplicationBaseTask):
                                 )
 
                         if dataset_name:
-                            for sub_dataset in dataset_name.split('/'):
-                                sub_dataset_name = dataset[:dataset.index(sub_dataset) - 1]
+                            for idx, sub_dataset in enumerate(dataset_name.split('/')):
+                                sub_dataset_name = volume_name + '/' + '/'.join(dataset_name.split('/')[0:idx+1])
                                 remote_sub_dataset = remote_client.call_sync(
                                     'zfs.dataset.query',
                                     [('name', '=', sub_dataset_name)],
