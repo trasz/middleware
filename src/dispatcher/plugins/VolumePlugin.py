@@ -1667,6 +1667,7 @@ class DatasetCreateTask(Task):
         normalize(dataset, {
             'type': 'FILESYSTEM',
             'permissions_type': 'CHMOD',
+            'mounted': True,
             'properties': {}
         })
 
@@ -1688,7 +1689,8 @@ class DatasetCreateTask(Task):
             props
         ))
 
-        self.join_subtasks(self.run_subtask('zfs.mount', dataset['id']))
+        if dataset['mounted']:
+            self.join_subtasks(self.run_subtask('zfs.mount', dataset['id']))
 
         if dataset.get('permissions'):
             path = os.path.join(VOLUMES_ROOT, dataset['id'])
@@ -1771,6 +1773,12 @@ class DatasetConfigureTask(Task):
         if 'permissions' in updated_params:
             fs_path = os.path.join(VOLUMES_ROOT, id)
             self.join_subtasks(self.run_subtask('file.set_permissions', fs_path, updated_params['permissions']))
+
+        if 'mounted' in updated_params:
+            if updated_params['mounted']:
+                self.join_subtasks(self.run_subtask('zfs.mount', ds['id']))
+            else:
+                self.join_subtasks(self.run_subtask('zfs.umount', ds['id']))
 
 
 @description("Creates a snapshot")
@@ -2171,6 +2179,7 @@ def _init(dispatcher, plugin):
             'name': {'type': 'string'},
             'volume': {'type': 'string'},
             'mountpoint': {'type': 'string'},
+            'mounted': {'type': 'boolean'},
             'type': {
                 'type': 'string',
                 'enum': ['FILESYSTEM', 'VOLUME']
