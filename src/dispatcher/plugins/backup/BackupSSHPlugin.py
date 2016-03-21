@@ -30,6 +30,7 @@ import errno
 import socket
 from task import Provider, Task, ProgressTask, TaskException
 from paramiko import transport, sftp_client, ssh_exception, rsakey, dsskey
+from freenas.utils import normalize
 
 
 class BackupSSHListTask(Task):
@@ -39,14 +40,22 @@ class BackupSSHListTask(Task):
     def run(self, backup):
         conn = open_ssh_connection(backup)
         sftp = sftp_client.SFTP.from_transport(conn)
+        result = []
 
         try:
             sftp.chdir(backup['directory'])
-            return sftp.listdir()
+            for i in sftp.listdir_attr():
+                result.append({
+                    'name': i.filename,
+                    'size': i.st_size,
+                    'content_type': None
+                })
         except ssh_exception.SSHException as err:
             raise TaskException(errno.EFAULT, 'Cannot list objects: {0}'.format(str(err)))
         finally:
             conn.close()
+
+        return result
 
 
 class BackupSSHInitTask(Task):
@@ -87,6 +96,23 @@ class BackupSSHGetTask(Task):
             with os.fdopen(fd.fd, 'wb') as f:
                 sftp.chdir(backup['directory'])
                 sftp.getfo(name, f)
+        except ssh_exception.SSHException as err:
+            raise TaskException(errno.EFAULT, 'Cannot get object: {0}'.format(str(err)))
+        finally:
+            conn.close()
+
+
+class BackupSSHDeleteTask(Task):
+    def verify(self, backup, name):
+        pass
+
+    def run(self, backup, name):
+        conn = open_ssh_connection(backup)
+        sftp = sftp_client.SFTP.from_transport(conn)
+
+        try:
+            sftp.chdir(backup['directory'])
+            sftp.remove(name)
         except ssh_exception.SSHException as err:
             raise TaskException(errno.EFAULT, 'Cannot get object: {0}'.format(str(err)))
         finally:
@@ -172,3 +198,4 @@ def _init(dispatcher, plugin):
     plugin.register_task_handler('backup.ssh.list', BackupSSHListTask)
     plugin.register_task_handler('backup.ssh.get', BackupSSHGetTask)
     plugin.register_task_handler('backup.ssh.put', BackupSSHPutTask)
+    plugin.register_task_handler('backup.ssh.delete', BackupSSHDeleteTask)
