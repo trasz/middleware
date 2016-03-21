@@ -1029,7 +1029,7 @@ class ReplicateDatasetTask(ProgressTask):
 
             remote_data.append({
                 'name': i['name'],
-                'created_at': datetime.fromtimestamp(int(snap['properties.creation.rawvalue'])),
+                'created_at': datetime.fromtimestamp(int(i['properties.creation.rawvalue'])),
                 'uuid': i.get('properties.org\\.freenas:uuid.value')
             })
 
@@ -1039,7 +1039,7 @@ class ReplicateDatasetTask(ProgressTask):
 
             remote_data.append({
                 'name': i['name'],
-                'created_at': datetime.fromtimestamp(int(snap['properties.creation.rawvalue'])),
+                'created_at': datetime.fromtimestamp(int(i['properties.creation.rawvalue'])),
                 'uuid': i.get('properties.org\\.freenas:uuid.value')
             })
 
