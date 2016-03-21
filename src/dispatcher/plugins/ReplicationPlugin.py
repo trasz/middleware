@@ -1135,7 +1135,6 @@ class ReplicationGetLatestLinkTask(Task):
 
     def run(self, name):
         local_link = self.dispatcher.call_sync('replication.link.get_one_local', name)
-        self.dispatcher.call_sync('plugin.wait_for_service', 'networkd.configuration', 120)
         ips = self.dispatcher.call_sync('network.config.get_my_ips')
         remote = ''
         client = None
@@ -1428,10 +1427,13 @@ def _init(dispatcher, plugin):
         for i in args['ids']:
             dispatcher.call_task_sync('replication.role_update', i)
 
+    def update_link_cache(args):
+        # Query, if possible, performs sync of replication links cache at both ends of each link
+        dispatcher.call_sync('replication.link.query')
+
     plugin.register_event_handler('plugin.service_resume', on_etcd_resume)
     plugin.register_event_handler('replication.link.changed', on_replication_change)
-
-    # Query, if possible, performs sync of replication links cache at both ends of each link
-    links = dispatcher.call_sync('replication.link.query')
+    plugin.register_event_handler('network.changed', update_link_cache)
+    links = dispatcher.call_sync('replication.link.local_query')
     for link in links:
         dispatcher.register_resource(Resource('replication:{0}'.format(link['name'])), parents=['replication'])
