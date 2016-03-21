@@ -1317,6 +1317,8 @@ def get_remote_client(remote):
 
     except AuthenticationException:
         raise RpcException(errno.EAUTH, 'Cannot connect to {0}'.format(remote))
+    except (OSError, ConnectionRefusedError):
+        raise RpcException(errno.ECONNREFUSED, 'Cannot connect to {0}'.format(remote))
 
 
 def _depends():
