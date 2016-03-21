@@ -1135,6 +1135,7 @@ class ReplicationGetLatestLinkTask(Task):
 
     def run(self, name):
         local_link = self.dispatcher.call_sync('replication.link.get_one_local', name)
+        self.dispatcher.call_sync('plugin.wait_for_service', 'networkd.configuration', 120)
         ips = self.dispatcher.call_sync('network.config.get_my_ips')
         remote = ''
         client = None
