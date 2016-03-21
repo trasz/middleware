@@ -444,7 +444,7 @@ class ReplicationPrepareSlaveTask(ReplicationBaseTask):
                                     {
                                         'id': vol['id'],
                                         'type': vol['type'],
-                                        'params': {'encryption': False},
+                                        'params': {'encryption': False, 'mount': False},
                                         'topology': topology
                                     }
                                 )
@@ -480,6 +480,7 @@ class ReplicationPrepareSlaveTask(ReplicationBaseTask):
                                         }
                                         if local_sub_dataset['mountpoint']:
                                             dataset_properties['mountpoint'] = local_sub_dataset['mountpoint']
+                                        dataset_properties['mounted'] = False
                                         remote_client.call_task_sync(
                                             'volume.dataset.create',
                                             dataset_properties
@@ -494,7 +495,12 @@ class ReplicationPrepareSlaveTask(ReplicationBaseTask):
                                             ),
                                             stacktrace=e.stacktrace
                                         )
-
+                if link['recursive']:
+                    for dataset in sorted(link['datasets']):
+                        remote_client.call_task_sync('zfs.umount', dataset, True)
+                else:
+                    for dataset in datasets_to_replicate:
+                        remote_client.call_task_sync('zfs.umount', dataset['name'])
                 self.set_datasets_readonly(datasets_to_replicate, True, remote_client)
 
         else:
@@ -629,7 +635,10 @@ class ReplicationUpdateTask(ReplicationBaseTask):
             'operation': 'update',
             'ids': [link['id']]
         })
-
+        remote_client.emit_event('replication.link.changed', {
+            'operation': 'update',
+            'ids': [link['id']]
+        })
         remote_client.disconnect()
 
 
@@ -1203,6 +1212,12 @@ class ReplicationRoleUpdateTask(ReplicationBaseTask):
         if is_master:
             if current_readonly:
                 self.set_datasets_readonly(datasets, False)
+                if link['recursive']:
+                    for dataset in sorted(link['datasets']):
+                        self.join_subtasks(self.run_subtask('zfs.mount', dataset, True))
+                else:
+                    for dataset in datasets:
+                        self.join_subtasks(self.run_subtask('zfs.mount', dataset['name']))
 
                 for service in ['shares', 'containers']:
                     for reserved_item in self.dispatcher.call_sync('replication.get_reserved_{0}'.format(service), name):
@@ -1247,6 +1262,12 @@ class ReplicationRoleUpdateTask(ReplicationBaseTask):
                                         )
         else:
             if not current_readonly:
+                if link['recursive']:
+                    for dataset in sorted(link['datasets']):
+                        self.join_subtasks(self.run_subtask('zfs.umount', dataset, True))
+                else:
+                    for dataset in datasets:
+                        self.join_subtasks(self.run_subtask('zfs.umount', dataset['name']))
                 self.set_datasets_readonly(datasets, True)
 
                 if link['replicate_services']:
