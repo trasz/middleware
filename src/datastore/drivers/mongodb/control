@@ -29,8 +29,9 @@ case ${cmd} in
         ;;
 
     stop)
-        kill `cat ${pidfile}`
-        while kill -0 ${pidfile} > /dev/null 2>&1; do
+        pid=`cat ${pidfile}`
+        kill ${pid}
+        while kill -0 ${pid} > /dev/null 2>&1; do
             sleep 0.2
         done
         ;;
