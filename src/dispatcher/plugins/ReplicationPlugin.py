@@ -1375,7 +1375,11 @@ def _init(dispatcher, plugin):
         'properties': {
             'name': {'type': 'string'},
             'created_at': {'type': 'string'},
-            'uuid': {'type': ['string', 'null']}
+            'uuid': {'type': ['string', 'null']},
+            'type': {
+                'type': 'string',
+                'enum': ['FILESYSTEM', 'VOLUME']
+            }
         }
     })
 
