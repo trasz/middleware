@@ -178,7 +178,8 @@ class TaskExecutor(object):
             'class': task.clazz.__name__,
             'filename': inspect.getsourcefile(task.clazz),
             'args': task.args,
-            'debugger': task.debugger
+            'debugger': task.debugger,
+            'environment': task.environment
         })
 
         try:
@@ -285,6 +286,7 @@ class Task(object):
         self.progress = None
         self.resources = []
         self.warnings = []
+        self.environment = {}
         self.thread = None
         self.instance = None
         self.parent = None
@@ -313,7 +315,8 @@ class Task(object):
             "rusage": self.rusage,
             "error": self.error,
             "warnings": self.warnings,
-            "debugger": self.debugger
+            "debugger": self.debugger,
+            "environment": self.environment
         }
 
     def __emit_progress(self):
@@ -480,7 +483,7 @@ class Balancer(object):
         val = validator.DefaultDraft4Validator(schema, resolver=self.dispatcher.rpc.get_schema_resolver(schema))
         return list(val.iter_errors(args))
 
-    def submit(self, name, args, sender):
+    def submit(self, name, args, sender, env=None):
         if name not in self.dispatcher.tasks:
             self.logger.warning("Cannot submit task: unknown task type %s", name)
             raise RpcException(errno.EINVAL, "Unknown task type {0}".format(name))
@@ -495,6 +498,12 @@ class Balancer(object):
         task.created_at = datetime.utcnow()
         task.clazz = clazz
         task.args = copy.deepcopy(args)
+
+        if env:
+            if not isinstance(env, dict):
+                raise ValueError('env must be a dict')
+
+            task.environment = copy.deepcopy(env)
 
         if self.debugger:
             for m in self.debugged_tasks:

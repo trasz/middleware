@@ -323,6 +323,11 @@ class TaskService(RpcService):
         tid = self.__balancer.submit(name, args, sender)
         return tid
 
+    @pass_sender
+    def submit_with_env(self, name, args, env, sender):
+        tid = self.__balancer.submit(name, args, sender, env)
+        return tid
+
     def status(self, id):
         t = self.__datastore.get_by_id('tasks', id)
         task = self.__balancer.get_task(id)
