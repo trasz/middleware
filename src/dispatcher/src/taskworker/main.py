@@ -38,6 +38,7 @@ import queue
 from threading import Event
 from freenas.dispatcher.client import Client
 from freenas.dispatcher.rpc import RpcService, RpcException, RpcWarning
+from freenas.utils import load_module_from_file
 from datastore import get_datastore
 from datastore.config import ConfigStore
 
@@ -205,7 +206,8 @@ class Context(object):
                     host, port = task['debugger']
                     pydevd.settrace(host, port=port, stdoutToServer=True, stderrToServer=True)
 
-                module = imp.load_source('plugin', task['filename'])
+                name, _ = os.path.splitext(os.path.basename(task['filename']))
+                module = load_module_from_file(name, task['filename'])
                 setproctitle.setproctitle('task executor (tid {0})'.format(task['id']))
 
                 try:

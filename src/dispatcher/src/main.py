@@ -78,7 +78,7 @@ from schemas import register_general_purpose_schemas
 from api.handler import ApiHandler
 from balancer import Balancer
 from auth import PasswordAuthenticator, TokenStore, Token, TokenException, User, Service
-from freenas.utils import FaultTolerantLogHandler, xrecvmsg, xsendmsg
+from freenas.utils import FaultTolerantLogHandler, load_module_from_file, xrecvmsg, xsendmsg
 
 
 MAXFDS = 128
@@ -495,9 +495,9 @@ class Dispatcher(object):
 
         self.logger.debug("Loading plugin from %s", path)
         try:
-            name = os.path.splitext(os.path.basename(path))[0]
+            name, _ = os.path.splitext(os.path.basename(path))
             plugin = Plugin(self, path)
-            plugin.assign_module(imp.load_source(name, path))
+            plugin.assign_module(load_module_from_file(name, path))
             self.plugins[name] = plugin
         except Exception as err:
             self.logger.exception("Cannot load plugin from %s", path)
