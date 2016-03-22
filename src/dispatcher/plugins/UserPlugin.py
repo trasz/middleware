@@ -297,39 +297,39 @@ class UserCreateTask(Task):
 @description("Deletes an user from the system")
 @accepts(str)
 class UserDeleteTask(Task):
-    def describe(self, uid):
-        user = self.datastore.get_by_id('users', uid)
-        return "Deleting user {0}".format(user['username'] if user else uid)
+    def describe(self, id):
+        user = self.datastore.get_by_id('users', id)
+        return "Deleting user {0}".format(user['username'] if user else id)
 
-    def verify(self, uid):
-        user = self.datastore.get_by_id('users', uid)
+    def verify(self, id):
+        user = self.datastore.get_by_id('users', id)
 
         if user is None:
-            raise VerifyException(errno.ENOENT, 'User with UID {0} does not exist'.format(uid))
+            raise VerifyException(errno.ENOENT, 'User with UID {0} does not exist'.format(id))
 
         if user['builtin']:
             raise VerifyException(errno.EPERM, 'Cannot delete builtin user {0}'.format(user['username']))
 
         return ['system']
 
-    def run(self, uid):
+    def run(self, id):
         try:
-            user = self.datastore.get_by_id('users', uid)
-            if user['group'] == uid and self.datastore.exists('groups', ('uid', '=', uid)):
-                group = self.datastore.get_one('groups', ('gid', '=', uid))
+            user = self.datastore.get_by_id('users', id)
+            group = self.datastore.get_by_id('groups', user['group'])
+            if group and user['uid'] == group['gid']:
                 self.add_warning(TaskWarning(
                     errno.EBUSY,
                     'Group {0} ({1}) left behind, you need to delete it separately'.format(group['name'], group['gid']))
                 )
 
-            self.datastore.delete('users', uid)
+            self.datastore.delete('users', id)
             self.dispatcher.call_sync('etcd.generation.generate_group', 'accounts')
         except DatastoreException as e:
             raise TaskException(errno.EBADMSG, 'Cannot delete user: {0}'.format(str(e)))
 
         self.dispatcher.dispatch_event('user.changed', {
             'operation': 'delete',
-            'ids': [uid]
+            'ids': [id]
         })
 
 
