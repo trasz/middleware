@@ -749,37 +749,25 @@ class ReplicationReserveServicesTask(ReplicationBaseTask):
             remote_client.disconnect()
 
 
-@accepts(str, str, bool, str, str, bool)
+@accepts(str, bool, int, str, bool)
 @returns(str)
 class SnapshotDatasetTask(Task):
-    def verify(self, pool, dataset, recursive, lifetime, prefix='auto', replicable=False):
+    def verify(self, dataset, recursive, lifetime, prefix='auto', replicable=False):
         if not self.dispatcher.call_sync('zfs.dataset.query', [('name', '=', dataset)], {'single': True}):
             raise VerifyException(errno.ENOENT, 'Dataset {0} not found'.format(dataset))
 
         return ['zfs:{0}'.format(dataset)]
 
     def run(self, pool, dataset, recursive, lifetime, prefix='auto', replicable=False):
-        def is_expired(snapshot):
-            match = AUTOSNAP_RE.match(snapshot['snapshot_name'])
-            if not match:
-                return False
-
-            if snapshot['holds']:
-                return False
-
-            if match.group('prefix') != prefix:
-                return False
-
-            delta = to_timedelta(match.group('lifetime'))
-            creation = parse_datetime(snapshot['properties.creation.value'])
-            return creation + delta < datetime.utcnow()
-
-        snapshots = list(filter(is_expired, wrap(self.dispatcher.call_sync('zfs.dataset.get_snapshots', dataset))))
-        snapname = '{0}-{1:%Y%m%d.%H%M}-{2}'.format(prefix, datetime.utcnow(), lifetime)
+        snapname = '{0}-{1:%Y%m%d.%H%M}'.format(prefix, datetime.utcnow())
         params = {
             'org.freenas:replicate': {'value': 'yes' if replicable else 'no'},
-            'org.freenas:lifetime': {'value': ''}
+            'org.freenas:lifetime': {'value': str(lifetime)},
         }
+
+        calendar_task_name = self.environment.get('calendar_task_name')
+        if calendar_task_name:
+            params['org.freenas:calendar_task'] = calendar_task_name
 
         base_snapname = snapname
 
@@ -795,16 +783,14 @@ class SnapshotDatasetTask(Task):
 
             break
 
-        self.join_subtasks(
-            self.run_subtask('zfs.create_snapshot', pool, dataset, snapname, recursive, params),
-            self.run_subtask(
-                'zfs.delete_multiple_snapshots',
-                pool,
-                dataset,
-                list(map(lambda s: s['snapshot_name'], snapshots)),
-                True
-            )
-        )
+        self.join_subtasks(self.run_subtask(
+            'zfs.create_snapshot',
+            pool,
+            dataset,
+            snapname,
+            recursive,
+            params
+        ))
 
 
 class CalculateReplicationDeltaTask(Task):
