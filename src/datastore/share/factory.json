@@ -540,6 +540,24 @@
                 "groups": [],
                 "attributes": {},
                 "builtin": true
+            },
+            "08C571C4-3C36-4652-AF3B-27D5864F70C0": {
+                "uid": 100,
+                "password_disabled": false,
+                "email": null,
+                "group": "78C17920-B366-4A48-87A1-E7A64EB00450",
+                "home": "/var/empty",
+                "full_name": "replication user",
+                "username": "replication",
+                "sshpubkey": null,
+                "shell": "/usr/sbin/nologin",
+                "locked": false,
+                "unixhash": "*",
+                "sudo": false,
+                "smbhash": "*",
+                "groups": [],
+                "attributes": {},
+                "builtin": true
             }
         },
         "metadata": {
@@ -772,6 +790,12 @@
                 "builtin": true,
                 "sudo": false,
                 "name": "proxy"
+            },
+            "78C17920-B366-4A48-87A1-E7A64EB00450": {
+                "gid": 100,
+                "builtin": true,
+                "sudo": false,
+                "name": "replication"
             }
         },
         "metadata": {
