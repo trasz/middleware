@@ -485,7 +485,7 @@ class Dispatcher(object):
 
     def __discover_plugin_dir(self, dir):
         for root, dirnames, filenames in os.walk(dir):
-            for i in fnmatch.filter(filenames, '*.py'):
+            for i in fnmatch.filter(filenames, '*.py') + fnmatch.filter(filenames, '*.so'):
                 self.__try_load_plugin(os.path.join(dir, os.path.join(root, i)))
 
     def __try_load_plugin(self, path):
