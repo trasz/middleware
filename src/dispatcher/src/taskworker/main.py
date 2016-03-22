@@ -29,7 +29,6 @@
 import os
 import sys
 import errno
-import imp
 import setproctitle
 import socket
 import traceback

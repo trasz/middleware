@@ -31,7 +31,6 @@ import os
 import sys
 import fnmatch
 import array
-import imp
 import json
 import datetime
 import logging
