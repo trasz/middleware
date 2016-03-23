@@ -29,11 +29,13 @@ import os
 import re
 import enum
 import errno
+import json
 import logging
 import tempfile
 import base64
 import gevent
 import gevent.monkey
+from xml.etree import ElementTree
 from bsd import geom
 from gevent.lock import RLock
 from resources import Resource
@@ -48,6 +50,7 @@ from task import (
     Provider, Task, ProgressTask, TaskStatus, TaskException, VerifyException,
     query
 )
+from debug import AttachData, AttachCommandOutput
 from freenas.dispatcher.rpc import RpcException, accepts, returns, description, private
 from freenas.dispatcher.rpc import SchemaHelper as h
 
@@ -1237,6 +1240,12 @@ def configure_disk(datastore, id):
         gevent.spawn_later(60, configure_standby, standby_mode)
 
 
+def collect_debug(dispatcher):
+    yield AttachCommandOutput('gpart', ['/sbin/gpart', 'show'])
+    yield AttachData('disk-cache-state', json.dumps(diskinfo_cache.query(), indent=4))
+    yield AttachData('confxml', ElementTree.tostring(confxml(), encoding='utf8', method='xml'))
+
+
 def _depends():
     return ['DevdPlugin']
 
@@ -1408,6 +1417,8 @@ def _init(dispatcher, plugin):
     plugin.register_task_handler('disk.parallel_test', DiskParallelTestTask)
 
     plugin.register_event_type('disk.changed')
+
+    plugin.register_debug_hook(collect_debug)
 
     # Start with marking all disks as unavailable
     for i in dispatcher.datastore.query('disks'):
