@@ -64,6 +64,9 @@ class ManagementService(RpcService):
     def get_event_sources(self):
         return list(self.dispatcher.event_sources.keys())
 
+    def get_plugin_names(self):
+        return list(self.dispatcher.plugins.keys())
+
     def get_connected_clients(self):
         return [
             inner
@@ -93,6 +96,17 @@ class ManagementService(RpcService):
 
     def stop_logdb(self):
         self.dispatcher.stop_logdb()
+
+    def collect_debug(self, plugin_name):
+        plugin = self.dispatcher.plugins.get(plugin_name)
+        result = []
+        if not plugin:
+            raise RpcException(errno.ENOENT, 'Plugin not found')
+
+        for hook in plugin.registers['debug']:
+            result.extend(c.__getstate__() for c in hook(self.dispatcher))
+
+        return result
 
 
 class DebugService(RpcService):

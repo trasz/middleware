@@ -1,5 +1,5 @@
 #
-# Copyright 2015 iXsystems, Inc.
+# Copyright 2016 iXsystems, Inc.
 # All rights reserved
 #
 # Redistribution and use in source and binary forms, with or without
@@ -25,43 +25,44 @@
 #
 #####################################################################
 
-import time
-from datetime import datetime
-from event import EventSource
-from task import Provider
-from debug import AttachDirectory
+
+class AttachFile(object):
+    def __init__(self, name, path):
+        self.name = name
+        self.path = path
+
+    def __getstate__(self):
+        return {
+            'type': 'AttachFile',
+            'name': self.name,
+            'path': self.path,
+            'recursive': False
+        }
 
 
-class SyslogProvider(Provider):
-    def query(self, filter=None, params=None):
-        return self.datastore.query('syslog', *(filter or []), **(params or {}))
+class AttachDirectory(object):
+    def __init__(self, name, path, recursive=True):
+        self.name = name
+        self.path = path
+        self.recursive = recursive
+
+    def __getstate__(self):
+        return {
+            'type': 'AttachDirectory',
+            'name': self.name,
+            'path': self.path,
+            'recursive': self.recursive
+        }
 
 
-class SyslogEventSource(EventSource):
-    def __init__(self, dispatcher):
-        super(SyslogEventSource, self).__init__(dispatcher)
-        self.register_event_type("syslog.changed")
+class AttachData(object):
+    def __init__(self, name, data):
+        self.name = name
+        self.data = data
 
-    def run(self):
-        # Initial call to obtain cursor
-        cursor = self.datastore.listen('syslog', ('created_at', '>=', datetime.utcnow()))
-
-        while True:
-            for i in self.datastore.tail(cursor):
-                self.dispatcher.dispatch_event('syslog.changed', {
-                    'operation': 'create',
-                    'ids': [i['id']]
-                })
-
-            time.sleep(1)
-
-
-def gather_debug(dispatcher):
-    yield AttachDirectory('var-log', '/var/log')
-    yield AttachDirectory('var-tmp', '/var/tmp')
-
-
-def _init(dispatcher, plugin):
-    plugin.register_event_source('syslog', SyslogEventSource)
-    plugin.register_provider('syslog', SyslogProvider)
-    plugin.register_debug_hook(gather_debug)
+    def __getstate__(self):
+        return {
+            'type': 'AttachFile',
+            'name': self.name,
+            'data': self.data
+        }
