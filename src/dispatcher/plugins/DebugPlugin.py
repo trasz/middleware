@@ -58,7 +58,7 @@ class CollectDebugTask(ProgressTask):
             tar.addfile(info, io.BytesIO(content.encode('utf-8')))
 
         if cmd['type'] in ('AttachDirectory', 'AttachFile'):
-           tar.add(cmd['path'], arcname=os.path.join(plugin, cmd['name']), recursive=cmd.get('recursive'))
+            tar.add(cmd['path'], arcname=os.path.join(plugin, cmd['name']), recursive=cmd.get('recursive'))
 
     def run(self, fd):
         with os.fdopen(fd.fd, 'wb') as f:
