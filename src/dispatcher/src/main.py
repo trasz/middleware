@@ -123,6 +123,7 @@ class Plugin(object):
             'resources': [],
             'schema_definitions': [],
             'task_handlers': [],
+            'debug': []
         }
 
     def assign_module(self, module):
@@ -216,6 +217,9 @@ class Plugin(object):
     def unregister_hook(self, name):
         self.dispatcher.unregister_hook(name)
         self.registers['hooks'].remove(name)
+
+    def register_debug_hook(self, func):
+        self.registers['debug'].append(func)
 
     def unload(self):
         if hasattr(self.module, '_cleanup'):
