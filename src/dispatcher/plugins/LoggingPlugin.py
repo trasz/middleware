@@ -56,7 +56,7 @@ class SyslogEventSource(EventSource):
             time.sleep(1)
 
 
-def gather_debug(dispatcher):
+def collect_debug(dispatcher):
     yield AttachDirectory('var-log', '/var/log')
     yield AttachDirectory('var-tmp', '/var/tmp')
 
@@ -64,4 +64,4 @@ def gather_debug(dispatcher):
 def _init(dispatcher, plugin):
     plugin.register_event_source('syslog', SyslogEventSource)
     plugin.register_provider('syslog', SyslogProvider)
-    plugin.register_debug_hook(gather_debug)
+    plugin.register_debug_hook(collect_debug)
