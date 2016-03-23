@@ -55,6 +55,21 @@ class AttachDirectory(object):
         }
 
 
+class AttachCommandOutput(object):
+    def __init__(self, name, command, shell=False):
+        self.name = name
+        self.command = command
+        self.shell = shell
+
+    def __getstate__(self):
+        return {
+            'type': 'AttachCommandOutput',
+            'name': self.name,
+            'command': self.command,
+            'shell': self.shell
+        }
+
+
 class AttachData(object):
     def __init__(self, name, data):
         self.name = name
@@ -62,7 +77,7 @@ class AttachData(object):
 
     def __getstate__(self):
         return {
-            'type': 'AttachFile',
+            'type': 'AttachData',
             'name': self.name,
             'data': self.data
         }
