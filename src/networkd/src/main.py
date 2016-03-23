@@ -552,10 +552,6 @@ class ConfigurationService(RpcService):
         if not entity:
             raise RpcException(errno.ENXIO, "Configuration for interface {0} not found".format(name))
 
-        if not entity.get('enabled'):
-            self.logger.info('Interface {0} is disabled'.format(name))
-            return
-
         try:
             iface = netif.get_interface(name)
         except KeyError:
@@ -564,6 +560,10 @@ class ConfigurationService(RpcService):
                 iface = netif.get_interface(name)
             else:
                 raise RpcException(errno.ENOENT, "Interface {0} not found".format(name))
+
+        if not entity.get('enabled'):
+            self.logger.info('Interface {0} is disabled'.format(name))
+            return
 
         # If it's VLAN, configure parent and tag
         if entity.get('type') == 'VLAN':
