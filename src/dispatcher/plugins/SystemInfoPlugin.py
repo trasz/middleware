@@ -51,6 +51,7 @@ from freenas.dispatcher.rpc import (
 from lib.system import SubprocessException, system
 from lib.freebsd import get_sysctl
 from task import Provider, Task, TaskException, TaskAbortException, ValidationException
+from debug import AttachFile, AttachCommandOutput
 
 if '/usr/local/lib' not in sys.path:
     sys.path.append('/usr/local/lib')
@@ -513,6 +514,19 @@ class SystemHaltTask(Task):
         t.start()
 
 
+def collect_debug(dispatcher):
+    yield AttachCommandOutput('uptime', ['/usr/bin/uptime'])
+    yield AttachCommandOutput('date', ['/bin/date'])
+    yield AttachCommandOutput('process-list', ['/bin/ps', 'auxww'])
+    yield AttachCommandOutput('mountpoints', ['/sbin/mount'])
+    yield AttachCommandOutput('df-h', ['/sbin/df', '-h'])
+    yield AttachCommandOutput('swapinfo', ['/sbin/swapinfo', '-h'])
+    yield AttachCommandOutput('kldstat', ['/sbin/kldstat'])
+    yield AttachCommandOutput('dmesg', ['/sbin/dmesg', '-a'])
+    yield AttachCommandOutput('procstat', ['/usr/bin/procstat', '-akk'])
+    yield AttachCommandOutput('vmstat', ['/usr/bin/vmstat', '-i'])
+
+
 def _init(dispatcher, plugin):
     def on_hostname_change(args):
         if 'hostname' not in args:
@@ -619,6 +633,9 @@ def _init(dispatcher, plugin):
     plugin.register_task_handler("system.time.update", SystemTimeConfigureTask)
     plugin.register_task_handler("system.shutdown", SystemHaltTask)
     plugin.register_task_handler("system.reboot", SystemRebootTask)
+
+    # Register debug hook
+    plugin.register_debug_hook(collect_debug)
 
     # Set initial hostname
     netif.set_hostname(dispatcher.configstore.get('system.hostname'))

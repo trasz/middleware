@@ -35,6 +35,7 @@ from freenas.utils import normalize, first_or_default
 from datastore.config import ConfigNode
 from gevent import hub
 from task import Provider, Task, TaskException, VerifyException, query, TaskWarning
+from debug import AttachFile, AttachCommandOutput
 
 
 logger = logging.getLogger('NetworkPlugin')
@@ -570,6 +571,20 @@ class DeleteRouteTask(Task):
         })
 
 
+def collect_debug(dispatcher):
+    yield AttachFile('hosts', '/etc/hosts')
+    yield AttachFile('resolv.conf', '/etc/resolv.conf')
+    yield AttachCommandOutput('ifconfig', ['/sbin/ifconfig', '-v'])
+    yield AttachCommandOutput('routing-table', ['/sbin/netstat', '-nr'])
+    yield AttachCommandOutput('arp-table', ['/sbin/arp', '-an'])
+    yield AttachCommandOutput('arp-table', ['/sbin/arp', '-an'])
+    yield AttachCommandOutput('mbuf-stats', ['/sbin/netstat', '-m'])
+    yield AttachCommandOutput('interface-stats', ['/sbin/netstat', '-i'])
+
+    for i in ['ip', 'arp', 'udp', 'tcp', 'icmp']:
+        yield AttachCommandOutput('netstat-proto-{0}'.format(i), ['/sbin/netstat', '-p', i, '-s'])
+
+
 def _depends():
     return ['DevdPlugin']
 
@@ -774,3 +789,5 @@ def _init(dispatcher, plugin):
     plugin.register_event_type('network.interface.changed')
     plugin.register_event_type('network.host.changed')
     plugin.register_event_type('network.route.changed')
+
+    plugin.register_debug_hook(collect_debug)

@@ -33,6 +33,7 @@ import random
 import string
 import re
 from task import Provider, Task, TaskException, TaskWarning, ValidationException, VerifyException, query
+from debug import AttachFile
 from freenas.dispatcher.rpc import RpcException, description, accepts, returns, SchemaHelper as h
 from datastore import DuplicateKeyException, DatastoreException
 from lib.system import SubprocessException, system
@@ -622,6 +623,11 @@ class GroupDeleteTask(Task):
         })
 
 
+def collect_debug(dispatcher):
+    yield AttachFile('passwd', '/etc/passwd')
+    yield AttachFile('group', '/etc/group')
+
+
 def _init(dispatcher, plugin):
     # Register definitions for objects used
     plugin.register_schema_definition('user', {
@@ -686,3 +692,6 @@ def _init(dispatcher, plugin):
     # Register event types
     plugin.register_event_type('user.changed')
     plugin.register_event_type('group.changed')
+
+    # Register debug hook
+    plugin.register_debug_hook(collect_debug)
