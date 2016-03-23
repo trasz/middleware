@@ -2023,6 +2023,18 @@
     },
     {
         "metadata": {
+            "name": "replication.known_hosts",
+            "migration": "keep",
+            "pkey-type": "native",
+            "attributes": {
+                "type": "config"
+            }
+        },
+        "data": {
+        }
+    },
+    {
+        "metadata": {
             "name": "disks",
             "migration": "keep",
             "pkey-type": "native",
