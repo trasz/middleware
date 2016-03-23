@@ -4,7 +4,8 @@
 
 var DebuggerApp = angular.module('Debugger', [
 	'ngRoute',
-    'ui.bootstrap'
+    'ui.bootstrap',
+    'isteven-multi-select'
 ]);
 DebuggerApp.config(['$routeProvider', function($routeProvider) {
   $routeProvider.
@@ -80,3 +81,15 @@ DebuggerApp.service('synchronousService', [function () {
     };
     return serviceMethod;
 }]);
+
+DebuggerApp.directive('ngRightClick', function($parse) {
+    return function(scope, element, attrs) {
+        var fn = $parse(attrs.ngRightClick);
+        element.bind('contextmenu', function(event) {
+            scope.$apply(function() {
+                event.preventDefault();
+                fn(scope, {$event:event});
+            });
+        });
+    };
+});
