@@ -35,6 +35,7 @@ from freenas.dispatcher.rpc import RpcException, SchemaHelper as h, description,
 from lib.system import system, SubprocessException
 from lib.freebsd import get_sysctl
 from task import Task, Provider, TaskException, ValidationException
+from debug import AttachFile, AttachCommandOutput
 
 logger = logging.getLogger('SMBPlugin')
 
@@ -183,6 +184,18 @@ def configure_params(smb):
     conf['idmap config *: backend'] = 'tdb'
 
 
+def collect_debug(dispatcher):
+    yield AttachFile('smb4.conf', '/usr/local/etc/smb4.conf')
+    yield AttachCommandOutput('net-conf-list', ['/usr/local/bin/net', 'conf', 'list'])
+    yield AttachCommandOutput('net-getlocalsid', ['/usr/local/bin/net', 'getlocalsid'])
+    yield AttachCommandOutput('net-getdomainsid', ['/usr/local/bin/net', 'getdomainsid'])
+    yield AttachCommandOutput('net-groupmap-list', ['/usr/local/bin/net', 'groupmap', 'list'])
+    yield AttachCommandOutput('net-status-sessions', ['/usr/local/bin/net', 'status', 'sessions'])
+    yield AttachCommandOutput('net-status-shares', ['/usr/local/bin/net', 'status', 'shares'])
+    yield AttachCommandOutput('wbinfo-users', ['/usr/local/bin/wbinfo', '-u'])
+    yield AttachCommandOutput('wbinfo-groups', ['/usr/local/bin/wbinfo', '-g'])
+
+
 def _depends():
     return ['ServiceManagePlugin']
 
@@ -270,6 +283,9 @@ def _init(dispatcher, plugin):
 
     # Register tasks
     plugin.register_task_handler("service.smb.update", SMBConfigureTask)
+
+    # Register debug hooks
+    plugin.register_debug_hook(collect_debug)
 
     set_smb_sid()
     node = ConfigNode('service.smb', dispatcher.configstore)
