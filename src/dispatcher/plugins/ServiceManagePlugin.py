@@ -24,6 +24,7 @@
 # POSSIBILITY OF SUCH DAMAGE.
 #
 #####################################################################
+
 import os
 import errno
 import gevent
@@ -31,6 +32,7 @@ import gevent.pool
 import logging
 
 from task import Task, Provider, TaskException, VerifyException, ValidationException, query
+from debug import AttachFile, AttachCommandOutput
 from resources import Resource
 from freenas.dispatcher.rpc import RpcException, description, accepts, private, returns
 from freenas.dispatcher.rpc import SchemaHelper as h
@@ -38,6 +40,7 @@ from datastore.config import ConfigNode
 from lib.system import system, SubprocessException
 from freenas.utils import extend as extend_dict
 from freenas.utils.query import wrap
+
 
 logger = logging.getLogger('ServiceManagePlugin')
 
@@ -449,6 +452,11 @@ def get_status(dispatcher, service):
     return state, pid
 
 
+def collect_debug(dispatcher):
+    yield AttachFile('rc.conf', '/etc/rc.conf')
+    yield AttachCommandOutput('enabled-services', ['/usr/sbin/service', '-e'])
+
+
 def _init(dispatcher, plugin):
     def on_rc_command(args):
         cmd = args['action']
@@ -507,3 +515,5 @@ def _init(dispatcher, plugin):
 
     for svc in dispatcher.datastore.query('service_definitions'):
         plugin.register_resource(Resource('service:{0}'.format(svc['name'])), parents=['system'])
+
+    plugin.register_debug_hook(collect_debug)
