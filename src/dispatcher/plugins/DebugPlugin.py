@@ -47,10 +47,10 @@ class CollectDebugTask(ProgressTask):
                 out, err = system(*cmd['command'], shell=cmd['shell'])
                 content = out + '\n' + err + '\n'
             except SubprocessException as err:
-                content = 'Exit code: {0}'.format(err.returncode)
-                content += 'stdout\n'
+                content = 'Exit code: {0}\n'.format(err.returncode)
+                content += 'stdout:\n'
                 content += err.out
-                content += 'stderr\n'
+                content += 'stderr:\n'
                 content += err.err
 
             info = tarfile.TarInfo(os.path.join(plugin, cmd['name']))
