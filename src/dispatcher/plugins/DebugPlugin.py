@@ -62,7 +62,7 @@ class CollectDebugTask(ProgressTask):
 
     def run(self, fd):
         with os.fdopen(fd.fd, 'wb') as f:
-            with tarfile.open(fileobj=f, mode='w:gz') as tar:
+            with tarfile.open(fileobj=f, mode='w:gz', dereference=True) as tar:
                 plugins = self.dispatcher.call_sync('management.get_plugin_names')
                 total = len(plugins)
                 done = 0
