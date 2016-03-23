@@ -218,8 +218,8 @@ class RoutingSocketEventSource(threading.Thread):
                 if self.mtu_cache[ifname] != message.mtu:
                     self.client.emit_event('network.interface.mtu_changed', {
                         'interface': ifname,
-                        'old-mtu': self.mtu_cache[ifname],
-                        'new-mtu': message.mtu
+                        'old_mtu': self.mtu_cache[ifname],
+                        'new_mtu': message.mtu
                     })
 
                 if self.link_state_cache[ifname] != message.link_state:
@@ -248,8 +248,8 @@ class RoutingSocketEventSource(threading.Thread):
 
                     self.client.emit_event('network.interface.flags_changed', {
                         'interface': ifname,
-                        'old-flags': [f.name for f in self.flags_cache[ifname]],
-                        'new-flags': [f.name for f in message.flags]
+                        'old_flags': [f.name for f in self.flags_cache[ifname]],
+                        'new_flags': [f.name for f in message.flags]
                     })
 
                 self.client.emit_event('network.interface.changed', {
