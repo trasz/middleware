@@ -31,6 +31,7 @@ import logging
 from datastore.config import ConfigNode
 from freenas.dispatcher.rpc import RpcException, SchemaHelper as h, description, accepts, returns, private
 from task import Task, Provider, TaskException, ValidationException
+from debug import AttachFile
 
 
 logger = logging.getLogger('NFSPlugin')
@@ -78,6 +79,11 @@ class NFSConfigureTask(Task):
         return 'RESTART'
 
 
+def collect_debug(dispatcher):
+    yield AttachFile('exports', '/etc/exports')
+    yield AttachFile('zfs-exports', '/etc/zfs/exports')
+
+
 def _depends():
     return ['ServiceManagePlugin']
 
@@ -113,3 +119,6 @@ def _init(dispatcher, plugin):
 
     # Register tasks
     plugin.register_task_handler("service.nfs.update", NFSConfigureTask)
+
+    # Register debug hook
+    plugin.register_debug_hook(collect_debug)

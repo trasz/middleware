@@ -28,6 +28,7 @@
 import os
 import errno
 import logging
+import json
 import libzfs
 from datetime import datetime
 from threading import Event
@@ -38,6 +39,7 @@ from freenas.dispatcher.rpc import RpcException, accepts, returns, description, 
 from freenas.dispatcher.rpc import SchemaHelper as h
 from balancer import TaskState
 from resources import Resource
+from debug import AttachData, AttachCommandOutput
 from freenas.utils import first_or_default
 from freenas.utils.query import QueryDict, wrap
 
@@ -940,6 +942,16 @@ def get_zfs():
     return libzfs.ZFS(history=True, history_prefix="[DISPATCHER TASK]")
 
 
+def collect_debug(dispatcher):
+    yield AttachData('pool-cache-state', json.dumps(pools.query(), indent=4))
+    yield AttachData('dataset-cache-state', json.dumps(datasets.query(), indent=4))
+    yield AttachData('snapshot-cache-state', json.dumps(snapshots.query(), indent=4))
+    yield AttachCommandOutput('zpool-status', ['/sbin/zpool', 'status'])
+    yield AttachCommandOutput('zpool-history', ['/sbin/zpool', 'history'])
+    yield AttachCommandOutput('zpool-list', ['/sbin/zpool', 'get', 'all'])
+    yield AttachCommandOutput('zfs-list', ['/sbin/zfs', 'get', 'all'])
+
+
 def _depends():
     return ['DevdPlugin', 'DiskPlugin']
 
@@ -1394,6 +1406,9 @@ def _init(dispatcher, plugin):
     plugin.register_task_handler('zfs.clone', ZfsCloneTask)
     plugin.register_task_handler('zfs.send', ZfsSendTask)
     plugin.register_task_handler('zfs.receive', ZfsReceiveTask)
+
+    # Register debug hook
+    plugin.register_debug_hook(collect_debug)
 
     if not os.path.isdir('/data/zfs'):
         os.mkdir('/data/zfs')
