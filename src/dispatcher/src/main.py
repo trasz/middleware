@@ -876,7 +876,10 @@ class UnixSocketServer(object):
 
                     for i in fds:
                         if i.close:
-                            os.close(i)
+                            try:
+                                os.close(i.fd)
+                            except OSError:
+                                pass
 
                 except (OSError, ValueError, socket.timeout) as err:
                     self.server.logger.info('Send failed: {0}; closing connection'.format(str(err)))
