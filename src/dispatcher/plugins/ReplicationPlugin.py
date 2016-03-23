@@ -26,6 +26,7 @@
 #####################################################################
 
 import enum
+import uuid
 import io
 import os
 import errno
@@ -761,6 +762,7 @@ class SnapshotDatasetTask(Task):
     def run(self, pool, dataset, recursive, lifetime, prefix='auto', replicable=False):
         snapname = '{0}-{1:%Y%m%d.%H%M}'.format(prefix, datetime.utcnow())
         params = {
+            'org.freenas:uuid': {'value': str(uuid.uuid4())},
             'org.freenas:replicate': {'value': 'yes' if replicable else 'no'},
             'org.freenas:lifetime': {'value': str(lifetime)},
         }
