@@ -14,11 +14,8 @@ function RpcController($scope) {
     $("#result").hide();
     $scope.init = function () {
         sock.onError = function(err) {
-            if(typeof err.message != 'undefined'){
-                alert("Error :" + err.message);
-            }else{
-                alert("Connection closed, refresh me");
-            }
+            $("#socket_status").html('Offline');
+            $("#refresh_page_glyph").show();
         };
         sock.onConnect = function() {
             if (!sessionStorage.getItem("freenas:username")) {
@@ -142,11 +139,8 @@ function TermController($scope, synchronousService) {
         // s.src = '/static/term.js';
         // document.body.appendChild(s);
         sock.onError = function(err) {
-            if(typeof err.message != 'undefined'){
-                alert("Error :" + err.message);
-            }else{
-                alert("Connection closed, refresh me");
-            }
+            $("#socket_status").html('Offline');
+            $("#refresh_page_glyph").show();
         };
     };
 
@@ -189,11 +183,8 @@ function EventsController($scope) {
     sock.connect();
     $scope.init = function () {
         sock.onError = function(err) {
-            if(typeof err.message != 'undefined'){
-                alert("Error :" + err.message);
-            }else{
-                alert("Connection closed, refresh me");
-            }
+            $("#socket_status").html('Offline');
+            $("#refresh_page_glyph").show();
         };
         sock.onConnect = function() {
             if (!sessionStorage.getItem("freenas:username")) {
@@ -231,11 +222,8 @@ function SyslogController($scope) {
     sock.connect();
     $scope.init = function () {
         sock.onError = function(err) {
-            if(typeof err.message != 'undefined'){
-                alert("Error :" + err.message);
-            }else{
-                alert("Connection closed, refresh me");
-            }
+            $("#socket_status").html('Offline');
+            $("#refresh_page_glyph").show();
         };
         sock.onConnect = function() {
             if (!sessionStorage.getItem("freenas:username")) {
@@ -317,11 +305,8 @@ function StatsController($scope) {
     }
     $scope.init = function () {
         sock.onError = function(err) {
-            if(typeof err.message != 'undefined'){
-                alert("Error :" + err.message);
-            }else{
-                alert("Connection closed, refresh me");
-            }
+            $("#socket_status").html('Offline');
+            $("#refresh_page_glyph").show();
         };
         sock.onConnect = function() {
             if (!sessionStorage.getItem("freenas:username")) {
@@ -368,14 +353,11 @@ function FileBrowserController($scope) {
     var BUFSIZE = 1024;
     var sock = new middleware.DispatcherClient( document.domain );
     sock.connect();
+    $scope.user_name = "";
     $scope.init = function () {
-        console.log("file Browser");
         sock.onError = function(err) {
-            if(typeof err.message != 'undefined'){
-                alert("Error :" + err.message);
-            }else{
-                alert("Connection closed, refresh me");
-            }
+            $("#socket_status").html('Offline');
+            $("#refresh_page_glyph").show();
         };
 
         sock.onConnect = function ( ) {
@@ -514,6 +496,14 @@ function FileBrowserController($scope) {
           $scope.uploadFileList.map(uploadToSocket);
       }
 
+
+      $scope.downloadfile = function() {
+          //downloadFromHttp(filename);
+        //   downloadFromHttp( taskItemInContext.getAttribute( "data-id" ) );
+        //   toggleMenuOff();
+        // console.log(filename);
+      }
+
       function handleFileSelect ( evt ) {
         evt.stopPropagation();
         evt.preventDefault();
@@ -591,11 +581,8 @@ function TasksController($scope) {
     }
     $scope.init = function() {
         sock.onError = function(err) {
-            if(typeof err.message != 'undefined'){
-                alert("Error :" + err.message);
-            }else{
-                alert("Connection closed, refresh me");
-            }
+            $("#socket_status").html('Offline');
+            $("#refresh_page_glyph").show();
         };
         sock.onEvent = function(name, args) {
             if (name == "task.created") {
