@@ -5,7 +5,6 @@
 var DebuggerApp = angular.module('Debugger', [
 	'ngRoute',
     'ui.bootstrap',
-    'isteven-multi-select'
 ]);
 DebuggerApp.config(['$routeProvider', function($routeProvider) {
   $routeProvider.
