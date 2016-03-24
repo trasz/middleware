@@ -74,7 +74,6 @@ from services import (
     PluginService, ShellService, LockService
 )
 from schemas import register_general_purpose_schemas
-from api.handler import ApiHandler
 from balancer import Balancer
 from auth import PasswordAuthenticator, TokenStore, Token, TokenException, User, Service
 from freenas.utils import FaultTolerantLogHandler, load_module_from_file, xrecvmsg, xsendmsg
@@ -1764,7 +1763,6 @@ def run(d, args):
         '/socket': ServerConnection,
         '/shell': ShellConnection,
         '/file': FileConnection,
-        '/api': ApiHandler(d),
         '/filedownload': DownloadRequestHandler(d)
     }, dispatcher=d), **kwargs)
 
@@ -1772,7 +1770,6 @@ def run(d, args):
         '/socket': ServerConnection,
         '/shell': ShellConnection,
         '/file': FileConnection,
-        '/api': ApiHandler(d),
         '/filedownload': DownloadRequestHandler(d)
     }, dispatcher=d), **kwargs)
 
