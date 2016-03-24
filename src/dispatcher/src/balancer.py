@@ -173,14 +173,13 @@ class TaskExecutor(object):
         self.task = task
         self.task.set_state(TaskState.EXECUTING)
 
-        filename = inspect.getsourcefile(task.clazz)
-        if not filename:
-            module_name = inspect.getmodule(task.clazz).__name__
-            for dir in self.balancer.dispatcher.plugin_dirs:
-                file = first_or_default(lambda f: module_name in f, os.listdir(dir))
-                if file:
-                    filename = os.path.join(dir, file)
-                    break
+        filename = None
+        module_name = inspect.getmodule(task.clazz).__name__
+        for dir in self.balancer.dispatcher.plugin_dirs:
+            file = first_or_default(lambda f: module_name in f, os.listdir(dir))
+            if file:
+                filename = os.path.join(dir, file)
+                break
 
         self.conn.call_client_sync('taskproxy.run', {
             'id': task.id,
