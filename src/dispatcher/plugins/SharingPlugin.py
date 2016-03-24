@@ -468,7 +468,12 @@ def _init(dispatcher, plugin):
             },
             'target_path': {'type': 'string'},
             'filesystem_path': {'type': 'string'},
-            'permissions': {'$ref': 'permissions'},
+            'permissions': {
+                'oneOf': [
+                    {'$ref': 'permissions'},
+                    {'type': 'null'}
+                ]
+            },
             'properties': {'$ref': 'share-properties'}
         }
     })
