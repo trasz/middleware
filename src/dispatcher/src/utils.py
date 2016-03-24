@@ -26,7 +26,11 @@
 #####################################################################
 
 import os
+import errno
 from freenas.dispatcher.jsonenc import dumps, loads
+from freenas.dispatcher.client import Client
+from paramiko import RSAKey, AuthenticationException
+from task import TaskException
 
 
 def first_or_default(f, iterable, default=None):
@@ -54,3 +58,23 @@ def load_config(conf_path, name_mod):
 
 def delete_config(conf_path, name_mod):
     os.remove(os.path.join(conf_path, '.config-{0}.json'.format(name_mod)))
+
+
+def get_replication_client(dispatcher, remote):
+    known_host = dispatcher.call_sync('replication.host.query', [('id', '=', remote)], {'single': True})
+    if not known_host:
+        raise TaskException(errno.ENOENT, 'There are no known keys to connect to {0}'.format(remote))
+
+    with open('/etc/replication/key') as f:
+        pkey = RSAKey.from_private_key(f)
+
+    try:
+        client = Client()
+        client.connect('ws+ssh://replication@{0}'.format(remote), host_key=known_host['hostkey'], pkey=pkey)
+        client.login_service('replicator')
+        return client
+
+    except AuthenticationException:
+        raise TaskException(errno.EAUTH, 'Cannot connect to {0}'.format(remote))
+    except (OSError, ConnectionRefusedError):
+        raise TaskException(errno.ECONNREFUSED, 'Cannot connect to {0}'.format(remote))
