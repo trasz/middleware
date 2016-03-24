@@ -175,15 +175,11 @@ class TaskExecutor(object):
 
         filename = inspect.getsourcefile(task.clazz)
         if not filename:
-            find = False
             module_name = inspect.getmodule(task.clazz).__name__
             for dir in self.balancer.dispatcher.plugin_dirs:
-                for file in os.listdir(dir):
-                    if module_name in file:
-                        filename = os.path.join(dir, file)
-                        find = True
-                        break
-                if find:
+                file = first_or_default(lambda f: module_name in f, os.listdir(dir))
+                if file:
+                    filename = os.path.join(dir, file)
                     break
 
         self.conn.call_client_sync('taskproxy.run', {
