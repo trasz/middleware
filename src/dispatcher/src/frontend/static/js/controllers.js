@@ -353,7 +353,6 @@ function FileBrowserController($scope) {
     var BUFSIZE = 1024;
     var sock = new middleware.DispatcherClient( document.domain );
     sock.connect();
-    $scope.user_name = "";
     $scope.init = function () {
         sock.onError = function(err) {
             $("#socket_status").html('Offline');
@@ -497,9 +496,9 @@ function FileBrowserController($scope) {
       }
 
 
-      $scope.downloadfile = function() {
+      $scope.downloadFile = function(filename) {
           //downloadFromHttp(filename);
-        //   downloadFromHttp( taskItemInContext.getAttribute( "data-id" ) );
+          downloadFromHttp( filename );
         //   toggleMenuOff();
         // console.log(filename);
       }
@@ -534,7 +533,7 @@ function FileBrowserController($scope) {
         var path = pathJoin(
               [ sessionStorage.getItem( "filebrowser:cwd" ), filename ]
           );
-        fileconn = new middleware.FileClient( sock );
+        var fileconn = new middleware.FileClient( sock );
         fileconn.download ( path, filename, "static" );
       }
 

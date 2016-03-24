@@ -50,7 +50,7 @@
                       <i class="glyphicon glyphicon-folder-close"/>
                       <span class="label label-primary">{{item.name}}</span>
                     </td>
-                    <td ng-if="item['type'] == 'FILE'" class="fileElement" data-id="{{item.name}}">
+                    <td ng-if="item['type'] == 'FILE'" class="fileElement" data-id="{{item.name}}" ng-click="downloadFile(item.name)">
                       <i class="glyphicon glyphicon-file"/>
                       {{item.name}}
                     </td>
