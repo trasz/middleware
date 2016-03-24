@@ -27,6 +27,8 @@ lib/dispatcher/src/frontend/static/css/dashboard.css
 lib/dispatcher/src/frontend/static/css/sidebar.css
 lib/dispatcher/src/frontend/static/css/messenger-theme-future.css
 lib/dispatcher/src/frontend/static/css/messenger.css
+lib/dispatcher/src/frontend/static/css/isteven-multi-select.css
+lib/dispatcher/src/frontend/static/js/isteven-multi-select.js
 lib/dispatcher/src/frontend/static/js/angular-messenger.js
 lib/dispatcher/src/frontend/static/js/app.js
 lib/dispatcher/src/frontend/static/js/controllers.js
@@ -44,6 +46,7 @@ lib/dispatcher/src/frontend/static/partials/tests.html
 lib/dispatcher/src/frontend/static/partials/stats.html
 lib/dispatcher/src/frontend/static/partials/term.html
 lib/dispatcher/src/frontend/static/partials/tasks.html
+lib/dispatcher/src/frontend/static/partials/filebrowser.html
 lib/dispatcher/src/frontend/static/partials/404.html
 lib/dispatcher/src/frontend/static/partials/500.html
 libexec/dispatcher/notify-pam
