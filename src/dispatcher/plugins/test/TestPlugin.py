@@ -55,4 +55,4 @@ class TestDownloadTask(Task):
 
 
 def _init(dispatcher, plugin):
-    plugin.register_task_handler('test.test_download')
+    plugin.register_task_handler('test.test_download', TestDownloadTask)
