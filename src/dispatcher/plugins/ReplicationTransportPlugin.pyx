@@ -40,13 +40,17 @@ from task import Task, Provider, TaskException, TaskWarning, VerifyException, qu
 logger = logging.getLogger('ReplicationTransportPlugin')
 
 
+REPL_HOME = '/var/tmp/replication'
+AUTH_FILE = os.path.join(REPL_HOME, '.ssh/authorized_keys')
+
+
 class HostProvider(Provider):
     @query('known-host')
     def query(self, filter=None, params=None):
         return self.datastore.query('replication.known_hosts', *(filter or []), **(params or {}))
 
     def get_keys(self):
-        key_paths = ['/etc/ssh/ssh_host_dsa_key.pub', '/etc/replication/key.pub']
+        key_paths = ['/etc/ssh/ssh_host_rsa_key.pub', '/etc/replication/key.pub']
         keys = []
         try:
             for key_path in key_paths:
@@ -136,19 +140,8 @@ class KnownHostCreateTask(Task):
     def run(self, known_host):
         id = self.datastore.insert('replication.known_hosts', known_host)
 
-        user = self.dispatcher.call_sync('user.query', [('username', '=', 'replication')], {'single': True})
-        if not user:
-            raise TaskException(errno.ENOENT, 'User replication does not exist')
-
-        pubkey_entry = user.get('sshpubkey')
-
-        self.join_subtasks(self.run_subtask(
-            'user.update',
-            user['id'],
-            {
-                'sshpubkey': pubkey_entry if pubkey_entry else '' + '\n' + known_host['pubkey']
-            }
-        ))
+        with open(AUTH_FILE, 'a') as auth_file:
+            auth_file.write(known_host['pubkey'])
 
         self.dispatcher.dispatch_event('replication.host.changed', {
             'operation': 'create',
@@ -206,20 +199,16 @@ class KnownHostDeleteTask(Task):
         known_host_pubkey = known_host['pubkey']
         self.datastore.delete('replication.known_hosts', name)
 
-        user = self.dispatcher.call_sync('user.query', [('username', '=', 'replication')], {'single': True})
-        if user:
-            pubkey = ''
-            for line in user.get('sshpubkey', '').splitlines():
-                if not known_host_pubkey in line:
-                    pubkey = pubkey + '\n' + line
+        with open(AUTH_FILE, 'r') as auth_file:
+            auth_keys = auth_file.read()
 
-            self.join_subtasks(self.run_subtask(
-                'user.update',
-                user['id'],
-                {
-                    'sshpubkey': pubkey
-                }
-            ))
+        new_auth_keys = ''
+        for line in auth_keys.splitlines():
+            if not known_host_pubkey in line:
+                new_auth_keys = new_auth_keys + '\n' + line
+
+        with open(AUTH_FILE, 'w') as auth_file:
+            auth_file.write(new_auth_keys)
 
         self.dispatcher.dispatch_event('replication.host.changed', {
             'operation': 'delete',
@@ -276,3 +265,10 @@ def _init(dispatcher, plugin):
 
     # Register event handlers
     plugin.register_event_type('replication.host.changed')
+
+    #Create home directory and authorized keys file for replication user
+    os.mkdir(REPL_HOME)
+    with open(AUTH_FILE, 'w') as auth_file:
+        for host in dispatcher.dispatcher.call_sync('replication.host.query'):
+            auth_file.write(host['pubkey'])
+
