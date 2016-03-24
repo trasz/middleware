@@ -88,6 +88,10 @@ class ManagementService(RpcService):
 
         session.logout('Kicked out by {0}'.format(sender.user.name))
 
+    @pass_sender
+    def get_sender_address(self, sender):
+        return sender.real_client_address
+
     def die_you_gravy_sucking_pig_dog(self):
         self.dispatcher.die()
 
