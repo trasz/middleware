@@ -60,10 +60,15 @@ class BackupSSHListTask(Task):
 
 class BackupSSHInitTask(Task):
     def verify(self, backup):
-        pass
+        return []
 
     def run(self, backup):
-        pass
+        normalize(backup['properties'], {
+            'privkey': None,
+            'hostkey': None
+        })
+
+        return backup['properties']
 
 
 class BackupSSHPutTask(ProgressTask):
@@ -153,7 +158,7 @@ def open_ssh_connection(backup):
         session.packetizer.REKEY_PACKETS = pow(2, 48)
         session.start_client()
 
-        if backup['pubkey']:
+        if backup['privkey']:
             if try_key_auth(session, backup):
                 return session
             else:
@@ -194,7 +199,7 @@ def _init(dispatcher, plugin):
         }
     })
 
-    plugin.register_task_handler('backup.init', BackupSSHInitTask)
+    plugin.register_task_handler('backup.ssh.init', BackupSSHInitTask)
     plugin.register_task_handler('backup.ssh.list', BackupSSHListTask)
     plugin.register_task_handler('backup.ssh.get', BackupSSHGetTask)
     plugin.register_task_handler('backup.ssh.put', BackupSSHPutTask)
