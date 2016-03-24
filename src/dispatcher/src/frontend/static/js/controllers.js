@@ -495,6 +495,9 @@ function FileBrowserController($scope) {
           $scope.uploadFileList.map(uploadToSocket);
       }
 
+      $scope.browseFolder = function(foldername) {
+          listDir(foldername, true);
+      }
 
       $scope.downloadFile = function(filename) {
           //downloadFromHttp(filename);

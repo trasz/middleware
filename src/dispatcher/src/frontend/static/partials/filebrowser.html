@@ -46,7 +46,7 @@
         </thead>
         <tbody ng-repeat='item in current_dir_items | filter:searchText'>
             <tr>
-                    <td ng-if=" item['type'] == 'DIRECTORY'" class="fileElement" data-id="{{item.name}}">
+                    <td ng-if=" item['type'] == 'DIRECTORY'" class="fileElement" data-id="{{item.name}}" ng-click="browseFolder(item.name)">
                       <i class="glyphicon glyphicon-folder-close"/>
                       <span class="label label-primary">{{item.name}}</span>
                     </td>
