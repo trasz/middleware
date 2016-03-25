@@ -29,6 +29,7 @@ function RpcController($scope) {
                 sessionStorage.getItem("freenas:username"),
                 sessionStorage.getItem("freenas:password")
             );
+            $("#login_username").html(username);
         };
 
         sock.onLogin = function() {
@@ -156,6 +157,7 @@ function TermController($scope, synchronousService) {
             sessionStorage.getItem("freenas:username"),
             sessionStorage.getItem("freenas:password")
         );
+        $("#login_username").html(username);
     };
     sock.onLogin = function() {
         sock.call("shell.get_shells", null, function(response) {
@@ -198,6 +200,7 @@ function EventsController($scope) {
                 sessionStorage.getItem("freenas:username"),
                 sessionStorage.getItem("freenas:password")
             );
+            $("#login_username").html(username);
         };
         sock.onLogin = function() {
             sock.subscribe("*");
@@ -237,6 +240,7 @@ function SyslogController($scope) {
                 sessionStorage.getItem("freenas:username"),
                 sessionStorage.getItem("freenas:password")
             );
+            $("#login_username").html(username);
         };
         sock.onLogin = function(result) {
             var syslog_list = [];
@@ -320,6 +324,7 @@ function StatsController($scope) {
                 sessionStorage.getItem("freenas:username"),
                 sessionStorage.getItem("freenas:password")
             );
+            $("#login_username").html(username);
         };
         //onLogin function do everyting you need to render a chart
         sock.onLogin = function() {
@@ -371,6 +376,8 @@ function FileBrowserController($scope) {
           ( sessionStorage.getItem( "freenas:username" )
           , sessionStorage.getItem( "freenas:password" )
           );
+
+          $("#login_username").html(username);
         };
 
         sock.onLogin = function ( ) {
@@ -618,6 +625,7 @@ function TasksController($scope) {
                 sessionStorage.getItem("freenas:username"),
                 sessionStorage.getItem("freenas:password")
             );
+            $("#login_username").html(username);
         };
         sock.onLogin = function() {
             sock.subscribe("task.*");
