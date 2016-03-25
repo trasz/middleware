@@ -103,3 +103,15 @@ body {
   display: inline-block;
   border-radius: 50%;
 }
+
+.SocketOnline {
+    background-image: url('/static/images/Normal.png') !important;
+    background-repeat: no-repeat;
+    background-size: 100%;
+}
+
+.SocketOffline {
+    background-image: url('/static/images/Normal.png') !important;
+    background-repeat: no-repeat;
+    background-size: 100%;
+}

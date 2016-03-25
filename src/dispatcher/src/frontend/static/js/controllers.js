@@ -14,7 +14,7 @@ function RpcController($scope) {
     $("#result").hide();
     $scope.init = function () {
         sock.onError = function(err) {
-            $("#socket_status").html('Offline');
+            $("#socket_status ").attr("src", "/static/images/service_issue_diamond.png");
             $("#refresh_page_glyph").show();
         };
         sock.onConnect = function() {
@@ -139,7 +139,7 @@ function TermController($scope, synchronousService) {
         // s.src = '/static/term.js';
         // document.body.appendChild(s);
         sock.onError = function(err) {
-            $("#socket_status").html('Offline');
+            $("#socket_status ").attr("src", "/static/images/service_issue_diamond.png");
             $("#refresh_page_glyph").show();
         };
     };
@@ -183,7 +183,7 @@ function EventsController($scope) {
     sock.connect();
     $scope.init = function () {
         sock.onError = function(err) {
-            $("#socket_status").html('Offline');
+            $("#socket_status ").attr("src", "/static/images/service_issue_diamond.png");
             $("#refresh_page_glyph").show();
         };
         sock.onConnect = function() {
@@ -222,7 +222,7 @@ function SyslogController($scope) {
     sock.connect();
     $scope.init = function () {
         sock.onError = function(err) {
-            $("#socket_status").html('Offline');
+            $("#socket_status ").attr("src", "/static/images/service_issue_diamond.png");
             $("#refresh_page_glyph").show();
         };
         sock.onConnect = function() {
@@ -305,7 +305,7 @@ function StatsController($scope) {
     }
     $scope.init = function () {
         sock.onError = function(err) {
-            $("#socket_status").html('Offline');
+            $("#socket_status ").attr("src", "/static/images/service_issue_diamond.png");
             $("#refresh_page_glyph").show();
         };
         sock.onConnect = function() {
@@ -355,7 +355,7 @@ function FileBrowserController($scope) {
     sock.connect();
     $scope.init = function () {
         sock.onError = function(err) {
-            $("#socket_status").html('Offline');
+            $("#socket_status ").attr("src", "/static/images/service_issue_diamond.png");
             $("#refresh_page_glyph").show();
         };
 
@@ -583,7 +583,7 @@ function TasksController($scope) {
     }
     $scope.init = function() {
         sock.onError = function(err) {
-            $("#socket_status").html('Offline');
+            $("#socket_status ").attr("src", "/static/images/service_issue_diamond.png");
             $("#refresh_page_glyph").show();
         };
         sock.onEvent = function(name, args) {
