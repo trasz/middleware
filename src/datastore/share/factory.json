@@ -555,7 +555,7 @@
                 "unixhash": "*",
                 "sudo": false,
                 "smbhash": "*",
-                "groups": [],
+                "groups": ["36DD1308-699E-45B9-BA9E-D3253A14E1D5"],
                 "attributes": {},
                 "builtin": true
             }
