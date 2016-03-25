@@ -269,6 +269,6 @@ def _init(dispatcher, plugin):
     #Create home directory and authorized keys file for replication user
     os.mkdir(REPL_HOME)
     with open(AUTH_FILE, 'w') as auth_file:
-        for host in dispatcher.dispatcher.call_sync('replication.host.query'):
+        for host in dispatcher.call_sync('replication.host.query'):
             auth_file.write(host['pubkey'])
 
