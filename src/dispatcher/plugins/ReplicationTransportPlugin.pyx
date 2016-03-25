@@ -267,7 +267,11 @@ def _init(dispatcher, plugin):
     plugin.register_event_type('replication.host.changed')
 
     #Create home directory and authorized keys file for replication user
-    os.mkdir(REPL_HOME)
+    if not os.path.exists(REPL_HOME):
+        os.mkdir(REPL_HOME)
+    ssh_dir = os.path.join(REPL_HOME, '.ssh')
+    if not os.path.exists(ssh_dir):
+        os.mkdir(ssh_dir)
     with open(AUTH_FILE, 'w') as auth_file:
         for host in dispatcher.call_sync('replication.host.query'):
             auth_file.write(host['pubkey'])
