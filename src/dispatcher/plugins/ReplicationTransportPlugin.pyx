@@ -49,6 +49,7 @@ class HostProvider(Provider):
     def query(self, filter=None, params=None):
         return self.datastore.query('replication.known_hosts', *(filter or []), **(params or {}))
 
+    @private
     def get_keys(self):
         key_paths = ['/etc/ssh/ssh_host_rsa_key.pub', '/etc/replication/key.pub']
         keys = []
@@ -61,7 +62,6 @@ class HostProvider(Provider):
 
         return [i for i in keys]
 
-@private
 @description('Set up a TCP connection for replication purposes')
 @accepts(h.ref('replication-transport'))
 class TransportCreateTask(Task):
@@ -76,7 +76,6 @@ class TransportCreateTask(Task):
         return
 
 
-@private
 @description('Exchange keys with remote machine for replication purposes')
 @accepts(str, str, str)
 class HostsPairCreateTask(Task):
@@ -148,7 +147,6 @@ class KnownHostCreateTask(Task):
             'ids': [id]
         })
 
-@private
 @description('Remove keys making local and remote accessible from each other for replication user')
 @accepts(str)
 class HostsPairDeleteTask(Task):
