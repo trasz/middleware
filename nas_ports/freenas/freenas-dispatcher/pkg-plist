@@ -27,6 +27,10 @@ lib/dispatcher/src/frontend/static/css/dashboard.css
 lib/dispatcher/src/frontend/static/css/sidebar.css
 lib/dispatcher/src/frontend/static/css/messenger-theme-future.css
 lib/dispatcher/src/frontend/static/css/messenger.css
+lib/dispatcher/src/frontend/static/images/Normal.png
+lib/dispatcher/src/frontend/static/images/Normal_2x.png
+lib/dispatcher/src/frontend/static/images/service_issue_diamond.png
+lib/dispatcher/src/frontend/static/images/service_issue_diamond_2x.png
 lib/dispatcher/src/frontend/static/js/angular-messenger.js
 lib/dispatcher/src/frontend/static/js/app.js
 lib/dispatcher/src/frontend/static/js/controllers.js
