@@ -952,6 +952,7 @@ class UnixSocketServer(object):
 
             self.sockfd = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
             self.sockfd.bind(self.path)
+            os.chmod(self.path, 775)
             self.sockfd.listen(self.backlog)
         except OSError as err:
             self.logger.error('Cannot start socket server: {0}'.format(str(err)))
