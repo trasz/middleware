@@ -459,16 +459,6 @@ class UserUpdateTask(Task):
         self.datastore.update('users', uid, user)
         self.dispatcher.call_sync('etcd.generation.generate_group', 'accounts')
 
-        if 'password' in updated_fields:
-            password = user['password']
-            system(
-                '/usr/local/bin/smbpasswd', '-D', '0', '-s', '-a', user['username'],
-                stdin='{0}\n{1}\n'.format(password, password).encode('utf8')
-            )
-
-            user['smbhash'] = system('/usr/local/bin/pdbedit', '-d', '0', '-w', user['username'])[0]
-            self.datastore.update('users', uid, user)
-
 
 @description("Creates a group")
 @accepts(h.all_of(
