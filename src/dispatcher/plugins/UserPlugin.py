@@ -266,7 +266,9 @@ class UserCreateTask(Task):
                 except RpcException as err:
                     raise TaskException(err.code, err.message)
                 os.makedirs(user['home'])
-            os.chown(user['home'], uid, user['group'])
+
+            group = self.datastore.get_by_id('groups', user['group'])
+            os.chown(user['home'], uid, group['gid'])
             os.chmod(user['home'], 0o755)
         elif not user['builtin'] and user['home'] not in (None, '/nonexistent'):
             raise TaskException(
@@ -427,6 +429,7 @@ class UserUpdateTask(Task):
 
         volumes_root = self.dispatcher.call_sync('volume.get_volumes_root')
         if user['home'].startswith(volumes_root):
+            group = self.datastore.get_by_id('groups', user['group'])
             if not os.path.exists(user['home']):
                 try:
                     self.dispatcher.call_sync('volume.decode_path', user['home'])
@@ -437,10 +440,10 @@ class UserUpdateTask(Task):
                     system('mv', home_before, user['home'])
                 else:
                     os.makedirs(user['home'])
-                    os.chown(user['home'], user['uid'], user['group'])
+                    os.chown(user['home'], user['uid'], group['gid'])
                     os.chmod(user['home'], 0o755)
             elif user['home'] != home_before:
-                os.chown(user['home'], user['uid'], user['group'])
+                os.chown(user['home'], user['uid'], group['gid'])
                 os.chmod(user['home'], 0o755)
         elif not user['builtin'] and user['home'] not in (None, '/nonexistent'):
             raise TaskException(
