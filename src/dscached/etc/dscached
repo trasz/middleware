@@ -1,0 +1,23 @@
+#!/bin/sh
+#
+# $FreeBSD$
+#
+
+# PROVIDE: dscached
+# REQUIRE: datastore dispatcher
+
+. /etc/rc.subr
+
+name="dscached"
+rcvar="dscached_enable"
+pidfile="/var/run/dscached.pid"
+command="/usr/sbin/daemon"
+start_precmd="prestart"
+
+prestart()
+{
+    rc_flags="-P ${pidfile} -f -r /usr/local/sbin/crash-wrapper /usr/local/sbin/dscached ${rc_flags}"
+}
+
+load_rc_config $name
+run_rc_command $*
