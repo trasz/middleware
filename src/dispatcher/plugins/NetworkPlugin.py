@@ -229,7 +229,7 @@ class ConfigureInterfaceTask(Task):
             # Check for DHCP inconsistencies
             # 1. Check whether DHCP is enabled on other interfaces
             # 2. Check whether DHCP configures default route and/or DNS server addresses
-            dhcp_used = self.datastore.exists('network.interfaces', ('dhcp', '=', True), ('id' '!=', id))
+            dhcp_used = self.datastore.exists('network.interfaces', ('dhcp', '=', True), ('id', '!=', id))
             dhcp_global = self.configstore.get('network.dhcp.assign_gateway') or \
                 self.configstore.get('network.dhcp.assign_dns')
 
