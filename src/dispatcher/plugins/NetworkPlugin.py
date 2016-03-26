@@ -602,7 +602,7 @@ def _init(dispatcher, plugin):
         'properties': {
             'type': {'$ref': 'network-interface-type'},
             'id': {'type': 'string'},
-            'name': {'type': 'string'},
+            'name': {'type': ['string', 'null']},
             'enabled': {'type': 'boolean'},
             'dhcp': {'type': 'boolean'},
             'rtadv': {'type': 'boolean'},
