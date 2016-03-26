@@ -631,7 +631,12 @@ def _init(dispatcher, plugin):
             'builtin': {'type': 'boolean', 'readOnly': True},
             'username': {'type': 'string'},
             'full_name': {'type': ['string', 'null']},
-            'email': {'oneOf': [{'$ref':'email'}, {'type':'null'}]},
+            'email': {
+                'oneOf': [
+                    {'$ref': 'email'},
+                    {'type': 'null'}
+                ]
+            },
             'locked': {'type': 'boolean'},
             'sudo': {'type': 'boolean'},
             'password_disabled': {'type': 'boolean'},
