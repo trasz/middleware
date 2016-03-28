@@ -47,7 +47,6 @@ from gevent.event import Event, AsyncResult
 from gevent.subprocess import Popen
 from freenas.utils import first_or_default
 from resources import Resource
-from auth import Service
 from task import (
     TaskException, TaskAbortException, VerifyException, ValidationException,
     TaskStatus, TaskState, MasterProgressTask
@@ -496,15 +495,11 @@ class Balancer(object):
             self.logger.warning("Cannot submit task: unknown task type %s", name)
             raise RpcException(errno.EINVAL, "Unknown task type {0}".format(name))
 
-        clazz = self.dispatcher.tasks[name]
-        if hasattr(clazz, 'private') and not isinstance(sender.user, Service):
-            raise RpcException(errno.EPERM, "Permission denied")
-
         task = Task(self.dispatcher, name)
         task.user = sender.user.name
         task.session_id = sender.session_id
         task.created_at = datetime.utcnow()
-        task.clazz = clazz
+        task.clazz = self.dispatcher.tasks[name]
         task.args = copy.deepcopy(args)
 
         if env:
