@@ -52,7 +52,7 @@ class FlatFilePlugin(DirectoryServicePlugin):
                 self.group = wrap(json.load(f))
         except (IOError, ValueError) as err:
             logger.warn('Cannot read {0}: {1}'.format(GROUP_FILE, str(err)))
-            self.passwd = wrap([])
+            self.group = wrap([])
 
     def getpwent(self, filter=None, params=None):
         return self.passwd.query(*(filter or []), **(params or {}))
