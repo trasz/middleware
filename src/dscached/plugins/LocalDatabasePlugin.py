@@ -34,30 +34,42 @@ class LocalDatabasePlugin(DirectoryServicePlugin):
         self.datastore = context.datastore
 
     def getpwent(self, filter=None, params=None):
-        return self.datastore.query('users', *(filter or []), **(params or {}))
+        filter = filter or []
+        filter.append(('builtin', '=', False))
+        return self.datastore.query('users', *filter, **(params or {}))
 
     def getpwnam(self, name):
-        user = self.datastore.get_one('users', ('username', '=', name))
+        user = self.datastore.get_one('users', ('username', '=', name), ('builtin', '=', False))
         if not user:
             return None
 
         return user
 
     def getpwuid(self, uid):
-        user = self.datastore.get_one('users', ('uid', '=', uid))
+        user = self.datastore.get_one('users', ('uid', '=', uid), ('builtin', '=', False))
         if not user:
             return None
 
         return user
 
     def getgrent(self, filter=None, params=None):
-        return self.datastore.query('groups', *(filter or []), **(params or {}))
+        filter = filter or []
+        filter.append(('builtin', '=', False))
+        return self.datastore.query('groups', *filter, **(params or {}))
 
     def getgrnam(self, name):
-        pass
+        group = self.datastore.get_one('groups', ('username', '=', name), ('builtin', '=', False))
+        if not group:
+            return None
+
+        return group
 
     def getgrgid(self, gid):
-        pass
+        group = self.datastore.get_one('groups', ('uid', '=', gid), ('builtin', '=', False))
+        if not group:
+            return None
+
+        return group
 
 
 def _init(context):

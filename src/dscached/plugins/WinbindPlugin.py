@@ -25,8 +25,8 @@
 #
 #####################################################################
 
-import wbclient
 import uuid
+import wbclient
 from plugin import DirectoryServicePlugin
 from freenas.utils.query import wrap
 
@@ -37,17 +37,35 @@ class WinbindPlugin(DirectoryServicePlugin):
         self.wbc = wbclient.Context()
         self.domain_name = self.wbc.interface.netbios_domain
 
+    def get_directory_info(self):
+        return {
+            'domain_name': self.domain_name
+        }
+
     def convert_user(self, user):
+        if not user:
+            return
+
         return {
             'id': str(uuid.uuid4()),  # XXX this is wrong - id should be mapped to SID
             'uid': user.passwd.pw_uid,
+            'builtin': False,
             'username': user.passwd.pw_name,
             'full_name': user.passwd.pw_gecos,
+            'email': None,
+            'locked': False,
+            'sudo': False,
+            'password_disabled': False,
+            'shell': user.passwd.pw_shell,
+            'home': user.passwd.pw_dir
         }
 
-    def convert_group(self, groups):
+    def convert_group(self, group):
         return {
-
+            'gid': group.group.gr_gid,
+            'builtin': False,
+            'name': group.group.gr_name,
+            'sudo': False
         }
 
     def getpwent(self, filter=None, params=None):
@@ -56,11 +74,11 @@ class WinbindPlugin(DirectoryServicePlugin):
             **(params or {})
         )
 
-    def getpwuid(self, name):
-        pass
+    def getpwuid(self, uid):
+        return self.convert_user(self.wbc.get_user(uid=uid))
 
-    def getpwnam(self, uid):
-        pass
+    def getpwnam(self, name):
+        return self.convert_user(self.wbc.get_user(name=name))
 
     def getgrent(self, filter=None, params=None):
         return wrap(self.convert_group(i) for i in self.wbc.query_groups(self.domain_name)).query(
@@ -69,10 +87,10 @@ class WinbindPlugin(DirectoryServicePlugin):
         )
 
     def getgrnam(self, name):
-        pass
+        return self.convert_group(self.wbc.get_group(name=name))
 
     def getgrgid(self, gid):
-        pass
+        return self.convert_group(self.wbc.get_group(gid=gid))
 
 
 def _init(context):
