@@ -62,9 +62,6 @@ class AccountService(RpcService):
             results.extend(self.__annotate(name, i) for i in plugin.getpwent(filter, params))
 
         return results
-
-    def getpwent(self):
-        return self.getpwent()
     
     def getpwuid(self, uid):
         for name, plugin in self.context.plugins.items():
@@ -87,17 +84,32 @@ class GroupService(RpcService):
     def __init__(self, context):
         self.context = context
 
-    def query(self, filter=None, params=None):
-        pass
+    def __annotate(self, name, user):
+        user['origin'] = {'directory': name}
+        return user
 
-    def getgrent(self):
-        return self.datastore.query('groups')
+    def query(self, filter=None, params=None):
+        results = []
+        for name, plugin in self.context.plugins.items():
+            results.extend(self.__annotate(name, i) for i in plugin.getgrent(filter, params))
+
+        return results
     
     def getgrnam(self, name):
-        pass
+        for name, plugin in self.context.plugins.items():
+            group = plugin.getgrnam(name)
+            if group:
+                return self.__annotate(name, group)
+
+        return None
     
     def getgrgid(self, gid):
-        pass
+        for name, plugin in self.context.plugins.items():
+            group = plugin.getgrgid(gid)
+            if group:
+                return self.__annotate(name, group)
+
+        return None
 
 
 class Main(object):
@@ -131,9 +143,8 @@ class Main(object):
 
     def parse_config(self, filename):
         try:
-            f = open(filename, 'r')
-            self.config = json.load(f)
-            f.close()
+            with open(filename, 'r') as f:
+                self.config = json.load(f)
         except IOError as err:
             self.logger.error('Cannot read config file: %s', err.message)
             sys.exit(1)
