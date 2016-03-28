@@ -44,6 +44,72 @@ REPL_HOME = '/var/tmp/replication'
 AUTH_FILE = os.path.join(REPL_HOME, '.ssh/authorized_keys')
 
 
+cdef extern from "sys/types.h":
+    ctypedef char int8_t
+    ctypedef unsigned char uint8_t
+    ctypedef unsigned char uchar_t
+    ctypedef short int16_t
+    ctypedef unsigned short uint16_t
+    ctypedef int int32_t
+    ctypedef int int_t
+    ctypedef unsigned int uint_t
+    ctypedef unsigned int uint32_t
+    ctypedef long long int64_t
+    ctypedef unsigned long long uint64_t
+    ctypedef int boolean_t
+    ctypedef long long hrtime_t
+
+
+cdef extern from "unistd.h":
+    int write(int fd, uint8_t *buf, int nbytes) nogil
+    int read(int fd, uint8_t *buf, int nbytes) nogil
+
+
+cdef int read_fd(int fd, uint8_t *buf, int nbytes, int curr_pos):
+    cdef int ret
+    cdef int done = 0
+
+    while True:
+        try:
+            with nogil:
+                ret = read(fd, <uint8_t *>(buf + curr_pos), nbytes - done)
+        except IOError as e:
+            if e.errno == errno.EINTR or e.errno == errno.EAGAIN:
+                continue
+            else:
+                raise
+
+        done += ret
+        if (done == nbytes) or (ret == 0):
+            return done
+
+
+cdef int write_fd(int fd, uint8_t *buf, int nbytes):
+    cdef int ret
+    cdef int done = 0
+
+    try:
+        while True:
+            try:
+                with nogil:
+                    ret = write(fd, <uint8_t *>(buf + done), nbytes - done)
+            except IOError as e:
+                if e.errno == errno.EINTR or e.errno == errno.EAGAIN:
+                    continue
+                elif e.errno == errno.EPIPE or e.errno == errno.EINVAL:
+                    return -1
+                else:
+                    raise
+
+            done += ret
+
+            if done == nbytes:
+                return done
+
+    except OSError:
+        return -1
+
+
 class HostProvider(Provider):
     @query('known-host')
     def query(self, filter=None, params=None):
