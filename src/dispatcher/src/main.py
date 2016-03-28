@@ -80,6 +80,7 @@ from freenas.utils import FaultTolerantLogHandler, load_module_from_file, xrecvm
 
 
 MAXFDS = 128
+LOCAL_CREDS = 2
 DEFAULT_CONFIGFILE = '/usr/local/etc/middleware.conf'
 LOGGING_FORMAT = '%(asctime)s %(levelname)s %(filename)s:%(lineno)d %(message)s'
 trace_log_file = None
@@ -892,9 +893,11 @@ class UnixSocketServer(object):
             self.conn = ServerConnection(self, self.dispatcher)
             self.conn.on_open()
 
+            self.connfd.setsockopt(0, LOCAL_CREDS, 1)
+
             while True:
                 try:
-                    header, _ = xrecvmsg(self.connfd, 8)
+                    header, ancdata = xrecvmsg(self.connfd, 8, socket.CMSG_LEN(1024))
                     if header == b'' or len(header) != 8:
                         break
 
@@ -902,6 +905,16 @@ class UnixSocketServer(object):
                     if magic != 0xdeadbeef:
                         self.server.logger.info('Message with wrong magic dropped (magic {0:x})'.format(magic))
                         continue
+
+                    for cmsg_level, cmsg_type, cmsg_data in ancdata:
+                        if cmsg_level == socket.SOL_SOCKET and cmsg_type == socket.SCM_CREDS:
+                            uid, euid, gid, egid = struct.unpack('iiii', cmsg_data[:struct.calcsize('iiii')])
+                            self.conn.credentials = {
+                                'uid': uid,
+                                'euid': euid,
+                                'gid': gid,
+                                'egid': egid
+                            }
 
                     fds = array.array('i')
                     msg, ancdata = xrecvmsg(self.connfd, length, socket.CMSG_LEN(MAXFDS * fds.itemsize))
