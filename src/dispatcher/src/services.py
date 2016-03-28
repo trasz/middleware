@@ -224,15 +224,15 @@ class PluginService(RpcService):
 
     def __client_disconnected(self, args):
         for name, svc in list(self.services.items()):
-            if args['address'] == svc.connection.real_client_address:
+            if args['address'] == svc.connection.client_address:
                 self.unregister_service(name, svc.connection)
 
         for name, conn in list(self.schemas.items()):
-            if args['address'] == conn.real_client_address:
+            if args['address'] == conn.client_address:
                 self.unregister_schema(name, conn)
 
         for name, conn in list(self.event_types.items()):
-            if args['address'] == conn.ws.handler.client_address:
+            if args['address'] == conn.client_address:
                 self.unregister_event_type(name)
 
     def initialize(self, context):
@@ -241,7 +241,7 @@ class PluginService(RpcService):
         self.events = {}
         self.event_types = {}
         self.__dispatcher = context.dispatcher
-        self.__dispatcher.register_event_handler( 'server.client_disconnected', self.__client_disconnected)
+        self.__dispatcher.register_event_handler('server.client_disconnected', self.__client_disconnected)
         self.__dispatcher.register_event_type('plugin.service_unregistered')
         self.__dispatcher.register_event_type('plugin.service_registered')
         self.__dispatcher.register_event_type('plugin.service_resume')
@@ -252,7 +252,7 @@ class PluginService(RpcService):
         self.services[name] = wrapper
         self.__dispatcher.rpc.register_service_instance(name, wrapper)
         self.__dispatcher.dispatch_event('plugin.service_registered', {
-            'address': sender.real_client_address,
+            'address': sender.client_address,
             'service-name': name,
             'description': "Service {0} registered".format(name)
         })
@@ -271,7 +271,7 @@ class PluginService(RpcService):
 
         self.__dispatcher.rpc.unregister_service(name)
         self.__dispatcher.dispatch_event('plugin.service_unregistered', {
-            'address': sender.real_client_address,
+            'address': sender.client_address,
             'service-name': name,
             'description': "Service {0} unregistered".format(name)
         })
