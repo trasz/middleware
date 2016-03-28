@@ -139,8 +139,8 @@ populate_group(json_t *group, struct group *grbuf, char *buf, size_t buflen)
     grbuf->gr_gid = json_integer_value(obj);
 
     obj = json_object_get(group, "unixhash");
-    if (obj != NULL)
-        grbuf->gr_passwd = alloc_string(&buf, &buflen, json_string_value(obj));
+    grbuf->gr_passwd = alloc_string(&buf, &buflen,
+        obj != NULL ? json_string_value(obj) : "*");
 
     grbuf->gr_mem = alloc_null(&buf, &buflen);
 }
