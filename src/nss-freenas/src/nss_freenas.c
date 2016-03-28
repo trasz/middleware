@@ -38,8 +38,14 @@
 #include <jansson.h>
 #include <dispatcher.h>
 
+#define PASSWD_FILE "/etc/passwd.json"
+#define GROUP_FILE  "/etc/group.json"
+
 static char *alloc_string(char **, size_t *, const char *);
 static void *alloc_null(char **, size_t *);
+static void flat_load_files();
+static json_t *flat_find_user(const char *, const char *, uid_t);
+static json_t *flat_find_group(const char *, const char *, gid_t);
 static int call_dispatcher(const char *, json_t *, json_t **, bool ref);
 static void populate_user(json_t *, struct passwd *, char *, size_t);
 static void populate_group(json_t *, struct group *, char *, size_t);
@@ -55,6 +61,9 @@ NSS_METHOD_PROTOTYPE(nss_freenas_getgrgid_r);
 NSS_METHOD_PROTOTYPE(nss_freenas_getgrent_r);
 NSS_METHOD_PROTOTYPE(nss_freenas_setgrent);
 NSS_METHOD_PROTOTYPE(nss_freenas_endgrent);
+
+static json_t *flat_users;
+static json_t *flat_groups;
 
 static int pw_idx = 0;
 static json_t *pw_results = NULL;
@@ -97,6 +106,97 @@ alloc_null(char **buf, size_t *max)
 }
 
 static void
+flat_load_files()
+{
+    json_error_t err;
+
+    flat_users = json_load_file(PASSWD_FILE, 0, &err);
+    flat_groups = json_load_file(GROUP_FILE, 0, &err);
+}
+
+static json_t *
+flat_find_user(const char *name, const char *id, uid_t uid)
+{
+    json_t *user;
+    json_t *val;
+    size_t index;
+
+    if (flat_users == NULL)
+        flat_load_files();
+
+    /* Bail out if still null */
+    if (flat_users == NULL)
+        return (NULL);
+
+    json_array_foreach(flat_users, index, user) {
+        if (name != NULL || id != NULL) {
+            /* Search by name or id */
+            val = json_object_get(user, name != NULL ? "username" : "id");
+            if (val == NULL)
+                continue;
+
+            if (strcmp(json_string_value(val), name != NULL ? name : id) == 0) {
+                json_incref(user);
+                return (user);
+            }
+        } else {
+            /* Search by uid */
+            val = json_object_get(user, "uid");
+            if (val == NULL)
+                continue;
+
+            if (json_integer_value(val) == uid) {
+                json_incref(user);
+                return (user);
+            }
+        }
+    }
+
+    return (NULL);
+}
+
+static json_t *
+flat_find_group(const char *name, const char *id, gid_t gid)
+{
+    json_t *group;
+    json_t *val;
+    size_t index;
+
+    if (flat_groups == NULL)
+        flat_load_files();
+
+    /* Bail out if still null */
+    if (flat_users == NULL)
+        return (NULL);
+
+    json_array_foreach(flat_groups, index, group) {
+        if (name != NULL || id != NULL) {
+            /* Search by name or id */
+            val = json_object_get(group, name != NULL ? "name" : "id");
+            if (val == NULL)
+                continue;
+
+            if (strcmp(json_string_value(val), name != NULL ? name : id) == 0) {
+                json_incref(group);
+                return (group);
+            }
+        } else {
+            /* Search by gid */
+            val = json_object_get(group, "gid");
+            if (val == NULL)
+                continue;
+
+            if (json_integer_value(val) == gid) {
+                json_incref(group);
+                return (group);
+            }
+        }
+    }
+
+    return (NULL);
+}
+
+static void
 populate_user(json_t *user, struct passwd *pwbuf, char *buf, size_t buflen)
 {
     json_t *obj;
@@ -123,8 +223,8 @@ populate_user(json_t *user, struct passwd *pwbuf, char *buf, size_t buflen)
         pwbuf->pw_dir = alloc_string(&buf, &buflen, json_string_value(obj));
 
     obj = json_object_get(user, "unixhash");
-    if (obj != NULL)
-        pwbuf->pw_passwd = alloc_string(&buf, &buflen, json_string_value(obj));
+    pwbuf->pw_passwd = alloc_string(&buf, &buflen,
+        obj != NULL ? json_string_value(obj) : "*");
 }
 
 static void
@@ -159,9 +259,9 @@ call_dispatcher(const char *method, json_t *args, json_t **result, bool ref)
         return (-1);
     }
 
-    if (dispatcher_call_sync(conn, method, args, result) < 0) {
+    if (dispatcher_call_sync(conn, method, args, result) != RPC_CALL_DONE) {
         dispatcher_close(conn);
-        return (NS_UNAVAIL);
+        return (-1);
     }
 
     if (ref)
@@ -211,7 +311,7 @@ nss_freenas_getpwnam_r(void *retval, void *mdata, va_list ap)
 
     if (call_dispatcher("dscached.account.getpwnam", json_pack("[s]", name),
         &user, false) < 0)
-        return (NS_UNAVAIL);
+        user = flat_find_user(name, NULL, -1);
 
     if (json_is_null(user)) {
         *ret = ENOENT;
@@ -244,7 +344,7 @@ nss_freenas_getpwuid_r(void *retval, void *mdata, va_list ap)
 
     if (call_dispatcher("dscached.account.getpwuid", json_pack("[i]", uid),
         &user, false) < 0)
-        return (NS_UNAVAIL);
+        user = flat_find_user(NULL, NULL, uid);
 
     if (json_is_null(user)) {
         *ret = ENOENT;
@@ -299,8 +399,10 @@ int
 nss_freenas_setpwent(void *retval, void *mdata, va_list ap)
 {
     if (call_dispatcher("dscached.account.query", json_array(),
-        &pw_results, true) < 0)
-        return (NS_UNAVAIL);
+        &pw_results, true) < 0) {
+        flat_load_files();
+        pw_results = json_copy(flat_users);
+    }
 
     if (json_is_null(pw_results)) {
         json_decref(pw_results);
@@ -335,14 +437,14 @@ nss_freenas_getgrnam_r(void *retval, void *mdata __unused, va_list ap)
     int *ret;
 
     name = va_arg(ap, const char *);
-    grbuf = va_arg(ap, struct passwd *);
+    grbuf = va_arg(ap, struct group *);
     buf = va_arg(ap, char *);
     buflen = va_arg(ap, size_t);
     ret = va_arg(ap, int *);
 
     if (call_dispatcher("dscached.group.getgrnam", json_pack("[s]", name),
         &group, false) < 0)
-        return (NS_UNAVAIL);
+        group = flat_find_group(name, NULL, -1);
 
     if (json_is_null(group)) {
         *ret = ENOENT;
@@ -375,7 +477,7 @@ nss_freenas_getgrgid_r(void *retval, void *mdata __unused, va_list ap)
 
     if (call_dispatcher("dscached.group.getgrgid", json_pack("[i]", gid),
         &group, false) < 0)
-        return (NS_UNAVAIL);
+        group = flat_find_group(NULL, NULL, gid);
 
     if (json_is_null(group)) {
         *ret = ENOENT;
@@ -430,8 +532,10 @@ int
 nss_freenas_setgrent(void *retval, void *mdata, va_list ap)
 {
     if (call_dispatcher("dscached.group.query", json_array(),
-        &gr_results, true) < 0)
-        return (NS_UNAVAIL);
+        &gr_results, true) < 0) {
+        flat_load_files();
+        gr_results = json_copy(flat_groups);
+    }
 
     if (json_is_null(gr_results)) {
         json_decref(gr_results);
