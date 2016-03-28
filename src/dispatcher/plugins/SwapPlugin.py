@@ -28,6 +28,7 @@
 import os
 import re
 import logging
+import bsd.kld
 from task import Provider
 from lib.system import system, SubprocessException
 from lib.geom import confxml
@@ -183,6 +184,8 @@ def _init(dispatcher, plugin):
     plugin.register_event_handler('volume.changed', on_volumes_change)
     plugin.attach_hook('volume.pre_destroy', volumes_pre_detach)
     plugin.attach_hook('volume.pre_detach', volumes_pre_detach)
+
+    bsd.kld.kldload('/boot/kernel/geom_mirror.ko')
 
     clear_swap(dispatcher)
     rearrange_swap(dispatcher)
