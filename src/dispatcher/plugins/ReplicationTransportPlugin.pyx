@@ -36,33 +36,15 @@ from paramiko import AuthenticationException
 from freenas.dispatcher.rpc import RpcException, SchemaHelper as h, description, accepts, returns, private
 from utils import get_replication_client
 from task import Task, Provider, TaskException, TaskWarning, VerifyException, query
+from posix.unistd cimport read, write
+from libc.stdint cimport *
+
 
 logger = logging.getLogger('ReplicationTransportPlugin')
 
 
 REPL_HOME = '/var/tmp/replication'
 AUTH_FILE = os.path.join(REPL_HOME, '.ssh/authorized_keys')
-
-
-cdef extern from "sys/types.h":
-    ctypedef char int8_t
-    ctypedef unsigned char uint8_t
-    ctypedef unsigned char uchar_t
-    ctypedef short int16_t
-    ctypedef unsigned short uint16_t
-    ctypedef int int32_t
-    ctypedef int int_t
-    ctypedef unsigned int uint_t
-    ctypedef unsigned int uint32_t
-    ctypedef long long int64_t
-    ctypedef unsigned long long uint64_t
-    ctypedef int boolean_t
-    ctypedef long long hrtime_t
-
-
-cdef extern from "unistd.h":
-    int write(int fd, uint8_t *buf, int nbytes) nogil
-    int read(int fd, uint8_t *buf, int nbytes) nogil
 
 
 cdef int read_fd(int fd, uint8_t *buf, int nbytes, int curr_pos):
