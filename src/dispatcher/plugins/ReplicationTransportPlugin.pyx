@@ -56,7 +56,7 @@ cdef int read_fd(int fd, uint8_t *buf, int nbytes, int curr_pos):
             with nogil:
                 ret = read(fd, <uint8_t *>(buf + curr_pos), nbytes - done)
         except IOError as e:
-            if e.errno == errno.EINTR or e.errno == errno.EAGAIN:
+            if e.errno in (errno.EINTR, e.errno == errno.EAGAIN):
                 continue
             else:
                 raise
@@ -70,26 +70,20 @@ cdef int write_fd(int fd, uint8_t *buf, int nbytes):
     cdef int ret
     cdef int done = 0
 
-    try:
-        while True:
-            try:
-                with nogil:
-                    ret = write(fd, <uint8_t *>(buf + done), nbytes - done)
-            except IOError as e:
-                if e.errno == errno.EINTR or e.errno == errno.EAGAIN:
-                    continue
-                elif e.errno == errno.EPIPE or e.errno == errno.EINVAL:
-                    return -1
-                else:
-                    raise
+    while True:
+        try:
+            with nogil:
+                ret = write(fd, <uint8_t *>(buf + done), nbytes - done)
+        except IOError as e:
+            if e.errno in (errno.EINTR, errno.EAGAIN):
+                continue
+            else:
+                raise
 
-            done += ret
+        done += ret
 
-            if done == nbytes:
-                return done
-
-    except OSError:
-        return -1
+        if (done == nbytes) or (ret == 0):
+            return done
 
 
 class HostProvider(Provider):
