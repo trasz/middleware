@@ -38,17 +38,23 @@ static int
 call_dispatcher(const char *method, json_t *args, json_t **result)
 {
     connection_t *conn;
+    int err;
 
     conn = dispatcher_open("unix");
-    if (conn == NULL)
+    if (conn == NULL) {
         return (-1);
+        PAM_LOG("Cannot open unix domain socket connection");
+    }
 
     if (dispatcher_login_service(conn, "pam-freenas") < 0) {
+        PAM_LOG("Cannot log in as pam-freenas");
         dispatcher_close(conn);
         return (-1);
     }
 
-    if (dispatcher_call_sync(conn, method, args, result) != RPC_CALL_DONE) {
+    err = dispatcher_call_sync(conn, method, args, result);
+    if (err != RPC_CALL_DONE) {
+        PAM_LOG("Cannot call %s: %d", method, err);
         dispatcher_close(conn);
         return (-1);
     }
@@ -97,7 +103,7 @@ pam_sm_authenticate(struct pam_handle *pamh, int flags, int argc, const char *ar
         return (PAM_SERVICE_ERR);
     }
 
-    result_s = json_dumps(result, 0);
+    result_s = json_dumps(result, JSON_ENCODE_ANY);
     PAM_LOG("Result: %s", result_s);
     free(result_s);
 
