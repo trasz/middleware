@@ -42,8 +42,8 @@ call_dispatcher(const char *method, json_t *args, json_t **result)
 
     conn = dispatcher_open("unix");
     if (conn == NULL) {
-        return (-1);
         PAM_LOG("Cannot open unix domain socket connection");
+        return (-1);
     }
 
     if (dispatcher_login_service(conn, "pam-freenas") < 0) {
