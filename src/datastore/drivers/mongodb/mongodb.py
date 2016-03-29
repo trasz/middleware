@@ -342,7 +342,7 @@ class MongodbDatastore(object):
             for i in cur:
                 i['id'] = i.pop('_id')
                 yield i
-        except pymongo.errors.OperationFailure as err:
+        except (pymongo.errors.OperationFailure, pymongo.errors.AutoReconnect) as err:
             raise DatastoreException(str(err))
 
     @auto_retry

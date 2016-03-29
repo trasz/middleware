@@ -26,6 +26,7 @@
 #####################################################################
 
 import time
+from datastore import DatastoreException
 from datetime import datetime
 from event import EventSource
 from task import Provider
@@ -47,11 +48,14 @@ class SyslogEventSource(EventSource):
         cursor = self.datastore.listen('syslog', ('created_at', '>=', datetime.utcnow()))
 
         while True:
-            for i in self.datastore.tail(cursor):
-                self.dispatcher.dispatch_event('syslog.changed', {
-                    'operation': 'create',
-                    'ids': [i['id']]
-                })
+            try:
+                for i in self.datastore.tail(cursor):
+                    self.dispatcher.dispatch_event('syslog.changed', {
+                        'operation': 'create',
+                        'ids': [i['id']]
+                    })
+            except DatastoreException:
+                pass
 
             time.sleep(1)
 
