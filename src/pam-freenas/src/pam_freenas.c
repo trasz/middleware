@@ -66,7 +66,7 @@ flat_find_user(const char *name)
         return (NULL);
 
     json_array_foreach(flat_users, index, user) {
-        val = json_object_get(user, name != NULL ? "username" : "id");
+        val = json_object_get(user, "username");
         if (val == NULL)
             continue;
 
