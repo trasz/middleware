@@ -121,8 +121,12 @@ def remove_swap(dispatcher, disks):
     disks = set(disks)
     for swap in list(get_swap_info(dispatcher).values()):
         if disks & set(swap['disks']):
-            system('/sbin/swapoff', os.path.join('/dev/mirror', swap['name']))
-            system('/sbin/gmirror', 'destroy', swap['name'])
+            try:
+                system('/sbin/swapoff', os.path.join('/dev/mirror', swap['name']))
+                system('/sbin/gmirror', 'destroy', swap['name'])
+            except SubprocessException as err:
+                logger.warn('Failed to disable swap on {0}: {1}'.format(swap['name'], err.err.strip()))
+                logger.warn('Continuing without {0}'.format(swap['name']))
 
     # Try to create new swap partitions, as at this stage we
     # might have two unused data disks
