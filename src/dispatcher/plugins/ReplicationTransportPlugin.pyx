@@ -270,6 +270,8 @@ class TransportSendTask(Task):
             except IOError:
                 raise TaskException(errno.ECONNABORTED, 'Transport connection closed unexpectedly')
 
+            self.join_subtasks(*subtasks)
+
         finally:
             free(buffer)
 
