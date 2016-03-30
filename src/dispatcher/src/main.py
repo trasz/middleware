@@ -801,15 +801,7 @@ class ServerRpcContext(RpcContext):
         self.dispatcher = dispatcher
 
     def call_sync(self, name, *args):
-        svcname, _, method = name.rpartition('.')
-        svc = self.get_service(svcname)
-        if svc is None:
-            raise RpcException(errno.ENOENT, 'Service {0} not found'.format(svcname))
-
-        if not hasattr(svc, method):
-            raise RpcException(errno.ENOENT, 'Method {0} in service {1} not found'.format(method, svcname))
-
-        return copy.deepcopy(getattr(svc, method)(*args))
+        return copy.deepcopy(self.dispatch_call(name, list(args), streaming=False, validation=False))
 
 
 class ServerResource(Resource):
