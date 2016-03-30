@@ -31,13 +31,15 @@ import errno
 import socket
 import logging
 import os
+import threading
+import time
 import base64
 from freenas.utils import first_or_default
 from freenas.dispatcher.client import Client, FileDescriptor
 from paramiko import AuthenticationException
 from freenas.dispatcher.rpc import RpcException, SchemaHelper as h, description, accepts, returns, private
 from utils import get_replication_client
-from task import Task, Provider, TaskException, TaskWarning, VerifyException, query
+from task import Task, ProgressTask, Provider, TaskException, TaskWarning, VerifyException, query
 from libc.stdlib cimport malloc, free
 from posix.unistd cimport read, write
 from libc.stdint cimport *
@@ -279,13 +281,161 @@ class TransportSendTask(Task):
 @private
 @description('Receive side of replication transport layer')
 @accepts(h.ref('replication-transport'))
-class TransportReceiveTask(Task):
+class TransportReceiveTask(ProgressTask):
+    def __init__(self, dispatcher, datastore):
+        super(TransportReceiveTask, self).__init__(dispatcher, datastore)
+        self.done = 0
+        self.estimated_size = 0
+        self.running = True
+
     def verify(self, transport):
-        return []
+        if 'auth_token' not in transport:
+            raise VerifyException(errno.ENOENT, 'Authentication token is not specified')
+
+        if 'server_address' not in transport:
+            raise VerifyException(errno.ENOENT, 'Server address is not specified')
+
+        if 'server_port' not in transport:
+            raise VerifyException(errno.ENOENT, 'Server port is not specified')
+
+        server_address = transport.get('server_address')
+
+        host = self.dispatcher.call_sync(
+            'replication.known_host.query',
+            [('name', '=', server_address)],
+            {'single': True}
+        )
+        if not host:
+            raise VerifyException(
+                errno.ENOENT,
+                'Server address {0} is not on local known replication hosts list'.format(server_address)
+            )
 
     def run(self, transport):
-        return
+        cdef uint8_t *buffer
+        cdef uint32_t *buffer32 = <uint32_t *> buffer
+        cdef uint8_t *token_buf
+        cdef int ret
+        cdef int length
+        cdef int magic = 0xdeadbeef
+        try:
+            buffer_size = transport.get('buffer_size', 1024*1024)
+            buffer = <uint8_t *>malloc(buffer_size * sizeof(uint8_t))
 
+            self.estimated_size = transport.get('estimated_size', 0)
+            server_address = transport.get('server_address')
+            server_port = transport.get('server_port')
+            token = base64.b64decode(transport.get('auth_token').encode('utf-8'))
+            token_size = transport.get('auth_token_size')
+            token_buf = token
+
+            if len(token) != token_size:
+                raise TaskException(
+                    errno.EINVAL,
+                    'Token size {0} does not match token size field {1}'.format(len(token), token_size)
+                )
+
+            for conn_option in socket.getaddrinfo(server_address, server_port, socket.AF_UNSPEC, socket.SOCK_STREAM):
+                af, sock_type, proto, canonname, addr = conn_option
+                try:
+                    sock = socket.socket(af, sock_type, proto)
+                except OSError:
+                    sock = None
+                    continue
+                try:
+                    sock.connect(addr)
+                except OSError:
+                    sock.close()
+                    sock = None
+                    continue
+                break
+
+            if sock is None:
+                raise TaskException(errno.EACCES, 'Could not open a socket at address {0}'.format(server_address))
+
+            conn_fd = sock.fileno()
+
+            plugins = transport.get('transport_plugins', [])
+            last_rd_fd = conn_fd
+            subtasks = []
+
+            for type in ['encrypt', 'compress']:
+                plugin = first_or_default(lambda p: p['name'] == type, plugins)
+                if plugin:
+                    if plugin['name'] == 'compress':
+                        plugin['name'] = 'decompress'
+                    elif plugin['name'] == 'encrypt':
+                        plugin['name'] = 'decrypt'
+                    rd, wr = os.pipe()
+                    plugin['read_fd'] = FileDescriptor(last_rd_fd)
+                    plugin['write_fd'] = FileDescriptor(wr)
+                    last_rd_fd = rd
+                    subtasks.append(self.run_subtask('replication.transport.{0}'.format(type), plugin))
+
+            try:
+                write_fd(conn_fd, token_buf, token_size)
+            except IOError:
+                raise TaskException(errno.ECONNABORTED, 'Transport connection closed unexpectedly')
+
+            zfs_rd, zfs_wr = os.pipe()
+            recv_props = transport.get('receive_properties')
+            subtasks.append(self.run_subtask(
+                'zfs.receive',
+                recv_props['name'],
+                FileDescriptor(zfs_rd),
+                recv_props.get('force', False),
+                recv_props.get('nomount', False),
+                recv_props.get('props', None),
+                recv_props.get('limitds', None)
+            ))
+
+            progress_t = threading.Thread(target=self.count_progress)
+            progress_t.start()
+            subtasks.append(progress_t)
+
+            try:
+                while True:
+                    ret = read_fd(last_rd_fd, buffer, 4, 0)
+                    if ret != 4:
+                        raise IOError
+                    if buffer32[0] != magic:
+                        sock.shutdown()
+                        raise TaskException(
+                            errno.EINVAL,
+                            'Bad magic {0} received. Expected {1}'.format(buffer32[0], magic)
+                        )
+                    ret = read_fd(last_rd_fd, buffer, 4, 0)
+                    if ret != 4:
+                        raise IOError
+                    length = buffer32[0]
+                    ret = read_fd(last_rd_fd, buffer, length, 0)
+                    if ret != length:
+                        raise IOError
+
+                    self.done += ret
+
+                    write_fd(zfs_wr, buffer, length)
+
+            except IOError:
+                raise TaskException(errno.ECONNABORTED, 'Transport connection closed unexpectedly')
+
+            self.running = False
+            self.join_subtasks(*subtasks)
+
+        finally:
+            free(buffer)
+
+    def count_progress(self):
+        last_done = 0
+        progress = 0
+        while self.running:
+            if self.estimated_size:
+                progress = int((float(self.done) / float(self.estimated_size)) * 100)
+                if progress > 100:
+                    progress = 100
+            self.set_progress(progress, 'Transfer speed {0} B/s'.format(self.done - last_done))
+            last_done = self.done
+            time.sleep(1)
 
 @private
 @description('Compress the input stream and pass it to the output')
