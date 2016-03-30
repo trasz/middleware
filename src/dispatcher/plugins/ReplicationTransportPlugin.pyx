@@ -264,22 +264,68 @@ def _init(dispatcher, plugin):
         'type': 'object',
         'properties': {
             'server_address': {'type': 'string'},
+            'client_address': {'type': 'string'},
             'server_port': {'type': 'integer'},
             'buffer_size': {'type': 'integer'},
+            'auth_token': {'type': 'string'},
             'auth_token_size': {'type': 'integer'},
+            'estimated_size': {'type': 'integer'},
             'transport_plugins': {
                 'type': ['array', 'null'],
-                'items': {'$ref': 'replication-transport-plugin'},
+                'items': {'$ref': 'replication-transport-plugin'}
             }
         },
         'additionalProperties': False
     })
 
-    plugin.register_schema_definition('replication-transport-plugin', {
+    plugin.register_schema_definition('compress-plugin', {
         'type': 'object',
         'properties': {
             'name': {'type': 'string'},
-            'params': {'type': 'object'}
+            'type': {'type': 'string'},
+            'read_fd': {'type': 'object'},
+            'write_fd': {'type': 'object'},
+            'level': {'type': 'integer'},
+            'buffer_size': {'type': 'integer'}
+        },
+        'additionalProperties': False
+    })
+
+    plugin.register_schema_definition('decompress-plugin', {
+        'discriminator': 'name',
+        'oneOf': [
+            {'$ref': 'compress-plugin'}
+        ]
+    })
+
+    plugin.register_schema_definition('encrypt-plugin', {
+        'type': 'object',
+        'properties': {
+            'name': {'type': 'string'},
+            'type': {'type': 'string'},
+            'read_fd': {'type': 'object'},
+            'write_fd': {'type': 'object'},
+            'key': {'type': 'string'},
+            'renewal_interval': {'type': 'integer'},
+            'buffer_size': {'type': 'integer'}
+        },
+        'additionalProperties': False
+    })
+
+    plugin.register_schema_definition('decrypt-plugin', {
+        'discriminator': 'name',
+        'oneOf': [
+            {'$ref': 'encrypt-plugin'}
+        ]
+    })
+
+    plugin.register_schema_definition('throttle-plugin', {
+        'type': 'object',
+        'properties': {
+            'name': {'type': 'string'},
+            'buffer_size': {'type': 'integer'},
+            'read_fd': {'type': 'object'},
+            'write_fd': {'type': 'object'}
         },
         'additionalProperties': False
     })
@@ -297,6 +343,14 @@ def _init(dispatcher, plugin):
 
     # Register providers
     plugin.register_provider('replication.host', HostProvider)
+
+    # Register transport plugin schema
+    plugin.register_schema_definition('replication-transport-plugin', {
+        'discriminator': 'name',
+        'oneOf': [
+            {'$ref': '{0}-plugin'.format(name)} for name in dispatcher.call_sync('replication.transport.plugin_types')
+        ]
+    })
 
     # Register tasks
     plugin.register_task_handler("replication.transport.create", TransportCreateTask)
