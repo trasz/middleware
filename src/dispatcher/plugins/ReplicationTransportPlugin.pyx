@@ -169,7 +169,7 @@ class TransportSendTask(Task):
                     sock = None
                     continue
                 try:
-                    sock.bind((server_address, transport.get('server-port', 0)))
+                    sock.bind(addr)
                     sock.listen(1)
                 except OSError:
                     sock.close()
@@ -228,7 +228,7 @@ class TransportSendTask(Task):
             recvd_token = <bytes> buffer[:curr_pos]
             curr_pos = 0
 
-            if token.encode('utf-8') != recvd_token:
+            if base64.b64decode(token.encode('utf-8')) != recvd_token:
                 raise TaskException(
                     errno.EAUTH,
                     'Transport layer authentication failed. Expected token {0}, was {1}'.format(
