@@ -90,7 +90,7 @@ class ManagementService(RpcService):
 
     @pass_sender
     def get_sender_address(self, sender):
-        return sender.real_client_address
+        return sender.client_address
 
     def die_you_gravy_sucking_pig_dog(self):
         self.dispatcher.die()
