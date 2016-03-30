@@ -81,8 +81,10 @@ cdef int write_fd(int fd, uint8_t *buf, int nbytes):
                 raise
 
         done += ret
+        if ret == 0:
+            raise IOError
 
-        if (done == nbytes) or (ret == 0):
+        if done == nbytes:
             return done
 
 
