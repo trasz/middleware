@@ -31,11 +31,14 @@ import errno
 import socket
 import logging
 import os
-from freenas.dispatcher.client import Client
+import base64
+from freenas.utils import first_or_default
+from freenas.dispatcher.client import Client, FileDescriptor
 from paramiko import AuthenticationException
 from freenas.dispatcher.rpc import RpcException, SchemaHelper as h, description, accepts, returns, private
 from utils import get_replication_client
 from task import Task, Provider, TaskException, TaskWarning, VerifyException, query
+from libc.stdlib cimport malloc, free
 from posix.unistd cimport read, write
 from libc.stdint cimport *
 
@@ -113,17 +116,229 @@ class TransportProvider(Provider):
         return ['compress', 'decompress', 'encrypt', 'decrypt', 'throttle']
 
 
+@private
+@description('Send side of replication transport layer')
+@accepts(
+    object,
+    h.all_of(
+        h.ref('replication-transport'),
+        h.required('client_address')
+    )
+)
+class TransportSendTask(Task):
+    def verify(self, fd, transport):
+        client_address = transport.get('client_address')
+        if not client_address:
+            raise VerifyException(errno.ENOENT, 'Please specify address of a remote')
+
+        if 'server_address' in transport:
+            raise VerifyException(errno.EINVAL, 'Server address cannot be specified')
+
+        host = self.dispatcher.call_sync(
+            'replication.known_host.query',
+            [('name', '=', client_address)],
+            {'single': True}
+        )
+        if not host:
+            raise VerifyException(
+                errno.ENOENT,
+                'Client address {0} is not on local known replication hosts list'.format(client_address)
+            )
+
+        return []
+
+    def run(self, fd, transport):
+        cdef uint8_t *buffer
+        cdef int curr_pos = 0
+        cdef int ret
+        cdef int magic = 0xdeadbeef
+        try:
+            buffer_size = transport.get('buffer_size', 1024*1024)
+            buffer = <uint8_t *>malloc(buffer_size * sizeof(uint8_t))
+
+            client_address = transport.get('client_address')
+            remote_client = get_replication_client(self.dispatcher, client_address)
+            server_address = remote_client.call_sync('management.get_sender_address')[0]
+            server_port = transport.get('server_port', 0)
+
+            for conn_option in socket.getaddrinfo(server_address, server_port, socket.AF_UNSPEC, socket.SOCK_STREAM):
+                af, sock_type, proto, canonname, addr = conn_option
+                try:
+                    sock = socket.socket(af, sock_type, proto)
+                except OSError:
+                    sock = None
+                    continue
+                try:
+                    sock.bind((server_address, transport.get('server-port', 0)))
+                    sock.listen(1)
+                except OSError:
+                    sock.close()
+                    sock = None
+                    continue
+                break
+
+            if sock is None:
+                raise TaskException(errno.EACCES, 'Could not open a socket at address {0}'.format(server_address))
+
+            token_size = transport.get('auth_token_size', 1024)
+            token = transport.get('auth_token')
+            if token:
+                actual_size = len(base64.b64decode(token.encode('utf-8')))
+                if actual_size != token_size:
+                    raise TaskException(
+                        errno.EINVAL,
+                        'Provided token size {0} does not match token size parameter value {1}'.format(
+                            actual_size,
+                            token_size
+                        )
+                    )
+            else:
+                token = base64.b64encode(os.urandom(token_size)).decode('utf-8')
+                transport['auth_token'] = token
+
+            sock_addr = sock.getsockname()
+            transport['server_address'] = sock_addr[0]
+            transport['server_port'] = sock_addr[1]
+            transport['buffer_size'] = buffer_size
+
+            recv_task_id = remote_client.call_task_async('replication.transport.receive', transport)
+
+            conn, addr = sock.accept()
+            if addr != client_address:
+                raise TaskException(
+                    errno.EINVAL,
+                    'Connection from an unexpected address {0} - desired {1}'.format(
+                        addr,
+                        client_address
+                    )
+                )
+
+            conn_fd = conn.fileno()
+
+            try:
+                ret = read_fd(conn_fd, buffer, token_size - curr_pos, curr_pos)
+                curr_pos += ret
+                if ret != token_size:
+                    raise OSError
+            except OSError:
+                raise TaskException(
+                    errno.ECONNABORTED,
+                    'Connection with {0} aborted before authentication'.format(client_address)
+                )
+            recvd_token = <bytes> buffer[:curr_pos]
+            curr_pos = 0
+
+            if token.encode('utf-8') != recvd_token:
+                raise TaskException(
+                    errno.EAUTH,
+                    'Transport layer authentication failed. Expected token {0}, was {1}'.format(
+                        token,
+                        recvd_token.decode('utf-8')
+                    )
+                )
+
+            plugins = transport.get('transport_plugins', [])
+            header_rd, header_wr = os.pipe()
+            last_rd_fd = header_rd
+            subtasks = []
+            raw_subtasks = []
+
+            for type in ['compress', 'encrypt', 'throttle']:
+                plugin = first_or_default(lambda p: p['name'] == type, plugins)
+                if plugin:
+                    rd, wr = os.pipe()
+                    plugin['read_fd'] = FileDescriptor(last_rd_fd)
+                    plugin['write_fd'] = FileDescriptor(wr)
+                    last_rd_fd = rd
+                    raw_subtasks.append(('replication.transport.{0}'.format(type), plugin))
+
+            if len(raw_subtasks):
+                raw_subtasks[-1]['write_fd'] = conn_fd
+                for subtask in raw_subtasks:
+                    subtasks.append(self.run_subtask(subtask))
+            else:
+                header_wr = conn_fd
+            try:
+                while True:
+                    ret = read_fd(fd, buffer, buffer_size, 0)
+                    write_fd(header_wr, <uint8_t *> magic, sizeof(magic))
+                    write_fd(header_wr, <uint8_t *> ret, sizeof(ret))
+                    if ret == 0:
+                        break
+                    else:
+                        write_fd(header_wr, buffer, ret)
+            except IOError:
+                raise TaskException(errno.ECONNABORTED, 'Transport connection closed unexpectedly')
+
+        finally:
+            free(buffer)
+
+
+@private
+@description('Receive side of replication transport layer')
 @accepts(h.ref('replication-transport'))
-class TransportCreateTask(Task):
-    def describe(self, transport):
-        return 'Setting up a replication transport'
-
+class TransportReceiveTask(Task):
     def verify(self, transport):
+        return []
 
-        return ['system']
-
-    def run(self, afp):
+    def run(self, transport):
         return
+
+
+@private
+@description('Compress the input stream and pass it to the output')
+@accepts(h.ref('compress-plugin'))
+class TransportCompressTask(Task):
+    def verify(self, transport):
+        return []
+
+    def run(self, transport):
+        return
+
+
+@private
+@description('Decompress the input stream and pass it to the output')
+@accepts(h.ref('decompress-plugin'))
+class TransportDecompressTask(Task):
+    def verify(self, transport):
+        return []
+
+    def run(self, transport):
+        return
+
+
+@private
+@description('Encrypt the input stream and pass it to the output')
+@accepts(h.ref('encrypt-plugin'))
+class TransportEncryptTask(Task):
+    def verify(self, transport):
+        return []
+
+    def run(self, transport):
+        return
+
+
+@private
+@description('Decrypt the input stream and pass it to the output')
+@accepts(h.ref('decrypt-plugin'))
+class TransportDecryptTask(Task):
+    def verify(self, transport):
+        return []
+
+    def run(self, transport):
+        return
+
+
+@private
+@description('Limit throughput to one buffer size per second')
+@accepts(h.ref('throttle-plugin'))
+class TransportThrottleTask(Task):
+    def verify(self, transport):
+        return []
+
+    def run(self, transport):
+        return
+
 
 
 @description('Exchange keys with remote machine for replication purposes')
@@ -360,7 +575,13 @@ def _init(dispatcher, plugin):
     })
 
     # Register tasks
-    plugin.register_task_handler("replication.transport.create", TransportCreateTask)
+    plugin.register_task_handler("replication.transport.send", TransportSendTask)
+    plugin.register_task_handler("replication.transport.receive", TransportReceiveTask)
+    plugin.register_task_handler("replication.transport.compress", TransportCompressTask)
+    plugin.register_task_handler("replication.transport.decompress", TransportDecompressTask)
+    plugin.register_task_handler("replication.transport.encrypt", TransportEncryptTask)
+    plugin.register_task_handler("replication.transport.decrypt", TransportDecryptTask)
+    plugin.register_task_handler("replication.transport.throttle", TransportThrottleTask)
     plugin.register_task_handler("replication.hosts_pair.create", HostsPairCreateTask)
     plugin.register_task_handler("replication.known_host.create", KnownHostCreateTask)
     plugin.register_task_handler("replication.hosts_pair.delete", HostsPairDeleteTask)
