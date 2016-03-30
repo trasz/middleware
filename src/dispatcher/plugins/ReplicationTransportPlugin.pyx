@@ -160,7 +160,7 @@ class TransportSendTask(Task):
 
             client_address = transport.get('client_address')
             remote_client = get_replication_client(self.dispatcher, client_address)
-            server_address = remote_client.call_sync('management.get_sender_address')[0]
+            server_address = remote_client.call_sync('management.get_sender_address').split(',', 1)[0]
             server_port = transport.get('server_port', 0)
 
             for conn_option in socket.getaddrinfo(server_address, server_port, socket.AF_UNSPEC, socket.SOCK_STREAM):
@@ -517,7 +517,7 @@ class HostsPairCreateTask(Task):
 
         local_keys = self.dispatcher.call_sync('replication.host.get_keys')
         remote_keys = remote_client.call_sync('replication.host.get_keys')
-        ip_at_remote_side = remote_client.call_sync('management.get_sender_address')[0]
+        ip_at_remote_side = remote_client.call_sync('management.get_sender_address').split(',', 1)[0]
 
         remote_host_key = remote + ' ' + remote_keys[0].rsplit(' ', 1)[0]
         local_host_key = ip_at_remote_side + ' ' + local_keys[0].rsplit(' ', 1)[0]
@@ -577,7 +577,7 @@ class HostsPairDeleteTask(Task):
         try:
             remote_client = get_replication_client(self.dispatcher, remote)
 
-            ip_at_remote_side = remote_client.call_sync('management.get_sender_address')[0]
+            ip_at_remote_side = remote_client.call_sync('management.get_sender_address').split(',', 1)[0]
             remote_client.call_task_sync(
                 'replication.known_host.delete',
                 ip_at_remote_side
