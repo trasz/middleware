@@ -106,7 +106,13 @@ class HostProvider(Provider):
 
         return [i for i in keys]
 
-@description('Set up a TCP connection for replication purposes')
+
+class TransportProvider(Provider):
+    @private
+    def plugin_types(self):
+        return ['compress', 'decompress', 'encrypt', 'decrypt', 'throttle']
+
+
 @accepts(h.ref('replication-transport'))
 class TransportCreateTask(Task):
     def describe(self, transport):
@@ -342,6 +348,7 @@ def _init(dispatcher, plugin):
     })
 
     # Register providers
+    plugin.register_provider('replication.transport', TransportProvider)
     plugin.register_provider('replication.host', HostProvider)
 
     # Register transport plugin schema
