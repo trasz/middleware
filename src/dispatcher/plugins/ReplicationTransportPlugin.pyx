@@ -122,7 +122,7 @@ class TransportProvider(Provider):
     object,
     h.all_of(
         h.ref('replication-transport'),
-        h.required('client_address')
+        h.required('client_address', 'receive_properties')
     )
 )
 class TransportSendTask(Task):
@@ -496,6 +496,13 @@ def _init(dispatcher, plugin):
             'transport_plugins': {
                 'type': ['array', 'null'],
                 'items': {'$ref': 'replication-transport-plugin'}
+            },
+            'receive_properties':{
+                'name': {'type': 'string'},
+                'force': {'type': 'boolean'},
+                'nomount': {'type': 'boolean'},
+                'props': {'type': 'object'},
+                'limitds': {'type': 'object'}
             }
         },
         'additionalProperties': False
