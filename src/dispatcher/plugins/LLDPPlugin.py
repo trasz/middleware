@@ -23,11 +23,12 @@
 # POSSIBILITY OF SUCH DAMAGE.
 #
 #####################################################################
+
 import errno
 import logging
 
 from datastore.config import ConfigNode
-from freenas.dispatcher.rpc import RpcException, SchemaHelper as h, description, accepts, returns
+from freenas.dispatcher.rpc import RpcException, SchemaHelper as h, description, accepts, returns, private
 from task import Task, Provider, TaskException, ValidationException
 
 logger = logging.getLogger('LLDPPlugin')
@@ -35,12 +36,14 @@ logger = logging.getLogger('LLDPPlugin')
 
 @description('Provides info about LLDP service configuration')
 class LLDPProvider(Provider):
+    @private
     @accepts()
     @returns(h.ref('service-lldp'))
     def get_config(self):
-        return ConfigNode('service.lldp', self.configstore)
+        return ConfigNode('service.lldp', self.configstore).__getstate__()
 
 
+@private
 @description('Configure LLDP service')
 @accepts(h.ref('service-lldp'))
 class LLDPConfigureTask(Task):
@@ -48,18 +51,17 @@ class LLDPConfigureTask(Task):
         return 'Configuring LLDP service'
 
     def verify(self, lldp):
-        errors = []
-
+        errors = ValidationException()
         node = ConfigNode('service.lldp', self.configstore).__getstate__()
         node.update(lldp)
 
         # Lazy load pycountry due to extra verbose DEBUG logging
         import pycountry
         if node['country_code'] and node['country_code'] not in pycountry.countries.indices['alpha2']:
-            errors.append(('country_code', errno.EINVAL, 'Invalid ISO-3166 alpha 2 code'))
+            errors.add((0, 'country_code'), 'Invalid ISO-3166 alpha 2 code')
 
         if errors:
-            raise ValidationException(errors)
+            raise errors
 
         return ['system']
 
@@ -89,6 +91,8 @@ def _init(dispatcher, plugin):
     plugin.register_schema_definition('service-lldp', {
         'type': 'object',
         'properties': {
+            'type': {'enum': ['service-lldp']},
+            'enable': {'type': 'boolean'},
             'save_description': {'type': 'boolean'},
             'country_code': {'type': ['string', 'null']},
             'location': {'type': ['string', 'null']},
@@ -100,4 +104,4 @@ def _init(dispatcher, plugin):
     plugin.register_provider("service.lldp", LLDPProvider)
 
     # Register tasks
-    plugin.register_task_handler("service.lldp.configure", LLDPConfigureTask)
+    plugin.register_task_handler("service.lldp.update", LLDPConfigureTask)

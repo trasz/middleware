@@ -31,6 +31,7 @@ import traceback
 import errno
 import subprocess
 import gevent
+from resources import Resource
 from gevent.event import Event
 from gevent.lock import Semaphore
 from gevent.backdoor import BackdoorServer
@@ -63,6 +64,9 @@ class ManagementService(RpcService):
     def get_event_sources(self):
         return list(self.dispatcher.event_sources.keys())
 
+    def get_plugin_names(self):
+        return list(self.dispatcher.plugins.keys())
+
     def get_connected_clients(self):
         return [
             inner
@@ -84,6 +88,10 @@ class ManagementService(RpcService):
 
         session.logout('Kicked out by {0}'.format(sender.user.name))
 
+    @pass_sender
+    def get_sender_address(self, sender):
+        return sender.real_client_address
+
     def die_you_gravy_sucking_pig_dog(self):
         self.dispatcher.die()
 
@@ -92,6 +100,17 @@ class ManagementService(RpcService):
 
     def stop_logdb(self):
         self.dispatcher.stop_logdb()
+
+    def collect_debug(self, plugin_name):
+        plugin = self.dispatcher.plugins.get(plugin_name)
+        result = []
+        if not plugin:
+            raise RpcException(errno.ENOENT, 'Plugin not found')
+
+        for hook in plugin.registers['debug']:
+            result.extend(c.__getstate__() for c in hook(self.dispatcher))
+
+        return result
 
 
 class DebugService(RpcService):
@@ -205,15 +224,15 @@ class PluginService(RpcService):
 
     def __client_disconnected(self, args):
         for name, svc in list(self.services.items()):
-            if args['address'] == svc.connection.real_client_address:
+            if args['address'] == svc.connection.client_address:
                 self.unregister_service(name, svc.connection)
 
         for name, conn in list(self.schemas.items()):
-            if args['address'] == conn.real_client_address:
+            if args['address'] == conn.client_address:
                 self.unregister_schema(name, conn)
 
         for name, conn in list(self.event_types.items()):
-            if args['address'] == conn.ws.handler.client_address:
+            if args['address'] == conn.client_address:
                 self.unregister_event_type(name)
 
     def initialize(self, context):
@@ -222,7 +241,7 @@ class PluginService(RpcService):
         self.events = {}
         self.event_types = {}
         self.__dispatcher = context.dispatcher
-        self.__dispatcher.register_event_handler( 'server.client_disconnected', self.__client_disconnected)
+        self.__dispatcher.register_event_handler('server.client_disconnected', self.__client_disconnected)
         self.__dispatcher.register_event_type('plugin.service_unregistered')
         self.__dispatcher.register_event_type('plugin.service_registered')
         self.__dispatcher.register_event_type('plugin.service_resume')
@@ -233,7 +252,7 @@ class PluginService(RpcService):
         self.services[name] = wrapper
         self.__dispatcher.rpc.register_service_instance(name, wrapper)
         self.__dispatcher.dispatch_event('plugin.service_registered', {
-            'address': sender.real_client_address,
+            'address': sender.client_address,
             'service-name': name,
             'description': "Service {0} registered".format(name)
         })
@@ -252,7 +271,7 @@ class PluginService(RpcService):
 
         self.__dispatcher.rpc.unregister_service(name)
         self.__dispatcher.dispatch_event('plugin.service_unregistered', {
-            'address': sender.real_client_address,
+            'address': sender.client_address,
             'service-name': name,
             'description': "Service {0} unregistered".format(name)
         })
@@ -320,6 +339,11 @@ class TaskService(RpcService):
     @pass_sender
     def submit(self, name, args, sender):
         tid = self.__balancer.submit(name, args, sender)
+        return tid
+
+    @pass_sender
+    def submit_with_env(self, name, args, env, sender):
+        tid = self.__balancer.submit(name, args, sender, env)
         return tid
 
     def status(self, id):
@@ -404,6 +428,24 @@ class TaskService(RpcService):
 
     @private
     @pass_sender
+    def register_resource(self, resource, parents, sender):
+        executor = self.__balancer.get_executor_by_sender(sender)
+        if not executor:
+            raise RpcException(errno.EPERM, 'Not authorized')
+
+        self.__dispatcher.register_resource(Resource(resource), parents)
+
+    @private
+    @pass_sender
+    def unregister_resource(self, resource, sender):
+        executor = self.__balancer.get_executor_by_sender(sender)
+        if not executor:
+            raise RpcException(errno.EPERM, 'Not authorized')
+
+        self.__dispatcher.unregister_resource(resource)
+
+    @private
+    @pass_sender
     def run_hook(self, hook, args, sender):
         executor = self.__balancer.get_executor_by_sender(sender)
         if not executor:
@@ -445,6 +487,15 @@ class TaskService(RpcService):
                 raise RpcException(i.error['code'], 'Subtask failed: {0}'.format(i.error['message']))
 
         return [t.result for t in subtasks]
+
+    @private
+    @pass_sender
+    def abort_subtask(self, id, sender):
+        executor = self.__balancer.get_executor_by_sender(sender)
+        if not executor:
+            raise RpcException(errno.EPERM, 'Not authorized')
+
+        self.__balancer.abort(id)
 
 
 class LockService(RpcService):

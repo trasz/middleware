@@ -29,7 +29,7 @@ import logging
 import os
 
 from datastore.config import ConfigNode
-from freenas.dispatcher.rpc import RpcException, SchemaHelper as h, description, accepts, returns
+from freenas.dispatcher.rpc import RpcException, SchemaHelper as h, description, accepts, returns, private
 from resources import Resource
 from task import Task, Provider, TaskException, ValidationException
 
@@ -38,12 +38,14 @@ logger = logging.getLogger('AFPPlugin')
 
 @description('Provides info about AFP service configuration')
 class AFPProvider(Provider):
+    @private
     @accepts()
     @returns(h.ref('service-afp'))
     def get_config(self):
         return ConfigNode('service.afp', self.configstore).__getstate__()
 
 
+@private
 @description('Configure AFP service')
 @accepts(h.ref('service-afp'))
 class AFPConfigureTask(Task):
@@ -52,16 +54,16 @@ class AFPConfigureTask(Task):
 
     def verify(self, afp):
 
-        errors = []
+        errors = ValidationException()
         dbpath = afp.get('dbpath')
         if dbpath:
             if not os.path.exists(dbpath):
-                errors.append(('dbpath', errno.EEXIST, 'Path does not exist'))
+                errors.add((0, 'dbpath'), 'Path does not exist', code=errno.ENOENT)
             elif not os.path.isdir(dbpath):
-                errors.append(('dbpath', errno.EINVAL, 'Path is not a directory'))
+                errors.add((0, 'dbpath'), 'Path is not a directory')
 
         if errors:
-            raise ValidationException(errors)
+            raise errors
 
         return ['system']
 
@@ -92,6 +94,8 @@ def _init(dispatcher, plugin):
     plugin.register_schema_definition('service-afp', {
         'type': 'object',
         'properties': {
+            'type': {'enum': ['service-afp']},
+            'enable': {'type': 'boolean'},
             'guest_enable': {'type': 'boolean'},
             'guest_user': {'type': 'string'},
             'bind_addresses': {
@@ -113,4 +117,4 @@ def _init(dispatcher, plugin):
     plugin.register_provider("service.afp", AFPProvider)
 
     # Register tasks
-    plugin.register_task_handler("service.afp.configure", AFPConfigureTask)
+    plugin.register_task_handler("service.afp.update", AFPConfigureTask)

@@ -23,11 +23,12 @@
 # POSSIBILITY OF SUCH DAMAGE.
 #
 #####################################################################
+
 import errno
 import logging
 
 from datastore.config import ConfigNode
-from freenas.dispatcher.rpc import RpcException, SchemaHelper as h, description, accepts, returns
+from freenas.dispatcher.rpc import RpcException, SchemaHelper as h, description, accepts, returns, private
 from task import Task, Provider, TaskException, ValidationException
 
 logger = logging.getLogger('SMARTPlugin')
@@ -38,9 +39,10 @@ class SMARTProvider(Provider):
     @accepts()
     @returns(h.ref('service-smartd'))
     def get_config(self):
-        return ConfigNode('service.smartd', self.configstore)
+        return ConfigNode('service.smartd', self.configstore).__getstate__()
 
 
+@private
 @description('Configure SMART service')
 @accepts(h.ref('service-smartd'))
 class SMARTConfigureTask(Task):
@@ -49,9 +51,6 @@ class SMARTConfigureTask(Task):
 
     def verify(self, smartd):
         errors = []
-
-        node = ConfigNode('service.smartd', self.configstore).__getstate__()
-        node.update(smartd)
 
         if errors:
             raise ValidationException(errors)
@@ -85,6 +84,8 @@ def _init(dispatcher, plugin):
     plugin.register_schema_definition('service-smartd', {
         'type': 'object',
         'properties': {
+            'type': {'enum': ['service-smartd']},
+            'enable': {'type': 'boolean'},
             'interval': {'type': 'integer'},
             'power_mode': {'type': 'string', 'enum': [
                 'NEVER',
@@ -103,4 +104,4 @@ def _init(dispatcher, plugin):
     plugin.register_provider("service.smartd", SMARTProvider)
 
     # Register tasks
-    plugin.register_task_handler("service.smartd.configure", SMARTConfigureTask)
+    plugin.register_task_handler("service.smartd.update", SMARTConfigureTask)

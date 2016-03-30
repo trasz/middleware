@@ -72,5 +72,5 @@ def _init(dispatcher, plugin):
 
     plugin.register_provider('directoryservice.ldap', LDAPProvider)
 
-    plugin.register_task_handler('directoryservice.ldap.configure',
+    plugin.register_task_handler('directoryservice.ldap.update',
         LDAPConfigureTask)

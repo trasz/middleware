@@ -27,7 +27,7 @@ import errno
 import logging
 
 from datastore.config import ConfigNode
-from freenas.dispatcher.rpc import RpcException, SchemaHelper as h, description, accepts, returns
+from freenas.dispatcher.rpc import RpcException, SchemaHelper as h, description, accepts, returns, private
 from task import Task, Provider, TaskException, ValidationException
 
 logger = logging.getLogger('StanchionPlugin')
@@ -35,12 +35,14 @@ logger = logging.getLogger('StanchionPlugin')
 
 @description('Provides info about Stanchion service configuration')
 class StanchionProvider(Provider):
+    @private
     @accepts()
     @returns(h.ref('service-stanchion'))
     def get_config(self):
         return ConfigNode('service.stanchion', self.configstore).__getstate__()
 
 
+@private
 @description('Configure Stanchion KV service')
 @accepts(h.ref('service-stanchion'))
 class StanchionConfigureTask(Task):
@@ -49,9 +51,6 @@ class StanchionConfigureTask(Task):
 
     def verify(self, stanchion):
         errors = []
-
-        node = ConfigNode('service.stanchion', self.configstore).__getstate__()
-        node.update(stanchion)
 
         if errors:
             raise ValidationException(errors)
@@ -85,6 +84,8 @@ def _init(dispatcher, plugin):
     plugin.register_schema_definition('service-stanchion', {
         'type': 'object',
         'properties': {
+            'type': {'enum': ['service-stanchion']},
+            'enable': {'type': 'boolean'},
             'listener_ip': {'type': ['string', 'null']},
             'listener_port': {'type': ['integer', 'null']},
             'riak_host_ip': {'type': ['string', 'null']},
@@ -102,4 +103,4 @@ def _init(dispatcher, plugin):
     plugin.register_provider("service.stanchion", StanchionProvider)
 
     # Register tasks
-    plugin.register_task_handler("service.stanchion.configure", StanchionConfigureTask)
+    plugin.register_task_handler("service.stanchion.update", StanchionConfigureTask)

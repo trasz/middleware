@@ -1,6 +1,8 @@
+# $FreeBSD$
+
 PORTNAME=		Parse-Pidl
 PORTVERSION=		${SAMBA4_VERSION}
-PORTREVISION=		1
+PORTREVISION=		0
 PORTEPOCH=		0
 CATEGORIES=		devel perl5
 PKGNAMEPREFIX=		p5-
@@ -23,13 +25,7 @@ PKGDIR=			${.CURDIR}
 
 USES=			perl5
 USE_PERL5=		configure
-
 PATCH_WRKSRC=		${WRKDIR}/${DISTNAME}
-WRKSRC=			${WRKDIR}/${DISTNAME}/pidl
-CONFIGURE_WRKSRC=	${WRKDIR}/${DISTNAME}/pidl
-BUILD_WRKSRC=		${WRKDIR}/${DISTNAME}/pidl
-INSTALL_WRKSRC=		${WRKDIR}/${DISTNAME}/pidl
-
 
 post-extract:
 			@${RM} -rf ${WRKSRC}/lib/Parse/Yapp ${WRKSRC}/lib/wscript_build
@@ -37,4 +33,5 @@ post-extract:
 .include "${MASTERDIR}/Makefile"
 
 # Ugly hack
+WRKSRC=			/usr/samba_src/pidl
 DISTNAME=		${SAMBA4_BASENAME}-4-3-stable

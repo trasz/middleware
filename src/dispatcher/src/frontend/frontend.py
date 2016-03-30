@@ -48,6 +48,11 @@ def events():
     return render_template('events.html')
 
 
+@app.route('/base')
+def base():
+    return render_template('base.html')
+
+
 @app.route('/rpc')
 def rpc():
     return render_template('rpc.html')

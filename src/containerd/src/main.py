@@ -25,6 +25,7 @@
 #
 #####################################################################
 
+import os
 import enum
 import sys
 import argparse
@@ -41,10 +42,12 @@ import gevent.monkey
 import subprocess
 import serial
 import netif
+import socket
 import signal
 import select
 import tempfile
 import ipaddress
+import pf
 from gevent.queue import Queue, Channel
 from gevent.event import Event
 from geventwebsocket import WebSocketServer, WebSocketApplication, Resource
@@ -55,7 +58,7 @@ from datastore.config import ConfigStore
 from freenas.dispatcher.client import Client, ClientError
 from freenas.dispatcher.rpc import RpcService, RpcException, private
 from freenas.utils.debug import DebugService
-from freenas.utils import configure_logging
+from freenas.utils import first_or_default, configure_logging
 from mgmt import ManagementNetwork
 from ec2 import EC2MetadataServer
 
@@ -63,9 +66,9 @@ from ec2 import EC2MetadataServer
 gevent.monkey.patch_all(thread=False)
 
 
-MGMT_ADDR = ipaddress.ip_interface('169.254.16.1/20')
+MGMT_ADDR = ipaddress.ip_interface('172.20.0.1/16')
 MGMT_INTERFACE = 'mgmt0'
-NAT_ADDR = ipaddress.ip_interface('169.254.32.1/20')
+NAT_ADDR = ipaddress.ip_interface('172.21.0.1/16')
 NAT_INTERFACE = 'nat0'
 DEFAULT_CONFIGFILE = '/usr/local/etc/middleware.conf'
 SCROLLBACK_SIZE = 65536
@@ -98,6 +101,7 @@ class VirtualMachine(object):
         self.state = VirtualMachineState.STOPPED
         self.config = None
         self.devices = []
+        self.files_root = None
         self.bhyve_process = None
         self.scrollback = BinaryRingBuffer(SCROLLBACK_SIZE)
         self.console_fd = None
@@ -126,6 +130,12 @@ class VirtualMachine(object):
                 path = self.context.client.call_sync('container.get_disk_path', self.id, i['name'])
                 args += ['-s', '{0}:0,ahci-cd,{1}'.format(index, path)]
                 index += 1
+
+            if i['type'] == 'VOLUME':
+                if i['properties']['type'] == 'VT9P':
+                    path = self.context.client.call_sync('container.get_volume_path', self.id, i['name'])
+                    args += ['-s', '{0}:0,virtio-9p,{1}={2}'.format(index, i['name'], path)]
+                    index += 1
 
             if i['type'] == 'NIC':
                 mac = i['properties']['link_address']
@@ -226,6 +236,7 @@ class VirtualMachine(object):
                     cdcounter = 0
                     bootname = ''
                     bootswitch = '-r'
+
                     for i in filter(lambda i: i['type'] in ('DISK', 'CDROM'), self.devices):
                         path = self.context.client.call_sync('container.get_disk_path', self.id, i['name'])
 
@@ -246,7 +257,7 @@ class VirtualMachine(object):
 
                     if self.config.get('boot_directory'):
                         bootswitch = '-d'
-                        bootname = self.config['boot_directory']
+                        bootname = os.path.join(self.files_root, self.config['boot_directory'])
 
                     devmap.flush()
                     self.bhyve_process = subprocess.Popen(
@@ -374,6 +385,10 @@ class ManagementService(RpcService):
             vm.name = container['name']
             vm.config = container['config']
             vm.devices = container['devices']
+            vm.files_root = self.context.client.call_sync(
+                'volume.get_dataset_path',
+                os.path.join(container['target'], 'vm', container['name'], 'files')
+            )
             vm.start()
             self.context.containers[id] = vm
 
@@ -385,7 +400,7 @@ class ManagementService(RpcService):
         if container['type'] == 'VM':
             vm = self.context.containers.get(id)
             if not vm:
-                raise RpcException(errno.ENOENT, 'Container {0} is not started'.format(container['name']))
+                return
 
             vm.stop(force)
             del self.context.containers[id]
@@ -529,9 +544,6 @@ class Main(object):
 
         self.configstore = ConfigStore(self.datastore)
 
-    def init_bridge(self):
-        self.bridge_interface = netif.get_interface(self.configstore.get('container.bridge'))
-
     def allocate_nmdm(self):
         for i in range(0, 255):
             if i not in self.used_nmdms:
@@ -575,6 +587,39 @@ class Main(object):
             netif.AddressFamily.INET,
             ipaddress.ip_interface('169.254.169.254/32')
         ))
+
+    def init_nat(self):
+        default_if = self.client.call_sync('networkd.configuration.get_default_interface')
+        if not default_if:
+            self.logger.warning('No default route interface; not configuring NAT')
+            return
+
+        p = pf.PF()
+
+        # Try to find and remove existing NAT rules for the same subnet
+        oldrule = first_or_default(
+            lambda r: r.src.address.address == MGMT_ADDR.network.network_address,
+            p.get_rules('nat')
+        )
+
+        if oldrule:
+            p.delete_rule('nat', oldrule.index)
+
+        rule = pf.Rule()
+        rule.src.address.address = MGMT_ADDR.network.network_address
+        rule.src.address.netmask = MGMT_ADDR.netmask
+        rule.action = pf.RuleAction.NAT
+        rule.af = socket.AF_INET
+        rule.ifname = default_if
+        rule.redirect_pool.append(pf.Address(ifname=default_if))
+        rule.proxy_ports = [50001, 65535]
+        p.append_rule('nat', rule)
+
+        try:
+            p.enable()
+        except OSError as err:
+            if err.errno != errno.EEXIST:
+                raise err
 
     def init_ec2(self):
         self.ec2 = EC2MetadataServer(self)
@@ -622,8 +667,8 @@ class Main(object):
         self.init_datastore()
         self.init_dispatcher()
         self.init_mgmt()
+        self.init_nat()
         self.init_ec2()
-        self.init_bridge()
         self.logger.info('Started')
 
         # WebSockets server

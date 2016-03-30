@@ -28,16 +28,18 @@
 import os
 import errno
 import logging
+import json
 import libzfs
 from datetime import datetime
 from threading import Event
 from cache import EventCacheStore
 from task import (Provider, Task, TaskStatus, TaskException,
                   VerifyException, TaskAbortException, query)
-from freenas.dispatcher.rpc import RpcException, accepts, returns, description
+from freenas.dispatcher.rpc import RpcException, accepts, returns, description, private
 from freenas.dispatcher.rpc import SchemaHelper as h
 from balancer import TaskState
 from resources import Resource
+from debug import AttachData, AttachCommandOutput
 from freenas.utils import first_or_default
 from freenas.utils.query import QueryDict, wrap
 
@@ -126,7 +128,6 @@ class ZpoolProvider(Provider):
         return first_or_default(lambda v: v['path'] == path, iterate_vdevs(pool['groups']))
 
     @accepts(str)
-    @returns()
     def ensure_resilvered(self, name):
         try:
             zfs = get_zfs()
@@ -202,6 +203,7 @@ class ZfsSnapshotProvider(Provider):
         return snapshots.query(*(filter or []), **(params or {}))
 
 
+@private
 @description("Scrubs ZFS pool")
 @accepts(str, int)
 class ZpoolScrubTask(Task):
@@ -262,10 +264,8 @@ class ZpoolScrubTask(Task):
         except libzfs.ZFSException as err:
             raise TaskException(errno.EFAULT, str(err))
 
-        self.finish_event.set()
-        # set the abort flag to True so that run() can raise
-        # propoer exception
         self.abort_flag = True
+        self.finish_event.set()
         return True
 
     def get_status(self):
@@ -292,6 +292,7 @@ class ZpoolScrubTask(Task):
             return TaskStatus(100, "Finished")
 
 
+@private
 @description("Creates new ZFS pool")
 @accepts(str, h.ref('zfs-topology'), h.object())
 class ZpoolCreateTask(Task):
@@ -368,6 +369,7 @@ class ZpoolBaseTask(Task):
         return get_disk_names(self.dispatcher, pool)
 
 
+@private
 @accepts(str, h.object())
 class ZpoolConfigureTask(ZpoolBaseTask):
     def verify(self, pool, updated_props):
@@ -384,6 +386,7 @@ class ZpoolConfigureTask(ZpoolBaseTask):
             raise TaskException(errno.EFAULT, str(err))
 
 
+@private
 @accepts(str)
 class ZpoolDestroyTask(ZpoolBaseTask):
     def run(self, name):
@@ -394,6 +397,7 @@ class ZpoolDestroyTask(ZpoolBaseTask):
             raise TaskException(errno.EFAULT, str(err))
 
 
+@private
 @accepts(
     str,
     h.any_of(
@@ -463,6 +467,7 @@ class ZpoolExtendTask(ZpoolBaseTask):
             return TaskStatus(100, "Finished")
 
 
+@private
 @accepts(str, str)
 class ZpoolDetachTask(ZpoolBaseTask):
     def run(self, pool, guid):
@@ -478,6 +483,7 @@ class ZpoolDetachTask(ZpoolBaseTask):
             raise TaskException(errno.EFAULT, str(err))
 
 
+@private
 @accepts(str, str, h.ref('zfs-vdev'))
 class ZpoolReplaceTask(ZpoolBaseTask):
     def run(self, pool, guid, vdev):
@@ -495,6 +501,7 @@ class ZpoolReplaceTask(ZpoolBaseTask):
             raise TaskException(errno.EFAULT, str(err))
 
 
+@private
 @accepts(str, str, bool)
 class ZpoolOfflineDiskTask(ZpoolBaseTask):
     def run(self, pool, guid, temporary=False):
@@ -510,6 +517,7 @@ class ZpoolOfflineDiskTask(ZpoolBaseTask):
             raise TaskException(errno.EFAULT, str(err))
 
 
+@private
 @accepts(str, str)
 class ZpoolOnlineDiskTask(ZpoolBaseTask):
     def run(self, pool, guid):
@@ -525,6 +533,7 @@ class ZpoolOnlineDiskTask(ZpoolBaseTask):
             raise TaskException(errno.EFAULT, str(err))
 
 
+@private
 @accepts(str)
 class ZpoolUpgradeTask(ZpoolBaseTask):
     def run(self, pool):
@@ -536,6 +545,7 @@ class ZpoolUpgradeTask(ZpoolBaseTask):
             raise TaskException(errno.EFAULT, str(err))
 
 
+@private
 @accepts(str, str, h.object())
 class ZpoolImportTask(Task):
     def verify(self, guid, name=None, properties=None):
@@ -556,6 +566,7 @@ class ZpoolImportTask(Task):
             raise TaskException(errno.EFAULT, str(err))
 
 
+@private
 @accepts(str)
 class ZpoolExportTask(ZpoolBaseTask):
     def verify(self, name):
@@ -582,6 +593,7 @@ class ZfsBaseTask(Task):
         return ['zpool:{0}'.format(dataset.pool.name)]
 
 
+@private
 @accepts(str, bool)
 class ZfsDatasetMountTask(ZfsBaseTask):
     def run(self, name, recursive=False):
@@ -600,17 +612,22 @@ class ZfsDatasetMountTask(ZfsBaseTask):
             raise TaskException(errno.EFAULT, str(err))
 
 
-@accepts(str)
+@private
+@accepts(str, bool)
 class ZfsDatasetUmountTask(ZfsBaseTask):
-    def run(self, name):
+    def run(self, name, recursive=False):
         try:
             zfs = get_zfs()
             dataset = zfs.get_dataset(name)
-            dataset.umount()
+            if recursive:
+                dataset.umount_recursive()
+            else:
+                dataset.umount()
         except libzfs.ZFSException as err:
             raise TaskException(errno.EFAULT, str(err))
 
 
+@private
 @accepts(str, str, h.ref('dataset-type'), h.object())
 class ZfsDatasetCreateTask(Task):
     def check_type(self, type):
@@ -643,6 +660,7 @@ class ZfsDatasetCreateTask(Task):
             raise TaskException(errno.EFAULT, str(err))
 
 
+@private
 @accepts(str, str, str, h.any_of(bool, None), h.any_of(h.object(), None))
 class ZfsSnapshotCreateTask(ZfsBaseTask):
     def run(self, pool_name, path, snapshot_name, recursive=False, params=None):
@@ -657,6 +675,7 @@ class ZfsSnapshotCreateTask(ZfsBaseTask):
             raise TaskException(errno.EFAULT, str(err))
 
 
+@private
 @accepts(str, str, str, h.any_of(bool, None))
 class ZfsSnapshotDeleteTask(ZfsBaseTask):
     def run(self, pool_name, path, snapshot_name, recursive=False):
@@ -668,6 +687,7 @@ class ZfsSnapshotDeleteTask(ZfsBaseTask):
             raise TaskException(errno.EFAULT, str(err))
 
 
+@private
 @accepts(str, str, h.array(str), h.any_of(bool, None))
 class ZfsSnapshotDeleteMultipleTask(ZfsBaseTask):
     def run(self, pool_name, path, snapshot_names, recursive=False):
@@ -680,11 +700,12 @@ class ZfsSnapshotDeleteMultipleTask(ZfsBaseTask):
             raise TaskException(errno.EFAULT, str(err))
 
 
+@private
 class ZfsConfigureTask(ZfsBaseTask):
     def run(self, pool_name, name, properties):
         try:
             zfs = get_zfs()
-            dataset = zfs.get_dataset(name)
+            dataset = zfs.get_object(name)
             for k, v in list(properties.items()):
                 if k in dataset.properties:
                     if v['value'] is None:
@@ -698,6 +719,7 @@ class ZfsConfigureTask(ZfsBaseTask):
             raise TaskException(errno.EFAULT, str(err))
 
 
+@private
 class ZfsDestroyTask(ZfsBaseTask):
     def run(self, name):
         try:
@@ -708,6 +730,7 @@ class ZfsDestroyTask(ZfsBaseTask):
             raise TaskException(errno.EFAULT, str(err))
 
 
+@private
 @accepts(str, str)
 class ZfsRenameTask(ZfsBaseTask):
     def run(self, name, new_name):
@@ -719,6 +742,7 @@ class ZfsRenameTask(ZfsBaseTask):
             raise TaskException(errno.EFAULT, str(err))
 
 
+@private
 @accepts(str)
 class ZfsCloneTask(ZfsBaseTask):
     def run(self, path):
@@ -728,6 +752,35 @@ class ZfsCloneTask(ZfsBaseTask):
             dataset.delete()
         except libzfs.ZFSException as err:
             raise TaskException(errno.EFAULT, str(err))
+
+
+@private
+class ZfsSendTask(ZfsBaseTask):
+    def run(self, name, fromsnap, fd):
+        try:
+            zfs = get_zfs()
+            obj = zfs.get_object(name)
+            obj.send(fd.fd, fromname=fromsnap, flags={
+                libzfs.SendFlag.PROGRESS,
+                libzfs.SendFlag.PROPS
+            })
+        except libzfs.ZFSException as err:
+            raise TaskException(errno.EFAULT, str(err))
+        finally:
+            os.close(fd.fd)
+
+
+@private
+class ZfsReceiveTask(ZfsBaseTask):
+    def run(self, name, fd, force=False, nomount=False, props=None, limitds=None):
+        try:
+            zfs = get_zfs()
+            obj = zfs.get_dataset(name)
+            obj.receive(fd.fd, force, nomount, props, limitds)
+        except libzfs.ZFSException as err:
+            raise TaskException(errno.EFAULT, str(err))
+        finally:
+            os.close(fd.fd)
 
 
 def convert_topology(zfs, topology):
@@ -792,7 +845,7 @@ def get_disk_names(dispatcher, pool):
 def sync_zpool_cache(dispatcher, pool, guid=None):
     zfs = get_zfs()
     try:
-        zfspool = wrap(zfs.get(pool).__getstate__())
+        zfspool = wrap(zfs.get(pool).__getstate__(False))
         pools.put(pool, zfspool)
         zpool_sync_resources(dispatcher, pool)
     except libzfs.ZFSException as e:
@@ -889,6 +942,16 @@ def get_zfs():
     return libzfs.ZFS(history=True, history_prefix="[DISPATCHER TASK]")
 
 
+def collect_debug(dispatcher):
+    yield AttachData('pool-cache-state', json.dumps(pools.query(), indent=4))
+    yield AttachData('dataset-cache-state', json.dumps(datasets.query(), indent=4))
+    yield AttachData('snapshot-cache-state', json.dumps(snapshots.query(), indent=4))
+    yield AttachCommandOutput('zpool-status', ['/sbin/zpool', 'status'])
+    yield AttachCommandOutput('zpool-history', ['/sbin/zpool', 'history'])
+    yield AttachCommandOutput('zpool-list', ['/sbin/zpool', 'get', 'all'])
+    yield AttachCommandOutput('zfs-list', ['/sbin/zfs', 'get', 'all'])
+
+
 def _depends():
     return ['DevdPlugin', 'DiskPlugin']
 
@@ -923,8 +986,8 @@ def zfsprop_schema_creator(**kwargs):
     result = {
         'type': 'object',
         'properties': {
-            'source': 'string',
-            'value': 'string',
+            'source': {'type': 'string'},
+            'value': {'type': 'string'},
         }
     }
     for key, value in kwargs.items():
@@ -978,7 +1041,7 @@ def _init(dispatcher, plugin):
         with dispatcher.get_lock('zfs-cache'):
             if '@' in args['ds']:
                 logger.info('Snapshot {0} renamed to: {1}'.format(args['ds'], args['new_ds']))
-                sync_snapshot_cache(dispatcher, args['new_ds'], args['old_ds'])
+                sync_snapshot_cache(dispatcher, args['new_ds'])
             else:
                 logger.info('Dataset {0} renamed to: {1}'.format(args['ds'], args['new_ds']))
                 sync_dataset_cache(dispatcher, args['new_ds'])
@@ -1004,6 +1067,15 @@ def _init(dispatcher, plugin):
                 sync_snapshot_cache(dispatcher, args['ds'])
             else:
                 sync_dataset_cache(dispatcher, args['ds'])
+
+    def on_vfs_mount_or_unmount(type, args):
+        ds = datasets.query(('properties.mountpoint.value', '=', args['path']), single=True)
+        if not ds:
+            return
+
+        with dispatcher.get_lock('zfs-cache'):
+            logger.info('Dataset {0} {1}ed'.format(ds['name'], type))
+            sync_dataset_cache(dispatcher, ds['name'])
 
     def on_device_attached(args):
         for p in pools.validvalues():
@@ -1090,7 +1162,7 @@ def _init(dispatcher, plugin):
             'end_time': {'type': 'string'},
             'func': {'type': 'integer'},
             'bytes_processed': {'type': 'integer'},
-            'percentage': {'type': 'float'},
+            'percentage': {'type': 'number'},
         }
     })
 
@@ -1243,6 +1315,7 @@ def _init(dispatcher, plugin):
         'properties': {
             'pool': {'type': 'string'},
             'dataset': {'type': 'string'},
+            'type': {'$ref': 'dataset-type'},
             'name': {'type': 'string'},
             'holds': {'type': 'object'},
             'properties': {'type': 'object'}
@@ -1293,6 +1366,8 @@ def _init(dispatcher, plugin):
     plugin.register_event_handler('fs.zfs.dataset.renamed', on_dataset_rename)
     plugin.register_event_handler('fs.zfs.dataset.setprop', on_dataset_setprop)
     plugin.register_event_handler('system.device.attached', on_device_attached)
+    plugin.register_event_handler('system.fs.mounted', lambda a: on_vfs_mount_or_unmount('mount', a))
+    plugin.register_event_handler('system.fs.unmounted', lambda a: on_vfs_mount_or_unmount('unmount', a))
 
     # Register Providers
     plugin.register_provider('zfs.pool', ZpoolProvider)
@@ -1306,7 +1381,7 @@ def _init(dispatcher, plugin):
 
     # Register Task Handlers
     plugin.register_task_handler('zfs.pool.create', ZpoolCreateTask)
-    plugin.register_task_handler('zfs.pool.configure', ZpoolConfigureTask)
+    plugin.register_task_handler('zfs.pool.update', ZpoolConfigureTask)
     plugin.register_task_handler('zfs.pool.extend', ZpoolExtendTask)
     plugin.register_task_handler('zfs.pool.detach', ZpoolDetachTask)
     plugin.register_task_handler('zfs.pool.replace', ZpoolReplaceTask)
@@ -1325,10 +1400,15 @@ def _init(dispatcher, plugin):
     plugin.register_task_handler('zfs.create_snapshot', ZfsSnapshotCreateTask)
     plugin.register_task_handler('zfs.delete_snapshot', ZfsSnapshotDeleteTask)
     plugin.register_task_handler('zfs.delete_multiple_snapshots', ZfsSnapshotDeleteMultipleTask)
-    plugin.register_task_handler('zfs.configure', ZfsConfigureTask)
+    plugin.register_task_handler('zfs.update', ZfsConfigureTask)
     plugin.register_task_handler('zfs.destroy', ZfsDestroyTask)
     plugin.register_task_handler('zfs.rename', ZfsRenameTask)
     plugin.register_task_handler('zfs.clone', ZfsCloneTask)
+    plugin.register_task_handler('zfs.send', ZfsSendTask)
+    plugin.register_task_handler('zfs.receive', ZfsReceiveTask)
+
+    # Register debug hook
+    plugin.register_debug_hook(collect_debug)
 
     if not os.path.isdir('/data/zfs'):
         os.mkdir('/data/zfs')
@@ -1402,10 +1482,10 @@ def _init(dispatcher, plugin):
         # Finally, Importing the unique unimported pools that are present in
         # the database
         for vol in dispatcher.datastore.query('volumes'):
-            if int(vol['id']) in unimported_unique_pools:
-                pool_to_import = unimported_unique_pools[int(vol['id'])]
+            if int(vol['guid']) in unimported_unique_pools:
+                pool_to_import = unimported_unique_pools[int(vol['guid'])]
                 # Check if the volume name is also the same
-                if vol['name'] == pool_to_import.name:
+                if vol['id'] == pool_to_import.name:
                     opts = {}
                     try:
                         zfs.import_pool(pool_to_import, pool_to_import.name, opts)
@@ -1419,8 +1499,8 @@ def _init(dispatcher, plugin):
                     # What to do now??
                     # When in doubt log it!
                     dispatcher.logger.error(
-                        'Cannot Import pool with guid: {0}'.format(vol['id']) +
-                        ' because it is named as: {0} in'.format(vol['name']) +
+                        'Cannot Import pool with guid: {0}'.format(vol['guid']) +
+                        ' because it is named as: {0} in'.format(vol['id']) +
                         ' the database but the actual system found it named' +
                         ' as {0}'.format(pool_to_import.name))
 

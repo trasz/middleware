@@ -180,7 +180,7 @@ log { source(src); filter(f_emerg); destination(allusers); };
 # touch /var/log/all.log and chmod it to mode 600 before it will work
 # *.*							/var/log/all.log
 #
-log { source(src); destination(mongodb); };
+log { source(src); filter(f_info); destination(mongodb); };
 
 #
 # uncomment this to enable logging to a remote loghost named loghost

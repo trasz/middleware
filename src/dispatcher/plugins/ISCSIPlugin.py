@@ -46,6 +46,7 @@ class ISCSIProvider(Provider):
         return node
 
 
+@private
 @description('Configure ISCSI service')
 @accepts(h.ref('service-iscsi'))
 class ISCSIConfigureTask(Task):
@@ -82,6 +83,7 @@ def _init(dispatcher, plugin):
         'type': 'object',
         'additionalProperties': False,
         'properties': {
+            'type': {'enum': ['service-iscsi']},
             'enable': {'type': 'boolean'},
             'base_name': {'type': 'string'},
             'pool_space_threshold': {'type': ['integer', 'null']},
@@ -96,4 +98,4 @@ def _init(dispatcher, plugin):
     plugin.register_provider("service.iscsi", ISCSIProvider)
 
     # Register tasks
-    plugin.register_task_handler("service.iscsi.configure", ISCSIConfigureTask)
+    plugin.register_task_handler("service.iscsi.update", ISCSIConfigureTask)

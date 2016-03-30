@@ -27,7 +27,7 @@ import errno
 import logging
 
 from datastore.config import ConfigNode
-from freenas.dispatcher.rpc import RpcException, SchemaHelper as h, description, accepts, returns
+from freenas.dispatcher.rpc import RpcException, SchemaHelper as h, description, accepts, returns, private
 from task import Task, Provider, TaskException, ValidationException
 
 logger = logging.getLogger('SWIFTPlugin')
@@ -35,12 +35,14 @@ logger = logging.getLogger('SWIFTPlugin')
 
 @description('Provides info about SWIFT service configuration')
 class SWIFTProvider(Provider):
+    @private
     @accepts()
     @returns(h.ref('service-swift'))
     def get_config(self):
-        return ConfigNode('service.swift', self.configstore)
+        return ConfigNode('service.swift', self.configstore).__getstate__()
 
 
+@private
 @description('Configure SWIFT S3 service')
 @accepts(h.ref('service-swift'))
 class SWIFTConfigureTask(Task):
@@ -49,9 +51,6 @@ class SWIFTConfigureTask(Task):
 
     def verify(self, swift):
         errors = []
-
-        node = ConfigNode('service.swift', self.configstore).__getstate__()
-        node.update(swift)
 
         if errors:
             raise ValidationException(errors)
@@ -84,6 +83,8 @@ def _init(dispatcher, plugin):
     plugin.register_schema_definition('service-swift', {
         'type': 'object',
         'properties': {
+            'type': {'enum': ['service-swift']},
+            'enable': {'type': 'boolean'},
             'swift_hash_path_suffix': {'type': ['string', 'null']},
             'swift_hash_path_prefix': {'type': ['string', 'null']},
         },
@@ -94,4 +95,4 @@ def _init(dispatcher, plugin):
     plugin.register_provider("service.swift", SWIFTProvider)
 
     # Register tasks
-    plugin.register_task_handler("service.swift.configure", SWIFTConfigureTask)
+    plugin.register_task_handler("service.swift.update", SWIFTConfigureTask)

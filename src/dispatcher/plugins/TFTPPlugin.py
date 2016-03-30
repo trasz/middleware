@@ -23,11 +23,12 @@
 # POSSIBILITY OF SUCH DAMAGE.
 #
 #####################################################################
+
 import errno
 import logging
 
 from datastore.config import ConfigNode
-from freenas.dispatcher.rpc import RpcException, SchemaHelper as h, description, accepts, returns
+from freenas.dispatcher.rpc import RpcException, SchemaHelper as h, description, accepts, returns, private
 from task import Task, Provider, TaskException, ValidationException
 
 logger = logging.getLogger('TFTPPlugin')
@@ -35,23 +36,22 @@ logger = logging.getLogger('TFTPPlugin')
 
 @description('Provides info about TFTP service configuration')
 class TFTPProvider(Provider):
+    @private
     @accepts()
-    @returns(h.ref('service-tftp'))
+    @returns(h.ref('service-tftpd'))
     def get_config(self):
-        return ConfigNode('service.tftp', self.configstore)
+        return ConfigNode('service.tftpd', self.configstore).__getstate__()
 
 
+@private
 @description('Configure TFTP service')
-@accepts(h.ref('service-tftp'))
+@accepts(h.ref('service-tftpd'))
 class TFTPConfigureTask(Task):
     def describe(self, share):
         return 'Configuring TFTP service'
 
     def verify(self, tftp):
         errors = []
-
-        node = ConfigNode('service.tftp', self.configstore).__getstate__()
-        node.update(tftp)
 
         if errors:
             raise ValidationException(errors)
@@ -63,7 +63,7 @@ class TFTPConfigureTask(Task):
             node = ConfigNode('service.tftp', self.configstore)
             node.update(tftp)
             self.dispatcher.call_sync('etcd.generation.generate_group', 'services')
-            self.dispatcher.dispatch_event('service.tftp.changed', {
+            self.dispatcher.dispatch_event('service.tftpd.changed', {
                 'operation': 'updated',
                 'ids': None,
             })
@@ -82,9 +82,11 @@ def _depends():
 def _init(dispatcher, plugin):
 
     # Register schemas
-    plugin.register_schema_definition('service-tftp', {
+    plugin.register_schema_definition('service-tftpd', {
         'type': 'object',
         'properties': {
+            'type': {'enum': ['service-tftpd']},
+            'enable': {'type': 'boolean'},
             'port': {'type': 'integer'},
             'path': {'type': 'string'},
             'allow_new_files': {'type': 'boolean'},
@@ -96,7 +98,7 @@ def _init(dispatcher, plugin):
     })
 
     # Register providers
-    plugin.register_provider("service.tftp", TFTPProvider)
+    plugin.register_provider("service.tftpd", TFTPProvider)
 
     # Register tasks
-    plugin.register_task_handler("service.tftp.configure", TFTPConfigureTask)
+    plugin.register_task_handler("service.tftpd.update", TFTPConfigureTask)

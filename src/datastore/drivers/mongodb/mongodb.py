@@ -244,6 +244,12 @@ class MongodbDatastore(object):
         return item['pkey-type']
 
     @auto_retry
+    def collection_set_pkey_type(self, name, type):
+        item = self.db['collections'].find_one({"_id": name})
+        item['pkey-type'] = type
+        self.db['collections'].update({'_id': name}, item)
+
+    @auto_retry
     def collection_get_next_pkey(self, name, prefix):
         counter = 0
         while True:
@@ -346,7 +352,7 @@ class MongodbDatastore(object):
             for i in cur:
                 i['id'] = i.pop('_id')
                 yield i
-        except pymongo.errors.OperationFailure as err:
+        except (pymongo.errors.OperationFailure, pymongo.errors.AutoReconnect) as err:
             raise DatastoreException(str(err))
 
     @auto_retry

@@ -1,4 +1,5 @@
 #!/usr/local/bin/python3
+from __future__ import print_function
 
 import getopt
 import logging
@@ -38,6 +39,31 @@ def PrintDifferences(diffs):
         else:
             print("*** Unknown key %s (value %s)" % (type, str(diffs[type])), file=sys.stderrr)
 
+def DoDownload(train, cache_dir, pkg_type):
+    import freenasOS.Update as Update
+    import freenasOS.Exceptions as Exceptions
+
+    try:
+        rv = Update.DownloadUpdate(train, cache_dir, pkg_type = pkg_type)
+    except Exceptions.ManifestInvalidSignature:
+        log.error("Manifest has invalid signature")
+        print("Manifest has invalid signature", file=sys.stderr)
+        sys.exit(1)
+    except Exceptions.UpdateBusyCacheException as e:
+        log.error(str(e))
+        print("Download cache directory is busy", file=sys.stderr)
+        sys.exit(1)
+    except Exceptions.UpdateIncompleteCacheException:
+        log.error(str(e))
+        print("Incomplete download cache, cannot update", file=sys.stderr)
+        sys.exit(1)
+    except BaseException as e:
+        log.error(str(e))
+        print("Received exception during download phase, cannot update", file=sys.stderr)
+        sys.exit(1)
+
+    return rv
+
 def main():
     global log
 
@@ -72,7 +98,8 @@ def main():
     import freenasOS.Configuration as Configuration
     import freenasOS.Manifest as Manifest
     import freenasOS.Update as Update
-
+    import freenasOS.Exceptions as Exceptions
+    
     def usage():
         print("""Usage: %s [-C cache_dir] [-d] [-T train] [--no-delta] [-v] <cmd>, where cmd is one of:
         check\tCheck for updates
@@ -95,7 +122,7 @@ def main():
     verbose = False
     debug = 0
     config = None
-    cache_dir = None
+    cache_dir = "/var/db/system/update"
     train = None
     pkg_type = None
     
@@ -127,47 +154,19 @@ def main():
         # we make a temporary directory and use that.  We
         # have to clean up afterwards in that case.
         
-        if cache_dir is None:
-            download_dir = tempfile.mkdtemp(prefix = "UpdateCheck-", dir = config.TemporaryDirectory())
-            if download_dir is None:
-                print("Unable to create temporary directory", file=sys.stderr)
-                sys.exit(1)
-        else:
-            download_dir = cache_dir
-
-        try:
-            rv = Update.DownloadUpdate(train, download_dir, pkg_type = pkg_type)
-        except Exceptions.ManifestInvalidSignature:
-            log.error("Manifest has invalid signature")
-            print("Manifest has invalid signature", file=sys.stderr)
-            sys.exit(1)
-        except Exceptions.UpdateBusyCacheException as e:
-            log.error(str(e))
-            print("Download cache directory is busy", file=sys.stderr)
-            sys.exit(1)
-        except Exceptions.UpdateIncompleteCacheException:
-            log.error(str(e))
-            print("Incomplete download cache, cannot update", file=sys.stderr)
-            sys.exit(1)
-        except BaseException as e:
-            log.error(str(e))
-            print("Received exception during download phase, cannot update", file=sys.stderr)
-            sys.exit(1)
-
+        rv = DoDownload(train, cache_dir, pkg_type)
         if rv is False:
             if verbose:
                 print("No updates available")
-            if cache_dir is None:
-                Update.RemoveUpdate(download_dir)
             sys.exit(1)
         else:
-            diffs = Update.PendingUpdatesChanges(download_dir)
+            diffs = Update.PendingUpdatesChanges(cache_dir)
             if diffs is None or len(diffs) == 0:
                 print("Strangely, DownloadUpdate says there updates, but PendingUpdates says otherwise", file=sys.stderr)
                 sys.exit(1)
             PrintDifferences(diffs)
             if cache_dir is None:
-                Update.RemoveUpdate(download_dir)
+                Update.RemoveUpdate(cache_dir)
             sys.exit(0)
 
     elif args[0] == "update":
@@ -191,20 +190,25 @@ def main():
             else:
                 assert False, "Unhandled option %s" % o
         
-        if cache_dir is None:
-            download_dir = tempfile.mkdtemp(prefix = "UpdateUpdate-", dir = config.TemporaryDirectory())
-            if download_dir is None:
-                print("Unable to create temporary directory", file=sys.stderr)
-                sys.exit(1)
-            rv = Update.DownloadUpdate(train, download_dir, pkg_type = pkg_type)
-            if rv is False:
-                if verbose or debug:
-                    print("DownloadUpdate returned False", file=sys.stderr)
-                sys.exit(1)
-        else:
-            download_dir = cache_dir
+        # See if the cache directory has an update downloaded already
+        do_download = True
+        try:
+            f = Update.VerifyUpdate(cache_dir)
+            if f:
+                f.close()
+                do_download = False
+        except Exceptions.UpdateBusyCacheException:
+            printf("Cache directory busy, cannot update")
+            sys.exit(0)
+        except (Exceptions.UpdateInvalidCacheException, Exceptions.UpdateIncompleteCacheException):
+            pass
+        except:
+            raise
         
-        diffs = Update.PendingUpdatesChanges(download_dir)
+        if do_download:
+            rv = DoDownload(train, cache_dir, pkg_type)
+            
+        diffs = Update.PendingUpdatesChanges(cache_dir)
         if diffs is None or diffs == {}:
             if verbose:
                 print("No updates to apply", file=sys.stderr)
@@ -212,12 +216,10 @@ def main():
             if verbose:
                 PrintDifferences(diffs)
             try:
-                rv = Update.ApplyUpdate(download_dir, force_reboot = force_reboot)
+                rv = Update.ApplyUpdate(cache_dir, force_reboot = force_reboot)
             except BaseException as e:
                 print("Unable to apply update: %s" % str(e), file=sys.stderr)
                 sys.exit(1)
-            if cache_dir is None:
-                Update.RemoveUpdate(download_dir)    
             if rv:
                 print("System should be rebooted now", file=sys.stderr)
             sys.exit(0)

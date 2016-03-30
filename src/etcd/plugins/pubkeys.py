@@ -32,7 +32,7 @@ import os
 def run(context):
     for user in context.client.call_sync('user.query'):
         home = user['home']
-        uid = user['id']
+        uid = user['uid']
         gid = user['group']
         builtin = user['builtin']
         filename = os.path.join(home, '.ssh', 'authorized_keys')

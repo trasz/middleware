@@ -57,7 +57,7 @@ def link_directories(dispatcher):
             user = dispatcher.call_sync('user.query', [('username', '=', d['owner'])], {'single': True})
             group = dispatcher.call_sync('group.query', [('name', '=', d['group'])], {'single': True})
             if user and group:
-                os.chown(target, user['id'], group['id'])
+                os.chown(target, user['uid'], group['gid'])
 
         for cname, c in d.get('children', {}).items():
             try:
@@ -73,7 +73,7 @@ def link_directories(dispatcher):
                 user = dispatcher.call_sync('user.query', [('username', '=', c['owner'])], {'single': True})
                 group = dispatcher.call_sync('group.query', [('name', '=', c['group'])], {'single': True})
                 if user and group:
-                    os.chown(os.path.join(target, cname), user['id'], group['id'])
+                    os.chown(os.path.join(target, cname), user['uid'], group['gid'])
 
 
 def create_system_dataset(dispatcher, dsid, pool):
@@ -197,7 +197,6 @@ class SystemDatasetProvider(Provider):
     @private
     @description("Initializes the .system dataset")
     @accepts()
-    @returns()
     def init(self):
         pool = self.configstore.get('system.dataset.pool')
         dsid = self.configstore.get('system.dataset.id')
@@ -254,6 +253,7 @@ class SystemDatasetConfigure(Task):
         self.configstore.set('system.dataset.pool', pool)
 
 
+@private
 @description("Imports .system dataset from a volume")
 @accepts(str)
 class SystemDatasetImport(Task):
@@ -296,7 +296,7 @@ def _init(dispatcher, plugin):
     def volume_pre_destroy(args):
         # Evacuate .system dataset from the pool
         if dispatcher.configstore.get('system.dataset.pool') == args['name']:
-            dispatcher.call_task_sync('system_dataset.configure', 'freenas-boot')
+            dispatcher.call_task_sync('system_dataset.update', 'freenas-boot')
 
         return True
 
@@ -310,7 +310,7 @@ def _init(dispatcher, plugin):
     plugin.attach_hook('volume.pre_detach', volume_pre_destroy)
     plugin.attach_hook('volume.pre_rename', volume_pre_destroy)
     plugin.register_provider('system_dataset', SystemDatasetProvider)
-    plugin.register_task_handler('system_dataset.configure', SystemDatasetConfigure)
+    plugin.register_task_handler('system_dataset.migrate', SystemDatasetConfigure)
     plugin.register_task_handler('system_dataset.import', SystemDatasetImport)
 
     plugin.register_hook('system_dataset.pre_detach')

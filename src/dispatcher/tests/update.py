@@ -92,7 +92,7 @@ class Updater(BaseTestCase):
             self.assertTaskCompletion(tid)
             
             print 'Applying update with following reboot...'
-            tid = self.submitTask('update.update', True) 
+            tid = self.submitTask('update.apply', True) 
             time.sleep(300)
             print self.conn.call_sync('update.update_info')     
         else:

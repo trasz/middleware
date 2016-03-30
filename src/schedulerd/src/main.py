@@ -32,6 +32,7 @@ import setproctitle
 import argparse
 import pytz
 import errno
+from datetime import datetime, timezone
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.jobstores.mongodb import MongoDBJobStore
 from datastore import get_datastore, DatastoreException
@@ -63,6 +64,7 @@ class ManagementService(RpcService):
             current_progress = None
             schedule = {f.name: f for f in job.trigger.fields}
             schedule['coalesce'] = job.coalesce
+            schedule['timezone'] = job.trigger.timezone
 
             last_run = self.context.datastore.query(
                 'schedulerd.runs',
@@ -167,11 +169,13 @@ class ManagementService(RpcService):
     @private
     def run(self, job_id):
         self.context.logger.info('Running job {0} manualy'.format(job_id))
-        job = self.context.scheduler.get_job(job_id)
+        jb = self.context.scheduler.get_job(job_id)
         self.context.scheduler.add_job(
+            job,
             id=job_id + '-temp',
-            args=job.args,
-            kwargs=job.kwargs,
+            args=jb.args,
+            kwargs=jb.kwargs,
+            run_date=datetime.now(timezone.utc)
         )
 
 
@@ -234,7 +238,8 @@ class Context(object):
                         'day_of_week': {'type': ['string', 'integer', 'null']},
                         'hour': {'type': ['string', 'integer', 'null']},
                         'minute': {'type': ['string', 'integer', 'null']},
-                        'second': {'type': ['string', 'integer', 'null']}
+                        'second': {'type': ['string', 'integer', 'null']},
+                        'timezone': {'type': ['string', 'null']}
                     }
                 }
             }

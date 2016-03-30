@@ -41,7 +41,7 @@ class FakeDisksProvider(Provider):
 @description("Creates a Simulated Fake Disk with the parameters provided")
 @accepts(
     h.all_of(
-        h.ref('simulated-disk'),
+        h.ref('simulator-disk'),
         h.required('id')
     )
 )
@@ -76,7 +76,7 @@ class CreateFakeDisk(Task):
 @accepts(
     str,
     h.all_of(
-        h.ref('simulated-disk'),
+        h.ref('simulator-disk'),
         h.no(h.required('id'))
     )
 )
@@ -115,7 +115,16 @@ def _depends():
 
 
 def _init(dispatcher, plugin):
-    plugin.register_schema_definition('simulated-disk', {
+    plugin.register_schema_definition('service-simulator', {
+        'type': 'object',
+        'additionalProperties': False,
+        'properties': {
+            'type': {'enum': ['service-simulator']},
+            'enable': {'type': 'boolean'}
+        }
+    })
+
+    plugin.register_schema_definition('simulator-disk', {
         'type': 'object',
         'additionalProperties': False,
         'properties': {

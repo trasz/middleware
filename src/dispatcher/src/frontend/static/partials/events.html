@@ -1,0 +1,13 @@
+<div ng-init="init()">
+</div>
+<div class="row">
+      <div class="" ng-repeat='item in item_list | filter:searchText'>
+          <div class="panel panel-primary">
+            <div class="panel-heading">New event: <b>{{ item.name }}</b></div>
+            <div class="panel-body">
+              Event data:
+              <pre>{{ item.args }}</pre>
+            </div>
+          </div>
+      </div>
+</div>

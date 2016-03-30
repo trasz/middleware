@@ -39,7 +39,7 @@ from datastore.config import ConfigNode
 from freenas.dispatcher.rpc import (
     RpcException, SchemaHelper as h, accepts, description, returns
 )
-from task import Provider, Task, TaskException
+from task import Provider, Task, TaskException, ValidationException
 
 logger = logging.getLogger('MailPlugin')
 
@@ -131,6 +131,18 @@ class MailProvider(Provider):
 class MailConfigureTask(Task):
 
     def verify(self, mail):
+        errors = ValidationException()
+        node = ConfigNode('mail', self.configstore).__getstate__()
+
+        if mail.get('auth'):
+            if not mail.get('user') and not node['user']:
+                errors.add((0, 'auth'), 'Mail authorization requires a username')
+            if not mail.get('pass') and not node['pass']:
+                errors.add((0, 'auth'), 'Mail authorization requires a password')
+
+        if errors:
+            raise errors
+
         return []
 
     def run(self, mail):
@@ -180,4 +192,4 @@ def _init(dispatcher, plugin):
     plugin.register_provider('mail', MailProvider)
 
     # Register task handlers
-    plugin.register_task_handler('mail.configure', MailConfigureTask)
+    plugin.register_task_handler('mail.update', MailConfigureTask)

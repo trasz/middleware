@@ -147,10 +147,8 @@ get_media_description()
     _media=$1
     VAL=""
     if [ -n "${_media}" ]; then
-        _description=`pc-sysinstall disk-list -c |grep "^${_media}:"\
-            | awk -F':' '{print $2}'|sed -E 's|.*<(.*)>.*$|\1|'`
-	# if pc-sysinstall doesn't know anything about the device
-	# (raid drives) then fill in for it.
+	_description=`geom disk list ${_media} 2>/dev/null \
+	    | sed -ne 's/^   descr: *//p'`
 	if [ -z "$_description" ] ; then
 		_description="Unknown Device"
 	fi
@@ -785,7 +783,6 @@ menu_install()
     /usr/local/bin/freenas-install -P /.mount/${OS}/Packages -M /.mount/${OS}-MANIFEST /tmp/data 2>&1 | tee -a /tmp/install.log
     
     rm -f /tmp/data/conf/default/etc/fstab /tmp/data/conf/base/etc/fstab
-    echo "freenas-boot/grub	/boot/grub	zfs	rw,noatime	1	0" > /tmp/data/etc/fstab
     if is_truenas; then
        make_swap ${_realdisks}
     fi
@@ -892,6 +889,8 @@ menu_shell()
 menu_reboot()
 {
     echo "Rebooting..."
+    # Clear the kernel buffer.
+    /sbin/dmesg -c > /dev/null
     reboot >/dev/null
 }
 

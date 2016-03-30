@@ -30,7 +30,7 @@ import shutil
 import ipfsApi
 from requests.exceptions import ConnectionError
 from datastore.config import ConfigNode
-from freenas.dispatcher.rpc import RpcException, SchemaHelper as h, description, accepts, returns
+from freenas.dispatcher.rpc import RpcException, SchemaHelper as h, description, accepts, returns, private
 from task import Task, Provider, TaskException, ValidationException
 
 logger = logging.getLogger('IPFSPlugin')
@@ -80,10 +80,11 @@ class IPFSProvider(Provider):
         super(IPFSProvider, self).initialize(context)
         self.ipfs_api = ipfsApi.Client('127.0.0.1', 5001)
 
+    @private
     @accepts()
     @returns(h.ref('service-ipfs'))
     def get_config(self):
-        return ConfigNode('service.ipfs', self.configstore)
+        return ConfigNode('service.ipfs', self.configstore).__getstate__()
 
     @ipfs_enabled_error()
     @accepts()
@@ -98,6 +99,7 @@ class IPFSProvider(Provider):
         return self.ipfs_api.swarm_peers()["Strings"]
 
 
+@private
 @description('Configure IPFS service')
 @accepts(h.ref('service-ipfs'))
 class IPFSConfigureTask(Task):
@@ -106,21 +108,14 @@ class IPFSConfigureTask(Task):
         return 'Configuring IPFS service'
 
     def verify(self, ipfs):
-        errors = []
-
-        node = ConfigNode('service.ipfs', self.configstore).__getstate__()
-        node.update(ipfs)
+        errors = ValidationException()
 
         if 'path' in ipfs:
             if ipfs['path'] in [None, ''] or ipfs['path'].isspace():
-                errors.append((
-                    'path',
-                    errno.EINVAL,
-                    "The provided path: '{0}' is not valid".format(ipfs['path'])
-                ))
+                errors.add((0, path), "The provided path: '{0}' is not valid".format(ipfs['path']))
 
         if errors:
-            raise ValidationException(errors)
+            raise errors
 
         return ['system']
 
@@ -170,6 +165,8 @@ def _init(dispatcher, plugin):
     plugin.register_schema_definition('service-ipfs', {
         'type': 'object',
         'properties': {
+            'type': {'enum': ['service-ipfs']},
+            'enable': {'type': 'boolean'},
             'path': {'type': 'string'},
         },
         'additionalProperties': False,
@@ -194,4 +191,4 @@ def _init(dispatcher, plugin):
     plugin.register_provider("service.ipfs", IPFSProvider)
 
     # Register tasks
-    plugin.register_task_handler("service.ipfs.configure", IPFSConfigureTask)
+    plugin.register_task_handler("service.ipfs.update", IPFSConfigureTask)

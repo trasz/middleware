@@ -7,5 +7,5 @@
         return ','.join([get_name(i) for i in group['members']])
 %>\
 % for group in dispatcher.call_sync("group.query"):
-${group['name']}:*:${group['id']}:${members(group)}
+${group['name']}:*:${group['gid']}:${members(group)}
 % endfor

@@ -27,7 +27,7 @@ import errno
 import logging
 
 from datastore.config import ConfigNode
-from freenas.dispatcher.rpc import RpcException, SchemaHelper as h, description, accepts, returns
+from freenas.dispatcher.rpc import RpcException, SchemaHelper as h, description, accepts, returns, private
 from task import Task, Provider, TaskException, ValidationException
 
 logger = logging.getLogger('FTPPlugin')
@@ -35,12 +35,14 @@ logger = logging.getLogger('FTPPlugin')
 
 @description('Provides info about FTP service configuration')
 class FTPProvider(Provider):
+    @private
     @accepts()
     @returns(h.ref('service-ftp'))
     def get_config(self):
-        return ConfigNode('service.ftp', self.configstore)
+        return ConfigNode('service.ftp', self.configstore).__getstate__()
 
 
+@private
 @description('Configure FTP service')
 @accepts(h.ref('service-ftp'))
 class FTPConfigureTask(Task):
@@ -48,44 +50,37 @@ class FTPConfigureTask(Task):
         return 'Configuring FTP service'
 
     def verify(self, ftp):
-        errors = []
-
+        errors = ValidationException()
         node = ConfigNode('service.ftp', self.configstore).__getstate__()
         node.update(ftp)
 
         pmin = node['passive_ports_min']
         if 'passive_ports_min' in ftp:
             if pmin and (pmin < 1024 or pmin > 65535):
-                errors.append(
-                    ('passive_ports_min', errno.EINVAL, 'This value must be between 1024 and 65535, inclusive.')
-                )
+                errors.add((0, 'passive_ports_min'), 'This value must be between 1024 and 65535, inclusive.')
 
         pmax = node['passive_ports_max']
         if 'passive_ports_max' in ftp:
             if pmax and (pmax < 1024 or pmax > 65535):
-                errors.append(
-                    ('passive_ports_max', errno.EINVAL, 'This value must be between 1024 and 65535, inclusive.')
-                )
+                errors.add((0, 'passive_ports_max'), 'This value must be between 1024 and 65535, inclusive.')
             elif pmax and pmin and pmin >= pmax:
-                errors.append(
-                    ('passive_ports_max', errno.EINVAL, 'This value must be higher than minimum passive port.')
-                )
+                errors.add((0, 'passive_ports_max'),  'This value must be higher than minimum passive port.')
 
         if node['only_anonymous'] and not node['anonymous_path']:
-            errors.append(
-                ('anonymous_path', errno.EINVAL, 'This field is required for anonymous login.')
+            errors.add(
+                ((0, 'anonymous_path'), errno.EINVAL, 'This field is required for anonymous login.')
             )
 
         if node['tls'] is True and not node['tls_ssl_certificate']:
-            errors.append(('tls_ssl_certificate', errno.EINVAL, 'TLS specified without certificate.'))
+            errors.add((0, 'tls_ssl_certificate'), 'TLS specified without certificate.')
 
         if node['tls_ssl_certificate']:
             cert = self.dispatcher.call_sync('crypto.certificate.query', [('id', '=', node['tls_ssl_certificate'])])
             if not cert:
-                errors.append(('tls_ssl_certificate', errno.EINVAL, 'SSL Certificate not found.'))
+                errors.add((0, 'tls_ssl_certificate'), 'SSL Certificate not found.')
 
         if errors:
-            raise ValidationException(errors)
+            raise errors
 
         return ['system']
 
@@ -116,7 +111,13 @@ def _init(dispatcher, plugin):
     plugin.register_schema_definition('service-ftp', {
         'type': 'object',
         'properties': {
-            'port': {'type': 'integer'},
+            'type': {'enum': ['service-ftp']},
+            'enable': {'type': 'boolean'},
+            'port': {
+                'type': 'integer',
+                'minimum': 1,
+                'maximum': 65535
+            },
             'max_clients': {'type': 'integer'},
             'ip_connections': {'type': ['integer', 'null']},
             'login_attempt': {'type': 'integer'},
@@ -180,4 +181,4 @@ def _init(dispatcher, plugin):
     plugin.register_provider("service.ftp", FTPProvider)
 
     # Register tasks
-    plugin.register_task_handler("service.ftp.configure", FTPConfigureTask)
+    plugin.register_task_handler("service.ftp.update", FTPConfigureTask)

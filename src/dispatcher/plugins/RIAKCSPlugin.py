@@ -27,7 +27,7 @@ import errno
 import logging
 
 from datastore.config import ConfigNode
-from freenas.dispatcher.rpc import RpcException, SchemaHelper as h, description, accepts, returns
+from freenas.dispatcher.rpc import RpcException, SchemaHelper as h, description, accepts, returns, private
 from task import Task, Provider, TaskException, ValidationException
 
 logger = logging.getLogger('RIAKCSPlugin')
@@ -35,12 +35,14 @@ logger = logging.getLogger('RIAKCSPlugin')
 
 @description('Provides info about RIAK CS service configuration')
 class RIAKCSProvider(Provider):
+    @private
     @accepts()
     @returns(h.ref('service-riak_cs'))
     def get_config(self):
         return ConfigNode('service.riak_cs', self.configstore).__getstate__()
 
 
+@private
 @description('Configure RIAK CS service')
 @accepts(h.ref('service-riak_cs'))
 class RIAKCSConfigureTask(Task):
@@ -49,9 +51,6 @@ class RIAKCSConfigureTask(Task):
 
     def verify(self, riakcs):
         errors = []
-
-        node = ConfigNode('service.riak_cs', self.configstore).__getstate__()
-        node.update(riakcs)
 
         if errors:
             raise ValidationException(errors)
@@ -85,6 +84,8 @@ def _init(dispatcher, plugin):
     plugin.register_schema_definition('service-riak_cs', {
         'type': 'object',
         'properties': {
+            'type': {'enum': ['service-riak_cs']},
+            'enable': {'type': 'boolean'},
             'listener_ip': {'type': ['string', 'null']},
             'listener_port': {'type': ['integer', 'null']},
             'riak_host_ip': {'type': ['string', 'null']},
@@ -106,4 +107,4 @@ def _init(dispatcher, plugin):
     plugin.register_provider("service.riak_cs", RIAKCSProvider)
 
     # Register tasks
-    plugin.register_task_handler("service.riak_cs.configure", RIAKCSConfigureTask)
+    plugin.register_task_handler("service.riak_cs.update", RIAKCSConfigureTask)

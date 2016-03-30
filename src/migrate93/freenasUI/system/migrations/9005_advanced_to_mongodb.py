@@ -42,7 +42,7 @@ class Migration(DataMigration):
         if user:
             cs.set('system.periodic.notify_user', user['id'])
 
-        root = ds.query('users', ('id', '=', 0), single=True)
+        root = ds.query('users', ('uid', '=', 0), single=True)
         if root:
             root['attributes'].update({
                 'gui_messages_footer': adv.adv_consolemsg,

@@ -5,7 +5,7 @@
     gen_config = dispatcher.call_sync('system.general.get_config')
     lldp_config = dispatcher.call_sync('service.lldp.get_config')
     smartd_config = dispatcher.call_sync('service.smartd.get_config')
-    tftp_config = dispatcher.call_sync('service.tftp.get_config')
+    tftp_config = dispatcher.call_sync('service.tftpd.get_config')
     ups_config = dispatcher.call_sync('service.ups.get_config')
 
     hwmodel = sysctl.sysctlbyname("hw.model")
@@ -37,6 +37,7 @@ networkd_enable="YES"
 fnstatd_enable="YES"
 schedulerd_enable="YES"
 containerd_enable="YES"
+alertd_enable="YES"
 crashd_enable="YES"
 syslogd_enable="NO"
 syslog_ng_enable="YES"
@@ -90,13 +91,13 @@ ${svc['rcng']['rc-scripts']}_enable="NO"
     % endif
 % endfor
 
-% if config.get("service.cifs.enable"):
+% if config.get("service.smb.enable"):
 riak_cs_enable="YES"
 % else:
 riak_cs_enable="NO"
 % endif
 
-% if config.get("service.cifs.enable"):
+% if config.get("service.smb.enable"):
 samba_server_enable="YES"
 ##% if ! dirsrv_enabled domaincontroller
 smbd_enable="YES"

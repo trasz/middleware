@@ -27,7 +27,7 @@ import errno
 import logging
 
 from datastore.config import ConfigNode
-from freenas.dispatcher.rpc import RpcException, SchemaHelper as h, description, accepts, returns
+from freenas.dispatcher.rpc import RpcException, SchemaHelper as h, description, accepts, returns, private
 from task import Task, Provider, TaskException, ValidationException
 
 logger = logging.getLogger('RIAKPlugin')
@@ -35,12 +35,14 @@ logger = logging.getLogger('RIAKPlugin')
 
 @description('Provides info about RIAK service configuration')
 class RIAKProvider(Provider):
+    @private
     @accepts()
     @returns(h.ref('service-riak'))
     def get_config(self):
         return ConfigNode('service.riak', self.configstore).__getstate__()
 
 
+@private
 @description('Configure RIAK KV service')
 @accepts(h.ref('service-riak'))
 class RIAKConfigureTask(Task):
@@ -49,9 +51,6 @@ class RIAKConfigureTask(Task):
 
     def verify(self, riak):
         errors = []
-
-        node = ConfigNode('service.riak', self.configstore).__getstate__()
-        node.update(riak)
 
         if errors:
             raise ValidationException(errors)
@@ -85,6 +84,8 @@ def _init(dispatcher, plugin):
     plugin.register_schema_definition('service-riak', {
         'type': 'object',
         'properties': {
+            'type': {'enum': ['service-riak']},
+            'enable': {'type': 'boolean'},
             'save_description': {'type': 'boolean'},
             'nodename': {'type': ['string', 'null']},
             'node_ip': {'type': ['string', 'null']},
@@ -108,4 +109,4 @@ def _init(dispatcher, plugin):
     plugin.register_provider("service.riak", RIAKProvider)
 
     # Register tasks
-    plugin.register_task_handler("service.riak.configure", RIAKConfigureTask)
+    plugin.register_task_handler("service.riak.update", RIAKConfigureTask)

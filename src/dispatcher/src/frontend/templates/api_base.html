@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en" ng-app="Debugger">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Debugger</title>
+<meta name="description" content="">
+<meta name="keywords" content="">
+
+<!-- Latest compiled and minified CSS -->
+<!-- <link rel="stylesheet" type="text/css" href="/static/css/jquery.toastmessage.css"> -->
+<style>
+	body { padding-top: 70px; }
+</style>
+
+</head>
+<body>
+<nav class="navbar navbar-inverse navbar-fixed-top" role="banner">
+  <div class="container-fluid">
+    <div class="navbar-header">
+      <a href="#/rpc" class="navbar-brand"><- Back to Rpc</a>
+      <a href="#/doc" class="navbar-brand">Middleware API docs</a>
+    </div>
+    <nav id="navbar" class="collapse navbar-collapse" role="navigation">
+      <ul class="nav navbar-nav">
+        <li>
+          <a href="#/doc/rpc">RPC interfaces</a>
+        </li>
+        <li>
+          <a href="#/doc/events">Events</a>
+        </li>
+        <li>
+          <a href="#/doc/tasks">Tasks</a>
+        </li>
+        <li>
+          <a href="#/doc/schemas">JSON schemas</a>
+        </li>
+      </ul>
+    </nav>
+  </div>
+</nav>
+    <div class="container">
+      <div ng-view></div>   
+      <p>Nothing here {{'yet' + '!'}}</p>   
+    </div>
+    <!-- ================================================== -->
+    <!-- Placed at the end of the document so the pages load faster -->
+<link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.6/css/bootstrap.min.css" integrity="sha384-1q8mTJOASx8j1Au+a5WDVnPi2lkFfwwEAa8hDDdjZlpLegxhjVME1fgjWPGmkzs7" crossorigin="anonymous">
+
+<script src="https://ajax.googleapis.com/ajax/libs/jquery/1.11.3/jquery.min.js"></script>
+<script src="https://ajax.googleapis.com/ajax/libs/angularjs/1.4.9/angular.min.js"></script>
+<script src="https://ajax.googleapis.com/ajax/libs/angularjs/1.4.9/angular-resource.min.js"></script>
+<script src="http://ajax.googleapis.com/ajax/libs/angularjs/1.4.9/angular-route.min.js"></script>
+<script src="../static/js/app.js"></script>
+<script src="../static/js/controllers.js"></script>
+</body>
+</html>

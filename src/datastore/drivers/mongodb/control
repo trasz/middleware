@@ -29,7 +29,11 @@ case ${cmd} in
         ;;
 
     stop)
-        kill `cat ${pidfile}`
+        pid=`cat ${pidfile}`
+        kill ${pid}
+        while kill -0 ${pid} > /dev/null 2>&1; do
+            sleep 0.2
+        done
         ;;
 
     defragment)

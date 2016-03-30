@@ -27,7 +27,6 @@
 #####################################################################
 
 import os
-import sys
 import json
 import enum
 import logging
@@ -118,6 +117,9 @@ class Main(object):
         setproctitle.setproctitle('crashd')
         logging.basicConfig(level=logging.INFO, format=LOGGING_FORMAT)
         logger.info('Started')
+
+        if not os.path.isdir(REPORTS_PATH):
+            os.mkdir(REPORTS_PATH)
 
         self.observer = Observer()
         self.observer.schedule(Handler(self), path=REPORTS_PATH, recursive=False)

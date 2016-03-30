@@ -139,13 +139,11 @@
                 { file: file
                 , type: file.type || "n/a"
                 , modifiedDate: date
+              }),
+              $( "<button/>", {
+                text: "Upload",
+                click: function () { uploadToSocket( file ) }
               })
-          );
-          $( "#outputfilelist" ).append(
-            $( "<button/>", {
-              text: "Upload",
-              click: function () { uploadToSocket( file ) }
-            })
           );
         });
       }
@@ -191,7 +189,7 @@
         };
 
         var blob = file.slice( start, stop );
-        reader.readAsBinaryString( blob );
+        reader.readAsArrayBuffer( blob );
       }
 
       function uploadToSocket ( file ) {
@@ -317,5 +315,5 @@
     </table>
 
   </div>
-    
+
 {% endblock %}

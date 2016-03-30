@@ -28,6 +28,7 @@
 import os
 import re
 import logging
+import bsd.kld
 from task import Provider
 from lib.system import system, SubprocessException
 from lib.geom import confxml
@@ -50,7 +51,7 @@ class SwapProvider(Provider):
 def get_available_disks(dispatcher):
     disks = []
     for i in dispatcher.call_sync('volume.query'):
-        disks += dispatcher.call_sync('volume.get_volume_disks', i['name'])
+        disks += dispatcher.call_sync('volume.get_volume_disks', i['id'])
 
     return disks
 
@@ -120,8 +121,12 @@ def remove_swap(dispatcher, disks):
     disks = set(disks)
     for swap in list(get_swap_info(dispatcher).values()):
         if disks & set(swap['disks']):
-            system('/sbin/swapoff', os.path.join('/dev/mirror', swap['name']))
-            system('/sbin/gmirror', 'destroy', swap['name'])
+            try:
+                system('/sbin/swapoff', os.path.join('/dev/mirror', swap['name']))
+                system('/sbin/gmirror', 'destroy', swap['name'])
+            except SubprocessException as err:
+                logger.warn('Failed to disable swap on {0}: {1}'.format(swap['name'], err.err.strip()))
+                logger.warn('Continuing without {0}'.format(swap['name']))
 
     # Try to create new swap partitions, as at this stage we
     # might have two unused data disks
@@ -171,7 +176,7 @@ def _init(dispatcher, plugin):
     plugin.register_schema_definition('swap-mirror', {
         'type': 'object',
         'properties': {
-            'name': 'string',
+            'name': {'type': 'string'},
             'disks': {
                 'type': 'array',
                 'items': {'type': 'string'}
@@ -183,6 +188,8 @@ def _init(dispatcher, plugin):
     plugin.register_event_handler('volume.changed', on_volumes_change)
     plugin.attach_hook('volume.pre_destroy', volumes_pre_detach)
     plugin.attach_hook('volume.pre_detach', volumes_pre_detach)
+
+    bsd.kld.kldload('/boot/kernel/geom_mirror.ko')
 
     clear_swap(dispatcher)
     rearrange_swap(dispatcher)

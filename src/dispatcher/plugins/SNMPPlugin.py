@@ -29,7 +29,7 @@ import logging
 import re
 
 from datastore.config import ConfigNode
-from freenas.dispatcher.rpc import RpcException, SchemaHelper as h, description, accepts, returns
+from freenas.dispatcher.rpc import RpcException, SchemaHelper as h, description, accepts, returns, private
 from task import Task, Provider, TaskException, ValidationException
 
 logger = logging.getLogger('SNMPPlugin')
@@ -43,43 +43,42 @@ class SNMPProvider(Provider):
         return ConfigNode('service.snmp', self.configstore).__getstate__()
 
 
+@private
 @description('Configure SNMP service')
 @accepts(h.ref('service-snmp'))
 class SNMPConfigureTask(Task):
-    def describe(self, share):
+    def describe(self, snmp):
         return 'Configuring SNMP service'
 
     def verify(self, snmp):
-        errors = []
-
+        errors = ValidationException()
         node = ConfigNode('service.snmp', self.configstore).__getstate__()
         node.update(snmp)
 
         if node['contact']:
             if '@' in node['contact']:
                 if not jsonschema._format.is_email(node['contact']):
-                    errors.append(('contact', errno.EINVAL, 'Invalid e-mail address'))
+                    errors.add((0, 'contact'), 'Invalid e-mail address')
             elif not re.match(r'^[-_a-zA-Z0-9\s]+$', node['contact']):
-                errors.append(('contact', errno.EINVAL, (
-                    'Must contain only alphanumeric characters, _, - or a valid e-mail address')
-                ))
+                errors.add((0, 'contact'), 'Must contain only alphanumeric characters, _, - or a valid e-mail address')
 
         if not node['community']:
             if not node['v3']:
-                errors.append(('community', errno.ENOENT, 'This field is required'))
+                errors.add((0, 'community'), errno.ENOENT, 'This field is required')
         elif not re.match(r'^[-_a-zA-Z0-9\s]+$', node['community']):
-            errors.append(('community', errno.EINVAL, (
-                'The community must contain only alphanumeric characters, _ or -')
-            ))
+            errors.add(
+                (0, 'community'),
+                'The community must contain only alphanumeric characters, _ or -'
+            )
 
         if node['v3_password'] and len(node['v3_password']) < 8:
-            errors.append(('v3_password', errno.EINVAL, 'Password must contain at least 8 characters'))
+            errors.add((0, 'v3_password'), 'Password must contain at least 8 characters')
 
         if node['v3_privacy_passphrase'] and len(node['v3_privacy_passphrase']) < 8:
-            errors.append(('v3_password', errno.EINVAL, 'Passphrase must contain at least 8 characters'))
+            errors.add((0, 'v3_password'), 'Passphrase must contain at least 8 characters')
 
         if errors:
-            raise ValidationException(errors)
+            raise errors
 
         return ['system']
 
@@ -110,12 +109,14 @@ def _init(dispatcher, plugin):
     plugin.register_schema_definition('service-snmp', {
         'type': 'object',
         'properties': {
+            'type': {'enum': ['service-snmp']},
+            'enable': {'type': 'boolean'},
             'location': {'type': ['string', 'null']},
             'contact': {'type': ['string', 'null']},
             'community': {'type': ['string', 'null']},
             'v3': {'type': 'boolean'},
-            'v3_username': {'type': 'string'},
-            'v3_password': {'type': 'string'},
+            'v3_username': {'type': ['string', 'null']},
+            'v3_password': {'type': ['string', 'null']},
             'v3_auth_type': {'type': 'string', 'enum': [
                 'MD5',
                 'SHA',
@@ -134,4 +135,4 @@ def _init(dispatcher, plugin):
     plugin.register_provider("service.snmp", SNMPProvider)
 
     # Register tasks
-    plugin.register_task_handler("service.snmp.configure", SNMPConfigureTask)
+    plugin.register_task_handler("service.snmp.update", SNMPConfigureTask)

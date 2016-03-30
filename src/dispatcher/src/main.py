@@ -30,10 +30,8 @@ import copy
 import os
 import sys
 import fnmatch
-import glob
-import imp
+import array
 import json
-import fcntl
 import datetime
 import logging
 import logging.config
@@ -47,9 +45,7 @@ import socket
 import setproctitle
 import traceback
 import tempfile
-import pty
 import struct
-import termios
 import cgi
 import pwd
 import subprocess
@@ -58,12 +54,11 @@ import gevent
 from gevent import monkey, Greenlet
 from pyee import EventEmitter
 from gevent.socket import wait_write
-from gevent.os import tp_read, tp_write
+from gevent.os import tp_read, tp_write, forkpty_and_watch
 from gevent.queue import Queue
 from gevent.lock import RLock
-from gevent.subprocess import Popen
 from gevent.event import AsyncResult, Event
-from gevent.wsgi import WSGIServer
+from gevent.pywsgi import WSGIServer
 from geventwebsocket import (WebSocketServer, WebSocketApplication, Resource,
                              WebSocketError)
 
@@ -72,15 +67,19 @@ from datastore.migrate import migrate_db, MigrationException
 from datastore.config import ConfigStore
 from freenas.dispatcher.jsonenc import loads, dumps
 from freenas.dispatcher.rpc import RpcContext, RpcStreamingResponse, RpcException, ServerLockProxy
+from freenas.dispatcher.client import FileDescriptor
 from resources import ResourceGraph
-from services import ManagementService, DebugService, EventService, TaskService, PluginService, ShellService, LockService
+from services import (
+    ManagementService, DebugService, EventService, TaskService,
+    PluginService, ShellService, LockService
+)
 from schemas import register_general_purpose_schemas
-from api.handler import ApiHandler
 from balancer import Balancer
 from auth import PasswordAuthenticator, TokenStore, Token, TokenException, User, Service
-from freenas.utils import FaultTolerantLogHandler
+from freenas.utils import FaultTolerantLogHandler, load_module_from_file, xrecvmsg, xsendmsg
 
 
+MAXFDS = 128
 DEFAULT_CONFIGFILE = '/usr/local/etc/middleware.conf'
 LOGGING_FORMAT = '%(asctime)s %(levelname)s %(filename)s:%(lineno)d %(message)s'
 trace_log_file = None
@@ -123,6 +122,7 @@ class Plugin(object):
             'resources': [],
             'schema_definitions': [],
             'task_handlers': [],
+            'debug': []
         }
 
     def assign_module(self, module):
@@ -216,6 +216,9 @@ class Plugin(object):
     def unregister_hook(self, name):
         self.dispatcher.unregister_hook(name)
         self.registers['hooks'].remove(name)
+
+    def register_debug_hook(self, func):
+        self.registers['debug'].append(func)
 
     def unload(self):
         if hasattr(self.module, '_cleanup'):
@@ -370,6 +373,7 @@ class Dispatcher(object):
         self.register_event_type('server.plugin.loaded')
         self.register_event_type('server.ready')
         self.register_event_type('server.shutdown')
+        self.register_event_type('server.schema_document_changed')
 
     def start(self):
         self.started_at = time.time()
@@ -478,15 +482,16 @@ class Dispatcher(object):
         for i in unloadlist:
             try:
                 i.unload()
-            except RuntimeError:
+            except BaseException:
                 self.logger.warning(
                     "Error unloading plugin {0}".format(i.filename),
                     exc_info=True
                 )
 
     def __discover_plugin_dir(self, dir):
-        for i in glob.glob1(dir, "*.py"):
-            self.__try_load_plugin(os.path.join(dir, i))
+        for root, dirnames, filenames in os.walk(dir):
+            for i in fnmatch.filter(filenames, '*.py') + fnmatch.filter(filenames, '*.so'):
+                self.__try_load_plugin(os.path.join(dir, os.path.join(root, i)))
 
     def __try_load_plugin(self, path):
         if path in self.plugins:
@@ -494,9 +499,9 @@ class Dispatcher(object):
 
         self.logger.debug("Loading plugin from %s", path)
         try:
-            name = os.path.splitext(os.path.basename(path))[0]
+            name, _ = os.path.splitext(os.path.basename(path))
             plugin = Plugin(self, path)
-            plugin.assign_module(imp.load_source(name, path))
+            plugin.assign_module(load_module_from_file(name, path))
             self.plugins[name] = plugin
         except Exception as err:
             self.logger.exception("Cannot load plugin from %s", path)
@@ -619,6 +624,10 @@ class Dispatcher(object):
 
     def register_schema_definition(self, name, definition):
         self.rpc.register_schema_definition(name, definition)
+        if self.ready:
+            self.dispatch_event('server.schema_document_changed', {
+                'hash': self.call_sync('discovery.get_schema_hash')
+            })
 
     def unregister_schema_definition(self, name):
         self.rpc.unregister_schema_definition(name)
@@ -852,7 +861,10 @@ class UnixSocketServer(object):
             self.conn = None
             self.wlock = RLock()
 
-        def send(self, message):
+        def send(self, message, fds=None):
+            if fds is None:
+                fds = []
+
             with self.wlock:
                 data = message.encode('utf-8')
                 header = struct.pack('II', 0xdeadbeef, len(data))
@@ -861,13 +873,22 @@ class UnixSocketServer(object):
                     if fd == -1:
                         return
 
-                    wait_write(fd, 5)
-                    self.wfd.write(header)
-                    self.wfd.write(data)
-                    self.wfd.flush()
+                    wait_write(fd, 10)
+                    xsendmsg(self.connfd, header)
+                    xsendmsg(self.connfd, data, [
+                        (socket.SOL_SOCKET, socket.SCM_RIGHTS, array.array('i', [i.fd for i in fds]))
+                    ])
+
+                    for i in fds:
+                        if i.close:
+                            try:
+                                os.close(i.fd)
+                            except OSError:
+                                pass
+
                 except (OSError, ValueError, socket.timeout) as err:
-                    self.server.logger.info('Send failed: {0}, closing connectiom'.format(str(err)))
-                    self.connfd.close()
+                    self.server.logger.info('Send failed: {0}; closing connection'.format(str(err)))
+                    self.connfd.shutdown(socket.SHUT_RDWR)
 
         def handle_connection(self):
             self.conn = ServerConnection(self, self.dispatcher)
@@ -875,24 +896,40 @@ class UnixSocketServer(object):
 
             while True:
                 try:
-                    header = self.rfd.read(8)
+                    header, _ = xrecvmsg(self.connfd, 8, socket.CMSG_LEN(1024))
                     if header == b'' or len(header) != 8:
                         break
 
                     magic, length = struct.unpack('II', header)
                     if magic != 0xdeadbeef:
-                        self.server.logger.info('Message with wrong magic dropped')
+                        self.server.logger.info('Message with wrong magic dropped (magic {0:x})'.format(magic))
                         continue
 
-                    msg = self.rfd.read(length)
+                    fds = array.array('i')
+                    msg, ancdata = xrecvmsg(self.connfd, length, socket.CMSG_LEN(MAXFDS * fds.itemsize))
                     if msg == b'' or len(msg) != length:
                         self.server.logger.info('Message with wrong length dropped; closing connection')
                         break
-                except (OSError, ValueError):
-                    self.server.logger.info('Receive failed; closing connection')
+
+                    for cmsg_level, cmsg_type, cmsg_data in ancdata:
+                        if cmsg_level == socket.SOL_SOCKET and cmsg_type == socket.SCM_CREDS:
+                            pid, uid, euid, gid = struct.unpack('iiii', cmsg_data[:struct.calcsize('iiii')])
+                            self.handler.client_address = ('unix', pid)
+                            self.conn.credentials = {
+                                'pid': pid,
+                                'uid': uid,
+                                'euid': euid,
+                                'gid': gid
+                            }
+
+                        if cmsg_level == socket.SOL_SOCKET and cmsg_type == socket.SCM_RIGHTS:
+                            fds.fromstring(cmsg_data[:len(cmsg_data) - (len(cmsg_data) % fds.itemsize)])
+
+                except (OSError, ValueError) as err:
+                    self.server.logger.info('Receive failed: {0}; closing connection'.format(str(err)), exc_info=True)
                     break
 
-                self.conn.on_message(msg)
+                self.conn.on_message(msg, fds=fds)
 
             self.close()
 
@@ -903,6 +940,7 @@ class UnixSocketServer(object):
                 try:
                     self.rfd.close()
                     self.wfd.close()
+                    self.connfd.shutdown(socket.SHUT_RDWR)
                     self.connfd.close()
                 except OSError:
                     pass
@@ -926,6 +964,7 @@ class UnixSocketServer(object):
 
             self.sockfd = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
             self.sockfd.bind(self.path)
+            os.chmod(self.path, 775)
             self.sockfd.listen(self.backlog)
         except OSError as err:
             self.logger.error('Cannot start socket server: {0}'.format(str(err)))
@@ -947,6 +986,8 @@ class ServerConnection(WebSocketApplication, EventEmitter):
         super(ServerConnection, self).__init__(ws)
         self.server = ws.handler.server
         self.dispatcher = dispatcher
+        self.credentials = None
+        self.proxy_address = None
         self.server_pending_calls = {}
         self.client_pending_calls = {}
         self.resource = None
@@ -957,29 +998,67 @@ class ServerConnection(WebSocketApplication, EventEmitter):
         self.rlock = RLock()
         self.event_subscription_lock = RLock()
         self.has_external_transport = False
-        self.real_client_address = None
+
+    @property
+    def client_address(self):
+        if self.proxy_address:
+            return self.proxy_address
+
+        return ','.join(str(i) for i in self.ws.handler.client_address[:2])
 
     def __getstate__(self):
         return {
             'resource': self.resource,
             'user': self.user.name if self.user else None,
-            'address': str(self.real_client_address)
+            'address': self.client_address
         }
 
+    def __collect_fds(self, obj, start=0):
+        idx = start
+
+        if isinstance(obj, dict):
+            for k, v in list(obj.items()):
+                if isinstance(v, FileDescriptor):
+                    obj[k] = {'$fd': idx}
+                    idx += 1
+                    yield v
+                else:
+                    yield from self.__collect_fds(v, idx)
+
+        if isinstance(obj, (list, tuple)):
+            for i, o in enumerate(obj):
+                if isinstance(o, FileDescriptor):
+                    obj[i] = {'$fd': idx}
+                    idx += 1
+                    yield o
+                else:
+                    yield from self.__collect_fds(o, idx)
+
+    def __replace_fds(self, obj, fds):
+        if isinstance(obj, dict):
+            for k, v in list(obj.items()):
+                if isinstance(v, dict) and len(v) == 1 and '$fd' in v:
+                    obj[k] = FileDescriptor(fds[v['$fd']]) if v['$fd'] < len(fds) else None
+                else:
+                    self.__replace_fds(v, fds)
+
+        if isinstance(obj, list):
+            for i, o in enumerate(obj):
+                if isinstance(o, dict) and len(o) == 1 and '$fd' in o:
+                    obj[i] = FileDescriptor(fds[o['$fd']]) if o['$fd'] < len(fds) else None
+                else:
+                    self.__replace_fds(o, fds)
+
     def on_open(self):
-        self.real_client_address = self.ws.handler.client_address
-        client_addr, client_port = self.real_client_address[:2]
-        trace_log('Client {0} connected', self.real_client_address)
+        trace_log('Client {0} connected', self.client_address)
         self.server.connections.append(self)
         self.dispatcher.dispatch_event('server.client_connected', {
-            'address': client_addr,
-            'port': client_port,
-            'description': "Client {0} connected".format(self.real_client_address)
+            'address': self.client_address,
+            'description': "Client {0} connected".format(self.client_address)
         })
 
     def on_close(self, reason):
-        client_addr, client_port = self.real_client_address[:2]
-        trace_log('Client {0} disconnected', self.real_client_address)
+        trace_log('Client {0} disconnected', self.client_address)
 
         self.server.connections.remove(self)
 
@@ -992,13 +1071,13 @@ class ServerConnection(WebSocketApplication, EventEmitter):
                     ev.decref()
 
         self.dispatcher.dispatch_event('server.client_disconnected', {
-            'address': client_addr,
-            'port': client_port,
-            'description': "Client {0} disconnected".format(self.real_client_address)
+            'address': self.client_address,
+            'description': "Client {0} disconnected".format(self.client_address)
         })
 
     def on_message(self, message, *args, **kwargs):
-        trace_log('{0} -> {1}', self.real_client_address, str(message))
+        fds = kwargs.pop('fds', [])
+        trace_log('{0} -> {1}', self.client_address, str(message))
 
         if not type(message) is bytes:
             return
@@ -1008,6 +1087,8 @@ class ServerConnection(WebSocketApplication, EventEmitter):
         except ValueError:
             self.emit_rpc_error(None, errno.EINVAL, 'Request is not valid JSON')
             return
+
+        self.__replace_fds(message, fds)
 
         if 'namespace' not in message:
             self.emit_rpc_error(None, errno.EINVAL, 'Invalid request')
@@ -1023,13 +1104,17 @@ class ServerConnection(WebSocketApplication, EventEmitter):
 
     def on_transport_setup(self, id, client_address):
         self.has_external_transport = True
-        trace_log('Client transport layer set up - client {0} is from now on client {1}', self.real_client_address, client_address)
+        self.proxy_address = ','.join(str(i) for i in client_address)
+
+        trace_log('Client transport layer set up - client {0} proxied via {1}', self.client_address, self.proxy_address)
         self.dispatcher.dispatch_event('server.client_transport_connected', {
-            'old_address': self.real_client_address,
-            'new_address': client_address,
-            'description': "Client transport layer set up - client {0} is from now on client {1}".format(self.real_client_address, client_address)
+            'old_address': self.proxy_address,
+            'new_address': self.client_address,
+            'description': "Client transport layer set up - client {0} proxied via {1}".format(
+                self.client_address,
+                self.proxy_address
+            )
         })
-        self.real_client_address = client_address
 
     def on_events_subscribe(self, id, event_masks):
         if not isinstance(event_masks, list):
@@ -1117,7 +1202,7 @@ class ServerConnection(WebSocketApplication, EventEmitter):
             self.dispatcher.dispatch_event(i['name'], i['args'])
 
     def on_rpc_auth_service(self, id, data):
-        client_addr, client_port = self.real_client_address[:2]
+        client_addr, _ = self.client_address.split(',', 2)
         service_name = data['name']
 
         if client_addr not in ('127.0.0.1', '::1', 'unix') and not self.has_external_transport:
@@ -1133,8 +1218,7 @@ class ServerConnection(WebSocketApplication, EventEmitter):
         self.user = self.dispatcher.auth.get_service(service_name)
         self.open_session()
         self.dispatcher.dispatch_event('server.service_login', {
-            'address': client_addr,
-            'port': client_port,
+            'address': self.client_address,
             'name': service_name,
             'description': "Service {0} logged in".format(service_name)
         })
@@ -1144,17 +1228,19 @@ class ServerConnection(WebSocketApplication, EventEmitter):
         resource = data.get('resource', None)
         lifetime = self.dispatcher.configstore.get("middleware.token_lifetime")
         token = self.dispatcher.token_store.lookup_token(token)
-        client_addr, client_port = self.real_client_address[:2]
 
         if not token:
             self.emit_rpc_error(id, errno.EACCES, "Incorrect or expired token")
             return
 
         self.user = token.user
+        self.open_session()
+
         self.token = self.dispatcher.token_store.issue_token(
             Token(
                 user=self.user,
                 lifetime=lifetime,
+                session_id=self.session_id,
                 revocation_function=self.logout
             )
         )
@@ -1166,10 +1252,9 @@ class ServerConnection(WebSocketApplication, EventEmitter):
             'args': [self.token, lifetime, self.user.name]
         })
 
-        self.open_session()
         self.dispatcher.dispatch_event('server.client_loggin', {
-            'address': client_addr,
-            'port': client_port,
+            'address': self.client_address,
+            'resource': resource,
             'username': self.user.name,
             'description': "Client {0} logged in".format(self.user.name)
         })
@@ -1178,16 +1263,17 @@ class ServerConnection(WebSocketApplication, EventEmitter):
         username = data['username']
         password = data['password']
         lifetime = self.dispatcher.configstore.get("middleware.token_lifetime")
-        self.resource = data.get('resource', None)
-        client_addr, client_port = self.real_client_address[:2]
+        check_password = data.get('check_password', False)
+        client_addr, client_port = self.client_address.split(',', 2)
 
+        self.resource = data.get('resource', None)
         user = self.dispatcher.auth.get_user(username)
 
         if user is None:
             self.emit_rpc_error(id, errno.EACCES, "Incorrect username or password")
             return
 
-        if client_addr in ('127.0.0.1', '::1', 'unix') or self.has_external_transport:
+        if (client_addr in ('127.0.0.1', '::1', 'unix') or self.has_external_transport) and not check_password:
             # If client is connecting from localhost, omit checking password
             # and instead verify his username using sockstat(1). Also make
             # token lifetime None for such users (as we do not want their
@@ -1196,23 +1282,25 @@ class ServerConnection(WebSocketApplication, EventEmitter):
             # authentication part is held by transport layer itself so we do not
             # check password correctness but be aware such users sessions will timeout.
             if not self.has_external_transport and client_addr != 'unix':
-                if not user.check_local(client_addr, client_port, self.dispatcher.port):
+                if not user.check_local(client_addr, int(client_port), self.dispatcher.port):
                     self.emit_rpc_error(id, errno.EACCES, "Incorrect username or password")
                     return
 
-                lifetime = None
-
-            if client_addr == 'unix':
                 lifetime = None
         else:
             if not user.check_password(password):
                 self.emit_rpc_error(id, errno.EACCES, "Incorrect username or password")
                 return
 
+        if client_addr == 'unix':
+            lifetime = None
+
         self.user = user
+        self.open_session()
         self.token = self.dispatcher.token_store.issue_token(Token(
             user=user,
             lifetime=lifetime,
+            session_id=self.session_id,
             revocation_function=self.logout
         ))
 
@@ -1223,10 +1311,8 @@ class ServerConnection(WebSocketApplication, EventEmitter):
             "args": [self.token, lifetime, self.user.name]
         })
 
-        self.open_session()
         self.dispatcher.dispatch_event('server.client_login', {
-            'address': client_addr,
-            'port': client_port,
+            'address': self.client_address,
             'username': username,
             'description': "Client {0} logged in".format(username)
         })
@@ -1338,19 +1424,15 @@ class ServerConnection(WebSocketApplication, EventEmitter):
         greenlet.start()
 
     def open_session(self):
-        client_addr, client_port = self.real_client_address[:2]
         self.session_id = self.dispatcher.datastore.insert('sessions', {
             'started_at': datetime.datetime.utcnow(),
-            'address': client_addr,
-            'port': client_port,
+            'address': self.client_address,
             'resource': self.resource,
             'active': True,
             'username': self.user.name
         })
 
     def close_session(self):
-        client_addr, client_port = self.real_client_address[:2]
-
         if self.session_id:
             session = self.dispatcher.datastore.get_by_id('sessions', self.session_id)
             session['active'] = False
@@ -1359,16 +1441,14 @@ class ServerConnection(WebSocketApplication, EventEmitter):
 
         if isinstance(self.user, User):
             self.dispatcher.dispatch_event('server.client_logout', {
-                'address': client_addr,
-                'port': client_port,
+                'address': self.client_address,
                 'username': self.user.name,
                 'description': "Client {0} logged out".format(self.user.name)
             })
 
         elif isinstance(self.user, Service):
             self.dispatcher.dispatch_event('server.service_logout', {
-                'address': client_addr,
-                'port': client_port,
+                'address': self.client_address,
                 'name': self.user.name,
                 'description': "Client {0} logged out".format(self.user.name)
             })
@@ -1434,6 +1514,8 @@ class ServerConnection(WebSocketApplication, EventEmitter):
             })
 
     def emit_rpc_call(self, id, method, args):
+        args = list(copy.deepcopy(args))
+        fds = list(self.__collect_fds(args))
         payload = {
             "namespace": "rpc",
             "name": "call",
@@ -1444,7 +1526,7 @@ class ServerConnection(WebSocketApplication, EventEmitter):
             }
         }
 
-        return self.send_json(payload)
+        return self.send_json(payload, fds)
 
     def emit_rpc_error(self, id, code, message, extra=None):
         payload = {
@@ -1462,7 +1544,7 @@ class ServerConnection(WebSocketApplication, EventEmitter):
 
         return self.send_json(payload)
 
-    def send_json(self, obj):
+    def send_json(self, obj, fds=None):
         try:
             data = dumps(obj)
         except UnicodeDecodeError as e:
@@ -1470,14 +1552,17 @@ class ServerConnection(WebSocketApplication, EventEmitter):
             self.dispatcher.logger.error(repr(obj))
             return
 
-        trace_log('{0} <- {1}', self.real_client_address, data)
+        trace_log('{0} <- {1}', self.client_address, data)
 
         with self.rlock:
             try:
-                self.ws.send(data)
+                if fds:
+                    self.ws.send(data, fds=fds)
+                else:
+                    self.ws.send(data)
             except WebSocketError as err:
                 self.dispatcher.logger.error(
-                    'Cannot send message to %s: %s', self.real_client_address, str(err))
+                    'Cannot send message to %s: %s', self.client_address, str(err))
 
 
 class ShellConnection(WebSocketApplication, EventEmitter):
@@ -1490,12 +1575,12 @@ class ShellConnection(WebSocketApplication, EventEmitter):
         self.authenticated = False
         self.master = None
         self.slave = None
-        self.proc = None
+        self.closed = Event()
+        self.pid = None
         self.inq = Queue()
 
     def worker(self, user, shell):
         self.logger.info('Opening shell %s...', shell)
-        self.master, self.slave = pty.openpty()
         env = os.environ.copy()
         env['TERM'] = 'xterm'
 
@@ -1504,49 +1589,34 @@ class ShellConnection(WebSocketApplication, EventEmitter):
             self.ws.close()
             return
 
-        def preexec():
-            try:
-                fd = os.open("/dev/tty", os.O_RDWR | os.O_NOCTTY)
-            except OSError:
-                pass
-            else:
-                try:
-                    fcntl.ioctl(fd, termios.TIOCNOTTY, '')
-                except:
-                    pass
-                os.close(fd)
-
-            os.setsid()
-            fcntl.ioctl(0, termios.TIOCSCTTY)
-            os.seteuid(uinfo.pw_uid)
-
         def read_worker():
             while True:
                 data = tp_read(self.master, self.BUFSIZE)
                 if not data:
-                    return
+                    break
 
                 self.ws.send(data)
+
+            self.ws.close()
 
         def write_worker():
             for i in self.inq:
                 tp_write(self.master, i)
 
-        self.proc = Popen(
-            ['/bin/sh', '-c', shell],
-            stdout=self.slave,
-            stderr=self.slave,
-            stdin=self.slave,
-            close_fds=True,
-            env=env,
-            preexec_fn=preexec)
+        def callback(watcher):
+            watcher.stop()
+            self.closed.set()
 
-        self.logger.info('Shell %s spawned as PID %d', shell, self.proc.pid)
-
+        self.pid, self.master = forkpty_and_watch(callback)
         wr = gevent.spawn(write_worker)
         rd = gevent.spawn(read_worker)
-        self.proc.wait()
-        self.ws.close()
+
+        if self.pid == 0:
+            os.seteuid(uinfo.pw_uid)
+            os.execve('/bin/sh', ['sh', '-c', shell], env)
+
+        self.logger.info('Shell %s spawned as PID %d', shell, self.pid)
+        self.closed.wait()
         gevent.joinall([rd, wr])
 
     def on_open(self, *args, **kwargs):
@@ -1554,12 +1624,11 @@ class ShellConnection(WebSocketApplication, EventEmitter):
 
     def on_close(self, *args, **kwargs):
         self.inq.put(StopIteration)
-        self.logger.info('Terminating shell PID %d', self.proc.pid)
-        if not self.proc.returncode:
-            try:
-                self.proc.terminate()
-            except OSError:
-                pass
+        self.logger.info('Terminating shell PID %d', self.pid)
+        try:
+            os.kill(self.pid, signal.SIGTERM)
+        except OSError:
+            pass
 
         os.close(self.master)
 
@@ -1621,22 +1690,24 @@ class FileConnection(WebSocketApplication, EventEmitter):
         #     worker = gevent.spawn(write_worker)
         # else:
         #     worker = gevent.spawn(read_worker)
-        if self.token.direction == "download":
-            file.seek(0)
-            while file.tell() <= self.bytes_total:
-                data = file.read(self.BUFSIZE)
-                if not data:
-                    break
-                self.ws.send(data)
-                self.bytes_done = file.tell()
-        else:
-            for i in self.inq:
-                file.write(i)
-                self.bytes_done = file.tell()
-        file.close()
-        self.done.set()
-        self.ws.close()
-        # gevent.joinall([worker])
+        try:
+            if self.token.direction == "download":
+                file.seek(0)
+                while file.tell() <= self.bytes_total:
+                    data = file.read(self.BUFSIZE)
+                    if not data:
+                        break
+                    self.ws.send(data)
+                    self.bytes_done = file.tell()
+            else:
+                for i in self.inq:
+                    file.write(i)
+                    self.bytes_done = file.tell()
+        finally:
+            file.close()
+            self.done.set()
+            self.ws.close()
+            # gevent.joinall([worker])
 
     def on_open(self, *args, **kwargs):
         self.logger.info("FileConnection Opened")
@@ -1671,8 +1742,7 @@ class FileConnection(WebSocketApplication, EventEmitter):
             self.ws.send(dumps({'status': 'ok'}))
             return
 
-        # Not doing for i in message since websocket is sending data as binary string
-        self.inq.put(message.decode('utf8'))
+        self.inq.put(message)
 
 
 # Custom handler for enabling downloading of files
@@ -1683,7 +1753,6 @@ class DownloadRequestHandler(object):
         self.token = None
 
     def __call__(self, environ, start_response):
-        # body = environ['wsgi.input'].read()
         path = environ['PATH_INFO'][1:].split('/')
         token_str = cgi.parse_qs(environ['QUERY_STRING']).get('token')
 
@@ -1707,13 +1776,16 @@ class DownloadRequestHandler(object):
             ('Content-Disposition', 'attachment; filename="{}"'.format(
                 os.path.basename(self.token.file.name)
             )),
-            ('Content-Length', str(self.token.size))
+            ('Transfer-Encoding', 'chunked')
         ])
-        # This is just temp, will implement chunking later on
-        # (i.e the reading the whole content to ram part is bad and will be fixed later on)
-        file_body = self.token.file.read()
-        self.token.file.close()
-        return [file_body]
+        try:
+            self.token.file.seek(0)
+            chunk = self.token.file.read(1024)
+            while chunk:
+                yield chunk
+                chunk = self.token.file.read(1024)
+        finally:
+            self.token.file.close()
 
 
 def run(d, args):
@@ -1735,7 +1807,6 @@ def run(d, args):
         '/socket': ServerConnection,
         '/shell': ShellConnection,
         '/file': FileConnection,
-        '/api': ApiHandler(d),
         '/filedownload': DownloadRequestHandler(d)
     }, dispatcher=d), **kwargs)
 
@@ -1743,7 +1814,6 @@ def run(d, args):
         '/socket': ServerConnection,
         '/shell': ShellConnection,
         '/file': FileConnection,
-        '/api': ApiHandler(d),
         '/filedownload': DownloadRequestHandler(d)
     }, dispatcher=d), **kwargs)
 

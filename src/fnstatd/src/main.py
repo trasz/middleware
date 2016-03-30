@@ -1,4 +1,3 @@
-#!/usr/local/bin/python2.7
 #
 # Copyright 2015 iXsystems, Inc.
 # All rights reserved
@@ -54,7 +53,7 @@ from freenas.dispatcher.rpc import RpcService, RpcException
 from datastore import DatastoreException, get_datastore
 from ringbuffer import MemoryRingBuffer, PersistentRingBuffer
 from freenas.utils.debug import DebugService
-from freenas.utils import configure_logging, to_timedelta
+from freenas.utils import configure_logging, to_timedelta, materialized_paths_to_tree
 
 
 DEFAULT_CONFIGFILE = '/usr/local/etc/middleware.conf'
@@ -116,7 +115,7 @@ class DataSourceConfig(object):
 
 
 class DataSource(object):
-    def __init__(self, context, name, config):
+    def __init__(self, context, name, config, alert_config):
         self.context = context
         self.name = name
         self.config = config
@@ -126,6 +125,7 @@ class DataSource(object):
         self.primary_interval = self.config.buckets[0].interval
         self.last_value = 0
         self.events_enabled = False
+        self.alerts = alert_config
 
         self.logger.debug('Created')
 
@@ -163,7 +163,23 @@ class DataSource(object):
                 'nolog': True
             })
 
+        last_in_range = True
+        if self.last_value is not None:
+            if (self.alerts['alert_low_enabled']) and (self.last_value < self.alerts['alert_low']):
+                last_in_range = False
+            elif (self.alerts['alert_high_enabled']) and (self.last_value > self.alerts['alert_high']):
+                last_in_range = False
+
         self.last_value = value
+
+        if value is not None:
+            if last_in_range:
+                if self.alerts['alert_high_enabled']:
+                    if value > self.alerts['alert_high']:
+                        self.emit_alert_high()
+                if self.alerts['alert_low_enabled']:
+                    if value < self.alerts['alert_low']:
+                        self.emit_alert_low()
 
     def persist(self, timestamp, buffer, bucket):
         count = bucket.interval.total_seconds() / self.config.buckets[0].interval.total_seconds()
@@ -186,6 +202,46 @@ class DataSource(object):
         df = df[start:end]
         df = df.resample(frequency, how='mean').interpolate()
         return df
+
+    def check_alerts(self):
+        if self.last_value is not None:
+            if self.alerts['alert_high_enabled']:
+                if self.last_value > self.alerts['alert_high']:
+                    self.emit_alert_high()
+
+            if self.alerts['alert_low_enabled']:
+                if self.last_value < self.alerts['alert_low']:
+                    self.emit_alert_low()
+
+    def emit_alert_high(self):
+        unit, last_value = self.context.client.call_sync('stat.normalize', self.name, self.last_value)
+        unit, alert_high = self.context.client.call_sync('stat.normalize', self.name, self.alerts['alert_high'])
+
+        if last_value:
+            self.context.client.call_sync('alert.emit', {
+                'name': 'stat.{0}.too_high'.format(self.name),
+                'description': 'Value of {0} has exceeded maximum permissible value {1}. Current {2}'.format(
+                    self.name,
+                    str(alert_high) + unit,
+                    str(last_value) + unit
+                ),
+                'severity': 'WARNING'
+            })
+
+    def emit_alert_low(self):
+        unit, last_value = self.context.client.call_sync('stat.normalize', self.name, self.last_value)
+        unit, alert_low = self.context.client.call_sync('stat.normalize', self.name, self.alerts['alert_low'])
+
+        if last_value:
+            self.context.client.call_sync('alert.emit', {
+                'name': 'stat.{0}.too_high'.format(self.name),
+                'description': 'Value of {0} has gone under minimum permissible value {1}. Current {2}'.format(
+                    self.name,
+                    str(alert_low) + unit,
+                    str(last_value) + unit
+                ),
+                'severity': 'WARNING'
+            })
 
 
 class InputServer(object):
@@ -250,6 +306,25 @@ class OutputService(RpcService):
     def get_data_sources(self):
         return list(self.context.data_sources.keys())
 
+    def get_data_sources_tree(self):
+        return materialized_paths_to_tree(self.context.data_sources.keys())
+
+    def get_current_state(self):
+        stats = []
+        for key, ds in self.context.data_sources.items():
+            stats.append({
+                'name': ds.name,
+                'last_value': ds.last_value,
+                'alerts': {
+                    'alert_high': ds.alerts['alert_high'],
+                    'alert_high_enabled': ds.alerts['alert_high_enabled'],
+                    'alert_low': ds.alerts['alert_low'],
+                    'alert_low_enabled': ds.alerts['alert_low_enabled']
+                }
+            })
+
+        return stats
+
     def query(self, data_source, params):
         start = parse_datetime(params.pop('start'))
         end = parse_datetime(params.pop('end'))
@@ -281,6 +356,34 @@ class OutputService(RpcService):
                     [final.index[i].value // 10 ** 9] + [str(final[col][i]) for col in data_source] for i in range(len(final))
                 ]
             }
+
+
+class AlertService(RpcService):
+    def __init__(self, context):
+        super(AlertService, self).__init__()
+        self.context = context
+
+    def set_alert(self, name, field, value):
+        ds = self.context.data_sources[name]
+
+        config_name = name if self.context.datastore.exists('statd.alerts', ('id', '=', name)) else 'default'
+        alert_config = ds.alerts
+
+        alert_config[field] = value
+
+        if alert_config['alert_high_enabled'] and (alert_config['alert_high'] is None):
+            alert_config['alert_high'] = 0
+        if alert_config['alert_low_enabled'] and (alert_config['alert_low'] is None):
+            alert_config['alert_low'] = 0
+
+        if config_name == 'default':
+            alert_config['id'] = name
+            self.context.datastore.insert('statd.alerts', alert_config)
+        else:
+            self.context.datastore.update('statd.alerts', name, alert_config)
+
+        ds.alerts = alert_config
+        ds.check_alerts()
 
 
 class DataPoint(tables.IsDescription):
@@ -331,14 +434,54 @@ class Main(object):
         except Exception as e:
             self.logger.error(str(e))
 
+    def init_alert_config(self, name):
+        config_name = name if self.datastore.exists('statd.alerts', ('id', '=', name)) else 'default'
+        alert_config = self.datastore.get_by_id('statd.alerts', config_name)
+
+        self.client.call_sync(
+            'alert.register_alert',
+            'stat.{0}.too_high'.format(name),
+            '{0} statistic value is too high'.format(name)
+        )
+
+        self.client.call_sync(
+            'alert.register_alert',
+            'stat.{0}.too_low'.format(name),
+            '{0} statistic value is too low'.format(name)
+        )
+
+        return alert_config
+
     def get_data_source(self, name):
         if name not in list(self.data_sources.keys()):
             config = DataSourceConfig(self.datastore, name)
-            ds = DataSource(self, name, config)
+            alert_config = self.init_alert_config(name)
+            ds = DataSource(self, name, config, alert_config)
             self.data_sources[name] = ds
             self.client.call_sync('plugin.register_event_type', 'statd.output', 'statd.{0}.pulse'.format(name))
 
         return self.data_sources[name]
+
+    def register_schemas(self):
+        self.client.register_schema('stat', {
+            'type': 'object',
+            'additionalProperties': True,
+            'properties': {
+                'name': {'type': 'string'},
+                'last_value': {'type': ['integer', 'number', 'null']},
+                'alerts': {'$ref': 'stat-alert'},
+            }
+        })
+        self.client.register_schema('stat-alert', {
+            'type': 'object',
+            'additionalProperties': True,
+            'properties': {
+                'alert_high': {'type': ['integer', 'number', 'null']},
+                'alert_high_enabled': {'type': 'boolean'},
+                'alert_low': {'type': ['integer', 'number', 'null']},
+                'alert_low_enabled': {'type': 'boolean'}
+            }
+        })
 
     def connect(self):
         while True:
@@ -347,8 +490,10 @@ class Main(object):
                 self.client.login_service('statd')
                 self.client.enable_server()
                 self.client.register_service('statd.output', OutputService(self))
+                self.client.register_service('statd.alert', AlertService(self))
                 self.client.register_service('statd.debug', DebugService(gevent=True))
                 self.client.resume_service('statd.output')
+                self.client.resume_service('statd.alert')
                 self.client.resume_service('statd.debug')
                 for i in list(self.data_sources.keys()):
                     self.client.call_sync('plugin.register_event_type', 'statd.output', 'statd.{0}.pulse'.format(i))
@@ -387,7 +532,7 @@ class Main(object):
 
         # Signal handlers
         gevent.signal(signal.SIGQUIT, self.die)
-        gevent.signal(signal.SIGQUIT, self.die)
+        gevent.signal(signal.SIGTERM, self.die)
         gevent.signal(signal.SIGINT, self.die)
 
         self.server = InputServer(self)
@@ -395,6 +540,7 @@ class Main(object):
         self.init_datastore()
         self.init_dispatcher()
         self.init_database()
+        self.register_schemas()
         self.server.start()
         self.logger.info('Started')
         self.client.wait_forever()

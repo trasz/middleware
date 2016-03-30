@@ -29,20 +29,24 @@ import errno
 import logging
 
 from datastore.config import ConfigNode
-from freenas.dispatcher.rpc import RpcException, SchemaHelper as h, description, accepts, returns
+from freenas.dispatcher.rpc import RpcException, SchemaHelper as h, description, accepts, returns, private
 from task import Task, Provider, TaskException, ValidationException
+from debug import AttachFile
+
 
 logger = logging.getLogger('NFSPlugin')
 
 
 @description('Provides info about NFS service configuration')
 class NFSProvider(Provider):
+    @private
     @accepts()
     @returns(h.ref('service-nfs'))
     def get_config(self):
-        return ConfigNode('service.nfs', self.configstore)
+        return ConfigNode('service.nfs', self.configstore).__getstate__()
 
 
+@private
 @description('Configure NFS service')
 @accepts(h.ref('service-nfs'))
 class NFSConfigureTask(Task):
@@ -51,9 +55,6 @@ class NFSConfigureTask(Task):
 
     def verify(self, nfs):
         errors = []
-
-        node = ConfigNode('service.nfs', self.configstore).__getstate__()
-        node.update(nfs)
 
         if errors:
             raise ValidationException(errors)
@@ -78,17 +79,26 @@ class NFSConfigureTask(Task):
         return 'RESTART'
 
 
+def collect_debug(dispatcher):
+    yield AttachFile('exports', '/etc/exports')
+    yield AttachFile('zfs-exports', '/etc/zfs/exports')
+
+
 def _depends():
     return ['ServiceManagePlugin']
 
 
 def _init(dispatcher, plugin):
-
     # Register schemas
     plugin.register_schema_definition('service-nfs', {
         'type': 'object',
         'properties': {
-            'servers': {'type': 'integer'},
+            'type': {'enum': ['service-nfs']},
+            'enable': {'type': 'boolean'},
+            'servers': {
+                'type': 'integer',
+                'minimum': 1,
+            },
             'udp': {'type': 'boolean'},
             'nonroot': {'type': 'boolean'},
             'v4': {'type': 'boolean'},
@@ -108,4 +118,7 @@ def _init(dispatcher, plugin):
     plugin.register_provider("service.nfs", NFSProvider)
 
     # Register tasks
-    plugin.register_task_handler("service.nfs.configure", NFSConfigureTask)
+    plugin.register_task_handler("service.nfs.update", NFSConfigureTask)
+
+    # Register debug hook
+    plugin.register_debug_hook(collect_debug)

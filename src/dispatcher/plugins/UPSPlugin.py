@@ -23,6 +23,7 @@
 # POSSIBILITY OF SUCH DAMAGE.
 #
 #####################################################################
+
 import io
 import csv
 import errno
@@ -42,10 +43,11 @@ logger = logging.getLogger('UPSPlugin')
 
 @description('Provides info about UPS service configuration')
 class UPSProvider(Provider):
+    @private
     @accepts()
     @returns(h.ref('service-ups'))
     def get_config(self):
-        return ConfigNode('service.ups', self.configstore)
+        return ConfigNode('service.ups', self.configstore).__getstate__()
 
     @accepts()
     @returns(h.array(h.array(str)))
@@ -77,7 +79,7 @@ class UPSProvider(Provider):
 
     @private
     def service_start(self):
-        ups = self.get_config().__getstate__()
+        ups = self.get_config()
         if ups['mode'] == 'MASTER':
             rc_scripts = ['nut']
         else:
@@ -92,7 +94,7 @@ class UPSProvider(Provider):
 
     @private
     def service_status(self):
-        ups = self.get_config().__getstate__()
+        ups = self.get_config()
         if ups['mode'] == 'MASTER':
             rc_scripts = ['nut']
         else:
@@ -107,7 +109,7 @@ class UPSProvider(Provider):
 
     @private
     def service_stop(self):
-        ups = self.get_config().__getstate__()
+        ups = self.get_config()
         rc_scripts = ['nut_upslog', 'nut_upsmon']
         if ups['mode'] == 'MASTER':
             rc_scripts.append('nut')
@@ -120,7 +122,7 @@ class UPSProvider(Provider):
 
     @private
     def service_restart(self):
-        ups = self.get_config().__getstate__()
+        ups = self.get_config()
         # Stop monitor so it wont trigger signals when nut restarts
         verbs = [
             ('nut_upsmon', 'stop'),
@@ -137,6 +139,7 @@ class UPSProvider(Provider):
             raise TaskException(errno.EBUSY, e.err)
 
 
+@private
 @description('Configure UPS service')
 @accepts(h.ref('service-ups'))
 class UPSConfigureTask(Task):
@@ -144,26 +147,25 @@ class UPSConfigureTask(Task):
         return 'Configuring UPS service'
 
     def verify(self, ups):
-        errors = []
-
+        errors = ValidationException()
         node = ConfigNode('service.ups', self.configstore).__getstate__()
         node.update(ups)
 
         if node['mode'] == 'MASTER' and not node['driver_port']:
-            errors.append(('driver_port', errno.EINVAL, 'This field is required'))
+            errors.add((0, 'driver_port'), 'This field is required')
 
         if node['mode'] == 'SLAVE' and not node['remote_host']:
-            errors.append(('remote_host', errno.EINVAL, 'This field is required'))
+            errors.add((0, 'remote_host'), 'This field is required')
 
         if not re.search(r'^[a-z0-9\.\-_]+$', node['identifier'], re.I):
-            errors.append(('identifier', errno.EINVAL, 'Use alphanumeric characters, ".", "-" and "_"'))
+            errors.add((0, 'identifier'), 'Use alphanumeric characters, ".", "-" and "_"')
 
         for i in ('monitor_user', 'monitor_password'):
             if re.search(r'[ #]', node[i], re.I):
-                errors.append((i, errno.EINVAL, 'Spaces or number signs are not allowed'))
+                errors.add((0, i), 'Spaces or number signs are not allowed')
 
         if errors:
-            raise ValidationException(errors)
+            raise errors
 
         return ['system']
 
@@ -192,7 +194,7 @@ def _depends():
 def _init(dispatcher, plugin):
 
     def ups_signal(kwargs):
-        ups = dispatcher.call_sync('service.ups.get_config').__getstate__()
+        ups = dispatcher.call_sync('service.ups.get_config')
 
         name = kwargs.get('name')
         notifytype = kwargs.get('type')
@@ -221,6 +223,8 @@ def _init(dispatcher, plugin):
     plugin.register_schema_definition('service-ups', {
         'type': 'object',
         'properties': {
+            'type': {'enum': ['service-ups']},
+            'enable': {'type': 'boolean'},
             'mode': {'type': 'string', 'enum': [
                 'MASTER',
                 'SLAVE',
@@ -253,7 +257,7 @@ def _init(dispatcher, plugin):
     plugin.register_provider("service.ups", UPSProvider)
 
     # Register tasks
-    plugin.register_task_handler("service.ups.configure", UPSConfigureTask)
+    plugin.register_task_handler("service.ups.update", UPSConfigureTask)
 
     # Register events
     plugin.register_event_type('service.ups.signal')

@@ -9,9 +9,6 @@ VALID_CATEGORIES+= freenas
 MAINTAINER=	dev@ixsystems.com
 COMMENT=	FreeNAS network configuration daemon
 
-RUN_DEPENDS=	\
-		${PYTHON_PKGNAMEPREFIX}ipaddress>0:${PORTSDIR}/net/py-ipaddress
-
 USES=		python
 USE_PYTHON=	py3kplist
 EXTRACT_ONLY=

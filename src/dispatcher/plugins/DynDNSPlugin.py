@@ -27,7 +27,7 @@ import errno
 import logging
 
 from datastore.config import ConfigNode
-from freenas.dispatcher.rpc import RpcException, SchemaHelper as h, description, accepts, returns
+from freenas.dispatcher.rpc import RpcException, SchemaHelper as h, description, accepts, returns, private
 from task import Task, Provider, TaskException, ValidationException
 
 logger = logging.getLogger('DynDNSPlugin')
@@ -52,10 +52,11 @@ PROVIDERS = {
 
 @description('Provides info about DynamicDNS service configuration')
 class DynDNSProvider(Provider):
+    @private
     @accepts()
     @returns(h.ref('service-dyndns'))
     def get_config(self):
-        return ConfigNode('service.dyndns', self.configstore)
+        return ConfigNode('service.dyndns', self.configstore).__getstate__()
 
     @accepts()
     @returns(h.object())
@@ -63,6 +64,7 @@ class DynDNSProvider(Provider):
         return PROVIDERS
 
 
+@private
 @description('Configure DynamicDNS service')
 @accepts(h.ref('service-dyndns'))
 class DynDNSConfigureTask(Task):
@@ -71,8 +73,6 @@ class DynDNSConfigureTask(Task):
 
     def verify(self, dyndns):
         errors = []
-
-        node = ConfigNode('service.dyndns', self.configstore)
 
         if errors:
             raise ValidationException(errors)
@@ -106,6 +106,8 @@ def _init(dispatcher, plugin):
     plugin.register_schema_definition('service-dyndns', {
         'type': 'object',
         'properties': {
+            'type': {'enum': ['service-dyndns']},
+            'enable': {'type': 'boolean'},
             'provider': {'type': ['string', 'null'], 'enum': [None] + list(PROVIDERS.values())},
             'ipserver': {'type': ['string', 'null']},
             'domains': {'type': 'array', 'items': {'type': 'string'}},
@@ -122,4 +124,4 @@ def _init(dispatcher, plugin):
     plugin.register_provider("service.dyndns", DynDNSProvider)
 
     # Register tasks
-    plugin.register_task_handler("service.dyndns.configure", DynDNSConfigureTask)
+    plugin.register_task_handler("service.dyndns.update", DynDNSConfigureTask)

@@ -37,9 +37,8 @@ from freenas.dispatcher.rpc import (
     RpcException, description, accepts, returns, pass_sender, private
 )
 from freenas.dispatcher.rpc import SchemaHelper as h
-from task import Provider, Task, TaskStatus, VerifyException, TaskException
+from task import Provider, Task, TaskStatus, TaskWarning, VerifyException, TaskException
 from auth import FileToken
-from freenas.utils import first_or_default
 from freenas.utils.query import wrap
 
 
@@ -148,7 +147,7 @@ class FilesystemProvider(Provider):
     @returns(str)
     def upload(self, dest_path, size, mode, sender):
         try:
-            f = open(dest_path, 'w')
+            f = open(dest_path, 'wb')
         except OSError as e:
             raise RpcException(e.errno, e.message)
 
@@ -234,6 +233,16 @@ class SetPermissionsTask(Task):
 
             bsd.lchown(path, uid, gid, recursive)
 
+        ds = None
+        chmod_safe = True
+
+        try:
+            poolname, dsname, rest = self.dispatcher.call_sync('volume.decode_path', path)
+            ds = self.dispatcher.call_sync('volume.dataset.query', [('id', '=', dsname)], {'single': True})
+            chmod_safe = ds['permissions_type'] == 'PERM'
+        except RpcException:
+            pass
+
         if permissions.get('modes'):
             modes = permissions['modes']
             if modes.get('value'):
@@ -241,7 +250,14 @@ class SetPermissionsTask(Task):
             else:
                 modes = modes_to_oct(modes)
 
-            bsd.lchmod(path, modes, recursive)
+            try:
+                bsd.lchmod(path, modes, recursive)
+            except OSError as err:
+                if err.errno == errno.EPERM:
+                    if chmod_safe:
+                        self.add_warning(err.errno, 'chmod() failed: {0}'.format(err.strerror))
+                else:
+                    raise TaskException(err.errno, 'chmod() failed: {0}'.format(err.strerror))
 
         if permissions.get('acl'):
             a = acl.ACL()
@@ -257,18 +273,11 @@ class SetPermissionsTask(Task):
                 for n in dirs:
                     a.apply(file=os.path.join(root, n))
 
-        # Update volume if dataset permissions were changed
-        try:
-            poolname, dsname, rest = self.dispatcher.call_sync('volume.decode_path', path)
-            pool = self.dispatcher.call_sync('volume.query', [('name', '=', poolname)], {'single': True})
-            ds = first_or_default(lambda d: d['mountpoint'] == path, pool['datasets'])
-            if ds:
-                self.dispatcher.dispatch_event('volume.changed', {
-                    'operation': 'update',
-                    'ids': [pool['id']]
-                })
-        except RpcException:
-            pass
+        if ds:
+            self.dispatcher.dispatch_event('zfs.dataset.changed', {
+                'operation': 'update',
+                'ids': [ds['id']]
+            })
 
         self.dispatcher.dispatch_event('file.permissions.changed', {
             'path': path,

@@ -29,14 +29,19 @@ import os
 import sys
 import errno
 from freenas.utils.query import wrap
-from task import Provider, Task, ProgressTask, VerifyException, TaskException
+from task import Provider, Task, ProgressTask, VerifyException, TaskException, query
 from freenas.dispatcher.rpc import accepts, returns, description, SchemaHelper as h
 
 sys.path.append('/usr/local/lib')
-from freenasOS.Update import ListClones, FindClone, RenameClone, ActivateClone, DeleteClone, CreateClone
+from freenasOS.Update import (
+    ListClones, FindClone, RenameClone, ActivateClone, DeleteClone, CreateClone
+)
 
 
+@description("Provides information on Boot Environments")
 class BootEnvironmentsProvider(Provider):
+
+    @query('boot-environment')
     def query(self, filter=None, params=None):
         def extend(obj):
             nr = obj['active']
@@ -49,7 +54,9 @@ class BootEnvironmentsProvider(Provider):
         return wrap(clones).query(*(filter or []), **(params or {}))
 
 
-@description("Creates a clone of the current Boot Environment or of the specified source (optional")
+@description(
+    "Creates a clone of the current Boot Environment or of the specified source (optional)"
+ )
 @accepts(str, h.any_of(str, None))
 class BootEnvironmentCreate(Task):
     def verify(self, newname, source=None):
@@ -76,35 +83,38 @@ class BootEnvironmentActivate(Task):
 
 
 @description("Renames the given Boot Environment with the alternate name provieded")
-@accepts(str, str)
-class BootEnvironmentRename(Task):
-    def verify(self, oldname, newname):
-        be = FindClone(oldname)
+@accepts(str, h.ref('boot-environment'))
+class BootEnvironmentUpdate(Task):
+    def verify(self, id, be):
+        be = FindClone(id)
         if not be:
-            raise VerifyException(errno.ENOENT, 'Boot environment {0} not found'.format(oldname))
+            raise VerifyException(errno.ENOENT, 'Boot environment {0} not found'.format(id))
 
         return ['system']
 
-    def run(self, oldname, newname):
-        if not RenameClone(oldname, newname):
-            raise TaskException(errno.EIO, 'Cannot rename the {0} boot evironment'.format(newname))
+    def run(self, id, updated_params):
+        if 'id' in updated_params:
+            if not RenameClone(id, updated_params['id']):
+                raise TaskException(errno.EIO, 'Cannot rename the {0} boot evironment'.format(id))
+
+        if updated_params.get('active'):
+            if not ActivateClone(id):
+                raise TaskException(errno.EIO, 'Cannot activate the {0} boot environment'.format(id))
 
 
 @description("Deletes the given Boot Environments. Note: It cannot delete an activated BE")
-@accepts(h.array(str))
+@accepts(str)
 class BootEnvironmentsDelete(Task):
-    def verify(self, names):
-        for n in names:
-            be = FindClone(n)
-            if not be:
-                raise VerifyException(errno.ENOENT, 'Boot environment {0} not found'.format(n))
+    def verify(self, id):
+        be = FindClone(id)
+        if not be:
+            raise VerifyException(errno.ENOENT, 'Boot environment {0} not found'.format(id))
 
         return ['system']
 
-    def run(self, names):
-        for n in names:
-            if not DeleteClone(n):
-                raise TaskException(errno.EIO, 'Cannot delete the {0} boot environment'.format(n))
+    def run(self, id):
+        if not DeleteClone(id):
+            raise TaskException(errno.EIO, 'Cannot delete the {0} boot environment'.format(id))
 
 
 @description("Attaches the given Disk to the Boot Pool")
@@ -115,8 +125,9 @@ class BootAttachDisk(ProgressTask):
         return ['zpool:{0}'.format(boot_pool_name), 'disk:{0}'.format(disk)]
 
     def run(self, guid, disk):
+        disk_id = self.dispatcher.call_sync('disk.path_to_id', disk)
         # Format disk
-        self.join_subtasks(self.run_subtask('disk.format.boot', disk))
+        self.join_subtasks(self.run_subtask('disk.format.boot', disk_id))
         self.set_progress(30)
 
         # Attach disk to the pool
@@ -132,7 +143,8 @@ class BootAttachDisk(ProgressTask):
         self.set_progress(80)
 
         # Install grub
-        self.join_subtasks(self.run_subtask('disk.install_bootloader', disk))
+        disk_id = self.dispatcher.call_sync('disk.path_to_id', disk)
+        self.join_subtasks(self.run_subtask('disk.install_bootloader', disk_id))
         self.set_progress(100)
 
 
@@ -165,10 +177,10 @@ def _init(dispatcher, plugin):
     })
 
     plugin.register_provider('boot.environment', BootEnvironmentsProvider)
-    plugin.register_task_handler('boot.environment.create', BootEnvironmentCreate)
+    plugin.register_task_handler('boot.environment.clone', BootEnvironmentCreate)
     plugin.register_task_handler('boot.environment.activate', BootEnvironmentActivate)
-    plugin.register_task_handler('boot.environment.rename', BootEnvironmentRename)
+    plugin.register_task_handler('boot.environment.update', BootEnvironmentUpdate)
     plugin.register_task_handler('boot.environment.delete', BootEnvironmentsDelete)
 
-    plugin.register_task_handler('boot.attach_disk', BootAttachDisk)
-    plugin.register_task_handler('boot.detach_disk', BootDetachDisk)
+    plugin.register_task_handler('boot.disk.attach', BootAttachDisk)
+    plugin.register_task_handler('boot.disk.detach', BootDetachDisk)

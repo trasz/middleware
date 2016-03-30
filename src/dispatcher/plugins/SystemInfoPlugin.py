@@ -50,7 +50,8 @@ from freenas.dispatcher.rpc import (
 )
 from lib.system import SubprocessException, system
 from lib.freebsd import get_sysctl
-from task import Provider, Task, TaskException, TaskAbortException
+from task import Provider, Task, TaskException, TaskAbortException, ValidationException
+from debug import AttachFile, AttachCommandOutput
 
 if '/usr/local/lib' not in sys.path:
     sys.path.append('/usr/local/lib')
@@ -89,9 +90,9 @@ class SystemInfoProvider(Provider):
         return self.__version
 
     @accepts()
-    @returns(float, float, float)
+    @returns({'type': 'array', 'items': {'type': 'number'}, 'maxItems': 3, 'minItems': 3})
     def load_avg(self):
-        return os.getloadavg()
+        return list(os.getloadavg())
 
     @accepts()
     @returns(h.object(properties={
@@ -236,12 +237,22 @@ class SystemUIProvider(Provider):
         }
 
 
+@description("Configures general system settings")
 @accepts(h.ref('system-general'))
 class SystemGeneralConfigureTask(Task):
-    def describe(self):
+    def describe(self, props):
         return "System General Settings Configure"
 
     def verify(self, props):
+        errors = ValidationException()
+        if 'timezone' in props:
+            timezones = self.dispatcher.call_sync('system.general.timezones')
+            if props['timezone'] not in timezones:
+                errors.add((0, 'timezone'), 'Invalid timezone: {0}'.format(props['timezone']))
+
+        if errors:
+            raise errors
+
         return ['system']
 
     def run(self, props):
@@ -282,10 +293,11 @@ class SystemGeneralConfigureTask(Task):
         })
 
 
+@description("Configures advanced system settings")
 @accepts(h.ref('system-advanced'))
 class SystemAdvancedConfigureTask(Task):
 
-    def describe(self):
+    def describe(self, props):
         return "System Advanced Settings Configure"
 
     def verify(self, props):
@@ -375,10 +387,11 @@ class SystemAdvancedConfigureTask(Task):
         })
 
 
+@description("Configures the System UI settings")
 @accepts(h.ref('system-ui'))
 class SystemUIConfigureTask(Task):
 
-    def describe(self):
+    def describe(self, props):
         return "System UI Settings Configure"
 
     def verify(self, props):
@@ -466,7 +479,7 @@ class SystemRebootTask(Task):
             self.finish_event.wait(delay)
 
         if self.abort_flag:
-            raise TaskAbortException(errno.EINTR, "User invoked task.abort or system.reboot.abort")
+            raise TaskAbortException(errno.EINTR, "User invoked task.abort")
 
         self.dispatcher.dispatch_event('power.changed', {
             'operation': 'REBOOT',
@@ -499,6 +512,19 @@ class SystemHaltTask(Task):
         })
         t = Thread(target=self.shutdown_now, daemon=True)
         t.start()
+
+
+def collect_debug(dispatcher):
+    yield AttachCommandOutput('uptime', ['/usr/bin/uptime'])
+    yield AttachCommandOutput('date', ['/bin/date'])
+    yield AttachCommandOutput('process-list', ['/bin/ps', 'auxww'])
+    yield AttachCommandOutput('mountpoints', ['/sbin/mount'])
+    yield AttachCommandOutput('df-h', ['/sbin/df', '-h'])
+    yield AttachCommandOutput('swapinfo', ['/sbin/swapinfo', '-h'])
+    yield AttachCommandOutput('kldstat', ['/sbin/kldstat'])
+    yield AttachCommandOutput('dmesg', ['/sbin/dmesg', '-a'])
+    yield AttachCommandOutput('procstat', ['/usr/bin/procstat', '-akk'])
+    yield AttachCommandOutput('vmstat', ['/usr/bin/vmstat', '-i'])
 
 
 def _init(dispatcher, plugin):
@@ -601,12 +627,15 @@ def _init(dispatcher, plugin):
     plugin.register_provider("system.ui", SystemUIProvider)
 
     # Register task handlers
-    plugin.register_task_handler("system.advanced.configure", SystemAdvancedConfigureTask)
-    plugin.register_task_handler("system.general.configure", SystemGeneralConfigureTask)
-    plugin.register_task_handler("system.ui.configure", SystemUIConfigureTask)
-    plugin.register_task_handler("system.time.configure", SystemTimeConfigureTask)
+    plugin.register_task_handler("system.advanced.update", SystemAdvancedConfigureTask)
+    plugin.register_task_handler("system.general.update", SystemGeneralConfigureTask)
+    plugin.register_task_handler("system.ui.update", SystemUIConfigureTask)
+    plugin.register_task_handler("system.time.update", SystemTimeConfigureTask)
     plugin.register_task_handler("system.shutdown", SystemHaltTask)
     plugin.register_task_handler("system.reboot", SystemRebootTask)
+
+    # Register debug hook
+    plugin.register_debug_hook(collect_debug)
 
     # Set initial hostname
     netif.set_hostname(dispatcher.configstore.get('system.hostname'))

@@ -107,7 +107,11 @@ def apply_migrations(ds, collection, directory, force=False):
                 ds.delete(collection, old_obj['id'])
                 mig_log('Object deleted by migration')
             else:
-                ds.update(collection, old_obj['id'], new_obj)
+                try:
+                    ds.update(collection, old_obj['id'], new_obj)
+                except DatastoreException as err:
+                    mig_log('failed to upsert migrated object <id:{0}>: {1}'.format(new_obj['id'], str(err)))
+                    continue
 
             migrated += 1
 
@@ -131,6 +135,9 @@ def migrate_collection(ds, dump, directory, force=False):
 
     if not ds.collection_exists(name):
         ds.collection_create(name, metadata['pkey-type'], metadata['attributes'])
+
+    # Update pkey type for collection
+    ds.collection_set_pkey_type(name, metadata['pkey-type'])
 
     if metadata['migration'] == 'keep':
         return

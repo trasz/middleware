@@ -31,9 +31,11 @@ import logging
 import os
 from freenas.dispatcher.rpc import RpcException, description, accepts, returns
 from freenas.dispatcher.rpc import SchemaHelper as h
+from freenas.utils import normalize, first_or_default
 from datastore.config import ConfigNode
 from gevent import hub
 from task import Provider, Task, TaskException, VerifyException, query, TaskWarning
+from debug import AttachFile, AttachCommandOutput
 
 
 logger = logging.getLogger('NetworkPlugin')
@@ -46,13 +48,21 @@ def calculate_broadcast(address, netmask):
 @description("Provides access to global network configuration settings")
 class NetworkProvider(Provider):
     @returns(h.ref('network-config'))
-    def get_global_config(self):
+    def get_config(self):
         return ConfigNode('network', self.configstore)
+
+    @returns(h.ref('network-status'))
+    def get_status(self):
+        return {
+            'gateway': self.dispatcher.call_sync('networkd.configuration.get_default_routes'),
+            'dns': self.dispatcher.call_sync('networkd.configuration.get_dns_config')
+        }
 
     @returns(h.array(str))
     def get_my_ips(self):
         ips = []
         ifaces = self.dispatcher.call_sync('networkd.configuration.query_interfaces')
+        ifaces.pop('mgmt0', None)
         for i, v in ifaces.items():
             if 'LOOPBACK' in v['flags']:
                 continue
@@ -62,6 +72,7 @@ class NetworkProvider(Provider):
         return ips
 
 
+@description("Provides access to network interface settings")
 class InterfaceProvider(Provider):
     @query('network-interface')
     def query(self, filter=None, params=None):
@@ -75,9 +86,12 @@ class InterfaceProvider(Provider):
                 return None
             return i
 
-        return self.datastore.query('network.interfaces', *(filter or []), callback=extend, **(params or {}))
+        return self.datastore.query(
+            'network.interfaces', *(filter or []), callback=extend, **(params or {})
+        )
 
 
+@description("Provides information on system's network routes")
 class RouteProvider(Provider):
     @query('network-route')
     def query(self, filter=None, params=None):
@@ -108,17 +122,20 @@ class NetworkConfigureTask(Task):
             raise TaskException(errno.ENXIO, 'Cannot reconfigure interface: {0}'.format(str(e)))
 
 
-@accepts({
-    'type': 'string',
-    'enum': ['VLAN', 'BRIDGE', 'LAGG']
-},)
+@accepts(h.all_of(
+    h.ref('network-interface'),
+    h.required('type'),
+    h.forbidden('id', 'status')
+))
+@returns(str)
 class CreateInterfaceTask(Task):
-    def verify(self, type):
+    def verify(self, iface):
         return ['system']
 
-    def run(self, type):
+    def run(self, iface):
+        type = iface['type']
         name = self.dispatcher.call_sync('networkd.configuration.get_next_name', type)
-        iface = {
+        normalize(iface, {
             'id': name,
             'type': type,
             'cloned': True,
@@ -129,24 +146,27 @@ class CreateInterfaceTask(Task):
             'mtu': None,
             'media': None,
             'aliases': []
-        }
+        })
 
         if type == 'VLAN':
-            iface['vlan'] = {
+            iface.setdefault('vlan', {})
+            normalize(iface['vlan'], {
                 'parent': None,
                 'tag': None
-            }
+            })
 
         if type == 'LAGG':
-            iface['lagg'] = {
+            iface.setdefault('lagg', {})
+            normalize(iface['lagg'], {
                 'protocol': 'FAILOVER',
                 'ports': []
-            }
+            })
 
         if type == 'BRIDGE':
-            iface['bridge'] = {
+            iface.setdefault('bridge', {})
+            normalize(iface['bridge'], {
                 'members': []
-            }
+            })
 
         self.datastore.insert('network.interfaces', iface)
 
@@ -166,18 +186,18 @@ class CreateInterfaceTask(Task):
 @description("Deletes interface")
 @accepts(str)
 class DeleteInterfaceTask(Task):
-    def verify(self, name):
-        iface = self.datastore.get_by_id('network.interfaces', name)
+    def verify(self, id):
+        iface = self.datastore.get_by_id('network.interfaces', id)
         if not iface:
-            raise VerifyException(errno.ENOENT, 'Interface {0} does not exist'.format(name))
+            raise VerifyException(errno.ENOENT, 'Interface {0} does not exist'.format(id))
 
         if iface['type'] not in ('VLAN', 'LAGG', 'BRIDGE'):
             raise VerifyException(errno.EBUSY, 'Cannot delete physical interface')
 
         return ['system']
 
-    def run(self, name):
-        self.datastore.delete('network.interfaces', name)
+    def run(self, id):
+        self.datastore.delete('network.interfaces', id)
         try:
             self.dispatcher.call_sync('networkd.configuration.configure_network')
         except RpcException as e:
@@ -185,7 +205,7 @@ class DeleteInterfaceTask(Task):
 
         self.dispatcher.dispatch_event('network.interface.changed', {
             'operation': 'delete',
-            'ids': [name]
+            'ids': [id]
         })
 
 
@@ -195,21 +215,21 @@ class DeleteInterfaceTask(Task):
     h.forbidden('id', 'type', 'status')
 ))
 class ConfigureInterfaceTask(Task):
-    def verify(self, name, updated_fields):
-        if not self.datastore.exists('network.interfaces', ('id', '=', name)):
-            raise VerifyException(errno.ENOENT, 'Interface {0} does not exist'.format(name))
+    def verify(self, id, updated_fields):
+        if not self.datastore.exists('network.interfaces', ('id', '=', id)):
+            raise VerifyException(errno.ENOENT, 'Interface {0} does not exist'.format(id))
 
         return ['system']
 
-    def run(self, name, updated_fields):
+    def run(self, id, updated_fields):
         task = 'networkd.configuration.configure_interface'
-        entity = self.datastore.get_by_id('network.interfaces', name)
+        entity = self.datastore.get_by_id('network.interfaces', id)
 
         if updated_fields.get('dhcp'):
             # Check for DHCP inconsistencies
             # 1. Check whether DHCP is enabled on other interfaces
             # 2. Check whether DHCP configures default route and/or DNS server addresses
-            dhcp_used = self.datastore.exists('network.interfaces', ('dhcp', '=', True), ('id' '!=', name))
+            dhcp_used = self.datastore.exists('network.interfaces', ('dhcp', '=', True), ('id', '!=', id))
             dhcp_global = self.configstore.get('network.dhcp.assign_gateway') or \
                 self.configstore.get('network.dhcp.assign_dns')
 
@@ -221,7 +241,7 @@ class ConfigureInterfaceTask(Task):
 
         if updated_fields.get('aliases'):
             # Forbid setting any aliases on interface with DHCP
-            if updated_fields.get('dhcp') and len(updated_fields['aliases']) > 0:
+            if (updated_fields.get('dhcp') or entity['dhcp']) and len(updated_fields['aliases']) > 0:
                 raise TaskException(errno.EINVAL, 'Cannot set aliases when using DHCP')
 
             # Check for aliases inconsistencies
@@ -231,8 +251,11 @@ class ConfigureInterfaceTask(Task):
 
             # Add missing broadcast addresses and address family
             for i in updated_fields['aliases']:
-                i['type'] = i.get('type', 'INET')
-                if not i.get('broadcast'):
+                normalize(i, {
+                    'type': 'INET'
+                })
+
+                if not i.get('broadcast') and i['type'] == 'INET':
                     i['broadcast'] = str(calculate_broadcast(i['address'], i['netmask']))
 
         if updated_fields.get('vlan'):
@@ -245,94 +268,94 @@ class ConfigureInterfaceTask(Task):
                 task = 'networkd.configuration.down_interface'
 
         entity.update(updated_fields)
-        self.datastore.update('network.interfaces', name, entity)
+        self.datastore.update('network.interfaces', id, entity)
 
         try:
-            self.dispatcher.call_sync(task, name)
+            self.dispatcher.call_sync(task, id)
         except RpcException as err:
             raise TaskException(errno.ENXIO, 'Cannot reconfigure interface: {0}'.format(str(err)))
 
         self.dispatcher.dispatch_event('network.interface.changed', {
             'operation': 'update',
-            'ids': [name]
+            'ids': [id]
         })
 
 
 @description("Enables interface")
 @accepts(str)
 class InterfaceUpTask(Task):
-    def verify(self, name):
-        iface = self.datastore.exists('network.interfaces', ('id', '=', name))
+    def verify(self, id):
+        iface = self.datastore.get_by_id('network.interfaces', id)
         if not iface:
-            raise VerifyException(errno.ENOENT, 'Interface {0} does not exist'.format(name))
+            raise VerifyException(errno.ENOENT, 'Interface {0} does not exist'.format(id))
 
         if not iface['enabled']:
-            raise VerifyException(errno.ENXIO, 'Interface {0} is disabled'.format(name))
+            raise VerifyException(errno.ENXIO, 'Interface {0} is disabled'.format(id))
 
         return ['system']
 
-    def run(self, name):
+    def run(self, id):
         try:
-            self.dispatcher.call_sync('networkd.configuration.up_interface', name)
+            self.dispatcher.call_sync('networkd.configuration.up_interface', id)
         except RpcException as err:
             raise TaskException(errno.ENXIO, 'Cannot reconfigure interface: {0}'.format(str(err)))
 
         self.dispatcher.dispatch_event('network.interface.changed', {
             'operation': 'update',
-            'ids': [name]
+            'ids': [id]
         })
 
 
 @description("Disables interface")
 @accepts(str)
 class InterfaceDownTask(Task):
-    def verify(self, name):
-        iface = self.datastore.exists('network.interfaces', ('id', '=', name))
+    def verify(self, id):
+        iface = self.datastore.get_by_id('network.interfaces', id)
         if not iface:
-            raise VerifyException(errno.ENOENT, 'Interface {0} does not exist'.format(name))
+            raise VerifyException(errno.ENOENT, 'Interface {0} does not exist'.format(id))
 
         if not iface['enabled']:
-            raise VerifyException(errno.ENXIO, 'Interface {0} is disabled'.format(name))
+            raise VerifyException(errno.ENXIO, 'Interface {0} is disabled'.format(id))
 
         return ['system']
 
-    def run(self, name):
+    def run(self, id):
         try:
-            self.dispatcher.call_sync('networkd.configuration.down_interface', name)
+            self.dispatcher.call_sync('networkd.configuration.down_interface', id)
         except RpcException as err:
             raise TaskException(err.code, err.message, err.extra)
 
         self.dispatcher.dispatch_event('network.interface.changed', {
             'operation': 'update',
-            'ids': [name]
+            'ids': [id]
         })
 
 
 @description("Renews IP lease on interface")
 @accepts(str)
 class InterfaceRenewTask(Task):
-    def verify(self, name):
-        interface = self.datastore.get_by_id('network.interfaces', name)
+    def verify(self, id):
+        interface = self.datastore.get_by_id('network.interfaces', id)
         if not interface:
-            raise VerifyException(errno.ENOENT, 'Interface {0} does not exist'.format(name))
+            raise VerifyException(errno.ENOENT, 'Interface {0} does not exist'.format(id))
 
         if not interface['enabled']:
-            raise VerifyException(errno.ENXIO, 'Interface {0} is disabled'.format(name))
+            raise VerifyException(errno.ENXIO, 'Interface {0} is disabled'.format(id))
 
         if not interface['dhcp']:
             raise VerifyException(errno.EINVAL, 'Cannot renew a lease on interface that is not configured for DHCP')
 
         return ['system']
 
-    def run(self, name):
+    def run(self, id):
         try:
-            self.dispatcher.call_sync('networkd.configuration.renew_lease', name)
+            self.dispatcher.call_sync('networkd.configuration.renew_lease', id)
         except RpcException as err:
             raise TaskException(err.code, err.message, err.extra)
 
         self.dispatcher.dispatch_event('network.interface.changed', {
             'operation': 'update',
-            'ids': [name]
+            'ids': [id]
         })
 
 
@@ -423,10 +446,16 @@ class AddRouteTask(Task):
             if (r['network'] == route['network']) and (r['netmask'] == route['netmask']) and (r['gateway'] == route['gateway']):
                 raise VerifyException(errno.EINVAL, 'Cannot create two identical routes differing only in name.')
 
-        if not (0 <= route['netmask'] <= 32):
+        if route['type'] == 'INET':
+            max_cidr = 32
+        else:
+            max_cidr = 128
+        if not (0 <= route['netmask'] <= max_cidr):
             raise VerifyException(
-                errno.EINVAL, 'Netmask value {0} is not valid. Allowed values are 0-32 (CIDR).'.format(route['netmask'])
+                errno.EINVAL,
+                'Netmask value {0} is not valid. Allowed values are 0-{1} (CIDR).'.format(route['netmask'], max_cidr)
             )
+
         try:
             ipaddress.ip_network(os.path.join(route['network'], str(route['netmask'])))
         except ValueError:
@@ -469,11 +498,18 @@ class UpdateRouteTask(Task):
         route = self.datastore.get_one('network.routes', ('id', '=', name))
         net = updated_fields['network'] if 'network' in updated_fields else route['network']
         netmask = updated_fields['netmask'] if 'netmask' in updated_fields else route['netmask']
+        type = updated_fields['type'] if 'type' in updated_fields else route['type']
 
-        if not (0 <= netmask <= 32):
+        if type == 'INET':
+            max_cidr = 32
+        else:
+            max_cidr = 128
+        if not (0 <= netmask <= max_cidr):
             raise VerifyException(
-                errno.EINVAL, 'Netmask value {0} is not valid. Allowed values are 0-32 (CIDR).'.format(netmask)
+                errno.EINVAL,
+                'Netmask value {0} is not valid. Allowed values are 0-{1} (CIDR).'.format(route['netmask'], max_cidr)
             )
+
         try:
             ipaddress.ip_network(os.path.join(net, str(netmask)))
         except ValueError:
@@ -535,6 +571,20 @@ class DeleteRouteTask(Task):
         })
 
 
+def collect_debug(dispatcher):
+    yield AttachFile('hosts', '/etc/hosts')
+    yield AttachFile('resolv.conf', '/etc/resolv.conf')
+    yield AttachCommandOutput('ifconfig', ['/sbin/ifconfig', '-v'])
+    yield AttachCommandOutput('routing-table', ['/sbin/netstat', '-nr'])
+    yield AttachCommandOutput('arp-table', ['/sbin/arp', '-an'])
+    yield AttachCommandOutput('arp-table', ['/sbin/arp', '-an'])
+    yield AttachCommandOutput('mbuf-stats', ['/sbin/netstat', '-m'])
+    yield AttachCommandOutput('interface-stats', ['/sbin/netstat', '-i'])
+
+    for i in ['ip', 'arp', 'udp', 'tcp', 'icmp']:
+        yield AttachCommandOutput('netstat-proto-{0}'.format(i), ['/sbin/netstat', '-p', i, '-s'])
+
+
 def _depends():
     return ['DevdPlugin']
 
@@ -552,7 +602,7 @@ def _init(dispatcher, plugin):
         'properties': {
             'type': {'$ref': 'network-interface-type'},
             'id': {'type': 'string'},
-            'name': {'type': 'string'},
+            'name': {'type': ['string', 'null']},
             'enabled': {'type': 'boolean'},
             'dhcp': {'type': 'boolean'},
             'rtadv': {'type': 'boolean'},
@@ -620,9 +670,11 @@ def _init(dispatcher, plugin):
                     'INET6'
                 ]
             },
-            'address': {'type': 'string'},
+            'address': {'$ref': 'ip-address'},
             'netmask': {'type': 'integer'},
-            'broadcast': {'type': ['string', 'null']}
+            'broadcast': {
+                'oneOf': [{'$ref': 'ipv4-address'}, {'type': 'null'}]
+            }
         }
     })
 
@@ -632,9 +684,9 @@ def _init(dispatcher, plugin):
         'properties': {
             'id': {'type': 'string'},
             'type': {'type': 'string', 'enum': ['INET', 'INET6']},
-            'network': {'type': 'string'},
+            'network': {'$ref': 'ip-address'},
             'netmask': {'type': 'integer'},
-            'gateway': {'type': 'string'}
+            'gateway': {'$ref': 'ip-address'}
         }
     })
 
@@ -643,7 +695,7 @@ def _init(dispatcher, plugin):
         'additionalProperties': False,
         'properties': {
             'id': {'type': 'string'},
-            'address': {'type': 'string'},
+            'address': {'$ref': 'ip-address'},
         }
     })
 
@@ -657,16 +709,16 @@ def _init(dispatcher, plugin):
                 'type': 'object',
                 'additionalProperties': False,
                 'properties': {
-                    'ipv4': {'type': ['string', 'null']},
-                    'ipv6': {'type': ['string', 'null']}
+                    'ipv4': {'oneOf': [{'$ref': 'ipv4-address'}, {'type': 'null'}]},
+                    'ipv6': {'oneOf': [{'$ref': 'ipv6-address'}, {'type': 'null'}]}
                 }
             },
             'dns': {
                 'type': 'object',
                 'additionalProperties': False,
                 'properties': {
-                    'addresses': {'type': 'array'},
-                    'search': {'type': 'array'}
+                    'addresses': {'type': 'array', 'items': {'$ref': 'ip-address'}},
+                    'search': {'type': 'array', 'items': {'type': 'string'}}
                 }
             },
             'dhcp': {
@@ -684,8 +736,31 @@ def _init(dispatcher, plugin):
                     'enabled': {'type': 'boolean'},
                     'addresses': {
                         'type': 'array',
-                        'items': {'type': 'string'}
+                        'items': {'$ref': 'ip-address'}
                     }
+                }
+            }
+        }
+    })
+
+    plugin.register_schema_definition('network-status', {
+        'type': 'object',
+        'additionalProperties': False,
+        'properties': {
+            'gateway': {
+                'type': 'object',
+                'additionalProperties': False,
+                'properties': {
+                    'ipv4': {'oneOf': [{'$ref': 'ipv4-address'}, {'type': 'null'}]},
+                    'ipv6': {'oneOf': [{'$ref': 'ipv6-address'}, {'type': 'null'}]}
+                }
+            },
+            'dns': {
+                'type': 'object',
+                'additionalProperties': False,
+                'properties': {
+                    'addresses': {'type': 'array', 'items': {'$ref': 'ip-address'}},
+                    'search': {'type': 'array', 'items': {'type': 'string'}}
                 }
             }
         }
@@ -696,7 +771,7 @@ def _init(dispatcher, plugin):
     plugin.register_provider('network.route', RouteProvider)
     plugin.register_provider('network.host', HostsProvider)
 
-    plugin.register_task_handler('network.configure', NetworkConfigureTask)
+    plugin.register_task_handler('network.config.update', NetworkConfigureTask)
     plugin.register_task_handler('network.host.create', AddHostTask)
     plugin.register_task_handler('network.host.update', UpdateHostTask)
     plugin.register_task_handler('network.host.delete', DeleteHostTask)
@@ -705,7 +780,7 @@ def _init(dispatcher, plugin):
     plugin.register_task_handler('network.route.delete', DeleteRouteTask)
     plugin.register_task_handler('network.interface.up', InterfaceUpTask)
     plugin.register_task_handler('network.interface.down', InterfaceDownTask)
-    plugin.register_task_handler('network.interface.configure', ConfigureInterfaceTask)
+    plugin.register_task_handler('network.interface.update', ConfigureInterfaceTask)
     plugin.register_task_handler('network.interface.create', CreateInterfaceTask)
     plugin.register_task_handler('network.interface.delete', DeleteInterfaceTask)
     plugin.register_task_handler('network.interface.renew', InterfaceRenewTask)
@@ -714,3 +789,5 @@ def _init(dispatcher, plugin):
     plugin.register_event_type('network.interface.changed')
     plugin.register_event_type('network.host.changed')
     plugin.register_event_type('network.route.changed')
+
+    plugin.register_debug_hook(collect_debug)

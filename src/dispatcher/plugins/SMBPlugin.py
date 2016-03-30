@@ -24,16 +24,18 @@
 # POSSIBILITY OF SUCH DAMAGE.
 #
 #####################################################################
+
 import errno
 import logging
 import re
 import smbconf
 import enum
 from datastore.config import ConfigNode
-from freenas.dispatcher.rpc import RpcException, SchemaHelper as h, description, accepts, returns
+from freenas.dispatcher.rpc import RpcException, SchemaHelper as h, description, accepts, returns, private
 from lib.system import system, SubprocessException
 from lib.freebsd import get_sysctl
 from task import Task, Provider, TaskException, ValidationException
+from debug import AttachFile, AttachCommandOutput
 
 logger = logging.getLogger('SMBPlugin')
 
@@ -53,12 +55,14 @@ def validate_netbios_name(netbiosname):
 
 @description('Provides info about SMB service configuration')
 class SMBProvider(Provider):
+    @private
     @accepts()
     @returns(h.ref('service-smb'))
     def get_config(self):
         return ConfigNode('service.smb', self.configstore).__getstate__()
 
 
+@private
 @description('Configure SMB service')
 @accepts(h.ref('service-smb'))
 class SMBConfigureTask(Task):
@@ -66,38 +70,37 @@ class SMBConfigureTask(Task):
         return 'Configuring SMB service'
 
     def verify(self, smb):
-        errors = []
-
+        errors = ValidationException()
         node = ConfigNode('service.smb', self.configstore).__getstate__()
 
         netbiosname = smb.get('netbiosname')
         if netbiosname is not None:
             for n in netbiosname:
                 if not validate_netbios_name(n):
-                    errors.append(('netbiosname', errno.EINVAL, 'Invalid name {0}'.format(n)))
+                    errors.add((0, 'netbiosname'), 'Invalid name {0}'.format(n))
         else:
             netbiosname = node['netbiosname']
 
         workgroup = smb.get('workgroup')
         if workgroup is not None:
             if not validate_netbios_name(workgroup):
-                errors.append(('workgroup', errno.EINVAL, 'Invalid name'))
+                errors.add((0, 'workgroup'), 'Invalid name')
         else:
             workgroup = node['workgroup']
 
         if workgroup.lower() in [i.lower() for i in netbiosname]:
-            errors.append(('netbiosname', errno.EEXIST, 'NetBIOS and Workgroup must be unique'))
+            errors.add((0, 'netbiosname'), 'NetBIOS and Workgroup must be unique')
 
         dirmask = smb.get('dirmask')
         if dirmask and (int(dirmask, 8) & ~0o11777):
-            errors.append(('dirmask', errno.EINVAL, 'This is not a valid mask'))
+            errors.add((0, 'dirmask'), 'This is not a valid mask')
 
         filemask = smb.get('filemask')
         if filemask and (int(filemask, 8) & ~0o11777):
-            errors.append(('filemask', errno.EINVAL, 'This is not a valid mask'))
+            errors.add((0, 'filemask'), 'This is not a valid mask')
 
         if errors:
-            raise ValidationException(errors)
+            raise errors
 
         return ['system']
 
@@ -181,6 +184,18 @@ def configure_params(smb):
     conf['idmap config *: backend'] = 'tdb'
 
 
+def collect_debug(dispatcher):
+    yield AttachFile('smb4.conf', '/usr/local/etc/smb4.conf')
+    yield AttachCommandOutput('net-conf-list', ['/usr/local/bin/net', 'conf', 'list'])
+    yield AttachCommandOutput('net-getlocalsid', ['/usr/local/bin/net', 'getlocalsid'])
+    yield AttachCommandOutput('net-getdomainsid', ['/usr/local/bin/net', 'getdomainsid'])
+    yield AttachCommandOutput('net-groupmap-list', ['/usr/local/bin/net', 'groupmap', 'list'])
+    yield AttachCommandOutput('net-status-sessions', ['/usr/local/bin/net', 'status', 'sessions'])
+    yield AttachCommandOutput('net-status-shares', ['/usr/local/bin/net', 'status', 'shares'])
+    yield AttachCommandOutput('wbinfo-users', ['/usr/local/bin/wbinfo', '-u'])
+    yield AttachCommandOutput('wbinfo-groups', ['/usr/local/bin/wbinfo', '-g'])
+
+
 def _depends():
     return ['ServiceManagePlugin']
 
@@ -224,6 +239,8 @@ def _init(dispatcher, plugin):
     plugin.register_schema_definition('service-smb', {
         'type': 'object',
         'properties': {
+            'type': {'enum': ['service-smb']},
+            'enable': {'type': 'boolean'},
             'netbiosname': {
                 'type': 'array',
                 'items': {'type': 'string'}
@@ -265,7 +282,10 @@ def _init(dispatcher, plugin):
     plugin.register_provider("service.smb", SMBProvider)
 
     # Register tasks
-    plugin.register_task_handler("service.smb.configure", SMBConfigureTask)
+    plugin.register_task_handler("service.smb.update", SMBConfigureTask)
+
+    # Register debug hooks
+    plugin.register_debug_hook(collect_debug)
 
     set_smb_sid()
     node = ConfigNode('service.smb', dispatcher.configstore)

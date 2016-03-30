@@ -1,0 +1,64 @@
+<link rel="stylesheet" href="/static/filebrowser.css">
+<link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.5/css/bootstrap.min.css" integrity="sha512-dTfge/zgoMYpP7QbHy4gWMEGsbsdZeCXz7irItjcC3sPUFtf0kuFbDz/ixG7ArTxmDjLXDmezHubeNikyKGVyQ==" crossorigin="anonymous">
+
+<div ng-init="init()">
+</div>
+<div class="row">
+    <h1>File Browser</h1>
+    <nav id="context-menu" class="context-menu">
+      <ul class="context-menu__items">
+        <li class="context-menu__item">
+          <a href="" class="context-menu__link" ng-click="downloadfile()">
+            <i class="glyphicon glyphicon-download"></i>
+            Download File
+          </a>
+        </li>
+      </ul>
+    </nav>
+    <div class="panel panel-info">
+      <div class="panel-heading">
+        <h3 class="panel-title" id="cwd"></h3>
+      </div>
+      <div class="panel-body">
+       <button type="button" class="btn btn-primary" id="cdup">Up (..)</button>
+      </div>
+
+      <div class="dropcontainer">
+        <div id="drop_zone" class="drop_zone">File Upload: Drop files here</div>
+        <output id="outputfilelist" ng-if="hasFileSelected == true">
+            <li ng-repeat=" file in uploadFileList">
+              <strong>{{ file.name }}</strong>
+              {{ file.type }} - {{ file.size }} bytes, last modified: {{ file.modifiedDate }}
+            </li>
+            <buttontype="button" class="btn btn-primary" name="upload" ng-click="uploadFiles()">Upload</button>
+        </output>
+      </div>
+      <table class="table" id="dirlist">
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Size</th>
+            <th>Last Modified</th>
+          </tr>
+          <tr>
+              <label>Search: <input ng-model="searchText" placeholder="search file"></label>
+          </tr>
+        </thead>
+        <tbody ng-repeat='item in current_dir_items | filter:searchText'>
+            <tr>
+                    <td ng-if=" item['type'] == 'DIRECTORY'" class="fileElement" data-id="{{item.name}}" ng-click="browseFolder(item.name)">
+                      <i class="glyphicon glyphicon-folder-close"/>
+                      <span class="label label-primary">{{item.name}}</span>
+                    </td>
+                    <td ng-if="item['type'] == 'FILE'" class="fileElement" data-id="{{item.name}}" ng-click="downloadFile(item.name)">
+                      <i class="glyphicon glyphicon-file"/>
+                      {{item.name}}
+                    </td>
+                    <td><span class="label label-primary">{{item.size}} </span></td>
+                    <td> {{item.modified}} </td>
+            </tr>
+        </tbody>
+      </table>
+
+    </div>
+</div>

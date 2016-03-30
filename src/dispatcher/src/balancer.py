@@ -39,6 +39,7 @@ import bsd
 import signal
 from datetime import datetime
 from freenas.dispatcher import validator
+from freenas.dispatcher.client import FileDescriptor
 from freenas.dispatcher.rpc import RpcException
 from gevent.queue import Queue
 from gevent.lock import RLock
@@ -47,7 +48,7 @@ from gevent.subprocess import Popen
 from freenas.utils import first_or_default
 from resources import Resource
 from task import (
-    TaskException, TaskAbortException, VerifyException,
+    TaskException, TaskAbortException, VerifyException, ValidationException,
     TaskStatus, TaskState, MasterProgressTask
 )
 import collections
@@ -89,22 +90,41 @@ class TaskExecutor(object):
 
         try:
             st = TaskStatus(0)
-            st.__setstate__(self.conn.call_client_sync('taskproxy.get_status'))
             if issubclass(self.task.clazz, MasterProgressTask):
                 progress_subtask_info = self.conn.call_client_sync(
-                    'taskproxy.get_progress_subtask_info'
+                    'taskproxy.get_master_progress_info'
                 )
-                if progress_subtask_info['id'] is not None:
-                    subtask_status = self.balancer.get_task(
-                        progress_subtask_info['id']
-                    ).executor.get_status()
-                    st.__setstate__({
-                        'percentage':
-                            st.percentage +
-                            int(progress_subtask_info['weight'] * subtask_status.percentage),
-                        'message': subtask_status.message,
-                        'extra': subtask_status.extra
-                    })
+                if progress_subtask_info['increment_progress'] != 0:
+                    progress_subtask_info['progress'] += progress_subtask_info['increment_progress']
+                    progress_subtask_info['increment_progress'] = 0
+                    self.conn.call_client_sync(
+                        'taskproxy.set_master_progress_detail',
+                        {
+                            'progress': progress_subtask_info['progress'],
+                            'increment_progress': progress_subtask_info['increment_progress']
+                        }
+                    )
+                if progress_subtask_info['active_tids']:
+                    progress_to_increment = 0
+                    concurent_weight = progress_subtask_info['concurent_subtask_detail']['average_weight']
+                    for tid in progress_subtask_info['concurent_subtask_detail']['tids']:
+                        subtask_status = self.balancer.get_task(tid).executor.get_status()
+                        progress_to_increment += subtask_status.percentage * concurent_weight * \
+                            progress_subtask_info['subtask_weights'][str(tid)]
+                    for tid in set(progress_subtask_info['active_tids']).symmetric_difference(
+                        set(progress_subtask_info['concurent_subtask_detail']['tids'])
+                    ):
+                        subtask_status = self.balancer.get_task(tid).executor.get_status()
+                        progress_to_increment += subtask_status.percentage * \
+                            progress_subtask_info['subtask_weights'][str(tid)]
+                    progress_subtask_info['progress'] += int(progress_to_increment)
+                    if progress_subtask_info['pass_subtask_details']:
+                        progress_subtask_info['message'] = subtask_status.message
+                st = TaskStatus(
+                    progress_subtask_info['progress'], progress_subtask_info['message']
+                )
+            else:
+                st.__setstate__(self.conn.call_client_sync('taskproxy.get_status'))
             return st
 
         except RpcException as err:
@@ -129,7 +149,15 @@ class TaskExecutor(object):
 
         if status['status'] == 'FAILED':
             error = status['error']
-            self.result.set_exception(TaskException(
+            cls = TaskException
+
+            if error['type'] == 'task.TaskAbortException':
+                cls = TaskAbortException
+
+            if error['type'] == 'ValidationException':
+                cls = ValidationException
+
+            self.result.set_exception(cls(
                 code=error['code'],
                 message=error['message'],
                 stacktrace=error['stacktrace'],
@@ -144,12 +172,30 @@ class TaskExecutor(object):
         self.task = task
         self.task.set_state(TaskState.EXECUTING)
 
+        filename = None
+        module_name = inspect.getmodule(task.clazz).__name__
+        for dir in self.balancer.dispatcher.plugin_dirs:
+            found = False
+            try:
+                for root, _, files in os.walk(dir):
+                    file = first_or_default(lambda f: module_name in f, files)
+                    if file:
+                        filename = os.path.join(root, file)
+                        found = True
+                        break
+
+                if found:
+                    break
+            except FileNotFoundError:
+                continue
+
         self.conn.call_client_sync('taskproxy.run', {
             'id': task.id,
             'class': task.clazz.__name__,
-            'filename': inspect.getsourcefile(task.clazz),
+            'filename': filename,
             'args': task.args,
-            'debugger': task.debugger
+            'debugger': task.debugger,
+            'environment': task.environment
         })
 
         try:
@@ -233,7 +279,10 @@ class TaskExecutor(object):
     def die(self):
         self.exiting = True
         if self.proc:
-            self.proc.terminate()
+            try:
+                self.proc.terminate()
+            except ProcessLookupError:
+                self.balancer.logger.warning('Executor process with PID {0} already dead'.format(self.proc.pid))
 
 
 class Task(object):
@@ -253,6 +302,7 @@ class Task(object):
         self.progress = None
         self.resources = []
         self.warnings = []
+        self.environment = {}
         self.thread = None
         self.instance = None
         self.parent = None
@@ -281,7 +331,8 @@ class Task(object):
             "rusage": self.rusage,
             "error": self.error,
             "warnings": self.warnings,
-            "debugger": self.debugger
+            "debugger": self.debugger,
+            "environment": self.environment
         }
 
     def __emit_progress(self):
@@ -328,8 +379,12 @@ class Task(object):
 
         if state == TaskState.FINISHED:
             self.finished_at = datetime.utcnow()
+            self.progress = TaskStatus(100)
             event['finished_at'] = self.finished_at
             event['result'] = self.result
+
+        if state in (TaskState.FAILED, TaskState.ABORTED):
+            self.progress = TaskStatus(0)
 
         self.dispatcher.dispatch_event('task.created' if state == TaskState.CREATED else 'task.updated', event)
         self.dispatcher.datastore.update('tasks', self.id, self)
@@ -338,7 +393,7 @@ class Task(object):
             'ids': [self.id]
         })
 
-        if progress:
+        if progress and state not in (TaskState.FINISHED, TaskState.FAILED, TaskState.ABORTED):
             self.progress = progress
             self.__emit_progress()
 
@@ -444,18 +499,10 @@ class Balancer(object):
         val = validator.DefaultDraft4Validator(schema, resolver=self.dispatcher.rpc.get_schema_resolver(schema))
         return list(val.iter_errors(args))
 
-    def submit(self, name, args, sender):
+    def submit(self, name, args, sender, env=None):
         if name not in self.dispatcher.tasks:
             self.logger.warning("Cannot submit task: unknown task type %s", name)
             raise RpcException(errno.EINVAL, "Unknown task type {0}".format(name))
-
-        errors = self.verify_schema(self.dispatcher.tasks[name], args)
-        if len(errors) > 0:
-            errors = list(validator.serialize_errors(errors))
-            self.logger.warning(
-                "Cannot submit task {0}: schema verification failed with errors {1}".format(name, errors)
-            )
-            raise RpcException(errno.EINVAL, "Schema verification failed", extra=errors)
 
         task = Task(self.dispatcher, name)
         task.user = sender.user.name
@@ -463,6 +510,12 @@ class Balancer(object):
         task.created_at = datetime.utcnow()
         task.clazz = self.dispatcher.tasks[name]
         task.args = copy.deepcopy(args)
+
+        if env:
+            if not isinstance(env, dict):
+                raise ValueError('env must be a dict')
+
+            task.environment = copy.deepcopy(env)
 
         if self.debugger:
             for m in self.debugged_tasks:
@@ -481,6 +534,7 @@ class Balancer(object):
         return instance.verify(*args)
 
     def run_subtask(self, parent, name, args):
+        args = list(args)
         task = Task(self.dispatcher, name)
         task.created_at = datetime.utcnow()
         task.clazz = self.dispatcher.tasks[name]
@@ -557,6 +611,16 @@ class Balancer(object):
 
             try:
                 self.logger.debug("Picked up task %d: %s with args %s", task.id, task.name, task.args)
+
+                errors = self.verify_schema(self.dispatcher.tasks[task.name], task.args)
+                if len(errors) > 0:
+                    errors = list(validator.serialize_errors(errors))
+                    self.logger.warning("Cannot submit task {0}: schema verification failed with errors {1}".format(
+                        task.name,
+                        errors
+                    ))
+                    raise ValidationException(extra=errors)
+
                 task.instance = task.clazz(self.dispatcher, self.dispatcher.datastore)
                 task.resources = task.instance.verify(*task.args)
 
@@ -584,6 +648,7 @@ class Balancer(object):
     def assign_executor(self, task):
         for i in self.executors:
             if i.state == WorkerState.IDLE:
+                i.checked_in.wait()
                 self.logger.info("Task %d assigned to executor #%d", task.id, i.index)
                 task.executor = i
                 i.state = WorkerState.EXECUTING
@@ -648,6 +713,9 @@ def serialize_error(err):
 
 
 def remove_dots(obj):
+    if isinstance(obj, FileDescriptor):
+        return {'fd': obj.fd}
+
     if isinstance(obj, dict):
         return {k.replace('.', '+'): remove_dots(v) for k, v in obj.items()}
 

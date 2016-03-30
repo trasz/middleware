@@ -1,0 +1,2 @@
+freenas-boot/grub    /boot/grub    zfs    rw,noatime    1    0
+fdescfs	/dev/fd	fdescfs rw	0 0

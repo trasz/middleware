@@ -8,6 +8,7 @@ LoadPlugin aggregation
 LoadPlugin cpu
 LoadPlugin df
 LoadPlugin disk
+LoadPlugin cputemp
 LoadPlugin interface
 LoadPlugin load
 LoadPlugin memory

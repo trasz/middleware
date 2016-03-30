@@ -32,10 +32,10 @@ import ipaddress
 import logging
 from freenas.dispatcher.rpc import RpcException, description, accepts, returns
 from freenas.dispatcher.rpc import SchemaHelper as h
-from datastore.config import ConfigNode
-from task import Provider, Task, TaskException, VerifyException
+from task import Provider, Task, TaskException, VerifyException, query
 from lib.system import system, SubprocessException
 from bsd import kld
+from freenas.utils.query import wrap
 
 
 RE_ATTRS = re.compile(r'^(?P<key>^.+?)\s+?:\s+?(?P<val>.+?)\r?$', re.M)
@@ -63,44 +63,44 @@ class IPMIProvider(Provider):
     def channels(self):
         return channels
 
-    @accepts(int)
-    @returns(h.ref('ipmi-configuration'))
-    def get_config(self, channel):
+    @query('ipmi')
+    def query(self, filter=None, params=None):
         if not self.is_ipmi_loaded():
             raise RpcException(errno.ENXIO, 'The IPMI device could not be found')
 
-        if channel not in self.dispatcher.call_sync('ipmi.channels'):
-            raise RpcException(errno.ENXIO, 'Invalid channel')
+        result = []
+        for channel in self.channels():
+            try:
+                out, err = system('/usr/local/bin/ipmitool', 'lan', 'print', str(channel))
+            except SubprocessException as e:
+                raise RpcException(errno.EFAULT, 'Cannot receive IPMI configuration: {0}'.format(e.err.strip()))
 
-        try:
-            out, err = system('/usr/local/bin/ipmitool', 'lan', 'print', str(channel))
-        except SubprocessException as e:
-            raise RpcException(errno.EFAULT, 'Cannot receive IPMI configuration: {0}'.format(e.err.strip()))
+            raw = {k.strip(): v.strip() for k, v in RE_ATTRS.findall(out)}
+            ret = {IPMI_ATTR_MAP[k]: v for k, v in list(raw.items()) if k in IPMI_ATTR_MAP}
+            ret['id'] = channel
+            ret['vlan_id'] = None if ret['vlan_id'] == 'Disabled' else ret['vlan_id']
+            ret['dhcp'] = True if ret['dhcp'] == 'DHCP Address' else False
+            result.append(ret)
 
-        raw = {k.strip(): v.strip() for k, v in RE_ATTRS.findall(out)}
-        ret = {IPMI_ATTR_MAP[k]: v for k, v in list(raw.items()) if k in IPMI_ATTR_MAP}
-        ret['channel'] = channel
-        ret['vlan_id'] = None if ret['vlan_id'] == 'Disabled' else ret['vlan_id']
-        ret['dhcp'] = True if ret['dhcp'] == 'DHCP Address' else False
-        return ret
+        return wrap(result).query(*(filter or []), **(params or {}))
 
 
 @accepts(int, h.ref('ipmi-configuration'))
 @description("Configures IPMI module")
 class ConfigureIPMITask(Task):
-    def verify(self, channel, updated_params):
+    def verify(self, id, updated_params):
         if not self.dispatcher.call_sync('ipmi.is_ipmi_loaded'):
             raise VerifyException(errno.ENXIO, 'No IPMI module loaded')
 
-        if channel not in self.dispatcher.call_sync('ipmi.channels'):
+        if id not in self.dispatcher.call_sync('ipmi.channels'):
             raise VerifyException(errno.ENXIO, 'Invalid channel')
 
         return ['system']
 
-    def run(self, channel, updated_params):
-        config = self.dispatcher.call_sync('ipmi.get_config', channel)
+    def run(self, id, updated_params):
+        config = self.dispatcher.call_sync('ipmi.get_config', id)
         config.update(updated_params)
-        channel = str(channel)
+        channel = str(id)
 
         if updated_params.get('gateway') is None:
             config['gateway'] = '0.0.0.0'
@@ -138,11 +138,11 @@ def cidr_to_netmask(cidr):
 
 
 def _init(dispatcher, plugin):
-    plugin.register_schema_definition('ipmi-configuration', {
+    plugin.register_schema_definition('ipmi', {
         'type': 'object',
         'additionalProperties': False,
         'properties': {
-            'channel': {'type': 'integer'},
+            'id': {'type': 'integer'},
             'password': {
                 'type': 'string',
                 'maxLength': 20
@@ -161,7 +161,7 @@ def _init(dispatcher, plugin):
     })
 
     plugin.register_provider('ipmi', IPMIProvider)
-    plugin.register_task_handler('ipmi.configure', ConfigureIPMITask)
+    plugin.register_task_handler('ipmi.update', ConfigureIPMITask)
 
     # Load ipmi kernel module
     try:

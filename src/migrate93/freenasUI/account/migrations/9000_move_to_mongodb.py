@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 import os
+import uuid
 from south.utils import datetime_utils as datetime
 from south.db import db
 from south.v2 import DataMigration
@@ -31,7 +32,8 @@ class Migration(DataMigration):
 
         for g in orm['account.bsdGroups'].objects.filter(bsdgrp_builtin=False):
             ds.insert('groups', {
-                'id': g.bsdgrp_gid,
+                'id': str(uuid.uuid4()),
+                'gid': g.bsdgrp_gid,
                 'name': g.bsdgrp_group,
                 'bultin': False,
                 'sudo': g.bsdgrp_sudo,
@@ -44,7 +46,7 @@ class Migration(DataMigration):
                 groups.append(bgm.bsdgrpmember_group.bsdgrp_gid)
 
             if u.bsdusr_builtin:
-                user = ds.get_by_id('users', u.bsdusr_uid)
+                user = ds.get_one('users', ('uid', '=', u.bsdusr_uid))
                 if user is None:
                     continue
                 user.update({
@@ -57,7 +59,8 @@ class Migration(DataMigration):
                 continue
 
             ds.insert('users', {
-                'id': u.bsdusr_uid,
+                'id': str(uuid.uuid4()),
+                'uid': u.bsdusr_uid,
                 'username': u.bsdusr_username,
                 'unixhash': u.bsdusr_unixhash,
                 'smbhash': u.bsdusr_smbhash,

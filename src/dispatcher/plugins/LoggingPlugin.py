@@ -26,10 +26,12 @@
 #####################################################################
 
 import time
+from datastore import DatastoreException
 from datetime import datetime
 from dispatcher.rpc import generator
 from event import EventSource
 from task import Provider
+from debug import AttachDirectory
 
 
 class SyslogProvider(Provider):
@@ -48,15 +50,24 @@ class SyslogEventSource(EventSource):
         cursor = self.datastore.listen('syslog', ('created_at', '>=', datetime.utcnow()))
 
         while True:
-            for i in self.datastore.tail(cursor):
-                self.dispatcher.dispatch_event('syslog.changed', {
-                    'operation': 'create',
-                    'ids': [i['id']]
-                })
+            try:
+                for i in self.datastore.tail(cursor):
+                    self.dispatcher.dispatch_event('syslog.changed', {
+                        'operation': 'create',
+                        'ids': [i['id']]
+                    })
+            except DatastoreException:
+                pass
 
             time.sleep(1)
+
+
+def collect_debug(dispatcher):
+    yield AttachDirectory('var-log', '/var/log')
+    yield AttachDirectory('var-tmp', '/var/tmp')
 
 
 def _init(dispatcher, plugin):
     plugin.register_event_source('syslog', SyslogEventSource)
     plugin.register_provider('syslog', SyslogProvider)
+    plugin.register_debug_hook(collect_debug)

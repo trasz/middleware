@@ -26,7 +26,7 @@
 #####################################################################
 
 import logging
-from gevent import subprocess
+import subprocess
 
 logger = logging.getLogger('system')
 
@@ -49,9 +49,8 @@ def system(*args, **kwargs):
     logger.debug("Running command: %s", ' '.join(args))
 
     if proc.returncode != 0:
-        logger.warning("Command %s failed, return code %d, stderr output: %s",
-                       ' '.join(args), proc.returncode, err)
-        raise SubprocessException(proc.returncode, out, err)
+        logger.warning("Command %s failed, return code %d, stderr output: %s", ' '.join(args), proc.returncode, err)
+        raise SubprocessException(proc.returncode, out.decode('utf-8'), err.decode('utf-8'))
 
     return out.decode('utf8'), err.decode('utf8')
 

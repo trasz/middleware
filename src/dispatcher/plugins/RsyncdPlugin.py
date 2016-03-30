@@ -23,6 +23,7 @@
 # POSSIBILITY OF SUCH DAMAGE.
 #
 #####################################################################
+
 import errno
 import logging
 import re
@@ -33,7 +34,7 @@ from tempfile import TemporaryFile
 
 from datastore import DatastoreException
 from datastore.config import ConfigNode
-from freenas.dispatcher.rpc import RpcException, SchemaHelper as h, description, accepts, returns
+from freenas.dispatcher.rpc import RpcException, SchemaHelper as h, description, accepts, returns, private
 from task import (
     Task, ProgressTask, Provider, TaskException, query,
     ValidationException, VerifyException,
@@ -44,6 +45,7 @@ logger = logging.getLogger('RsyncdPlugin')
 
 @description('Provides info about Rsyncd service configuration')
 class RsyncdProvider(Provider):
+    @private
     @accepts()
     @returns(h.ref('service-rsyncd'))
     def get_config(self):
@@ -58,6 +60,7 @@ class RsyncdModuleProvider(Provider):
         return self.datastore.query('rsyncd-module', *(filter or []), **(params or {}))
 
 
+@private
 @description('Configure Rsyncd service')
 @accepts(h.ref('service-rsyncd'))
 class RsyncdConfigureTask(Task):
@@ -66,9 +69,6 @@ class RsyncdConfigureTask(Task):
 
     def verify(self, rsyncd):
         errors = []
-
-        node = ConfigNode('service.rsyncd', self.configstore).__getstate__()
-        node.update(rsyncd)
 
         if errors:
             raise ValidationException(errors)
@@ -101,13 +101,13 @@ class RsyncdModuleCreateTask(Task):
         return 'Adding rsync module'
 
     def verify(self, rsyncmod):
-        errors = []
+        errors = ValidationException()
 
         if re.search(r'[/\]]', rsyncmod['name']):
-            errors.append('name', errno.EINVAL, 'The name cannot contain slash or a closing square backet.')
+            errors.add((0, 'name'), 'The name cannot contain slash or a closing square backet.')
 
         if errors:
-            raise ValidationException(errors)
+            raise errors
 
         return ['system']
 
@@ -141,15 +141,16 @@ class RsyncdModuleUpdateTask(Task):
         rsyncmod = self.datastore.get_by_id('rsyncd-module', uuid)
         if rsyncmod is None:
             raise VerifyException(errno.ENOENT, 'Rsync module {0} does not exist'.format(uuid))
+
         rsyncmod.update(updated_fields)
 
-        errors = []
+        errors = ValidationException()
 
         if re.search(r'[/\]]', rsyncmod['name']):
-            errors.append('name', errno.EINVAL, 'The name cannot contain slash or a closing square backet.')
+            errors.add((1, 'name'), 'The name cannot contain slash or a closing square backet.')
 
         if errors:
-            raise ValidationException(errors)
+            raise errors
 
         return ['system']
 
@@ -217,24 +218,15 @@ def demote(user_uid, user_gid):
     return set_ids
 
 
+@private
 @description("Runs an Rsync Copy Task with the specified arguments")
-@accepts(h.all_of(
-    h.ref('rsync_copy'),
-    h.required(
-        'user',
-        'path',
-        'remote_host',
-        'rsync_direction',
-        'rsync_mode'
-    ),
-    h.one_of('remote_path', 'remote_module')
-))
+@accepts(h.ref('rsync_copy'))
 class RsyncCopyTask(ProgressTask):
     def describe(self, params):
         return 'Running Rsync Copy Task with user specified arguments'
 
     def verify(self, params):
-        errors = []
+        errors = ValidationException()
 
         if self.datastore.get_one('users', ('username', '=', params.get('user'))) is None:
             raise VerifyException(
@@ -256,7 +248,7 @@ class RsyncCopyTask(ProgressTask):
             )
         if (
             params.get('remote_host') in ['127.0.0.1', 'localhost'] and
-            rmode == 'ssh' and
+            rmode == 'SSH' and
             remote_path is not None and
             not os.path.exists(remote_path)
            ):
@@ -265,9 +257,9 @@ class RsyncCopyTask(ProgressTask):
                 "The specified path: '{0}'' does not exist".format(remote_path)
             )
 
-        if rmode == 'ssh' and (remote_path in [None, ''] or remote_path.isspace()):
+        if rmode == 'SSH' and (remote_path in [None, ''] or remote_path.isspace()):
             errors.append(('remote_path', errno.EINVAL, 'The Remote Path is required'))
-        elif rmode == 'module' and (remote_module in [None, ''] or remote_module.isspace()):
+        elif rmode == 'MODULE' and (remote_module in [None, ''] or remote_module.isspace()):
             errors.append(('remote_module', errno.EINVAL, 'The Remote Module is required'))
 
         if remote_host in [None, ''] or remote_host.isspace():
@@ -365,7 +357,7 @@ class RsyncCopyTask(ProgressTask):
             # readline() and such read methods. stdout.readline() does not
             # allow for us to catch rsync's in-place progress updates which
             # are done with the '\r' character. It is also auto garbage collected.
-            proc_stdout = TemporaryFile(mode='w+', bufsize=0)
+            proc_stdout = TemporaryFile(mode='w+b', buffering=0)
             try:
                 rsync_proc = subprocess.Popen(
                     line,
@@ -383,7 +375,7 @@ class RsyncCopyTask(ProgressTask):
                     proc_stdout.seek(seek)
                     try:
                         while True:
-                            op_byte = proc_stdout.read(1)
+                            op_byte = proc_stdout.read(1).decode('utf8')
                             if op_byte == '':
                                 # In this case break before incrementing `seek`
                                 break
@@ -405,7 +397,7 @@ class RsyncCopyTask(ProgressTask):
                         # raising Bad File Descriptor error. In this case break
                         # and the outer while loop will check for rsync_proc.poll()
                         # to be None or not and DTRT
-                        if e[0] == 9:
+                        if e.errno == 9:
                             break
                         logger.debug("Parsing error in rsync task: {0}".format(str(e)))
             except Exception as e:
@@ -438,7 +430,13 @@ def _init(dispatcher, plugin):
     plugin.register_schema_definition('service-rsyncd', {
         'type': 'object',
         'properties': {
-            'port': {'type': 'integer'},
+            'type': {'enum': ['service-rsyncd']},
+            'enable': {'type': 'boolean'},
+            'port': {
+                'type': 'integer',
+                'minimum': 1,
+                'maximum': 65535
+                },
             'auxiliary': {'type': 'string'},
         },
         'additionalProperties': False,
@@ -473,6 +471,7 @@ def _init(dispatcher, plugin):
             'remote_host': {'type': 'string'},
             'path': {'type': 'string'},
             'remote_path': {'type': 'string'},
+            'remote_module': {'type': 'string'},
             'rsync_direction': {
                 'type': 'string',
                 'enum': ['PUSH', 'PULL']
@@ -482,7 +481,6 @@ def _init(dispatcher, plugin):
                 'enum': ['MODULE', 'SSH']
             },
             'remote_ssh_port': {'type': 'integer'},
-            'remote_module': {'type': 'string'},
             'rsync_properties': {
                 'type': 'object',
                 'properties': {
@@ -499,6 +497,11 @@ def _init(dispatcher, plugin):
             },
             'quiet': {'type': 'boolean'},
         },
+        'oneOf': [
+            {'required': ['remote_path']},
+            {'required': ['remote_module']}
+        ],
+        'required': ['user', 'path', 'remote_host', 'rsync_direction', 'rsync_mode'],
         'additionalProperties': False,
     })
 
@@ -507,7 +510,7 @@ def _init(dispatcher, plugin):
     plugin.register_provider("service.rsyncd.module", RsyncdModuleProvider)
 
     # Register tasks
-    plugin.register_task_handler("service.rsyncd.configure", RsyncdConfigureTask)
+    plugin.register_task_handler("service.rsyncd.update", RsyncdConfigureTask)
     plugin.register_task_handler("service.rsyncd.module.create", RsyncdModuleCreateTask)
     plugin.register_task_handler("service.rsyncd.module.update", RsyncdModuleUpdateTask)
     plugin.register_task_handler("service.rsyncd.module.delete", RsyncdModuleDeleteTask)

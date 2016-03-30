@@ -28,7 +28,7 @@ import errno
 import logging
 
 from datastore.config import ConfigNode
-from freenas.dispatcher.rpc import RpcException, SchemaHelper as h, description, accepts, returns
+from freenas.dispatcher.rpc import RpcException, SchemaHelper as h, description, accepts, returns, private
 from task import Task, Provider, TaskException, ValidationException
 
 logger = logging.getLogger('HAProxyPlugin')
@@ -36,12 +36,14 @@ logger = logging.getLogger('HAProxyPlugin')
 
 @description('Provides info about HAProxy service configuration')
 class HAProxyProvider(Provider):
+    @private
     @accepts()
     @returns(h.ref('service-haproxy'))
     def get_config(self):
-        return ConfigNode('service.haproxy', self.configstore)
+        return ConfigNode('service.haproxy', self.configstore).__getstate__()
 
 
+@private
 @description('Configure HAProxy service')
 @accepts(h.ref('service-haproxy'))
 class HAProxyConfigureTask(Task):
@@ -50,9 +52,6 @@ class HAProxyConfigureTask(Task):
 
     def verify(self, haproxy):
         errors = []
-
-        node = ConfigNode('service.haproxy', self.configstore).__getstate__()
-        node.update(haproxy)
 
         if errors:
             raise ValidationException(errors)
@@ -86,6 +85,8 @@ def _init(dispatcher, plugin):
     plugin.register_schema_definition('service-haproxy', {
         'type': 'object',
         'properties': {
+            'type': {'enum': ['service-haproxy']},
+            'enable': {'type': 'boolean'},
             'global_maxconn': {'type': ['integer', 'null']},
             'defaults_maxconn': {'type': ['integer', 'null']},
             'http_ip': {'type': ['string', 'null']},
@@ -102,4 +103,4 @@ def _init(dispatcher, plugin):
     plugin.register_provider("service.haproxy", HAProxyProvider)
 
     # Register tasks
-    plugin.register_task_handler("service.haproxy.configure", HAProxyConfigureTask)
+    plugin.register_task_handler("service.haproxy.update", HAProxyConfigureTask)

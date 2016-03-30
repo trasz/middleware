@@ -144,6 +144,9 @@ def migrate_collection(dump, directory, force=False):
     if not ds.collection_exists(name):
         ds.collection_create(name, metadata['pkey-type'], metadata['attributes'])
 
+    # Update pkey type for collection
+    ds.collection_set_pkey_type(name, metadata['pkey-type'])
+
     if metadata['migration'] == 'keep':
         return
 

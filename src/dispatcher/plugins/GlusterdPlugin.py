@@ -27,7 +27,7 @@ import errno
 import logging
 
 from datastore.config import ConfigNode
-from freenas.dispatcher.rpc import RpcException, SchemaHelper as h, description, accepts, returns
+from freenas.dispatcher.rpc import RpcException, SchemaHelper as h, description, accepts, returns, private
 from task import Task, Provider, TaskException, ValidationException
 
 logger = logging.getLogger('GlusterdPlugin')
@@ -35,12 +35,14 @@ logger = logging.getLogger('GlusterdPlugin')
 
 @description('Provides info about Glusterd service configuration')
 class GlusterdProvider(Provider):
+    @private
     @accepts()
     @returns(h.ref('service-glusterd'))
     def get_config(self):
-        return ConfigNode('service.glusterd', self.configstore)
+        return ConfigNode('service.glusterd', self.configstore).__getstate__()
 
 
+@private
 @description('Configure Glusterd service')
 @accepts(h.ref('service-glusterd'))
 class GlusterdConfigureTask(Task):
@@ -49,9 +51,6 @@ class GlusterdConfigureTask(Task):
 
     def verify(self, glusterd):
         errors = []
-
-        node = ConfigNode('service.glusterd', self.configstore).__getstate__()
-        node.update(glusterd)
 
         if errors:
             raise ValidationException(errors)
@@ -84,6 +83,8 @@ def _init(dispatcher, plugin):
     plugin.register_schema_definition('service-glusterd', {
         'type': 'object',
         'properties': {
+            'type': {'enum': ['service-glusterd']},
+            'enable': {'type': 'boolean'},
             'working_directory': {'type': ['string', 'null']},
         },
         'additionalProperties': False,
@@ -93,4 +94,4 @@ def _init(dispatcher, plugin):
     plugin.register_provider("service.glusterd", GlusterdProvider)
 
     # Register tasks
-    plugin.register_task_handler("service.glusterd.configure", GlusterdConfigureTask)
+    plugin.register_task_handler("service.glusterd.update", GlusterdConfigureTask)

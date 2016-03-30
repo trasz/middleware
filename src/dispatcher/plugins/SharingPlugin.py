@@ -34,6 +34,7 @@ from freenas.utils import normalize
 from utils import split_dataset, save_config, load_config, delete_config
 
 
+@description("Provides information on shares")
 class SharesProvider(Provider):
     @query('share')
     @generator
@@ -54,7 +55,8 @@ class SharesProvider(Provider):
         yield from self.datastore.query_stream('shares', *(filter or []), callback=extend, **(params or {}))
 
     @description("Returns list of supported sharing providers")
-    @returns(h.array(str))
+    @accepts()
+    @returns(h.ref('share-types'))
     def supported_types(self):
         result = {}
         for p in list(self.dispatcher.plugins.values()):
@@ -69,34 +71,31 @@ class SharesProvider(Provider):
     @description("Returns list of clients connected to particular share")
     @accepts(str)
     @returns(h.array(h.ref('share-client')))
-    def get_connected_clients(self, share_name):
-        share = self.datastore.get_by_id('share', share_name)
+    def get_connected_clients(self, id):
+        share = self.datastore.get_by_id('shares', id)
         if not share:
             raise RpcException(errno.ENOENT, 'Share not found')
 
-        return self.dispatcher.call_sync('share.{0}.get_connected_clients'.format(share['type']), share_name)
+        return self.dispatcher.call_sync('share.{0}.get_connected_clients'.format(share['type']), id)
 
     @description("Get shares dependent on provided filesystem path")
     @accepts(str)
-    @returns(h.array('share'))
-    def get_dependencies(self, path):
+    @returns(h.array(h.ref('share')))
+    def get_dependencies(self, path, enabled_only=True, recursive=True):
         result = []
-        for i in self.datastore.query('shares', ('enabled', '=', True)):
-            target_path = self.translate_path(i['id'])
-            if target_path.startswith(path):
-                result.append(i)
+        if enabled_only:
+            shares = self.datastore.query('shares', ('enabled', '=', True))
+        else:
+            shares = self.datastore.query('shares')
 
-        return result
-
-    @description("Get shares related to provided filesystem path. Includes disabled shares")
-    @accepts(str)
-    @returns(h.array('share'))
-    def get_related(self, path):
-        result = []
-        for i in self.datastore.query('shares'):
+        for i in shares:
             target_path = self.translate_path(i['id'])
-            if target_path.startswith(path):
-                result.append(i)
+            if recursive:
+                if target_path.startswith(path):
+                    result.append(i)
+            else:
+                if target_path == path:
+                    result.append(i)
 
         return result
 
@@ -113,6 +112,25 @@ class SharesProvider(Provider):
 
         if share['target_type'] in ('DIRECTORY', 'FILE'):
             return share['target_path']
+
+        raise RpcException(errno.EINVAL, 'Invalid share target type {0}'.format(share['target_type']))
+
+    @private
+    def get_directory_path(self, share_id):
+        root = self.dispatcher.call_sync('volume.get_volumes_root')
+        share = self.datastore.get_by_id('shares', share_id)
+
+        if share['target_type'] == 'DATASET':
+            return os.path.join(root, share['target_path'])
+
+        if share['target_type'] == 'ZVOL':
+            return os.path.dirname(os.path.join(root, share['target_path']))
+
+        if share['target_type'] == 'DIRECTORY':
+            return share['target_path']
+
+        if share['target_type'] == 'FILE':
+            return os.path.dirname(share['target_path'])
 
         raise RpcException(errno.EINVAL, 'Invalid share target type {0}'.format(share['target_type']))
 
@@ -137,11 +155,25 @@ class CreateShareTask(Task):
                 share['type']
             ))
 
+        if self.datastore.exists('replication.reserved_shares', ('type', '=', share['type']), ('name', '=', share['name'])):
+            reserved_item = self.datastore.get_by_id('replication.reserved_shares', share['name'])
+            raise VerifyException(
+                errno.EEXIST,
+                'Share {0} name is reserved by {1} replication task'.format(
+                    share['name'],
+                    reserved_item['link_name']
+                )
+            )
+
         return ['system']
 
     def run(self, share):
         root = self.dispatcher.call_sync('volume.get_volumes_root')
         share_type = self.dispatcher.call_sync('share.supported_types').get(share['type'])
+
+        assert share_type['subtype'] in ('FILE', 'BLOCK'),\
+            "Unsupported Share subtype: {0}".format(share_type['subtype'])
+
         normalize(share, {
             'enabled': True,
             'description': ''
@@ -151,24 +183,25 @@ class CreateShareTask(Task):
             dataset = share['target_path']
             pool = share['target_path'].split('/')[0]
             path = os.path.join(root, dataset)
+
             if not self.dispatcher.call_sync('zfs.dataset.query', [('name', '=', dataset)], {'single': True}):
-                if share_type['subtype'] == 'file':
+                if share_type['subtype'] == 'FILE':
                     self.join_subtasks(self.run_subtask('volume.dataset.create', {
-                        'pool': pool,
-                        'name': dataset,
+                        'volume': pool,
+                        'id': dataset,
                         'permissions_type': share_type['perm_type'],
                     }))
 
-                if share_type['subtype'] == 'block':
+                if share_type['subtype'] == 'BLOCK':
                     self.join_subtasks(self.run_subtask('volume.dataset.create', {
-                        'pool': pool,
-                        'name': dataset,
+                        'volume': pool,
+                        'id': dataset,
                         'type': 'VOLUME',
                         'volsize': share['properties']['size'],
                     }))
             else:
-                if share_type['subtype'] == 'file':
-                    self.run_subtask('volume.dataset.update', pool, dataset, {
+                if share_type['subtype'] == 'FILE':
+                    self.run_subtask('volume.dataset.update', dataset, {
                         'permissions_type': share_type['perm_type']
                     })
 
@@ -197,9 +230,7 @@ class CreateShareTask(Task):
         })
 
         new_share = self.datastore.get_by_id('shares', ids[0])
-        path = self.dispatcher.call_sync('share.translate_path', new_share['id'])
-        if new_share['target_type'] == 'FILE':
-            path = os.path.dirname(path)
+        path = self.dispatcher.call_sync('share.get_directory_path', new_share['id'])
         save_config(
             path,
             '{0}-{1}'.format(new_share['type'], new_share['name']),
@@ -217,20 +248,31 @@ class UpdateShareTask(Task):
         if not share:
             raise VerifyException(errno.ENOENT, 'Share not found')
 
+        if 'name' in updated_fields or 'type' in updated_fields:
+            share.update(updated_fields)
+            if self.datastore.exists(
+                'shares',
+                ('id', '!=', id),
+                ('type', '=', share['type']),
+                ('name', '=', share['name'])
+            ):
+                raise VerifyException(errno.EEXIST, 'Share {0} of type {1} already exists'.format(
+                    share['name'],
+                    share['type']
+                ))
+
         return ['system']
 
     def run(self, id, updated_fields):
         share = self.datastore.get_by_id('shares', id)
 
-        path = self.dispatcher.call_sync('share.translate_path', share['id'])
-        if share['target_type'] == 'FILE':
-            path = os.path.dirname(path)
+        path = self.dispatcher.call_sync('share.get_directory_path', share['id'])
         try:
             delete_config(
                 path,
                 '{0}-{1}'.format(share['type'], share['name'])
             )
-        except FileNotFoundError:
+        except OSError:
             pass
 
         if 'type' in updated_fields:
@@ -239,7 +281,7 @@ class UpdateShareTask(Task):
             if share['target_type'] == 'DATASET':
                 pool, dataset = split_dataset(share['target_path'])
                 self.join_subtasks(
-                    self.run_subtask('volume.dataset.update', pool, dataset, {
+                    self.run_subtask('volume.dataset.update', dataset, {
                         'permissions_type': new_share_type['perm_type']
                     })
                 )
@@ -260,9 +302,7 @@ class UpdateShareTask(Task):
         })
 
         updated_share = self.datastore.get_by_id('shares', id)
-        path = self.dispatcher.call_sync('share.translate_path', updated_share['id'])
-        if updated_share['target_type'] == 'FILE':
-            path = os.path.dirname(path)
+        path = self.dispatcher.call_sync('share.get_directory_path', updated_share['id'])
         save_config(
             path,
             '{0}-{1}'.format(updated_share['type'], updated_share['name']),
@@ -312,7 +352,18 @@ class ImportShareTask(Task):
 
         share = load_config(config_path, '{0}-{1}'.format(type, name))
 
+        if self.datastore.exists('replication.reserved_shares', ('type', '=', share['type']), ('name', '=', share['name'])):
+            reserved_item = self.datastore.get_by_id('replication.reserved_shares', share['name'])
+            raise TaskException(
+                errno.EEXIST,
+                'Share {0} name is reserved by {1} replication task'.format(
+                    share['name'],
+                    reserved_item['link_name']
+                )
+            )
+
         ids = self.join_subtasks(self.run_subtask('share.{0}.import'.format(share['type']), share))
+
         self.dispatcher.dispatch_event('share.changed', {
             'operation': 'create',
             'ids': ids
@@ -334,16 +385,34 @@ class DeleteShareTask(Task):
     def run(self, name):
         share = self.datastore.get_by_id('shares', name)
 
-        path = self.dispatcher.call_sync('share.translate_path', share['id'])
-        if share['target_type'] == 'FILE':
-            path = os.path.dirname(path)
+        path = self.dispatcher.call_sync('share.get_directory_path', share['id'])
         try:
             delete_config(
                 path,
                 '{0}-{1}'.format(share['type'], share['name'])
             )
-        except FileNotFoundError:
+        except OSError:
             pass
+
+        self.join_subtasks(self.run_subtask('share.{0}.delete'.format(share['type']), name))
+        self.dispatcher.dispatch_event('share.changed', {
+            'operation': 'delete',
+            'ids': [name]
+        })
+
+
+@description("Export share")
+@accepts(str)
+class ExportShareTask(Task):
+    def verify(self, name):
+        share = self.datastore.get_by_id('shares', name)
+        if not share:
+            raise VerifyException(errno.ENOENT, 'Share not found')
+
+        return ['system']
+
+    def run(self, name):
+        share = self.datastore.get_by_id('shares', name)
 
         self.join_subtasks(self.run_subtask('share.{0}.delete'.format(share['type']), name))
         self.dispatcher.dispatch_event('share.changed', {
@@ -366,6 +435,7 @@ class DeleteDependentShares(Task):
         self.join_subtasks(*subtasks)
 
 
+@private
 @description("Updates all shares related to specified volume/dataset")
 @accepts(str, h.ref('share'))
 class UpdateRelatedShares(Task):
@@ -374,7 +444,7 @@ class UpdateRelatedShares(Task):
 
     def run(self, path, updated_fields):
         subtasks = []
-        for i in self.dispatcher.call_sync('share.get_related', path):
+        for i in self.dispatcher.call_sync('share.get_dependencies', path, False):
             subtasks.append(self.run_subtask('share.update', i['id'], updated_fields))
 
         self.join_subtasks(*subtasks)
@@ -398,8 +468,14 @@ def _init(dispatcher, plugin):
                 'enum': ['DATASET', 'ZVOL', 'DIRECTORY', 'FILE']
             },
             'target_path': {'type': 'string'},
-            'permissions': {'$ref': 'permissions'},
-            'properties': {'type': 'object'}
+            'filesystem_path': {'type': 'string'},
+            'permissions': {
+                'oneOf': [
+                    {'$ref': 'permissions'},
+                    {'type': 'null'}
+                ]
+            },
+            'properties': {'$ref': 'share-properties'}
         }
     })
 
@@ -413,6 +489,20 @@ def _init(dispatcher, plugin):
             'extra': {
                 'type': 'object'
             }
+        }
+    })
+
+    plugin.register_schema_definition('share-types', {
+        'type': 'object',
+        'additionalProperties': {
+            'type': 'object',
+            'properties': {
+                'subtype': {'type': 'string', 'enum': ['FILE', 'BLOCK']},
+                'perm_type': {
+                    'oneOf': [{'type': 'string', 'enum': ['PERM', 'ACL']}, {'type': 'null'}]
+                },
+            },
+            'additionalProperties': False
         }
     })
 
@@ -433,15 +523,19 @@ def _init(dispatcher, plugin):
                     new_path = new_path.replace(args['mountpoint'], args['new_mountpoint'], 1)
 
             if new_path is not share['target_path']:
-                dispatcher.call_task_sync('share.update',
-                                          share['id'],
-                                          {'target_path': new_path})
+                dispatcher.call_task_sync('share.update', share['id'], {'target_path': new_path})
         return True
 
     def set_related_enabled(name, enabled):
-        path = dispatcher.call_sync('volume.resolve_path', name, '')
-        dispatcher.call_task_sync('share.update_related', path, {'enabled': enabled})
-        dispatcher.call_task_sync('share.update_related', os.path.join('/dev/zvol', name), {'enabled': enabled})
+        pool_properties = dispatcher.call_sync(
+            'zfs.pool.query',
+            [('name', '=', name)],
+            {'single': True, 'select': 'properties'}
+        )
+        if pool_properties.get('readonly', 'off') == 'off':
+            path = dispatcher.call_sync('volume.resolve_path', name, '')
+            dispatcher.call_task_sync('share.update_related', path, {'enabled': enabled})
+            dispatcher.call_task_sync('share.update_related', os.path.join('/dev/zvol', name), {'enabled': enabled})
 
     def volume_detach(args):
         set_related_enabled(args['name'], False)
@@ -451,15 +545,43 @@ def _init(dispatcher, plugin):
         set_related_enabled(args['name'], True)
         return True
 
-    dispatcher.require_collection('share', 'string')
+    def update_share_properties_schema():
+        plugin.register_schema_definition('share-properties', {
+            'discriminator': 'type',
+            'oneOf': [
+                {'$ref': 'share-{0}'.format(name)} for name in dispatcher.call_sync('share.supported_types')
+            ]
+        })
+
+    # Register providers
     plugin.register_provider('share', SharesProvider)
+
+    # Register task handlers
     plugin.register_task_handler('share.create', CreateShareTask)
     plugin.register_task_handler('share.update', UpdateShareTask)
     plugin.register_task_handler('share.delete', DeleteShareTask)
+    plugin.register_task_handler('share.export', ExportShareTask)
     plugin.register_task_handler('share.import', ImportShareTask)
     plugin.register_task_handler('share.delete_dependent', DeleteDependentShares)
     plugin.register_task_handler('share.update_related', UpdateRelatedShares)
-    plugin.register_event_type('share.changed')
+
+    # Register Event Types
+    plugin.register_event_type(
+        'share.changed',
+        schema={
+            'type': 'object',
+            'properties': {
+                'operation': {'type': 'string', 'enum': ['create', 'delete', 'update']},
+                'ids': {'type': 'array', 'items': 'string'},
+            },
+            'additionalProperties': False
+        }
+    )
+
+    update_share_properties_schema()
+    dispatcher.register_event_handler('server.plugin.loaded', update_share_properties_schema)
+
+    # Register Hooks
     plugin.attach_hook('volume.pre_destroy', volume_pre_destroy)
     plugin.attach_hook('volume.pre_detach', volume_detach)
     plugin.attach_hook('volume.post_attach', volume_attach)

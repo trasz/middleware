@@ -24,11 +24,12 @@
 # POSSIBILITY OF SUCH DAMAGE.
 #
 #####################################################################
+
 import errno
 import logging
 
 from datastore.config import ConfigNode
-from freenas.dispatcher.rpc import RpcException, SchemaHelper as h, description, accepts, returns
+from freenas.dispatcher.rpc import RpcException, SchemaHelper as h, description, accepts, returns, private
 from task import Task, Provider, TaskException, ValidationException
 
 logger = logging.getLogger('WebDAVPlugin')
@@ -36,12 +37,14 @@ logger = logging.getLogger('WebDAVPlugin')
 
 @description('Provides info about WebDAV service configuration')
 class WebDAVProvider(Provider):
+    @private
     @accepts()
     @returns(h.ref('service-webdav'))
     def get_config(self):
-        return ConfigNode('service.webdav', self.configstore)
+        return ConfigNode('service.webdav', self.configstore).__getstate__()
 
 
+@private
 @description('Configure WebDAV service')
 @accepts(h.ref('service-webdav'))
 class WebDAVConfigureTask(Task):
@@ -49,24 +52,23 @@ class WebDAVConfigureTask(Task):
         return 'Configuring WebDAV service'
 
     def verify(self, webdav):
-        errors = []
-
+        errors = ValidationException()
         node = ConfigNode('service.webdav', self.configstore).__getstate__()
         node.update(webdav)
 
         if node['http_port'] == node['https_port']:
-            errors.append(('http_port', errno.EINVAL, 'HTTP and HTTPS ports cannot be the same'))
+            errors.add((0, 'http_port'), 'HTTP and HTTPS ports cannot be the same')
 
         if 'HTTPS' in node['protocol'] and not node['certificate']:
-            errors.append(('certificate', errno.EINVAL, 'SSL protocol specified without choosing a certificate'))
+            errors.add((0, 'certificate'), 'SSL protocol specified without choosing a certificate')
 
         if node['certificate']:
             cert = self.dispatcher.call_sync('crypto.certificate.query', [('id', '=', node['certificate'])])
             if not cert:
-                errors.append(('certificate', errno.EINVAL, 'SSL Certificate not found.'))
+                errors.add((0, 'certificate'), 'SSL Certificate not found.')
 
         if errors:
-            raise ValidationException(errors)
+            raise errors
 
         return ['system']
 
@@ -96,6 +98,8 @@ def _init(dispatcher, plugin):
     plugin.register_schema_definition('service-webdav', {
         'type': 'object',
         'properties': {
+            'type': {'enum': ['service-webdav']},
+            'enable': {'type': 'boolean'},
             'protocol': {
                 'type': ['array'],
                 'items': {
@@ -103,8 +107,16 @@ def _init(dispatcher, plugin):
                     'enum': ['HTTP', 'HTTPS'],
                 },
             },
-            'http_port': {'type': 'integer'},
-            'https_port': {'type': 'integer'},
+            'http_port': {
+                'type': 'integer',
+                'minimum': 1,
+                'maximum': 65535
+            },
+            'https_port': {
+                'type': 'integer',
+                'minimum': 1,
+                'maximum': 65535
+            },
             'password': {'type': 'string'},
             'authentication': {'type': 'string', 'enum': [
                 'BASIC',
@@ -119,4 +131,4 @@ def _init(dispatcher, plugin):
     plugin.register_provider("service.webdav", WebDAVProvider)
 
     # Register tasks
-    plugin.register_task_handler("service.webdav.configure", WebDAVConfigureTask)
+    plugin.register_task_handler("service.webdav.update", WebDAVConfigureTask)

@@ -29,7 +29,6 @@
 import os
 import sys
 import errno
-import imp
 import setproctitle
 import socket
 import traceback
@@ -38,15 +37,19 @@ import queue
 from threading import Event
 from freenas.dispatcher.client import Client
 from freenas.dispatcher.rpc import RpcService, RpcException, RpcWarning
+from freenas.utils import load_module_from_file
 from datastore import get_datastore
 from datastore.config import ConfigStore
 
 
 def serialize_error(err):
+    etype, _, _ = sys.exc_info()
+    stacktrace = traceback.format_exc() if etype else traceback.format_stack()
+
     ret = {
         'type': type(err).__name__,
         'message': str(err),
-        'stacktrace': traceback.format_exc()
+        'stacktrace': stacktrace
     }
 
     if isinstance(err, (RpcException, RpcWarning)):
@@ -68,16 +71,25 @@ class DispatcherWrapper(object):
         return self.dispatcher.call_sync('task.run_hook', name, args, timeout=300)
 
     def __verify_subtask(self, task, name, args):
-        return self.dispatcher.call_sync('task.verify_subtask', name, args)
+        return self.dispatcher.call_sync('task.verify_subtask', name, list(args))
 
     def __run_subtask(self, task, name, args):
-        return self.dispatcher.call_sync('task.run_subtask', name, args, timeout=60)
+        return self.dispatcher.call_sync('task.run_subtask', name, list(args), timeout=60)
 
     def __join_subtasks(self, *tasks):
         return self.dispatcher.call_sync('task.join_subtasks', tasks, timeout=None)
 
+    def __abort_subtask(self, id):
+        return self.dispatcher.call_sync('task.abort_subtask', id, timeout=60)
+
     def __add_warning(self, warning):
         self.dispatcher.call_sync('task.put_warning', serialize_error(warning))
+
+    def __register_resource(self, resource, parents):
+        self.dispatcher.call_sync('task.register_resource', resource.name, parents)
+
+    def __unregister_resource(self, resource):
+        self.dispatcher.call_sync('task.unregister_resource', resource)
 
     def __getattr__(self, item):
         if item == 'dispatch_event':
@@ -95,8 +107,17 @@ class DispatcherWrapper(object):
         if item == 'join_subtasks':
             return self.__join_subtasks
 
+        if item == 'abort_subtask':
+            return self.__abort_subtask
+
         if item == 'add_warning':
             return self.__add_warning
+
+        if item == 'register_resource':
+            return self.__register_resource
+
+        if item == 'unregister_resource':
+            return self.__unregister_resource
 
         return getattr(self.dispatcher, item)
 
@@ -109,11 +130,13 @@ class TaskProxyService(RpcService):
         self.context.running.wait()
         return self.context.instance.get_status()
 
-    def get_progress_subtask_info(self):
-        return {
-            'id': self.context.instance.progress_subtask_id,
-            'weight': self.context.instance.progress_subtask_weight
-        }
+    def set_master_progress_detail(self, detail):
+        self.context.running.wait()
+        self.context.instance.set_master_progress_detail(detail)
+
+    def get_master_progress_info(self):
+        self.context.running.wait()
+        return self.context.instance.get_master_progress_info()
 
     def abort(self):
         if not hasattr(self.context.instance, 'abort'):
@@ -144,10 +167,10 @@ class Context(object):
             'result': None
         }
 
-        if result:
+        if result is not None:
             obj['result'] = result
 
-        if exception:
+        if exception is not None:
             obj['error'] = serialize_error(exception)
 
         self.conn.call_sync('task.put_status', obj)
@@ -182,12 +205,14 @@ class Context(object):
                     host, port = task['debugger']
                     pydevd.settrace(host, port=port, stdoutToServer=True, stderrToServer=True)
 
-                module = imp.load_source('plugin', task['filename'])
+                name, _ = os.path.splitext(os.path.basename(task['filename']))
+                module = load_module_from_file(name, task['filename'])
                 setproctitle.setproctitle('task executor (tid {0})'.format(task['id']))
 
                 try:
                     self.instance = getattr(module, task['class'])(DispatcherWrapper(self.conn), self.datastore)
                     self.instance.configstore = self.configstore
+                    self.instance.environment = task['environment']
                     self.running.set()
                     result = self.instance.run(*task['args'])
                 except BaseException as err:
@@ -205,6 +230,8 @@ class Context(object):
                     self.put_status('FAILED', exception=err)
                 else:
                     self.put_status('FINISHED', result=result)
+                finally:
+                    self.running.clear()
 
             except RpcException as err:
                 print("RPC failed: {0}".format(str(err)), file=sys.stderr)

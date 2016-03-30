@@ -28,6 +28,7 @@
 import errno
 import os
 import re
+import gevent
 import logging
 import tempfile
 import shutil
@@ -38,12 +39,15 @@ import bsd
 import bsd.kld
 import hashlib
 import json
+import time
 import uuid
 from cache import EventCacheStore
 from lib.system import system, SubprocessException
 from lib.freebsd import fstyp
-from task import Provider, Task, ProgressTask, TaskException, TaskWarning, VerifyException, query
-from freenas.dispatcher.rpc import RpcException, description, accepts, returns, private, SchemaHelper as h, generator
+from task import Provider, Task, ProgressTask, MasterProgressTask, TaskException, TaskWarning, VerifyException, query
+from freenas.dispatcher.rpc import (
+    RpcException, description, accepts, returns, private, SchemaHelper as h, generator
+)
 from utils import first_or_default, load_config
 from datastore import DuplicateKeyException
 from freenas.utils import include, exclude, normalize, chunks
@@ -75,6 +79,7 @@ DISKS_PER_VDEV = {
     'raidz3': 5
 }
 
+SNAPSHOT_SCRUB_INTERVAL = 300
 VOLUMES_ROOT = '/mnt'
 DEFAULT_ACLS = [
     {'text': 'owner@:rwxpDdaARWcCos:fd:allow'},
@@ -83,6 +88,7 @@ DEFAULT_ACLS = [
 ]
 logger = logging.getLogger('VolumePlugin')
 snapshots = None
+datasets = None
 
 
 @description("Provides access to volumes information")
@@ -100,36 +106,8 @@ class VolumeProvider(Provider):
 
             return True
 
-        def extend_dataset(ds):
-            ds = wrap(ds)
-            perms = None
-
-            if ds['mountpoint']:
-                try:
-                    perms = self.dispatcher.call_sync('filesystem.stat', ds['mountpoint'])
-                except RpcException:
-                    pass
-
-            return {
-                'name': ds['name'],
-                'type': ds['type'],
-                'mountpoint': ds['mountpoint'],
-                'volsize': ds.get('properties.volsize.rawvalue'),
-                'properties': include(
-                    ds['properties'],
-                    'used', 'available', 'compression', 'atime', 'dedup',
-                    'quota', 'refquota', 'reservation', 'refreservation',
-                    'casesensitivity', 'volsize', 'volblocksize', 'refcompressratio',
-                    'numclones', 'compressratio', 'written', 'referenced',
-                    'usedbyrefreservation', 'usedbysnapshots', 'usedbydataset',
-                    'usedbychildren', 'logicalused', 'logicalreferenced'
-                ),
-                'permissions_type': ds.get('properties.org\\.freenas:permissions_type.value'),
-                'permissions': perms['permissions'] if perms else None
-            }
-
         def extend(vol):
-            config = wrap(self.get_config(vol['name']))
+            config = wrap(self.dispatcher.call_sync('zfs.pool.query', [('id', '=', vol['id'])], {'single': True}))
             if not config:
                 vol['status'] = 'UNKNOWN'
             else:
@@ -147,20 +125,23 @@ class VolumeProvider(Provider):
                 vol.update({
                     'description': None,
                     'mountpoint': None,
-                    'datasets': None,
                     'upgraded': None,
                     'topology': topology,
                     'root_vdev': config['root_vdev'],
                     'status': config['status'],
                     'scan': config['scan'],
-                    'properties': config['properties']
+                    'properties': include(
+                        config['properties'],
+                        'size', 'capacity', 'health', 'version', 'delegation', 'failmode',
+                        'autoreplace', 'dedupratio', 'free', 'allocated', 'readonly',
+                        'comment', 'expandsize', 'fragmentation', 'leaked'
+                    )
                 })
 
                 if config['status'] != 'UNAVAIL':
                     vol.update({
                         'description': config.get('root_dataset.properties.org\\.freenas:description.value'),
                         'mountpoint': config['root_dataset.properties.mountpoint.value'],
-                        'datasets': list(map(extend_dataset, flatten_datasets(config['root_dataset']))),
                         'upgraded': is_upgraded(config),
                     })
 
@@ -263,15 +244,15 @@ class VolumeProvider(Provider):
     @accepts(str, str)
     @returns(str)
     def resolve_path(self, volname, path):
-        volume = self.query([('name', '=', volname)], {'single': True})
+        volume = self.query([('id', '=', volname)], {'single': True})
         if not volume:
             raise RpcException(errno.ENOENT, 'Volume {0} not found'.format(volname))
 
         return os.path.join(volume['mountpoint'], path)
 
-    @accepts(str, str)
+    @accepts(str)
     @returns(str)
-    def get_dataset_path(self, volname, dsname):
+    def get_dataset_path(self, dsname):
         return os.path.join(VOLUMES_ROOT, dsname)
 
     @description("Extracts volume name, dataset name and relative path from full path")
@@ -285,9 +266,9 @@ class VolumeProvider(Provider):
             raise RpcException(errno.EINVAL, 'Invalid path')
 
         volname = tokens[1]
-        config = self.get_config(volname)
-        if config:
-            datasets = [d['name'] for d in flatten_datasets(config['root_dataset'])]
+        vol = self.dispatcher.call_sync('volume.query', [('id', '=', volname)], {'single': True})
+        if vol:
+            datasets = self.dispatcher.call_sync('volume.dataset.query', [('volume', '=', volname)], {'select': 'id'})
         else:
             raise RpcException(errno.ENOENT, "Volume '{0}' does not exist".format(volname))
         n = len(tokens)
@@ -306,7 +287,7 @@ class VolumeProvider(Provider):
     @returns(h.array(str))
     def get_volume_disks(self, name):
         result = []
-        vol = self.dispatcher.call_sync('volume.query', [('name', '=', name)], {'single': True})
+        vol = self.dispatcher.call_sync('volume.query', [('id', '=', name)], {'single': True})
 
         if vol.get('encrypted', False) is False or vol.get('providers_presence', 'NONE') != 'NONE':
             for dev in self.dispatcher.call_sync('zfs.pool.get_disks', name):
@@ -337,7 +318,7 @@ class VolumeProvider(Provider):
     def get_available_disks(self):
         disks = set([d['path'] for d in self.dispatcher.call_sync('disk.query')])
         for pool in self.dispatcher.call_sync('zfs.pool.query'):
-            for dev in self.dispatcher.call_sync('zfs.pool.get_disks', pool['name']):
+            for dev in self.dispatcher.call_sync('zfs.pool.get_disks', pool['id']):
                 try:
                     disk = self.dispatcher.call_sync('disk.partition_to_disk', dev)
                 except RpcException:
@@ -361,25 +342,17 @@ class VolumeProvider(Provider):
                 ret[boot_disk] = {'type': 'BOOT'}
 
         for vol in self.dispatcher.call_sync('volume.query'):
-            for dev in self.dispatcher.call_sync('volume.get_volume_disks', vol['name']):
+            if vol['status'] == 'UNAVAIL':
+                continue
+
+            for dev in self.dispatcher.call_sync('volume.get_volume_disks', vol['id']):
                 if dev in disks:
                     ret[dev] = {
                         'type': 'VOLUME',
-                        'name': vol['name']
+                        'name': vol['id']
                     }
 
         return ret
-
-    @description("Returns Information about all the possible attributes of" +
-                 " the Volume (name, guid, zfs properties, datasets, etc...)")
-    @accepts(str)
-    @returns(h.ref('zfs-pool'))
-    def get_config(self, volume):
-        return self.dispatcher.call_sync(
-            'zfs.pool.query',
-            [('name', '=', volume)],
-            {'single': True}
-        )
 
     @accepts(str, str)
     @returns(h.ref('zfs-vdev'))
@@ -430,6 +403,11 @@ class VolumeProvider(Provider):
         }
 
 
+class DatasetProvider(Provider):
+    def query(self, filter=None, params=None):
+        return datasets.query(*(filter or []), **(params or {}))
+
+
 class SnapshotProvider(Provider):
     def query(self, filter=None, params=None):
         return snapshots.query(*(filter or []), **(params or {}))
@@ -439,18 +417,19 @@ class SnapshotProvider(Provider):
 @accepts(h.ref('volume'), h.one_of(str, None))
 class VolumeCreateTask(ProgressTask):
     def verify(self, volume, password=None):
-        if self.datastore.exists('volumes', ('name', '=', volume['name'])):
+        if self.datastore.exists('volumes', ('id', '=', volume['id'])):
             raise VerifyException(errno.EEXIST, 'Volume with same name already exists')
 
         return ['disk:{0}'.format(i) for i, _ in get_disks(volume['topology'])]
 
     def run(self, volume, password=None):
-        name = volume['name']
+        name = volume['id']
         type = volume.get('type', 'zfs')
         params = volume.get('params') or {}
+        mount = params.get('mount', True)
         mountpoint = params.pop(
             'mountpoint',
-            os.path.join(VOLUMES_ROOT, volume['name'])
+            os.path.join(VOLUMES_ROOT, volume['id'])
         )
         encryption = params.pop('encryption', False)
 
@@ -475,19 +454,24 @@ class VolumeCreateTask(ProgressTask):
 
         subtasks = []
         for dname, dgroup in get_disks(volume['topology']):
-            subtasks.append(self.run_subtask('disk.format.gpt', dname, 'freebsd-zfs', {
+            disk_id = self.dispatcher.call_sync('disk.path_to_id', dname)
+            subtasks.append(self.run_subtask('disk.format.gpt', disk_id, 'freebsd-zfs', {
                 'blocksize': params.get('blocksize', 4096),
                 'swapsize': params.get('swapsize', 2048) if dgroup == 'data' else 0
             }))
 
         self.join_subtasks(*subtasks)
 
+        disk_ids = []
+        for dname, dgroup in get_disks(volume['topology']):
+            disk_ids.append(self.dispatcher.call_sync('disk.path_to_id', dname))
+
         self.set_progress(20)
 
         if encryption:
             subtasks = []
-            for dname, dgroup in get_disks(volume['topology']):
-                subtasks.append(self.run_subtask('disk.geli.init', dname, {
+            for disk_id in disk_ids:
+                subtasks.append(self.run_subtask('disk.geli.init', disk_id, {
                     'key': key,
                     'password': password
                 }))
@@ -495,8 +479,8 @@ class VolumeCreateTask(ProgressTask):
             self.set_progress(30)
 
             subtasks = []
-            for dname, dgroup in get_disks(volume['topology']):
-                subtasks.append(self.run_subtask('disk.geli.attach', dname, {
+            for disk_id in disk_ids:
+                subtasks.append(self.run_subtask('disk.geli.attach', disk_id, {
                     'key': key,
                     'password': password
                 }))
@@ -516,19 +500,20 @@ class VolumeCreateTask(ProgressTask):
             ))
 
             self.join_subtasks(self.run_subtask(
-                'zfs.configure',
+                'zfs.update',
                 name, name,
                 {'org.freenas:permissions_type': {'value': 'PERM'}}
             ))
 
             self.set_progress(60)
-            self.join_subtasks(self.run_subtask('zfs.mount', name))
+            if mount:
+                self.join_subtasks(self.run_subtask('zfs.mount', name))
             self.set_progress(80)
 
             pool = self.dispatcher.call_sync('zfs.pool.query', [('name', '=', name)], {'single': True})
             id = self.datastore.insert('volumes', {
-                'id': str(pool['guid']),
-                'name': name,
+                'id': name,
+                'guid': str(pool['guid']),
                 'type': type,
                 'mountpoint': mountpoint,
                 'topology': volume['topology'],
@@ -552,7 +537,7 @@ class VolumeCreateTask(ProgressTask):
 @accepts(str, str, str, h.array(str), h.array(str), h.array(str), h.one_of(bool, None), h.one_of(str, None))
 class VolumeAutoCreateTask(Task):
     def verify(self, name, type, layout, disks, cache_disks=None, log_disks=None, encryption=False, password=None):
-        if self.datastore.exists('volumes', ('name', '=', name)):
+        if self.datastore.exists('volumes', ('id', '=', name)):
             raise VerifyException(
                 errno.EEXIST,
                 'Volume with same name already exists'
@@ -597,7 +582,7 @@ class VolumeAutoCreateTask(Task):
         self.join_subtasks(self.run_subtask(
             'volume.create',
             {
-                'name': name,
+                'id': name,
                 'type': type,
                 'topology': {
                     'data': vdevs,
@@ -615,33 +600,35 @@ class VolumeAutoCreateTask(Task):
 @description("Destroys active volume")
 @accepts(str)
 class VolumeDestroyTask(Task):
-    def verify(self, name):
-        if not self.datastore.exists('volumes', ('name', '=', name)):
+    def verify(self, id):
+        vol = self.datastore.get_by_id('volumes', id)
+        if not vol:
             raise VerifyException(errno.ENOENT, 'Volume {0} not found'.format(id))
 
         try:
-            disks = self.dispatcher.call_sync('volume.get_volume_disks', name)
+            disks = self.dispatcher.call_sync('volume.get_volume_disks', id)
             return ['disk:{0}'.format(d) for d in disks]
         except RpcException:
             return []
 
-    def run(self, name):
-        vol = self.datastore.get_one('volumes', ('name', '=', name))
+    def run(self, id):
+        vol = self.datastore.get_by_id('volumes', id)
         encryption = vol.get('encryption', {})
-        config = self.dispatcher.call_sync('volume.get_config', name)
+        config = self.dispatcher.call_sync('zfs.pool.query', [('id', '=', id)], {'single': True})
 
-        self.dispatcher.run_hook('volume.pre_destroy', {'name': name})
+        self.dispatcher.run_hook('volume.pre_destroy', {'name': id})
 
         with self.dispatcher.get_lock('volumes'):
             if config:
-                self.join_subtasks(self.run_subtask('zfs.umount', name))
-                self.join_subtasks(self.run_subtask('zfs.pool.destroy', name))
+                self.join_subtasks(self.run_subtask('zfs.umount', id))
+                self.join_subtasks(self.run_subtask('zfs.pool.destroy', id))
 
             if encryption.get('key', None) is not None:
                 subtasks = []
                 if 'topology' in vol:
                     for dname, _ in get_disks(vol['topology']):
-                        subtasks.append(self.run_subtask('disk.geli.kill', dname))
+                        disk_id = self.dispatcher.call_sync('disk.path_to_id', dname)
+                        subtasks.append(self.run_subtask('disk.geli.kill', disk_id))
                     self.join_subtasks(*subtasks)
 
             self.datastore.delete('volumes', vol['id'])
@@ -654,49 +641,52 @@ class VolumeDestroyTask(Task):
 @description("Updates configuration of existing volume")
 @accepts(str, h.ref('volume'), h.one_of(str, None))
 class VolumeUpdateTask(Task):
-    def verify(self, name, updated_params, password=None):
-        if not self.datastore.exists('volumes', ('name', '=', name)):
-            raise VerifyException(errno.ENOENT, 'Volume {0} not found'.format(name))
+    def verify(self, id, updated_params, password=None):
+        vol = self.datastore.get_by_id('volumes', id)
+        if not vol:
+            raise VerifyException(errno.ENOENT, 'Volume {0} not found'.format(id))
 
         topology = updated_params.get('topology')
         if not topology:
-            disks = self.dispatcher.call_sync('volume.get_volume_disks', name)
+            disks = self.dispatcher.call_sync('volume.get_volume_disks', id)
             return ['disk:{0}'.format(d) for d in disks]
 
         return ['disk:{0}'.format(i) for i, _ in get_disks(topology)]
 
-    def run(self, name, updated_params, password=None):
+    def run(self, id, updated_params, password=None):
         if password is None:
             password = ''
 
-        volume = self.datastore.get_one('volumes', ('name', '=', name))
+        volume = self.datastore.get_by_id('volumes', id)
         encryption = volume.get('encryption')
         if not volume:
-            raise TaskException(errno.ENOENT, 'Volume {0} not found'.format(name))
+            raise TaskException(errno.ENOENT, 'Volume {0} not found'.format(id))
 
         if 'name' in updated_params:
             # Renaming pool. Need to export and import again using different name
             new_name = updated_params['name']
-            self.dispatcher.run_hook('volume.pre_rename', {'name': name, 'new_name': new_name})
+            self.dispatcher.run_hook('volume.pre_rename', {'name': id, 'new_name': new_name})
+
             # Rename mountpoint
-            self.join_subtasks(self.run_subtask('zfs.configure', name, name, {
+            self.join_subtasks(self.run_subtask('zfs.update', id, id, {
                 'mountpoint': {'value': '{0}/{1}'.format(VOLUMES_ROOT, new_name)}
             }))
 
-            self.join_subtasks(self.run_subtask('zfs.pool.export', name))
-            self.join_subtasks(self.run_subtask('zfs.pool.import', volume['id'], new_name))
+            self.join_subtasks(self.run_subtask('zfs.pool.export', id))
+            self.join_subtasks(self.run_subtask('zfs.pool.import', volume['guid'], new_name))
 
             # Configure newly imported volume
-            self.join_subtasks(self.run_subtask('zfs.configure', new_name, new_name, {}))
-
+            self.join_subtasks(self.run_subtask('zfs.update', new_name, new_name, {}))
             self.join_subtasks(self.run_subtask('zfs.mount', new_name))
 
-            volume['name'] = new_name
+            volume['id'] = new_name
             self.datastore.update('volumes', volume['id'], volume)
-            self.dispatcher.run_hook('volume.post_rename', {'name': name,
-                                                            'mountpoint': '{0}/{1}'.format(VOLUMES_ROOT, name),
-                                                            'new_name': new_name,
-                                                            'new_mountpoint': '{0}/{1}'.format(VOLUMES_ROOT, new_name)})
+            self.dispatcher.run_hook('volume.post_rename', {
+                'name': id,
+                'mountpoint': os.path.join(VOLUMES_ROOT, id),
+                'new_name': new_name,
+                'new_mountpoint': os.path.join(VOLUMES_ROOT, new_name)
+            })
 
         if 'topology' in updated_params:
             new_vdevs = {}
@@ -705,7 +695,7 @@ class VolumeUpdateTask(Task):
             subtasks = []
             old_topology = self.dispatcher.call_sync(
                 'volume.query',
-                [('name', '=', name)],
+                [('id', '=', id)],
                 {'single': True, 'select': 'topology'}
             )
 
@@ -723,9 +713,10 @@ class VolumeUpdateTask(Task):
                             if not is_password(password,
                                                encryption.get('salt', ''),
                                                encryption.get('hashed_password', '')):
-                                raise TaskException(errno.EINVAL,
-                                                    'Password provided for volume {0} configuration update is not valid'
-                                                    .format(name))
+                                raise TaskException(
+                                    errno.EINVAL,
+                                    'Password provided for volume {0} configuration update is not valid'.format(id)
+                                )
                         new_vdevs.setdefault(group, []).append(vdev)
                         continue
 
@@ -780,57 +771,85 @@ class VolumeUpdateTask(Task):
                             if vdev['type'] == 'disk':
                                 new_topology.append({'type': vdev['type'], 'path': vdev['path'], 'guid': vdev['guid']})
                             else:
-                                new_topology.append({'type': vdev['type'],
-                                                     'children': vdev['children'],
-                                                     'guid': vdev['guid']})
+                                new_topology.append({
+                                    'type': vdev['type'],
+                                    'children': vdev['children'],
+                                    'guid': vdev['guid']
+                                })
 
             for vdev, group in iterate_vdevs(new_vdevs):
                 if vdev['type'] == 'disk':
-                    subtasks.append(self.run_subtask('disk.format.gpt', vdev['path'], 'freebsd-zfs', {
-                        'blocksize': params.get('blocksize', 4096),
-                        'swapsize': params.get('swapsize', 2048) if group == 'data' else 0
-                    }))
+                    subtasks.append(self.run_subtask(
+                        'disk.format.gpt',
+                        self.dispatcher.call_sync('disk.path_to_id', vdev['path']),
+                        'freebsd-zfs',
+                        {
+                            'blocksize': params.get('blocksize', 4096),
+                            'swapsize': params.get('swapsize', 2048) if group == 'data' else 0
+                        }
+                    ))
 
             for vdev in updated_vdevs:
-                subtasks.append(self.run_subtask('disk.format.gpt', vdev['vdev']['path'], 'freebsd-zfs', {
-                    'blocksize': params.get('blocksize', 4096),
-                    'swapsize': params.get('swapsize', 2048)
-                }))
+                subtasks.append(self.run_subtask(
+                    'disk.format.gpt',
+                    self.dispatcher.call_sync('disk.path_to_id', vdev['vdev']['path']),
+                    'freebsd-zfs',
+                    {
+                        'blocksize': params.get('blocksize', 4096),
+                        'swapsize': params.get('swapsize', 2048)
+                    }
+                ))
 
             self.join_subtasks(*subtasks)
 
             if encryption['key'] is not None:
                 subtasks = []
                 for vdev, group in iterate_vdevs(new_vdevs):
-                    subtasks.append(self.run_subtask('disk.geli.init', vdev['path'], {
-                        'key': encryption['key'],
-                        'password': password
-                    }))
+                    subtasks.append(self.run_subtask(
+                        'disk.geli.init',
+                        self.dispatcher.call_sync('disk.path_to_id', vdev['path']),
+                        {
+                            'key': encryption['key'],
+                            'password': password
+                        }
+                    ))
                 self.join_subtasks(*subtasks)
 
                 if encryption['slot'] is not 0:
                     subtasks = []
                     for vdev, group in iterate_vdevs(new_vdevs):
-                        subtasks.append(self.run_subtask('disk.geli.ukey.set', vdev['path'], {
-                            'key': encryption['key'],
-                            'password': password,
-                            'slot': 1
-                        }))
+                        subtasks.append(self.run_subtask(
+                            'disk.geli.ukey.set',
+                            self.dispatcher.call_sync('disk.path_to_id', vdev['path']),
+                            {
+                                'key': encryption['key'],
+                                'password': password,
+                                'slot': 1
+                            }
+                        ))
                     self.join_subtasks(*subtasks)
 
                     subtasks = []
                     for vdev, group in iterate_vdevs(new_vdevs):
-                        subtasks.append(self.run_subtask('disk.geli.ukey.del', vdev['path'], 0))
+                        subtasks.append(self.run_subtask(
+                            'disk.geli.ukey.del',
+                            self.dispatcher.call_sync('disk.path_to_id', vdev['path']),
+                            0
+                        ))
                     self.join_subtasks(*subtasks)
 
-                vol = self.dispatcher.call_sync('volume.query', [('name', '=', name)], {'single': True})
+                vol = self.dispatcher.call_sync('volume.query', [('id', '=', id)], {'single': True})
                 if vol.get('providers_presence', 'NONE') != 'NONE':
                     subtasks = []
                     for vdev, group in iterate_vdevs(new_vdevs):
-                        subtasks.append(self.run_subtask('disk.geli.attach', vdev['path'], {
-                            'key': encryption['key'],
-                            'password': password
-                        }))
+                        subtasks.append(self.run_subtask(
+                            'disk.geli.attach',
+                            self.dispatcher.call_sync('disk.path_to_id', vdev['path']),
+                            {
+                                'key': encryption['key'],
+                                'password': password
+                            }
+                        ))
                     self.join_subtasks(*subtasks)
 
             new_vdevs_gptids = convert_topology_to_gptids(self.dispatcher, new_vdevs)
@@ -840,7 +859,7 @@ class VolumeUpdateTask(Task):
 
             self.join_subtasks(self.run_subtask(
                 'zfs.pool.extend',
-                name,
+                id,
                 new_vdevs_gptids,
                 updated_vdevs)
             )
@@ -869,20 +888,28 @@ class VolumeImportTask(Task):
     def verify(self, id, new_name, params=None, enc_params=None, password=None):
         if enc_params is None:
             enc_params = {}
+
         if self.datastore.exists('volumes', ('id', '=', id)):
             raise VerifyException(
                 errno.ENOENT,
                 'Volume with id {0} already exists'.format(id)
             )
 
-        if self.datastore.exists('volumes', ('name', '=', new_name)):
+        if self.datastore.exists('volumes', ('id', '=', new_name)):
             raise VerifyException(
                 errno.ENOENT,
-                'Volume with name {0} already exists'.format(new_name)
+                'Volume with id {0} already exists'.format(new_name)
             )
 
         if enc_params.get('key', None) is None:
-            return self.verify_subtask('zfs.pool.import', id)
+            return self.verify_subtask(
+                'zfs.pool.import',
+                self.dispatcher.call_sync(
+                    'volume.query',
+                    [('id', '=', id)],
+                    {'single': True, 'select': 'guid'}
+                )
+            )
         else:
             disks = enc_params.get('disks', None)
             if disks is None:
@@ -896,6 +923,7 @@ class VolumeImportTask(Task):
     def run(self, id, new_name, params=None, enc_params=None, password=None):
         if enc_params is None:
             enc_params = {}
+
         with self.dispatcher.get_lock('volumes'):
             key = enc_params.get('key', None)
             if key is not None:
@@ -911,7 +939,8 @@ class VolumeImportTask(Task):
 
                 attach_params = {'key': key, 'password': password}
                 for dname in disks:
-                    self.join_subtasks(self.run_subtask('disk.geli.attach', dname, attach_params))
+                    disk_id = self.dispatcher.call_sync('disk.path_to_id', dname)
+                    self.join_subtasks(self.run_subtask('disk.geli.attach', disk_id, attach_params))
 
                 real_id = None
                 pool_info = self.dispatcher.call_sync('volume.find')
@@ -925,12 +954,16 @@ class VolumeImportTask(Task):
             else:
                 salt = None
                 digest = None
-                real_id = id
+                real_id = self.dispatcher.call_sync(
+                    'volume.query',
+                    [('id', '=', id)],
+                    {'single': True, 'select': 'guid'}
+                )
 
             mountpoint = os.path.join(VOLUMES_ROOT, new_name)
             self.join_subtasks(self.run_subtask('zfs.pool.import', real_id, new_name, params))
             self.join_subtasks(self.run_subtask(
-                'zfs.configure',
+                'zfs.update',
                 new_name,
                 new_name,
                 {'mountpoint': {'value': mountpoint}}
@@ -939,8 +972,8 @@ class VolumeImportTask(Task):
             self.join_subtasks(self.run_subtask('zfs.mount', new_name, True))
 
             new_id = self.datastore.insert('volumes', {
-                'id': real_id,
-                'name': new_name,
+                'id': new_name,
+                'guid': real_id,
                 'type': 'zfs',
                 'encryption': {
                     'key': key if key else None,
@@ -1014,26 +1047,31 @@ class VolumeDiskImportTask(ProgressTask):
 @description("Exports active volume")
 @accepts(str)
 class VolumeDetachTask(Task):
-    def verify(self, name):
-        if not self.datastore.exists('volumes', ('name', '=', name)):
-            raise VerifyException(errno.ENOENT, 'Volume {0} not found'.format(name))
+    def verify(self, id):
+        vol = self.datastore.get_by_id('volumes', id)
+        if not vol:
+            raise VerifyException(errno.ENOENT, 'Volume {0} not found'.format(id))
 
-        return ['disk:{0}'.format(d) for d in self.dispatcher.call_sync('volume.get_volume_disks', name)]
+        return ['disk:{0}'.format(d) for d in self.dispatcher.call_sync('volume.get_volume_disks', vol['id'])]
 
-    def run(self, name):
+    def run(self, id):
+        vol = self.datastore.get_by_id('volumes', id)
+        if not vol:
+            raise TaskException(errno.ENOENT, 'Volume {0} not found'.format(id))
 
-        self.dispatcher.run_hook('volume.pre_detach', {'name': name})
-        vol = self.datastore.get_one('volumes', ('name', '=', name))
-        disks = self.dispatcher.call_sync('volume.get_volume_disks', name)
-        self.join_subtasks(self.run_subtask('zfs.umount', name))
-        self.join_subtasks(self.run_subtask('zfs.pool.export', name))
+        self.dispatcher.run_hook('volume.pre_detach', {'name': id})
+        vol = self.datastore.get_by_id('volumes', id)
+        disks = self.dispatcher.call_sync('volume.get_volume_disks', id)
+        self.join_subtasks(self.run_subtask('zfs.umount', id))
+        self.join_subtasks(self.run_subtask('zfs.pool.export', id))
 
         encryption = vol.get('encryption')
 
         if encryption['key'] is not None:
             subtasks = []
             for dname in disks:
-                subtasks.append(self.run_subtask('disk.geli.detach', dname))
+                disk_id = self.dispatcher.call_sync('disk.path_to_id', dname)
+                subtasks.append(self.run_subtask('disk.geli.detach', disk_id))
             self.join_subtasks(*subtasks)
 
         self.datastore.delete('volumes', vol['id'])
@@ -1047,15 +1085,19 @@ class VolumeDetachTask(Task):
 @description("Upgrades volume to newest ZFS version")
 @accepts(str)
 class VolumeUpgradeTask(Task):
-    def verify(self, name):
-        if not self.datastore.exists('volumes', ('name', '=', name)):
-            raise VerifyException(errno.ENOENT, 'Volume {0} not found'.format(name))
+    def verify(self, id):
+        vol = self.datastore.get_by_id('volumes', id)
+        if not vol:
+            raise VerifyException(errno.ENOENT, 'Volume {0} not found'.format(id))
 
-        return ['disk:{0}'.format(d) for d in self.dispatcher.call_sync('volume.get_volume_disks', name)]
+        return ['disk:{0}'.format(d) for d in self.dispatcher.call_sync('volume.get_volume_disks', id)]
 
-    def run(self, name):
-        vol = self.datastore.get_one('volumes', ('name', '=', name))
-        self.join_subtasks(self.run_subtask('zfs.pool.upgrade', name))
+    def run(self, id):
+        vol = self.datastore.get_by_id('volumes', id)
+        if not vol:
+            raise TaskException(errno.ENOENT, 'Volume {0} not found'.format(id))
+
+        self.join_subtasks(self.run_subtask('zfs.pool.upgrade', id))
         self.dispatcher.dispatch_event('volume.changed', {
             'operation': 'update',
             'ids': [vol['id']]
@@ -1064,17 +1106,21 @@ class VolumeUpgradeTask(Task):
 
 @accepts(str, h.ref('zfs-vdev'), h.one_of(str, None))
 class VolumeAutoReplaceTask(Task):
-    def verify(self, name, failed_vdev, password=None):
-        if not self.datastore.exists('volumes', ('name', '=', name)):
-            raise VerifyException(errno.ENOENT, 'Volume {0} not found'.format(name))
+    def verify(self, id, failed_vdev, password=None):
+        vol = self.datastore.get_by_id('volumes', id)
+        if not vol:
+            raise VerifyException(errno.ENOENT, 'Volume {0} not found'.format(id))
 
-        return ['zpool:{0}'.format(name)]
+        return ['zpool:{0}'.format(id)]
 
-    def run(self, name, failed_vdev, password=None):
+    def run(self, id, failed_vdev, password=None):
+        vol = self.dispatcher.call_sync('volume.query', [('id', '=', id)], {'single': True})
+        if not vol:
+            raise VerifyException(errno.ENOENT, 'Volume {0} not found'.format(id))
+
         empty_disks = self.dispatcher.call_sync('disk.query', [('status.empty', '=', True)])
-        vdev = self.dispatcher.call_sync('zfs.pool.vdev_by_guid', name, failed_vdev)
+        vdev = self.dispatcher.call_sync('zfs.pool.vdev_by_guid', id, failed_vdev)
         minsize = vdev['stats']['size']
-        vol = self.dispatcher.call_sync('volume.query', [('name', '=', name)], {'single': True})
 
         if self.configstore.get('storage.hotsparing.strong_match'):
             pass
@@ -1083,31 +1129,31 @@ class VolumeAutoReplaceTask(Task):
             disk = first_or_default(lambda d: d['mediasize'] > minsize, matching_disks)
 
             if disk:
-                self.join_subtasks(self.run_subtask('disk.format.gpt', disk['path'], 'freebsd-zfs', {'swapsize': 2048}))
-                disk = self.dispatcher.call_sync('disk.query', [('id', '=', disk['id'])], {'single': True})
+                self.join_subtasks(self.run_subtask('disk.format.gpt', disk['id'], 'freebsd-zfs', {'swapsize': 2048}))
+                disk = self.dispatcher.call_sync('disk.path_to_id', disk['path'])
                 if vol.get('encrypted', False):
                     encryption = vol['encryption']
-                    self.join_subtasks(self.run_subtask('disk.geli.init', disk['path'], {
+                    self.join_subtasks(self.run_subtask('disk.geli.init', disk['id'], {
                         'key': encryption['key'],
                         'password': password
                     }))
 
                     if encryption['slot'] is not 0:
-                        self.join_subtasks(self.run_subtask('disk.geli.ukey.set', disk['path'], {
+                        self.join_subtasks(self.run_subtask('disk.geli.ukey.set', disk['id'], {
                             'key': encryption['key'],
                             'password': password,
                             'slot': 1
                         }))
 
-                        self.join_subtasks(self.run_subtask('disk.geli.ukey.del', disk['path'], 0))
+                        self.join_subtasks(self.run_subtask('disk.geli.ukey.del', disk['id'], 0))
 
                     if vol.get('providers_presence', 'NONE') != 'NONE':
-                        self.join_subtasks(self.run_subtask('disk.geli.attach', disk['path'], {
+                        self.join_subtasks(self.run_subtask('disk.geli.attach', disk['id'], {
                             'key': encryption['key'],
                             'password': password
                         }))
 
-                self.join_subtasks(self.run_subtask('zfs.pool.replace', name, failed_vdev, {
+                self.join_subtasks(self.run_subtask('zfs.pool.replace', id, failed_vdev, {
                     'type': 'disk',
                     'path': disk['status']['data_partition_path']
                 }))
@@ -1118,37 +1164,46 @@ class VolumeAutoReplaceTask(Task):
 @description("Locks encrypted ZFS volume")
 @accepts(str)
 class VolumeLockTask(Task):
-    def verify(self, name):
-        if not self.datastore.exists('volumes', ('name', '=', name)):
-            raise VerifyException(errno.ENOENT, 'Volume {0} not found'.format(name))
-
-        vol = self.dispatcher.call_sync('volume.query', [('name', '=', name)], {'single': True})
+    def verify(self, id):
+        vol = self.dispatcher.call_sync('volume.query', [('id', '=', id)], {'single': True})
+        if not vol:
+            raise VerifyException(errno.ENOENT, 'Volume {0} not found'.format(id))
 
         encryption = vol.get('encryption')
 
         if encryption['key'] is None:
-            raise VerifyException(errno.EINVAL, 'Volume {0} is not encrypted'.format(name))
+            raise VerifyException(errno.EINVAL, 'Volume {0} is not encrypted'.format(id))
 
         if vol.get('providers_presence', 'NONE') == 'NONE':
-            raise VerifyException(errno.EINVAL, 'Volume {0} does not have any unlocked providers'.format(name))
+            raise VerifyException(errno.EINVAL, 'Volume {0} does not have any unlocked providers'.format(id))
 
-        return ['disk:{0}'.format(d) for d in self.dispatcher.call_sync('volume.get_volume_disks', name)]
+        return ['disk:{0}'.format(d) for d in self.dispatcher.call_sync('volume.get_volume_disks', id)]
 
-    def run(self, name):
-        self.dispatcher.run_hook('volume.pre_detach', {'name': name})
+    def run(self, id):
+        vol = self.dispatcher.call_sync('volume.query', [('id', '=', id)], {'single': True})
+        if not vol:
+            raise TaskException(errno.ENOENT, 'Volume {0} not found'.format(id))
+
+        self.dispatcher.run_hook('volume.pre_detach', {'name': id})
+
         with self.dispatcher.get_lock('volumes'):
-            vol = self.dispatcher.call_sync('volume.query', [('name', '=', name)], {'single': True})
-            self.join_subtasks(self.run_subtask('zfs.umount', name))
-            self.join_subtasks(self.run_subtask('zfs.pool.export', name))
+            self.join_subtasks(self.run_subtask('zfs.umount', id))
+            self.join_subtasks(self.run_subtask('zfs.pool.export', id))
 
             subtasks = []
             for vdev, _ in iterate_vdevs(vol['topology']):
                 if vol['providers_presence'] == 'PART':
                     vdev_conf = self.dispatcher.call_sync('disk.get_disk_config', vdev)
                     if vdev_conf.get('encrypted', False) is True:
-                        subtasks.append(self.run_subtask('disk.geli.detach', vdev['path']))
+                        subtasks.append(self.run_subtask(
+                            'disk.geli.detach',
+                            self.dispatcher.call_sync('disk.path_to_id', vdev['path'])
+                        ))
                 else:
-                    subtasks.append(self.run_subtask('disk.geli.detach', vdev['path']))
+                    subtasks.append(self.run_subtask(
+                        'disk.geli.detach',
+                        self.dispatcher.call_sync('disk.path_to_id', vdev['path'])
+                    ))
             self.join_subtasks(*subtasks)
 
             self.dispatcher.dispatch_event('volume.changed', {
@@ -1164,14 +1219,14 @@ class VolumeLockTask(Task):
 )
 class VolumeAutoImportTask(Task):
     def verify(self, volume, scope):
-        if not self.datastore.exists('volumes', ('name', '=', volume)):
+        if not self.datastore.exists('volumes', ('id', '=', volume)):
             raise VerifyException(errno.ENOENT, 'Volume {0} not found'.format(volume))
 
         return ['zpool:{0}'.format(volume)]
 
     def run(self, volume, scope):
         with self.dispatcher.get_lock('volumes'):
-            vol = self.dispatcher.call_sync('volume.query', [('name', '=', volume)], {'single': True})
+            vol = self.dispatcher.call_sync('volume.query', [('id', '=', volume)], {'single': True})
             share_types = self.dispatcher.call_sync('share.supported_types')
             container_types = self.dispatcher.call_sync('container.supported_types')
             imported = {
@@ -1199,83 +1254,69 @@ class VolumeAutoImportTask(Task):
                         item_type = config.get('type', '')
                         if item_type != '':
 
-                            if item_type in share_types:
-                                if scope in ['all', 'shares']:
-                                    try:
-                                        self.join_subtasks(self.run_subtask(
-                                            'share.import',
-                                            root,
-                                            config.get('name', ''),
+                            if scope in ['all', 'shares'] and item_type in share_types:
+                                try:
+                                    self.join_subtasks(self.run_subtask(
+                                        'share.import',
+                                        root,
+                                        config.get('name', ''),
+                                        item_type
+                                    ))
+
+                                    imported['shares'].append(
+                                        {
+                                            'path': config_path,
+                                            'type': item_type,
+                                            'name': config.get('name', '')
+                                        }
+                                    )
+                                except RpcException as err:
+                                    self.add_warning(
+                                        TaskWarning(
+                                            err.code,
+                                            'Share import from {0} failed. Message: {1}'.format(
+                                                config_path,
+                                                err.message
+                                            )
+                                        )
+                                    )
+                                    continue
+                            elif scope in ['all', 'containers'] and item_type in container_types:
+                                try:
+                                    self.join_subtasks(self.run_subtask(
+                                        'container.import',
+                                        config.get('name', ''),
+                                        volume
+                                    ))
+
+                                    imported['containers'].append(
+                                        {
+                                            'type': item_type,
+                                            'name': config.get('name', '')
+                                        }
+                                    )
+                                except RpcException as err:
+                                    self.add_warning(
+                                        TaskWarning(
+                                            err.code,
+                                            'Container import from {0} failed. Message: {1}'.format(
+                                                config_path,
+                                                err.message
+                                            )
+                                        )
+                                    )
+                                    continue
+                            elif item_type not in itertools.chain(share_types, container_types):
+                                self.add_warning(
+                                    TaskWarning(
+                                        errno.EINVAL,
+                                        'Import from {0} failed because {1} is unsupported share/container type'.format(
+                                            config_path,
                                             item_type
-                                        ))
-
-                                        imported['shares'].append(
-                                            {
-                                                'path': config_path,
-                                                'type': item_type,
-                                                'name': config.get('name', '')
-                                            }
-                                        )
-                                    except RpcException as err:
-                                        self.add_warning(
-                                            TaskWarning(
-                                                err.code,
-                                                'Share import from {0} failed. Message: {1}'.format(
-                                                    config_path,
-                                                    err.message
-                                                )
-                                            )
-                                        )
-                                        continue
-                                else:
-                                    self.add_warning(
-                                        TaskWarning(
-                                            errno.EINVAL,
-                                            'Share import from {0} failed because {1} is unsupported share type'.format(
-                                                config_path,
-                                                item_type
-                                            )
                                         )
                                     )
-                                    continue
-
-                            elif item_type in container_types:
-                                if scope in ['all', 'containers']:
-                                    try:
-                                        self.join_subtasks(self.run_subtask(
-                                            'container.import',
-                                            config.get('name', ''),
-                                            volume
-                                        ))
-
-                                        imported['containers'].append(
-                                            {
-                                                'type': item_type,
-                                                'name': config.get('name', '')
-                                            }
-                                        )
-                                    except RpcException as err:
-                                        self.add_warning(
-                                            TaskWarning(
-                                                err.code,
-                                                'Container import from {0} failed. Message: {1}'.format(
-                                                    config_path,
-                                                    err.message
-                                                )
-                                            )
-                                        )
-                                        continue
-                                else:
-                                    self.add_warning(
-                                        TaskWarning(
-                                            errno.EINVAL,
-                                            'Container import from {0} failed because {1} is unsupported container type'.format(
-                                                config_path,
-                                                item_type
-                                            )
-                                        )
-                                    )
-                                    continue
+                                )
+                                continue
                         else:
                             self.add_warning(
                                 TaskWarning(
@@ -1286,7 +1327,7 @@ class VolumeAutoImportTask(Task):
                             continue
 
             if scope in ['all', 'system']:
-                if self.dispatcher.call_sync('zfs.dataset.query', [('pool', '=', volume), ('name', '~', '.system')], {'single': True}):
+                if self.dispatcher.call_sync('zfs.dataset.query', [('volume', '=', volume), ('name', '~', '.system')], {'single': True}):
                     try:
                         self.join_subtasks(self.run_subtask(
                             'system_dataset.import',
@@ -1296,7 +1337,7 @@ class VolumeAutoImportTask(Task):
                         imported['system'].append(
                             {
                                 'id': status['id'],
-                                'pool': volume
+                                'volume': volume
                             }
                         )
                     except RpcException as err:
@@ -1316,93 +1357,100 @@ class VolumeAutoImportTask(Task):
 @description("Unlocks encrypted ZFS volume")
 @accepts(str, h.one_of(str, None), h.object())
 class VolumeUnlockTask(Task):
-    def verify(self, name, password=None, params=None):
-        if not self.datastore.exists('volumes', ('name', '=', name)):
-            raise VerifyException(errno.ENOENT, 'Volume {0} not found'.format(name))
+    def verify(self, id, password=None, params=None):
+        if not self.datastore.exists('volumes', ('id', '=', id)):
+            raise VerifyException(errno.ENOENT, 'Volume {0} not found'.format(id))
 
-        vol = self.dispatcher.call_sync('volume.query', [('name', '=', name)], {'single': True})
-
+        vol = self.dispatcher.call_sync('volume.query', [('id', '=', id)], {'single': True})
         encryption = vol.get('encryption')
 
         if encryption['key'] is None:
-            raise VerifyException(errno.EINVAL, 'Volume {0} is not encrypted'.format(name))
+            raise VerifyException(errno.EINVAL, 'Volume {0} is not encrypted'.format(id))
 
         if vol.get('providers_presence', 'ALL') == 'ALL':
-            raise VerifyException(errno.EINVAL, 'Volume {0} does not have any locked providers'.format(name))
+            raise VerifyException(errno.EINVAL, 'Volume {0} does not have any locked providers'.format(id))
 
         if encryption['hashed_password'] is not None:
             if password is None:
                 raise VerifyException(errno.EINVAL, 'Volume {0} is protected with password. Provide a valid password.'
-                                      .format(name))
+                                      .format(id))
             if not is_password(password,
                                encryption.get('salt', ''),
                                encryption.get('hashed_password', '')):
-                raise VerifyException(errno.EINVAL, 'Password provided for volume {0} unlock is not valid'.format(name))
+                raise VerifyException(errno.EINVAL, 'Password provided for volume {0} unlock is not valid'.format(id))
 
         return ['disk:{0}'.format(d) for d, _ in get_disks(vol['topology'])]
 
-    def run(self, name, password=None, params=None):
+    def run(self, id, password=None, params=None):
         with self.dispatcher.get_lock('volumes'):
-            vol = self.dispatcher.call_sync('volume.query', [('name', '=', name)], {'single': True})
+            vol = self.dispatcher.call_sync('volume.query', [('id', '=', id)], {'single': True})
 
             subtasks = []
             for vdev, _ in iterate_vdevs(vol['topology']):
                 if vol['providers_presence'] == 'PART':
                     vdev_conf = self.dispatcher.call_sync('disk.get_disk_config', vdev)
                     if vdev_conf.get('encrypted', False) is False:
-                        subtasks.append(self.run_subtask('disk.geli.attach', vdev['path'], {
+                        subtasks.append(self.run_subtask(
+                            'disk.geli.attach',
+                            self.dispatcher.call_sync('disk.path_to_id', vdev['path']),
+                            {
+                                'key': vol['encryption']['key'],
+                                'password': password
+                            }
+                        ))
+                else:
+                    subtasks.append(self.run_subtask(
+                        'disk.geli.attach',
+                        self.dispatcher.call_sync('disk.path_to_id', vdev['path']),
+                        {
                             'key': vol['encryption']['key'],
                             'password': password
-                        }))
-                else:
-                    subtasks.append(self.run_subtask('disk.geli.attach', vdev['path'], {
-                        'key': vol['encryption']['key'],
-                        'password': password
-                    }))
+                        }
+                    ))
             self.join_subtasks(*subtasks)
 
-            self.join_subtasks(self.run_subtask('zfs.pool.import', vol['id'], name, params))
+            self.join_subtasks(self.run_subtask('zfs.pool.import', vol['guid'], id, params))
             self.join_subtasks(self.run_subtask(
-                'zfs.configure',
-                name,
-                name,
+                'zfs.update',
+                id,
+                id,
                 {'mountpoint': {'value': vol['mountpoint']}}
             ))
 
-            self.join_subtasks(self.run_subtask('zfs.mount', name))
+            self.join_subtasks(self.run_subtask('zfs.mount', id))
 
             self.dispatcher.dispatch_event('volume.changed', {
                 'operation': 'update',
                 'ids': [vol['id']]
             })
 
-        self.dispatcher.run_hook('volume.post_attach', {'name': name})
+        self.dispatcher.run_hook('volume.post_attach', {'name': id})
 
 
 @description("Generates and sets new key for encrypted ZFS volume")
 @accepts(str, h.one_of(str, None))
 class VolumeRekeyTask(Task):
-    def verify(self, name, password=None):
-        if not self.datastore.exists('volumes', ('name', '=', name)):
-            raise VerifyException(errno.ENOENT, 'Volume {0} not found'.format(name))
+    def verify(self, id, password=None):
+        if not self.datastore.exists('volumes', ('id', '=', id)):
+            raise VerifyException(errno.ENOENT, 'Volume {0} not found'.format(id))
 
-        vol = self.dispatcher.call_sync('volume.query', [('name', '=', name)], {'single': True})
+        vol = self.dispatcher.call_sync('volume.query', [('id', '=', id)], {'single': True})
 
         encryption = vol.get('encryption')
 
         if encryption['key'] is None:
-            raise VerifyException(errno.EINVAL, 'Volume {0} is not encrypted'.format(name))
+            raise VerifyException(errno.EINVAL, 'Volume {0} is not encrypted'.format(id))
 
         if vol.get('providers_presence', 'NONE') != 'ALL':
-            raise VerifyException(errno.EINVAL, 'Every provider associated with volume {0} must be online'.format(name))
+            raise VerifyException(errno.EINVAL, 'Every provider associated with volume {0} must be online'.format(id))
 
-        return ['disk:{0}'.format(d) for d in self.dispatcher.call_sync('volume.get_volume_disks', name)]
+        return ['disk:{0}'.format(d) for d in self.dispatcher.call_sync('volume.get_volume_disks', id)]
 
-    def run(self, name, password=None):
+    def run(self, id, password=None):
         with self.dispatcher.get_lock('volumes'):
-            vol = self.datastore.get_one('volumes', ('name', '=', name))
+            vol = self.datastore.get_by_id('volumes', id)
             encryption = vol.get('encryption')
-            disks = self.dispatcher.call_sync('volume.get_volume_disks', name)
+            disks = self.dispatcher.call_sync('volume.get_volume_disks', id)
 
             key = base64.b64encode(os.urandom(64)).decode('utf-8')
             slot = 0 if encryption['slot'] is 1 else 1
@@ -1413,8 +1461,11 @@ class VolumeRekeyTask(Task):
                 digest = None
 
             subtasks = []
+            disk_ids = []
             for dname in disks:
-                subtasks.append(self.run_subtask('disk.geli.ukey.set', dname, {
+                disk_id = self.dispatcher.call_sync('disk.path_to_id', dname)
+                disk_ids.append(disk_id)
+                subtasks.append(self.run_subtask('disk.geli.ukey.set', disk_id, {
                     'key': key,
                     'password': password,
                     'slot': slot
@@ -1433,8 +1484,8 @@ class VolumeRekeyTask(Task):
             slot = 0 if encryption['slot'] is 1 else 1
 
             subtasks = []
-            for dname in disks:
-                subtasks.append(self.run_subtask('disk.geli.ukey.del', dname, slot))
+            for disk_id in disk_ids:
+                subtasks.append(self.run_subtask('disk.geli.ukey.del', disk_id, slot))
             self.join_subtasks(*subtasks)
 
             self.dispatcher.dispatch_event('volume.changed', {
@@ -1446,33 +1497,34 @@ class VolumeRekeyTask(Task):
 @description("Creates a backup file of Master Keys of encrypted volume")
 @accepts(str, str)
 class VolumeBackupKeysTask(Task):
-    def verify(self, name, out_path=None):
-        if not self.datastore.exists('volumes', ('name', '=', name)):
-            raise VerifyException(errno.ENOENT, 'Volume {0} not found'.format(name))
+    def verify(self, id, out_path=None):
+        if not self.datastore.exists('volumes', ('id', '=', id)):
+            raise VerifyException(errno.ENOENT, 'Volume {0} not found'.format(id))
 
-        vol = self.dispatcher.call_sync('volume.query', [('name', '=', name)], {'single': True})
+        vol = self.dispatcher.call_sync('volume.query', [('id', '=', id)], {'single': True})
 
         encryption = vol.get('encryption')
 
         if encryption['key'] is None:
-            raise VerifyException(errno.EINVAL, 'Volume {0} is not encrypted'.format(name))
+            raise VerifyException(errno.EINVAL, 'Volume {0} is not encrypted'.format(id))
 
         if vol.get('providers_presence', 'NONE') != 'ALL':
-            raise VerifyException(errno.EINVAL, 'Every provider associated with volume {0} must be online'.format(name))
+            raise VerifyException(errno.EINVAL, 'Every provider associated with volume {0} must be online'.format(id))
 
         if out_path is None:
             raise VerifyException(errno.EINVAL, 'Output file is not specified')
 
-        return ['disk:{0}'.format(d) for d in self.dispatcher.call_sync('volume.get_volume_disks', name)]
+        return ['disk:{0}'.format(d) for d in self.dispatcher.call_sync('volume.get_volume_disks', id)]
 
-    def run(self, name, out_path=None):
+    def run(self, id, out_path=None):
         with self.dispatcher.get_lock('volumes'):
-            disks = self.dispatcher.call_sync('volume.get_volume_disks', name)
+            disks = self.dispatcher.call_sync('volume.get_volume_disks', id)
             out_data = {}
 
             subtasks = []
             for dname in disks:
-                subtasks.append(self.run_subtask('disk.geli.mkey.backup', dname))
+                disk_id = self.dispatcher.call_sync('disk.path_to_id', dname)
+                subtasks.append(self.run_subtask('disk.geli.mkey.backup', disk_id))
             output = self.join_subtasks(*subtasks)
 
         for result in output:
@@ -1490,19 +1542,19 @@ class VolumeBackupKeysTask(Task):
 @description("Loads a backup file of Master Keys of encrypted volume")
 @accepts(str, h.one_of(str, None), str)
 class VolumeRestoreKeysTask(Task):
-    def verify(self, name, password=None, in_path=None):
-        if not self.datastore.exists('volumes', ('name', '=', name)):
-            raise VerifyException(errno.ENOENT, 'Volume {0} not found'.format(name))
+    def verify(self, id, password=None, in_path=None):
+        if not self.datastore.exists('volumes', ('id', '=', id)):
+            raise VerifyException(errno.ENOENT, 'Volume {0} not found'.format(id))
 
-        vol = self.dispatcher.call_sync('volume.query', [('name', '=', name)], {'single': True})
+        vol = self.dispatcher.call_sync('volume.query', [('id', '=', id)], {'single': True})
 
         encryption = vol.get('encryption')
 
         if encryption['key'] is None:
-            raise VerifyException(errno.EINVAL, 'Volume {0} is not encrypted'.format(name))
+            raise VerifyException(errno.EINVAL, 'Volume {0} is not encrypted'.format(id))
 
         if vol.get('providers_presence', 'ALL') != 'NONE':
-            raise VerifyException(errno.EINVAL, 'Volume {0} cannot have any online providers'.format(name))
+            raise VerifyException(errno.EINVAL, 'Volume {0} cannot have any online providers'.format(id))
 
         if in_path is None:
             raise VerifyException(errno.EINVAL, 'Input file is not specified')
@@ -1512,8 +1564,8 @@ class VolumeRestoreKeysTask(Task):
 
         return ['disk:{0}'.format(d) for d, _ in get_disks(vol['topology'])]
 
-    def run(self, name, password=None, in_path=None):
-        vol = self.datastore.get_one('volumes', ('name', '=', name))
+    def run(self, id, password=None, in_path=None):
+        vol = self.datastore.get_by_id('volumes', id)
         with open(in_path, 'rb') as in_file:
             enc_data = in_file.read()
 
@@ -1529,27 +1581,94 @@ class VolumeRestoreKeysTask(Task):
             for dname, dgroup in get_disks(vol['topology']):
                 disk = data.get(dname, None)
                 if disk is None:
-                    raise TaskException(errno.EINVAL, 'Disk {0} is not a part of volume {1}'.format(disk['disk'], name))
+                    raise TaskException(errno.EINVAL, 'Disk {0} is not a part of volume {1}'.format(disk['disk'], id))
 
-                subtasks.append(self.run_subtask('disk.geli.mkey.restore', disk))
+                disk_id = self.dispatcher.call_sync('disk.path_to_id', dname)
+
+                subtasks.append(self.run_subtask('disk.geli.mkey.restore', disk_id, disk))
 
             self.join_subtasks(*subtasks)
 
 
+@description("Scrubs the volume")
+@accepts(str)
+class VolumeScrubTask(MasterProgressTask):
+    def verify(self, id):
+        vol = self.dispatcher.call_sync('volume.query', [('id', '=', id)], {'single': True})
+        if not vol:
+            raise VerifyException(errno.ENOENT, 'Volume {0} not found'.format(id))
+
+        return ['disk:{0}'.format(d) for d, _ in get_disks(vol['topology'])]
+
+    def abort(self):
+        # We only have one task in here so just wait till it joins and/or ends
+        # to begin the abort
+        subtask = next(iter(self.progress_subtasks.values()))
+        while True:
+            if subtask.joining.wait(1):
+                break
+            if subtask.ended.wait(0.1):
+                break
+        self.abort_subtask(subtask.tid)
+
+    def run(self, id):
+        self.join_subtasks(self.run_subtask('zfs.pool.scrub', id))
+
+
+@description("Makes vdev in a volume offline")
+@accepts(str, str)
+class VolumeOfflineVdevTask(Task):
+    def verify(self, id, vdev_guid):
+        vol = self.dispatcher.call_sync('volume.query', [('id', '=', id)], {'single': True})
+        if not vol:
+            raise VerifyException(errno.ENOENT, 'Volume {0} not found'.format(id))
+
+        return ['disk:{0}'.format(d) for d, _ in get_disks(vol['topology'])]
+
+    def run(self, id, vdev_guid):
+        self.join_subtasks(self.run_subtask(
+            'zfs.pool.offline_disk',
+            id,
+            vdev_guid
+        ))
+
+
+@description("Makes vdev in a volume online")
+@accepts(str, str)
+class VolumeOnlineVdevTask(Task):
+    def verify(self, id, vdev_guid):
+        vol = self.dispatcher.call_sync('volume.query', [('id', '=', id)], {'single': True})
+        if not vol:
+            raise VerifyException(errno.ENOENT, 'Volume {0} not found'.format(id))
+
+        return ['disk:{0}'.format(d) for d, _ in get_disks(vol['topology'])]
+
+    def run(self, id, vdev_guid):
+        self.join_subtasks(self.run_subtask(
+            'zfs.pool.online_disk',
+            id,
+            vdev_guid
+        ))
+
+
 @description("Creates a dataset in an existing volume")
-@accepts(h.ref('dataset'))
+@accepts(h.all_of(
+    h.ref('volume-dataset'),
+    h.required('id', 'volume')
+))
 class DatasetCreateTask(Task):
     def verify(self, dataset):
-        if not self.datastore.exists('volumes', ('name', '=', dataset['pool'])):
-            raise VerifyException(errno.ENOENT, 'Volume {0} not found'.format(dataset['pool']))
+        if not self.datastore.exists('volumes', ('id', '=', dataset['volume'])):
+            raise VerifyException(errno.ENOENT, 'Volume {0} not found'.format(dataset['volume']))
 
-        return ['zpool:{0}'.format(dataset['pool'])]
+        return ['zpool:{0}'.format(dataset['volume'])]
 
     def run(self, dataset):
         props = {}
         normalize(dataset, {
             'type': 'FILESYSTEM',
             'permissions_type': 'CHMOD',
+            'mounted': True,
             'properties': {}
         })
 
@@ -1562,57 +1681,60 @@ class DatasetCreateTask(Task):
         if dataset['type'] == 'VOLUME':
             props['volsize'] = str(dataset['volsize'])
 
+        props['org.freenas:uuid'] = uuid.uuid4()
         self.join_subtasks(self.run_subtask(
             'zfs.create_dataset',
-            dataset['pool'],
-            dataset['name'],
+            dataset['volume'],
+            dataset['id'],
             dataset['type'],
             props
         ))
 
-        self.join_subtasks(self.run_subtask('zfs.mount', dataset['name']))
+        if dataset['mounted']:
+            self.join_subtasks(self.run_subtask('zfs.mount', dataset['id']))
 
         if dataset.get('permissions'):
-            path = os.path.join(VOLUMES_ROOT, dataset['name'])
+            path = os.path.join(VOLUMES_ROOT, dataset['id'])
             self.join_subtasks(self.run_subtask('file.set_permissions', path, dataset['permissions']))
 
 
 @description("Deletes an existing Dataset from a Volume")
-@accepts(str, str, bool)
+@accepts(str)
 class DatasetDeleteTask(Task):
-    def verify(self, pool_name, path, recursive=False):
-        if not self.datastore.exists('volumes', ('name', '=', pool_name)):
+    def verify(self, id):
+        pool_name, _, ds = id.partition('/')
+        if not self.datastore.exists('volumes', ('id', '=', pool_name)):
             raise VerifyException(errno.ENOENT, 'Volume {0} not found'.format(pool_name))
 
         return ['zpool:{0}'.format(pool_name)]
 
-    def run(self, pool_name, path, recursive=False):
-        if recursive:
-            deps = self.dispatcher.call_sync('zfs.dataset.get_dependencies', path)
+    def run(self, id):
+        deps = self.dispatcher.call_sync('zfs.dataset.get_dependencies', id)
 
-            for i in deps:
-                if i['type'] == 'FILESYSTEM':
-                    self.join_subtasks(self.run_subtask('zfs.umount', i['name']))
+        for i in deps:
+            if i['type'] == 'FILESYSTEM':
+                self.join_subtasks(self.run_subtask('zfs.umount', i['id']))
 
-                self.join_subtasks(self.run_subtask('zfs.destroy', i['name']))
+            self.join_subtasks(self.run_subtask('zfs.destroy', i['id']))
 
-        self.join_subtasks(self.run_subtask('zfs.umount', path))
-        self.join_subtasks(self.run_subtask('zfs.destroy', path))
+        self.join_subtasks(self.run_subtask('zfs.umount', id))
+        self.join_subtasks(self.run_subtask('zfs.destroy', id))
 
 
 @description("Configures/Updates an existing Dataset's properties")
-@accepts(str, str, h.object())
+@accepts(str, h.ref('volume-dataset'))
 class DatasetConfigureTask(Task):
-    def verify(self, pool_name, path, updated_params):
-        if not self.datastore.exists('volumes', ('name', '=', pool_name)):
+    def verify(self, id, updated_params):
+        pool_name, _, ds = id.partition('/')
+        if not self.datastore.exists('volumes', ('id', '=', pool_name)):
             raise VerifyException(errno.ENOENT, 'Volume {0} not found'.format(pool_name))
 
         return ['zpool:{0}'.format(pool_name)]
 
     def switch_to_acl(self, pool_name, path):
-        fs_path = self.dispatcher.call_sync('volume.get_dataset_path', pool_name, path)
+        fs_path = self.dispatcher.call_sync('volume.get_dataset_path', path)
         self.join_subtasks(
-            self.run_subtask('zfs.configure', pool_name, path, {
+            self.run_subtask('zfs.update', pool_name, path, {
                 'aclmode': {'value': 'restricted'},
                 'org.freenas:permissions_type': {'value': 'ACL'}
             }),
@@ -1622,75 +1744,120 @@ class DatasetConfigureTask(Task):
         )
 
     def switch_to_chmod(self, pool_name, path):
-        self.join_subtasks(self.run_subtask('zfs.configure', pool_name, path, {
+        self.join_subtasks(self.run_subtask('zfs.update', pool_name, path, {
             'aclmode': {'value': 'passthrough'},
-            'org.freenas:permissions_type': {'value': 'PERMS'}
+            'org.freenas:permissions_type': {'value': 'PERM'}
         }))
 
-    def run(self, pool_name, path, updated_params):
-        ds = wrap(self.dispatcher.call_sync('zfs.dataset.query', [('name', '=', path)], {'single': True}))
+    def run(self, id, updated_params):
+        pool_name, _, _ = id.partition('/')
+        ds = wrap(self.dispatcher.call_sync('zfs.dataset.query', [('id', '=', id)], {'single': True}))
 
-        if 'name' in updated_params:
-            self.join_subtasks(self.run_subtask('zfs.rename', ds['name'], updated_params['name']))
-            ds['name'] = updated_params['name']
+        if 'id' in updated_params:
+            self.join_subtasks(self.run_subtask('zfs.rename', ds['id'], updated_params['id']))
+            ds['id'] = updated_params['id']
 
         if 'properties' in updated_params:
             props = exclude(updated_params['properties'], 'used', 'available', 'dedup', 'casesensitivity')
-            self.join_subtasks(self.run_subtask('zfs.configure', pool_name, ds['name'], props))
+            self.join_subtasks(self.run_subtask('zfs.update', pool_name, ds['id'], props))
 
         if 'permissions_type' in updated_params:
             oldtyp = ds['properties.org\\.freenas:permissions_type.value']
             typ = updated_params['permissions_type']
 
             if oldtyp != 'ACL' and typ == 'ACL':
-                self.switch_to_acl(pool_name, ds['name'])
+                self.switch_to_acl(pool_name, ds['id'])
 
-            if oldtyp != 'PERMS' and typ == 'PERMS':
-                self.switch_to_chmod(pool_name, ds['name'])
+            if oldtyp != 'PERM' and typ == 'PERM':
+                self.switch_to_chmod(pool_name, ds['id'])
 
         if 'permissions' in updated_params:
-            fs_path = os.path.join(VOLUMES_ROOT, path)
+            fs_path = os.path.join(VOLUMES_ROOT, id)
             self.join_subtasks(self.run_subtask('file.set_permissions', fs_path, updated_params['permissions']))
+
+        if 'mounted' in updated_params:
+            if updated_params['mounted']:
+                self.join_subtasks(self.run_subtask('zfs.mount', ds['id']))
+            else:
+                self.join_subtasks(self.run_subtask('zfs.umount', ds['id']))
 
 
 @description("Creates a snapshot")
-@accepts(str, str, str, h.any_of(bool, None))
+@accepts(h.all_of(
+    h.ref('volume-snapshot'),
+    h.required('volume', 'dataset', 'name'),
+    h.forbidden('id')
+))
 class SnapshotCreateTask(Task):
-    def verify(self, pool_name, dataset_name, snapshot_name, recursive=False):
-        return ['zfs:{0}'.format(dataset_name)]
+    def verify(self, snapshot):
+        return ['zfs:{0}'.format(snapshot['dataset'])]
 
-    def run(self, pool_name, dataset_name, snapshot_name, recursive=False):
+    def run(self, snapshot, recursive=False):
+        normalize(snapshot, {
+            'replicable': True,
+            'lifetime': None
+        })
+
         self.join_subtasks(self.run_subtask(
             'zfs.create_snapshot',
-            pool_name,
-            dataset_name,
-            snapshot_name,
-            recursive
+            snapshot['volume'],
+            snapshot['dataset'],
+            snapshot['name'],
+            recursive,
+            {
+                'org.freenas:replicable': {'value': 'yes' if snapshot['replicable'] else 'no'},
+                'org.freenas:lifetime': {'value': str(snapshot['replicable'] or 'no')},
+                'org.freenas:uuid': {'value': str(uuid.uuid4())}
+            }
         ))
 
 
 @description("Deletes the specified snapshot")
-@accepts(str, str, str)
+@accepts(str)
 class SnapshotDeleteTask(Task):
-    def verify(self, pool_name, dataset_name, snapshot_name):
-        return ['zfs:{0}'.format(dataset_name)]
+    def verify(self, id):
+        pool, ds, snap = split_snapshot_name(id)
+        return ['zfs:{0}'.format(ds)]
 
-    def run(self, pool_name, dataset_name, snapshot_name):
+    def run(self, id):
+        pool, ds, snap = split_snapshot_name(id)
         self.join_subtasks(self.run_subtask(
             'zfs.delete_snapshot',
-            pool_name,
-            dataset_name,
-            snapshot_name,
+            pool,
+            ds,
+            snap
         ))
 
 
-def flatten_datasets(root):
-    for ds in root['children']:
-        for c in flatten_datasets(ds):
-            yield c
+@description("Updates configuration of specified snapshot")
+@accepts(str, h.all_of(
+    h.ref('volume-snapshot')
+))
+class SnapshotConfigureTask(Task):
+    def verify(self, id, updated_params):
+        pool, ds, snap = split_snapshot_name(id)
+        return ['zfs:{0}'.format(ds)]
 
-    del root['children']
-    yield root
+    def run(self, id, updated_params):
+        pool, ds, snap = split_snapshot_name(id)
+        params = {}
+
+        if 'id' in updated_params:
+            self.join_subtasks(self.run_subtask('zfs.rename', id, updated_params['id']))
+            id = updated_params['id']
+
+        if 'name' in updated_params:
+            new_id = '{0}@{1}'.format(ds, updated_params['name'])
+            self.join_subtasks(self.run_subtask('zfs.rename', id, new_id))
+            id = new_id
+
+        if 'lifetime' in updated_params:
+            params['org.freenas:lifetime'] = {'value': updated_params['lifetime']}
+
+        if 'replicable' in updated_params:
+            params['org.freenas:replicable'] = {'value': 'yes' if updated_params['replicable'] else 'no'}
+
+        self.join_subtasks(self.run_subtask('zfs.update', pool, id, params))
 
 
 def compare_vdevs(vd1, vd2):
@@ -1781,31 +1948,86 @@ def _init(dispatcher, plugin):
     boot_pool = dispatcher.call_sync('zfs.pool.get_boot_pool')
 
     def convert_snapshot(snapshot):
+        snapshot = wrap(snapshot)
         dataset, _, name = snapshot['name'].partition('@')
         pool = dataset.partition('/')[0]
+        lifetime = None
 
-        if pool == boot_pool:
+        if pool == boot_pool['id']:
             return None
+
+        try:
+            lifetime = int(snapshot.get('properties.org\\.freenas:lifetime.value'))
+        except (ValueError, TypeError):
+            pass
+
+        uuid_source = snapshot.get('properties.org\\.freenas:uuid.source')
+        if not uuid_source or uuid_source == 'INHERITED':
+            dispatcher.submit_task('zfs.update', pool, snapshot['name'], {
+                'org.freenas:uuid': {'value': str(uuid.uuid4())}
+            })
 
         return {
             'id': snapshot['name'],
-            'pool': pool,
+            'volume': pool,
             'dataset': dataset,
             'name': name,
+            'lifetime': lifetime,
+            'replicable': snapshot.get('properties.org\\.freenas:replicable.value') or False,
             'properties': include(
                 snapshot['properties'],
-                'used', 'referenced', 'compressratio', 'clones'
+                'used', 'referenced', 'compressratio', 'clones', 'creation'
             ),
             'holds': snapshot['holds']
+        }
+
+    def convert_dataset(ds):
+        ds = wrap(ds)
+        perms = None
+
+        if pool == boot_pool['id']:
+            return None
+
+        if ds['mountpoint']:
+            try:
+                perms = dispatcher.call_sync('filesystem.stat', ds['mountpoint'])
+            except RpcException:
+                pass
+
+        uuid_source = ds.get('properties.org\\.freenas:uuid.source')
+        if not uuid_source or uuid_source == 'INHERITED':
+            dispatcher.submit_task('zfs.update', ds['pool'], ds['name'], {
+                'org.freenas:uuid': {'value': str(uuid.uuid4())}
+            })
+
+        return {
+            'id': ds['name'],
+            'name': ds['name'],
+            'volume': ds['pool'],
+            'type': ds['type'],
+            'mountpoint': ds.get('properties.mountpoint.value'),
+            'mounted': ds.get('properties.mounted.value'),
+            'volsize': ds.get('properties.volsize.rawvalue'),
+            'properties': include(
+                ds['properties'],
+                'used', 'available', 'compression', 'atime', 'dedup',
+                'quota', 'refquota', 'reservation', 'refreservation',
+                'casesensitivity', 'volsize', 'volblocksize', 'refcompressratio',
+                'numclones', 'compressratio', 'written', 'referenced',
+                'usedbyrefreservation', 'usedbysnapshots', 'usedbydataset',
+                'usedbychildren', 'logicalused', 'logicalreferenced'
+            ),
+            'permissions_type': ds.get('properties.org\\.freenas:permissions_type.value'),
+            'permissions': perms['permissions'] if perms else None
         }
 
     def on_pool_change(args):
         if args['operation'] == 'delete':
             for i in args['ids']:
                 with dispatcher.get_lock('volumes'):
-                    volume = dispatcher.call_sync('volume.query', [('name', '=', i)], {'single': True})
+                    volume = dispatcher.call_sync('volume.query', [('id', '=', i)], {'single': True})
                     if volume and volume.get('encrypted', False) == False:
-                        logger.info('Volume {0} is going away'.format(volume['name']))
+                        logger.info('Volume {0} is going away'.format(volume['id']))
                         dispatcher.datastore.delete('volumes', volume['id'])
                         dispatcher.dispatch_event('volume.changed', {
                             'operation': 'delete',
@@ -1816,7 +2038,7 @@ def _init(dispatcher, plugin):
             entities = filter(lambda i: i['guid'] != boot_pool['guid'], args['entities'])
             for i in entities:
                 if args['operation'] == 'update':
-                    volume = dispatcher.datastore.get_one('volumes', ('name', '=', i['name']))
+                    volume = dispatcher.datastore.get_one('volumes', ('id', '=', i['name']))
                     if volume:
                         dispatcher.dispatch_event('volume.changed', {
                             'operation': 'update',
@@ -1827,8 +2049,8 @@ def _init(dispatcher, plugin):
                 with dispatcher.get_lock('volumes'):
                     try:
                         dispatcher.datastore.insert('volumes', {
-                            'id': i['guid'],
-                            'name': i['name'],
+                            'id': i['name'],
+                            'guid': str(i['guid']),
                             'type': 'zfs',
                             'attributes': {}
                         })
@@ -1839,7 +2061,7 @@ def _init(dispatcher, plugin):
                     logger.info('New volume {0} <{1}>'.format(i['name'], i['guid']))
 
                     # Set correct mountpoint
-                    dispatcher.call_task_sync('zfs.configure', i['name'], i['name'], {
+                    dispatcher.call_task_sync('zfs.update', i['name'], i['name'], {
                         'mountpoint': {'value': os.path.join(VOLUMES_ROOT, i['name'])}
                     })
 
@@ -1851,17 +2073,14 @@ def _init(dispatcher, plugin):
 
                     dispatcher.dispatch_event('volume.changed', {
                         'operation': 'create',
-                        'ids': [i['guid']]
+                        'ids': [i['name']]
                     })
 
     def on_snapshot_change(args):
         snapshots.propagate(args, callback=convert_snapshot)
 
     def on_dataset_change(args):
-        dispatcher.dispatch_event('volume.changed', {
-            'operation': 'update',
-            'ids': [args['guid']]
-        })
+        datasets.propagate(args, callback=convert_dataset)
 
     def on_vdev_remove(args):
         dispatcher.call_sync('alert.emit', {
@@ -1870,13 +2089,28 @@ def _init(dispatcher, plugin):
             'severity': 'WARNING'
         })
 
+    def scrub_snapshots():
+        while True:
+            gevent.sleep(SNAPSHOT_SCRUB_INTERVAL)
+            ts = int(time.time())
+            for snap in dispatcher.call_sync('volume.snapshot.query'):
+                snap = wrap(snap)
+                creation = int(snap['properties.creation.rawvalue'])
+                lifetime = snap['lifetime']
+
+                if lifetime is None:
+                    continue
+
+                if creation + lifetime <= ts:
+                    dispatcher.call_task_sync('volume.snapshot.delete', snap['id'])
+
     plugin.register_schema_definition('volume', {
         'type': 'object',
         'title': 'volume',
         'additionalProperties': False,
         'properties': {
             'id': {'type': 'string'},
-            'name': {'type': 'string'},
+            'guid': {'type': 'string'},
             'type': {
                 'type': 'string',
                 'enum': ['zfs']
@@ -1888,8 +2122,44 @@ def _init(dispatcher, plugin):
                 'type': 'string',
                 'enum': ['ALL', 'PART', 'NONE']
             },
-            'params': {'type': 'object'},
-            'attributes': {'type': 'object'}
+            'properties': {'$ref': 'volume-properties'},
+            'attributes': {'type': 'object'},
+            'params': {'type': 'object'}
+        }
+    })
+
+    plugin.register_schema_definition('volume-property', {
+        'type': 'object',
+        'additionalProperties': False,
+        'properties': {
+            'value': {'type': 'string'},
+            'rawvalue': {'type': 'string'},
+            'source': {
+                'type': 'string',
+                'enum': ['NONE', 'DEFAULT', 'LOCAL', 'INHERITED']
+            }
+        }
+    })
+
+    plugin.register_schema_definition('volume-properties', {
+        'type': 'object',
+        'additionalProperties': False,
+        'properties': {
+            'size': {'$ref': 'volume-property'},
+            'capacity': {'$ref': 'volume-property'},
+            'health': {'$ref': 'volume-property'},
+            'version': {'$ref': 'volume-property'},
+            'delegation': {'$ref': 'volume-property'},
+            'failmode': {'$ref': 'volume-property'},
+            'autoreplace': {'$ref': 'volume-property'},
+            'dedupratio': {'$ref': 'volume-property'},
+            'free': {'$ref': 'volume-property'},
+            'allocated': {'$ref': 'volume-property'},
+            'readonly': {'$ref': 'volume-property'},
+            'comment': {'$ref': 'volume-property'},
+            'expandsize': {'$ref': 'volume-property'},
+            'fragmentation': {'$ref': 'volume-property'},
+            'leaked': {'$ref': 'volume-property'}
         }
     })
 
@@ -1903,22 +2173,81 @@ def _init(dispatcher, plugin):
         }
     })
 
-    plugin.register_schema_definition('dataset', {
+    plugin.register_schema_definition('volume-dataset', {
         'type': 'object',
         'properties': {
+            'id': {'type': 'string'},
             'name': {'type': 'string'},
+            'volume': {'type': 'string'},
             'mountpoint': {'type': 'string'},
+            'mounted': {'type': 'boolean'},
             'type': {
                 'type': 'string',
                 'enum': ['FILESYSTEM', 'VOLUME']
             },
             'volsize': {'type': ['integer', 'null']},
-            'properties': {'type': 'object'},
+            'properties': {'$ref': 'volume-dataset-properties'},
             'permissions': {'$ref': 'permissions'},
             'permissions_type': {
                 'type': 'string',
                 'enum': ['PERM', 'ACL']
             }
+        }
+    })
+
+    plugin.register_schema_definition('volume-dataset-properties', {
+        'type': 'object',
+        'additionalProperties': False,
+        'properties': {
+            'used': {'$ref': 'volume-property'},
+            'available': {'$ref': 'volume-property'},
+            'compression': {'$ref': 'volume-property'},
+            'atime': {'$ref': 'volume-property'},
+            'dedup': {'$ref': 'volume-property'},
+            'quota': {'$ref': 'volume-property'},
+            'refquota': {'$ref': 'volume-property'},
+            'reservation': {'$ref': 'volume-property'},
+            'refreservation': {'$ref': 'volume-property'},
+            'casesensitivity': {'$ref': 'volume-property'},
+            'volsize': {'$ref': 'volume-property'},
+            'volblocksize': {'$ref': 'volume-property'},
+            'refcompressratio': {'$ref': 'volume-property'},
+            'numclones': {'$ref': 'volume-property'},
+            'compressratio': {'$ref': 'volume-property'},
+            'written': {'$ref': 'volume-property'},
+            'referenced': {'$ref': 'volume-property'},
+            'usedbyrefreservation': {'$ref': 'volume-property'},
+            'usedbysnapshots': {'$ref': 'volume-property'},
+            'usedbydataset': {'$ref': 'volume-property'},
+            'usedbychildren': {'$ref': 'volume-property'},
+            'logicalused': {'$ref': 'volume-property'},
+            'logicalreferenced': {'$ref': 'volume-property'}
+        }
+    })
+
+    plugin.register_schema_definition('volume-snapshot', {
+        'type': 'object',
+        'properties': {
+            'id': {'type': 'string'},
+            'volume': {'type': 'string'},
+            'dataset': {'type': 'string'},
+            'name': {'type': 'string'},
+            'replicable': {'type': 'boolean'},
+            'lifetime': {'type': ['integer', 'null']},
+            'properties': {'$ref': 'volume-snapshot-properties'},
+            'holds': {'type': 'object'}
+        }
+    })
+
+    plugin.register_schema_definition('volume-snapshot-properties', {
+        'type': 'object',
+        'additionalProperties': False,
+        'properties': {
+            'used': {'$ref': 'volume-property'},
+            'referenced': {'$ref': 'volume-property'},
+            'compressratio': {'$ref': 'volume-property'},
+            'clones': {'$ref': 'volume-property'},
+            'creation': {'$ref': 'volume-property'}
         }
     })
 
@@ -1953,7 +2282,7 @@ def _init(dispatcher, plugin):
             'key': {'type': 'string'},
             'disks': {
                 'type': 'array',
-                'items': 'string'
+                'items': {'type': 'string'}
             }
         }
     })
@@ -2002,14 +2331,15 @@ def _init(dispatcher, plugin):
     })
 
     plugin.register_provider('volume', VolumeProvider)
+    plugin.register_provider('volume.dataset', DatasetProvider)
     plugin.register_provider('volume.snapshot', SnapshotProvider)
     plugin.register_task_handler('volume.create', VolumeCreateTask)
     plugin.register_task_handler('volume.create_auto', VolumeAutoCreateTask)
-    plugin.register_task_handler('volume.destroy', VolumeDestroyTask)
+    plugin.register_task_handler('volume.delete', VolumeDestroyTask)
     plugin.register_task_handler('volume.import', VolumeImportTask)
     plugin.register_task_handler('volume.import_disk', VolumeDiskImportTask)
     plugin.register_task_handler('volume.autoimport', VolumeAutoImportTask)
-    plugin.register_task_handler('volume.detach', VolumeDetachTask)
+    plugin.register_task_handler('volume.export', VolumeDetachTask)
     plugin.register_task_handler('volume.update', VolumeUpdateTask)
     plugin.register_task_handler('volume.upgrade', VolumeUpgradeTask)
     plugin.register_task_handler('volume.autoreplace', VolumeAutoReplaceTask)
@@ -2018,11 +2348,15 @@ def _init(dispatcher, plugin):
     plugin.register_task_handler('volume.rekey', VolumeRekeyTask)
     plugin.register_task_handler('volume.keys.backup', VolumeBackupKeysTask)
     plugin.register_task_handler('volume.keys.restore', VolumeRestoreKeysTask)
+    plugin.register_task_handler('volume.scrub', VolumeScrubTask)
+    plugin.register_task_handler('volume.vdev.online', VolumeOnlineVdevTask)
+    plugin.register_task_handler('volume.vdev.offline', VolumeOfflineVdevTask)
     plugin.register_task_handler('volume.dataset.create', DatasetCreateTask)
     plugin.register_task_handler('volume.dataset.delete', DatasetDeleteTask)
     plugin.register_task_handler('volume.dataset.update', DatasetConfigureTask)
     plugin.register_task_handler('volume.snapshot.create', SnapshotCreateTask)
     plugin.register_task_handler('volume.snapshot.delete', SnapshotDeleteTask)
+    plugin.register_task_handler('volume.snapshot.update', SnapshotConfigureTask)
 
     plugin.register_hook('volume.pre_destroy')
     plugin.register_hook('volume.pre_detach')
@@ -2034,29 +2368,25 @@ def _init(dispatcher, plugin):
 
     plugin.register_event_handler('entity-subscriber.zfs.pool.changed', on_pool_change)
     plugin.register_event_handler('fs.zfs.vdev.removed', on_vdev_remove)
-    plugin.register_event_handler('fs.zfs.dataset.created', on_dataset_change)
-    plugin.register_event_handler('fs.zfs.dataset.deleted', on_dataset_change)
-    plugin.register_event_handler('fs.zfs.dataset.renamed', on_dataset_change)
 
     plugin.register_event_type('volume.changed')
+    plugin.register_event_type('volume.dataset.changed')
     plugin.register_event_type('volume.snapshot.changed')
-
-    dispatcher.rpc.call_sync('alert.register_alert', 'volume.disk_removed', 'Volume disk removed')
 
     for vol in dispatcher.call_sync('volume.query'):
         if vol.get('providers_presence', 'ALL') == 'NONE':
             continue
 
         try:
-            dispatcher.call_task_sync('zfs.mount', vol['name'], True)
+            dispatcher.call_task_sync('zfs.mount', vol['id'], True)
 
             # XXX: check mountpoint property and correct if needed
         except TaskException as err:
             if err.code != errno.EBUSY:
-                logger.warning('Cannot mount volume {0}: {1}'.format(vol['name'], str(err)))
+                logger.warning('Cannot mount volume {0}: {1}'.format(vol['id'], str(err)))
 
     for pool in dispatcher.call_sync('zfs.pool.query'):
-        if dispatcher.datastore.exists('volumes', ('id', '=', pool['guid'])):
+        if dispatcher.datastore.exists('volumes', ('id', '=', pool['id'])):
             continue
 
         if pool['guid'] == boot_pool['guid']:
@@ -2064,8 +2394,8 @@ def _init(dispatcher, plugin):
 
         logger.info('New volume {0} <{1}>'.format(pool['name'], pool['guid']))
         dispatcher.datastore.insert('volumes', {
-            'id': pool['guid'],
-            'name': pool['name'],
+            'id': pool['name'],
+            'guid': str(pool['guid']),
             'type': 'zfs',
             'attributes': {}
         })
@@ -2078,3 +2408,14 @@ def _init(dispatcher, plugin):
         'entity-subscriber.zfs.snapshot.changed',
         on_snapshot_change
     )
+
+    global datasets
+    datasets = EventCacheStore(dispatcher, 'volume.dataset')
+    datasets.populate(dispatcher.call_sync('zfs.dataset.query'), callback=convert_dataset)
+    datasets.ready = True
+    plugin.register_event_handler(
+        'entity-subscriber.zfs.dataset.changed',
+        on_dataset_change
+    )
+
+    gevent.spawn(scrub_snapshots)
