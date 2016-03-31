@@ -257,7 +257,7 @@ class TransportSendTask(Task):
             if len(raw_subtasks):
                 raw_subtasks[-1]['write_fd'] = conn_fd
                 for subtask in raw_subtasks:
-                    subtasks.append(self.run_subtask(subtask))
+                    subtasks.append(self.run_subtask(*subtask))
             else:
                 header_wr = conn_fd
             try:
