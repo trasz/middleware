@@ -83,6 +83,7 @@ MAXFDS = 128
 CMSGCRED_SIZE = struct.calcsize('iiiih16i')
 DEFAULT_CONFIGFILE = '/usr/local/etc/middleware.conf'
 LOGGING_FORMAT = '%(asctime)s %(levelname)s %(filename)s:%(lineno)d %(message)s'
+FEATURES = ['streaming_responses']
 trace_log_file = None
 
 
@@ -322,6 +323,7 @@ class Dispatcher(object):
         self.configstore = None
         self.config = None
         self.auth = None
+        self.features = set(FEATURES)
         self.ws_servers = []
         self.http_servers = []
         self.pidfile = None
@@ -351,7 +353,7 @@ class Dispatcher(object):
         self.balancer = Balancer(self)
         self.auth = PasswordAuthenticator(self)
         self.rpc = ServerRpcContext(self)
-        self.rpc.streaming_enabled = False
+        self.rpc.streaming_enabled = True
         self.rpc.streaming_burst = self.configstore.get('middleware.streaming_burst_size') or 1
         register_general_purpose_schemas(self)
 
@@ -984,6 +986,7 @@ class ServerConnection(WebSocketApplication, EventEmitter):
         self.proxy_address = None
         self.server_pending_calls = {}
         self.client_pending_calls = {}
+        self.enabled_features = set()
         self.resource = None
         self.user = None
         self.session_id = None
@@ -1337,7 +1340,8 @@ class ServerConnection(WebSocketApplication, EventEmitter):
     def on_rpc_call(self, id, data):
         def dispatch_call_async(id, method, args):
             try:
-                result = self.dispatcher.rpc.dispatch_call(method, args, sender=self)
+                streaming = 'streaming_responses' in self.enabled_features
+                result = self.dispatcher.rpc.dispatch_call(method, args, sender=self, streaming=streaming)
             except RpcException as err:
                 self.send_json({
                     "namespace": "rpc",
@@ -1450,6 +1454,12 @@ class ServerConnection(WebSocketApplication, EventEmitter):
     def broadcast_event(self, event, args):
         for i in self.server.connections:
             i.emit_event(event, args)
+
+    def enable_feature(self, feature):
+        if feature not in self.dispatcher.features:
+            raise ValueError('Invalid feature')
+
+        self.enabled_features.add(feature)
 
     def call_client(self, method, callback, *args):
         id = uuid.uuid4()

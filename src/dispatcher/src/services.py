@@ -92,6 +92,22 @@ class ManagementService(RpcService):
     def get_sender_address(self, sender):
         return sender.client_address
 
+    @pass_sender
+    def enable_features(self, features, sender):
+        for i in features:
+            try:
+                sender.enable_feature(i)
+            except ValueError:
+                raise RpcException(errno.EINVAL, 'Invalid feature {0}'.format(i))
+
+    @pass_sender
+    def get_enabled_features(self, sender):
+        return list(sender.enabled_features)
+
+    @pass_sender
+    def get_available_features(self, sender):
+        return list(self.dispatcher.features)
+
     def die_you_gravy_sucking_pig_dog(self):
         self.dispatcher.die()
 
