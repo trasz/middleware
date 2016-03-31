@@ -80,6 +80,7 @@ from freenas.utils import FaultTolerantLogHandler, load_module_from_file, xrecvm
 
 
 MAXFDS = 128
+CMSGCRED_SIZE = struct.calcsize('iiiih16i')
 DEFAULT_CONFIGFILE = '/usr/local/etc/middleware.conf'
 LOGGING_FORMAT = '%(asctime)s %(levelname)s %(filename)s:%(lineno)d %(message)s'
 trace_log_file = None
@@ -843,8 +844,6 @@ class UnixSocketServer(object):
             import types
             self.dispatcher = dispatcher
             self.connfd = connfd
-            self.rfd = connfd.makefile('rb')
-            self.wfd = connfd.makefile('wb')
             self.address = address
             self.server = server
             self.handler = types.SimpleNamespace()
@@ -866,8 +865,7 @@ class UnixSocketServer(object):
                         return
 
                     wait_write(fd, 10)
-                    xsendmsg(self.connfd, header)
-                    xsendmsg(self.connfd, data, [
+                    xsendmsg(self.connfd, header + data, [
                         (socket.SOL_SOCKET, socket.SCM_RIGHTS, array.array('i', [i.fd for i in fds]))
                     ])
 
@@ -888,17 +886,23 @@ class UnixSocketServer(object):
 
             while True:
                 try:
-                    header, _ = xrecvmsg(self.connfd, 8, socket.CMSG_LEN(1024))
+                    fds = array.array('i')
+                    header, ancdata = xrecvmsg(
+                        self.connfd, 8,
+                        socket.CMSG_SPACE(MAXFDS * fds.itemsize) + socket.CMSG_SPACE(CMSGCRED_SIZE)
+                    )
+
                     if header == b'' or len(header) != 8:
+                        if len(header) > 0:
+                            self.server.logger.info('Short read (len {0})'.format(len(header)))
                         break
 
                     magic, length = struct.unpack('II', header)
                     if magic != 0xdeadbeef:
                         self.server.logger.info('Message with wrong magic dropped (magic {0:x})'.format(magic))
-                        continue
+                        break
 
-                    fds = array.array('i')
-                    msg, ancdata = xrecvmsg(self.connfd, length, socket.CMSG_LEN(MAXFDS * fds.itemsize))
+                    msg, _ = xrecvmsg(self.connfd, length)
                     if msg == b'' or len(msg) != length:
                         self.server.logger.info('Message with wrong length dropped; closing connection')
                         break
@@ -930,8 +934,6 @@ class UnixSocketServer(object):
                 self.conn.on_close('Bye bye')
                 self.conn = None
                 try:
-                    self.rfd.close()
-                    self.wfd.close()
                     self.connfd.shutdown(socket.SHUT_RDWR)
                     self.connfd.close()
                 except OSError:
