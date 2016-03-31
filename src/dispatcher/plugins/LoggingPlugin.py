@@ -37,7 +37,7 @@ from debug import AttachDirectory
 class SyslogProvider(Provider):
     @generator
     def query(self, filter=None, params=None):
-        yield from self.datastore.query_stream('syslog', *(filter or []), **(params or {}))
+        return self.datastore.query_stream('syslog', *(filter or []), **(params or {}))
 
 
 class SyslogEventSource(EventSource):

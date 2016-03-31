@@ -89,7 +89,7 @@ class UserProvider(Provider):
 
             return user
 
-        yield from self.datastore.query_stream('users', *(filter or []), callback=extend, **(params or {}))
+        return self.datastore.query_stream('users', *(filter or []), callback=extend, **(params or {}))
 
     def get_profile_picture(self, uid):
         pass
@@ -129,7 +129,7 @@ class GroupProvider(Provider):
             )]
             return group
 
-        yield from self.datastore.query_stream('groups', *(filter or []), callback=extend, **(params or {}))
+        return self.datastore.query_stream('groups', *(filter or []), callback=extend, **(params or {}))
 
     @description("Retrieve the next GID available")
     @returns(int)
