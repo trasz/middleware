@@ -311,6 +311,8 @@ class TransportReceiveTask(ProgressTask):
                 'Server address {0} is not on local known replication hosts list'.format(server_address)
             )
 
+        return []
+
     def run(self, transport):
         cdef uint8_t *buffer
         cdef uint32_t *buffer32 = <uint32_t *> buffer
