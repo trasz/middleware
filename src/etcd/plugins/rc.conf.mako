@@ -92,12 +92,6 @@ ${svc['rcng']['rc-scripts']}_enable="NO"
 % endfor
 
 % if config.get("service.smb.enable"):
-riak_cs_enable="YES"
-% else:
-riak_cs_enable="NO"
-% endif
-
-% if config.get("service.smb.enable"):
 samba_server_enable="YES"
 ##% if ! dirsrv_enabled domaincontroller
 smbd_enable="YES"
