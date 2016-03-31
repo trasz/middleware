@@ -52,7 +52,7 @@ class SharesProvider(Provider):
             share['permissions'] = perms['permissions'] if perms else None
             return share
 
-        yield from self.datastore.query_stream('shares', *(filter or []), callback=extend, **(params or {}))
+        return self.datastore.query_stream('shares', *(filter or []), callback=extend, **(params or {}))
 
     @description("Returns list of supported sharing providers")
     @accepts()
