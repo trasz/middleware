@@ -280,6 +280,10 @@ class TransportSendTask(Task):
                     subtasks.append(self.run_subtask(*subtask))
             else:
                 header_wr = conn_fd
+
+            logger.debug(
+                'Transport layer plugins registration finished for {0}:{1} connection. Starting transfer.'.format(*addr)
+            )
             try:
                 while True:
                     ret = read_fd(fd.fd, buffer, buffer_size, 0)
@@ -292,7 +296,11 @@ class TransportSendTask(Task):
             except IOError:
                 raise TaskException(errno.ECONNABORTED, 'Transport connection closed unexpectedly')
 
+            logger.debug('All data fetched for transfer to {0}:{1}. Waiting for plugins to close.'.format(*addr))
+
             self.join_subtasks(*subtasks)
+
+            logger.debug('Send to {0}:{1} finished. Closing connection'.format(*addr))
             remote_client.disconnect()
 
         finally:
@@ -460,7 +468,9 @@ class TransportReceiveTask(ProgressTask):
                 raise TaskException(errno.ECONNABORTED, 'Transport connection closed unexpectedly')
 
             self.running = False
+            logger.debug('All data fetched for transfer from {0}:{1}. Waiting for plugins to close.'.format(*addr))
             self.join_subtasks(*subtasks)
+            logger.debug('Receive from {0}:{1} finished. Closing connection'.format(*addr))
 
         finally:
             free(buffer)
