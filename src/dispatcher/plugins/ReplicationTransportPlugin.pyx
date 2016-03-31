@@ -154,6 +154,10 @@ class TransportSendTask(Task):
         cdef int curr_pos = 0
         cdef int ret
         cdef int magic = 0xdeadbeef
+
+        sock = None
+        conn = None
+        fds = []
         try:
             buffer_size = transport.get('buffer_size', 1024*1024)
             buffer = <uint8_t *>malloc(buffer_size * sizeof(uint8_t))
@@ -223,6 +227,7 @@ class TransportSendTask(Task):
                 )
 
             conn_fd = conn.fileno()
+            fds.append(conn_fd)
 
             try:
                 ret = read_fd(conn_fd, buffer, token_size - curr_pos, curr_pos)
@@ -248,6 +253,8 @@ class TransportSendTask(Task):
 
             plugins = transport.get('transport_plugins', [])
             header_rd, header_wr = os.pipe()
+            fds.append(header_rd)
+            fds.append(header_wr)
             last_rd_fd = header_rd
             subtasks = []
             raw_subtasks = []
@@ -256,6 +263,8 @@ class TransportSendTask(Task):
                 plugin = first_or_default(lambda p: p['name'] == type, plugins)
                 if plugin:
                     rd, wr = os.pipe()
+                    fds.append(rd)
+                    fds.append(wr)
                     plugin['read_fd'] = FileDescriptor(last_rd_fd)
                     plugin['write_fd'] = FileDescriptor(wr)
                     last_rd_fd = rd
@@ -269,7 +278,7 @@ class TransportSendTask(Task):
                 header_wr = conn_fd
             try:
                 while True:
-                    ret = read_fd(fd, buffer, buffer_size, 0)
+                    ret = read_fd(fd.fd, buffer, buffer_size, 0)
                     write_fd(header_wr, <uint8_t *> magic, sizeof(magic))
                     write_fd(header_wr, <uint8_t *> ret, sizeof(ret))
                     if ret == 0:
@@ -280,11 +289,16 @@ class TransportSendTask(Task):
                 raise TaskException(errno.ECONNABORTED, 'Transport connection closed unexpectedly')
 
             self.join_subtasks(*subtasks)
-            sock.shutdown(socket.SHUT_RDWR)
-            conn.shutdown(socket.SHUT_RDWR)
+            remote_client.disconnect()
 
         finally:
             free(buffer)
+            if sock:
+                sock.shutdown(socket.SHUT_RDWR)
+            if conn:
+                conn.shutdown(socket.SHUT_RDWR)
+            for fd in fds:
+                os.close(fd)
 
 
 @private
@@ -329,6 +343,9 @@ class TransportReceiveTask(ProgressTask):
         cdef int ret
         cdef int length
         cdef int magic = 0xdeadbeef
+
+        sock = None
+        fds = []
         try:
             buffer_size = transport.get('buffer_size', 1024*1024)
             buffer = <uint8_t *>malloc(buffer_size * sizeof(uint8_t))
@@ -365,6 +382,7 @@ class TransportReceiveTask(ProgressTask):
                 raise TaskException(errno.EACCES, 'Could not connect to a socket at address {0}'.format(server_address))
 
             conn_fd = sock.fileno()
+            fds.append(conn_fd)
 
             plugins = transport.get('transport_plugins', [])
             last_rd_fd = conn_fd
@@ -378,6 +396,8 @@ class TransportReceiveTask(ProgressTask):
                     elif plugin['name'] == 'encrypt':
                         plugin['name'] = 'decrypt'
                     rd, wr = os.pipe()
+                    fds.append(rd)
+                    fds.append(wr)
                     plugin['read_fd'] = FileDescriptor(last_rd_fd)
                     plugin['write_fd'] = FileDescriptor(wr)
                     last_rd_fd = rd
@@ -389,6 +409,8 @@ class TransportReceiveTask(ProgressTask):
                 raise TaskException(errno.ECONNABORTED, 'Transport connection closed unexpectedly')
 
             zfs_rd, zfs_wr = os.pipe()
+            fds.append(zfs_wr)
+            fds.append(zfs_rd)
             recv_props = transport.get('receive_properties')
             subtasks.append(self.run_subtask(
                 'zfs.receive',
@@ -406,16 +428,15 @@ class TransportReceiveTask(ProgressTask):
 
             try:
                 while True:
-                    ret = read_fd(last_rd_fd, buffer, 4, 0)
+                    ret = read_fd(last_rd_fd, buffer, sizeof(uint32_t), 0)
                     if ret != 4:
                         raise IOError
                     if buffer32[0] != magic:
-                        sock.shutdown(socket.SHUT_RDWR)
                         raise TaskException(
                             errno.EINVAL,
                             'Bad magic {0} received. Expected {1}'.format(buffer32[0], magic)
                         )
-                    ret = read_fd(last_rd_fd, buffer, 4, 0)
+                    ret = read_fd(last_rd_fd, buffer, sizeof(uint32_t), 0)
                     if ret != 4:
                         raise IOError
                     length = buffer32[0]
@@ -435,6 +456,10 @@ class TransportReceiveTask(ProgressTask):
 
         finally:
             free(buffer)
+            if sock:
+                sock.shutdown(socket.SHUT_RDWR)
+            for fd in fds:
+                os.close(fd)
 
     def count_progress(self):
         last_done = 0
