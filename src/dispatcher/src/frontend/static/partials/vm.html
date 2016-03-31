@@ -1,0 +1,48 @@
+<style type="text/css">
+    body {
+        margin: 20px;
+        padding-top: 50px;
+    }
+
+    .terminal {
+        float: left;
+        border: #000 solid 5px;
+        font-family: "DejaVu Sans Mono", "Liberation Mono", monospace;
+        font-size: 12px;
+        color: #f0f0f0;
+        background: #000;
+        margin-top: 15px;
+    }
+
+    .terminal-cursor {
+        color: #000;
+        background: #f0f0f0;
+    }
+</style>
+<div ng-init="init()">
+</div>
+<div class="row">
+    <h1>Container console</h1>
+    <div class="dropdown">
+      <button class="btn btn-primary dropdown-toggle" dropdown-toggle>
+        Container
+        <span class="caret"></span>
+      </button>
+      <button class="btn btn-success" id="start-container">
+        Start
+      </button>
+      <button class="btn btn-danger" id="stop-container">
+        Stop
+      </button>
+      <span id="state" class="label label-default">
+        State: UNKNOWN
+      </span>
+      <ul id="containers" class="dropdown-menu" dropdown-menu>
+          <li ng-repeat="source in dataSource_list">
+              <a href="" class="shell-entry" role="menuitem" ng-click="loadShell(source)">{{source}}</a>
+          </li>
+      </ul>
+    </div>
+    <div id="terminal">
+    </div>
+</div>
