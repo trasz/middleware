@@ -74,4 +74,4 @@ class FlatFilePlugin(DirectoryServicePlugin):
 
 
 def _init(context):
-    context.register_plugin('local', FlatFilePlugin)
+    context.register_plugin('file', FlatFilePlugin)
