@@ -172,7 +172,13 @@ class TransportSendTask(Task):
                     continue
                 try:
                     sock.bind(addr)
+                    sock.settimeout(30)
                     sock.listen(1)
+                except socket.timeout:
+                    raise TaskException(
+                        errno.ETIMEDOUT,
+                        'Timeout while waiting for connection from {0}'.format(client_address)
+                    )
                 except OSError:
                     sock.close()
                     sock = None
