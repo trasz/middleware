@@ -73,24 +73,6 @@
                 "attributes": {},
                 "builtin": true
             },
-            "750A9B20-730A-4FBB-B50D-01D1E58994FE": {
-                "uid": 187,
-                "password_disabled": false,
-                "email": null,
-                "group": "C25B97F3-C40A-44CF-A3EF-BF80046066FD",
-                "home": "/",
-                "full_name": "SWIFT User",
-                "username": "swift",
-                "sshpubkey": null,
-                "shell": "/usr/sbin/nologin",
-                "locked": false,
-                "unixhash": "*",
-                "sudo": false,
-                "smbhash": "*",
-                "groups": [],
-                "attributes": {},
-                "builtin": true
-            },
             "78EA375D-F11C-42C5-9FB3-385FD9F368C9": {
                 "uid": 142,
                 "password_disabled": false,
@@ -551,12 +533,6 @@
                 "sudo": false,
                 "name": "messagebus"
             },
-            "C25B97F3-C40A-44CF-A3EF-BF80046066FD": {
-                "gid": 187,
-                "builtin": true,
-                "sudo": false,
-                "name": "swift"
-            },
             "6A5FE6A8-AED3-405D-86F9-CD1936137D2B": {
                 "gid": 142,
                 "builtin": true,
@@ -876,18 +852,6 @@
             "service.rsyncd.enable": false,
             "service.rsyncd.port": 873,
             "service.rsyncd.auxiliary": null,
-            "service.swift.enable": false,
-            "service.swift.swift_hash_path_suffix": "suffix",
-            "service.swift.swift_hash_path_prefix": "prefix",
-            "service.haproxy.enable": false,
-            "service.haproxy.global_maxconn": 256000,
-            "service.haproxy.defaults_maxconn": 256000,
-            "service.haproxy.http_ip": "127.0.0.1",
-            "service.haproxy.http_port": 8080,
-            "service.haproxy.https_ip": "127.0.0.1",
-            "service.haproxy.https_port": 8080,
-            "service.haproxy.frontend_mode": "HTTP",
-            "service.haproxy.backend_mode": "HTTP",
             "service.glusterd.enable": false,
             "service.glusterd.working_directory": "glusterd",
             "service.tftpd.enable": false,
