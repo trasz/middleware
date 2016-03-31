@@ -55,60 +55,6 @@
                 "attributes": {},
                 "builtin": true
             },
-            "403B4C54-274B-42E0-BBA3-9213DB4811C1": {
-                "uid": 667,
-                "password_disabled": false,
-                "email": null,
-                "group": "17623FD9-9C3C-4143-8ECB-DD1BD0A072C0",
-                "home": "/usr/local/lib/riak",
-                "full_name": "Riak KV User",
-                "username": "riak",
-                "sshpubkey": null,
-                "shell": "/bin/sh",
-                "locked": false,
-                "unixhash": "*",
-                "sudo": false,
-                "smbhash": "*",
-                "groups": [],
-                "attributes": {},
-                "builtin": true
-            },
-            "0A1F21CD-F6B3-432B-8A64-C6453DF50DDF": {
-                "uid": 668,
-                "password_disabled": false,
-                "email": null,
-                "group": "17623FD9-9C3C-4143-8ECB-DD1BD0A072C0",
-                "home": "/usr/local/lib/riak-cs",
-                "full_name": "RIAK CS",
-                "username": "riakcs",
-                "sshpubkey": null,
-                "shell": "/bin/sh",
-                "locked": false,
-                "unixhash": "*",
-                "sudo": false,
-                "smbhash": "*",
-                "groups": [],
-                "attributes": {},
-                "builtin": true
-            },
-            "CF985B11-75D2-40CB-A7D1-3F8C62D09407": {
-                "uid": 669,
-                "password_disabled": false,
-                "email": null,
-                "group": "17623FD9-9C3C-4143-8ECB-DD1BD0A072C0",
-                "home": "/usr/local/lib/stanchion",
-                "full_name": "Stanchion User",
-                "username": "stanchion",
-                "sshpubkey": null,
-                "shell": "/bin/sh",
-                "locked": false,
-                "unixhash": "*",
-                "sudo": false,
-                "smbhash": "*",
-                "groups": [],
-                "attributes": {},
-                "builtin": true
-            },
             "F589F902-F76B-4CA9-8168-24B4E95EC2D3": {
                 "uid": 556,
                 "password_disabled": false,
@@ -593,12 +539,6 @@
                 "sudo": false,
                 "name": "mongodb"
             },
-            "17623FD9-9C3C-4143-8ECB-DD1BD0A072C0": {
-                "gid": 667,
-                "builtin": true,
-                "sudo": false,
-                "name": "riak"
-            },
             "1E5EA5EC-0075-492E-BE6A-0CE85F82F15D": {
                 "gid": 666,
                 "builtin": true,
@@ -936,46 +876,6 @@
             "service.rsyncd.enable": false,
             "service.rsyncd.port": 873,
             "service.rsyncd.auxiliary": null,
-            "service.riak.enable": false,
-            "service.riak.save_description": true,
-            "service.riak.nodename": "riak",
-            "service.riak.node_ip": "127.0.0.1",
-            "service.riak.log_console_level": "INFO",
-            "service.riak.storage_backend": "LEVELDB",
-            "service.riak.buckets_default_allow_multi": true,
-            "service.riak.riak_control": true,
-            "service.riak.listener_http_internal": "127.0.0.1",
-            "service.riak.listener_http_internal_port": 8098,
-            "service.riak.listener_protobuf_internal": "127.0.0.1",
-            "service.riak.listener_protobuf_internal_port": 8087,
-            "service.riak.listener_https_internal": "127.0.0.1",
-            "service.riak.listener_https_internal_port": 10011,
-            "service.riak.object_size_warning_threshold": "5MB",
-            "service.riak.object_size_maximum": "50MB",
-            "service.riak_cs.enable": false,
-            "service.riak_cs.listener_ip": "127.0.0.1",
-            "service.riak_cs.listener_port": 8080,
-            "service.riak_cs.riak_host_ip": "127.0.0.1",
-            "service.riak_cs.riak_host_port": 8087,
-            "service.riak_cs.stanchion_host_ip": "127.0.0.1",
-            "service.riak_cs.stanchion_host_port": 8085,
-            "service.riak_cs.nodename": "riak-cs",
-            "service.riak_cs.node_ip": "127.0.0.1",
-            "service.riak_cs.log_console_level": "INFO",
-            "service.riak_cs.anonymous_user_creation": true,
-            "service.riak_cs.admin_key": "admin-key",
-            "service.riak_cs.admin_secret": "admin-secret",
-            "service.riak_cs.max_buckets_per_user": 100,
-            "service.stanchion.enable": false,
-            "service.stanchion.listener_ip": "127.0.0.1",
-            "service.stanchion.listener_port": 8085,
-            "service.stanchion.riak_host_ip": "127.0.0.1",
-            "service.stanchion.riak_host_port": 8087,
-            "service.stanchion.nodename": "stanchion",
-            "service.stanchion.node_ip": "127.0.0.1",
-            "service.stanchion.log_console_level": "INFO",
-            "service.stanchion.admin_key": "admin-key",
-            "service.stanchion.admin_secret": "admin-secret",
             "service.swift.enable": false,
             "service.swift.swift_hash_path_suffix": "suffix",
             "service.swift.swift_hash_path_prefix": "prefix",
@@ -1325,24 +1225,6 @@
                 ],
                 "name": "webdav"
             },
-            "6C213C0D-B529-4B52-B3BE-D94D2A5823C3": {
-                "dependencies": [
-                    "file:local/riak/riak.conf"
-                ],
-                "name": "riak"
-            },
-            "85DD4270-6B80-11E5-9577-97059C8C98F3": {
-                "dependencies": [
-                    "file:local/riak-cs/riak-cs.conf"
-                ],
-                "name": "riak_cs"
-            },
-            "989C33FF-6B81-11E5-9577-97059C8C98F3": {
-                "dependencies": [
-                    "file:local/stanchion/stanchion.conf"
-                ],
-                "name": "stanchion"
-            },
             "3865CEDA-6DAF-11E5-A3C7-C3D881054C8B": {
                 "dependencies": [
                     "file:local/haproxy.conf",
@@ -1629,36 +1511,6 @@
                 "get_config_rpc": "service.dyndns.get_config",
                 "task": "service.dyndns.update",
                 "name": "dyndns"
-            },
-            "4D0E488C-C0A6-41C8-8EEE-5DEBC35EE56F": {
-                "rcng": {
-                    "rc-scripts": "riak"
-                },
-                "builtin": false,
-                "pidfile": "/var/run/riak/riak.pid",
-                "get_config_rpc": "service.riak.get_config",
-                "task": "service.riak.update",
-                "name": "riak"
-            },
-            "5E261539-46CB-4453-B94B-1C037F093CCE": {
-                "rcng": {
-                    "rc-scripts": "stanchion"
-                },
-                "builtin": false,
-                "pidfile": "/var/run/stanchion/stanchion.pid",
-                "get_config_rpc": "service.stanchion.get_config",
-                "task": "service.stanchion.update",
-                "name": "stanchion"
-            },
-            "0B1057A8-8923-4B57-B138-87563E0AFC9B": {
-                "rcng": {
-                    "rc-scripts": "riak-cs"
-                },
-                "builtin": false,
-                "pidfile": "/var/run/riak-cs/riak-cs.pid",
-                "get_config_rpc": "service.riak_cs.get_config",
-                "task": "service.riak_cs.update",
-                "name": "riak_cs"
             },
             "A80D48F4-6D89-11E5-A3C7-C3D881054C8B": {
                 "rcng": {
