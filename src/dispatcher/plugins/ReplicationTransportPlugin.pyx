@@ -191,6 +191,7 @@ class TransportSendTask(Task):
 
             if sock is None:
                 raise TaskException(errno.EACCES, 'Could not open a socket at address {0}'.format(server_address))
+            logger.debug('Created a TCP socket at {0}:{1}'.format(*addr))
 
             token_size = transport.get('auth_token_size', 1024)
             token = transport.get('auth_token')
@@ -225,6 +226,7 @@ class TransportSendTask(Task):
                         client_address
                     )
                 )
+            logger.debug('New connection from {0}:{1} to {2}:{3}'.format(addr[0], addr[1], server_address, server_port))
 
             conn_fd = conn.fileno()
             fds.append(conn_fd)
@@ -250,6 +252,7 @@ class TransportSendTask(Task):
                         recvd_token.decode('utf-8')
                     )
                 )
+            logger.debug('{0}:{1} connection authentication finished successfully'.format(*addr))
 
             plugins = transport.get('transport_plugins', [])
             header_rd, header_wr = os.pipe()
@@ -269,6 +272,7 @@ class TransportSendTask(Task):
                     plugin['write_fd'] = FileDescriptor(wr)
                     last_rd_fd = rd
                     raw_subtasks.append(('replication.transport.{0}'.format(type), plugin))
+                    logger.debug('Registered {0} transport layer plugin for {1}:{2} connection'.format(type, *addr))
 
             if len(raw_subtasks):
                 raw_subtasks[-1]['write_fd'] = conn_fd
@@ -380,6 +384,7 @@ class TransportReceiveTask(ProgressTask):
 
             if sock is None:
                 raise TaskException(errno.EACCES, 'Could not connect to a socket at address {0}'.format(server_address))
+            logger.debug('Connected to a TCP socket at {0}:{1}'.format(*addr))
 
             conn_fd = sock.fileno()
             fds.append(conn_fd)
@@ -402,11 +407,13 @@ class TransportReceiveTask(ProgressTask):
                     plugin['write_fd'] = FileDescriptor(wr)
                     last_rd_fd = rd
                     subtasks.append(self.run_subtask('replication.transport.{0}'.format(type), plugin))
+                    logger.debug('Registered {0} transport layer plugin for {1}:{2} connection'.format(type, *addr))
 
             try:
                 write_fd(conn_fd, token_buf, token_size)
             except IOError:
                 raise TaskException(errno.ECONNABORTED, 'Transport connection closed unexpectedly')
+            logger.debug('Authentication token sent to {0}:{1}'.format(*addr))
 
             zfs_rd, zfs_wr = os.pipe()
             fds.append(zfs_wr)
@@ -425,6 +432,7 @@ class TransportReceiveTask(ProgressTask):
             progress_t = threading.Thread(target=self.count_progress)
             progress_t.start()
             subtasks.append(progress_t)
+            logger.debug('Started zfs.receive task for {0}:{1} connection'.format(*addr))
 
             try:
                 while True:
