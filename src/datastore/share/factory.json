@@ -996,11 +996,6 @@
                     "children": {
                         "private": {}
                     }
-                },
-                "swift": {
-                    "link": "/var/db/swift",
-                    "owner": "swift",
-                    "group": "swift"
                 }
             },
             "system.debug.kernel": false,
@@ -1197,19 +1192,6 @@
                     "file:local/apache24/httpd.conf"
                 ],
                 "name": "webdav"
-            },
-            "3865CEDA-6DAF-11E5-A3C7-C3D881054C8B": {
-                "dependencies": [
-                    "file:local/haproxy.conf",
-                    "file:local/gip.lsp"
-                ],
-                "name": "haproxy"
-            },
-            "BA5E4AE6-700F-11E5-AE5B-3B8C385E7527": {
-                "dependencies": [
-                    "file:local/swift/swift.conf"
-                ],
-                "name": "swift"
             },
             "DF9C5217-700E-11E5-AE5B-3B8C385E7527": {
                 "dependencies": [
@@ -1484,24 +1466,6 @@
                 "get_config_rpc": "service.dyndns.get_config",
                 "task": "service.dyndns.update",
                 "name": "dyndns"
-            },
-            "A80D48F4-6D89-11E5-A3C7-C3D881054C8B": {
-                "rcng": {
-                    "rc-scripts": "swift"
-                },
-                "builtin": false,
-                "pidfile": "/var/run/swift/swift.pid",
-                "get_config_rpc": "service.swift.get_config",
-                "task": "service.swift.update",
-                "name": "swift"
-            },
-            "670716BC-6D8A-11E5-A3C7-C3D881054C8B": {
-                "rcng": {
-                    "rc-scripts": "haproxy"
-                },
-                "pidfile": "/var/run/haproxy.pid",
-                "builtin": false,
-                "name": "haproxy"
             },
             "3993A3F3-7010-11E5-AE5B-3B8C385E7527": {
                 "rcng": {
