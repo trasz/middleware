@@ -273,6 +273,8 @@ class TransportSendTask(Task):
                 raise TaskException(errno.ECONNABORTED, 'Transport connection closed unexpectedly')
 
             self.join_subtasks(*subtasks)
+            sock.shutdown(socket.SHUT_RDWR)
+            conn.shutdown(socket.SHUT_RDWR)
 
         finally:
             free(buffer)
@@ -401,7 +403,7 @@ class TransportReceiveTask(ProgressTask):
                     if ret != 4:
                         raise IOError
                     if buffer32[0] != magic:
-                        sock.shutdown()
+                        sock.shutdown(socket.SHUT_RDWR)
                         raise TaskException(
                             errno.EINVAL,
                             'Bad magic {0} received. Expected {1}'.format(buffer32[0], magic)
