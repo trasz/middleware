@@ -48,6 +48,7 @@ else:
     from threading import Thread
     from threading import Event
     from threading import RLock
+    from queue import Queue
     _thread_type = ClientType.THREADED
 
 
@@ -92,6 +93,20 @@ class FileDescriptor(object):
 
 
 class Client(object):
+    class StreamingResultIterator(object):
+        def __init__(self, queue):
+            self.q = queue
+
+        def __iter__(self):
+            return self
+
+        def __next__(self):
+            v = self.q.get()
+            if not v:
+                raise StopIteration
+
+            return v
+
     class PendingCall(object):
         def __init__(self, id, method, args=None):
             self.id = id
@@ -101,6 +116,8 @@ class Client(object):
             self.error = None
             self.completed = Event()
             self.callback = None
+            self.streaming = False
+            self.queue = None
 
     class SubscribedEvent(object):
         def __init__(self, name, *filters):
@@ -157,6 +174,10 @@ class Client(object):
         else:
             payload = custom_payload
 
+        if pending_call.streaming:
+            pending_call.queue = Queue()
+            pending_call.result = self.StreamingResultIterator(pending_call.queue)
+
         self.__send(*self.__pack(
             'rpc',
             call_type,
@@ -199,7 +220,7 @@ class Client(object):
         if not fds:
             fds = []
 
-        debug_log('<- {0} [{1}', data, fds)
+        debug_log('<- {0} [{1}]', data, fds)
         self.transport.send(data, fds)
 
     def recv(self, message, fds):
@@ -369,6 +390,36 @@ class Client(object):
                     if self.error_callback is not None:
                         self.error_callback(ClientError.SPURIOUS_RPC_RESPONSE, msg['id'])
 
+            if msg['name'] == 'response_fragment':
+                if msg['id'] in self.pending_calls.keys():
+                    call = self.pending_calls[msg['id']]
+                    if call.streaming:
+                        for i in msg['args']:
+                            call.queue.put(i)
+                    else:
+                        if call.result is None:
+                            call.result = []
+
+                        call.result += msg['args']
+
+                    if call.streaming and call.callback:
+                        call.callback(msg['args'])
+
+            if msg['name'] == 'response_end':
+                if msg['id'] in self.pending_calls.keys():
+                    call = self.pending_calls[msg['id']]
+                    if call.streaming:
+                        call.queue.put(None)
+
+                    if call.callback:
+                        if call.streaming:
+                            call.callback(None)
+                        else:
+                            call.callback(call.result)
+
+                    call.completed.set()
+                    del self.pending_calls[str(call.id)]
+
             if msg['name'] == 'error':
                 if msg['id'] in self.pending_calls.keys():
                     call = self.pending_calls[msg['id']]
@@ -495,9 +546,10 @@ class Client(object):
 
         self.call_sync('plugin.unregister_schema', name)
 
-    def call_async(self, name, callback, *args):
+    def call_async(self, name, callback, *args, **kwargs):
         call = self.PendingCall(uuid.uuid4(), name, args)
         call.callback = callback
+        call.streaming = kwargs.pop('streaming', False)
         self.pending_calls[str(call.id)] = call
         self.__call(call)
         return call
@@ -505,8 +557,12 @@ class Client(object):
     def call_sync(self, name, *args, **kwargs):
         timeout = kwargs.pop('timeout', self.default_timeout)
         call = self.PendingCall(uuid.uuid4(), name, args)
+        call.streaming = kwargs.pop('streaming', False)
         self.pending_calls[str(call.id)] = call
         self.__call(call)
+
+        if call.streaming:
+            return call.result
 
         if not self.wait_for_call(call, timeout):
             if self.error_callback:

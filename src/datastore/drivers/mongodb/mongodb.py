@@ -261,6 +261,19 @@ class MongodbDatastore(object):
 
     @auto_retry
     def query(self, collection, *args, **kwargs):
+        single = kwargs.get('single', False)
+        count = kwargs.get('count', False)
+
+        if single or count:
+            try:
+                next(self.query_stream(collection, *args, **kwargs))
+            except StopIteration as e:
+                return e.value
+
+        return list(self.query_stream(collection, *args, **kwargs))
+
+    @auto_retry
+    def query_stream(self, collection, *args, **kwargs):
         sort = kwargs.pop('sort', None)
         limit = kwargs.pop('limit', None)
         offset = kwargs.pop('offset', None)
@@ -268,7 +281,6 @@ class MongodbDatastore(object):
         count = kwargs.pop('count', False)
         postprocess = kwargs.pop('callback', None)
         select = kwargs.pop('select', None)
-        result = []
 
         db = self._get_db(collection)
         cur = db.find(self._build_query(args))
@@ -325,9 +337,7 @@ class MongodbDatastore(object):
             i['id'] = i.pop('_id')
             r = postprocess(i) if postprocess else i
             if r is not None:
-                result.append(r)
-
-        return result
+                yield r
 
     @auto_retry
     def listen(self, collection, *args, **kwargs):

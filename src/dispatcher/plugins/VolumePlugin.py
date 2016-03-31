@@ -46,8 +46,8 @@ from lib.system import system, SubprocessException
 from lib.freebsd import fstyp
 from task import Provider, Task, ProgressTask, MasterProgressTask, TaskException, TaskWarning, VerifyException, query
 from freenas.dispatcher.rpc import (
-    RpcException, description, accepts, returns, private, SchemaHelper as h
-    )
+    RpcException, description, accepts, returns, private, SchemaHelper as h, generator
+)
 from utils import first_or_default, load_config
 from datastore import DuplicateKeyException
 from freenas.utils import include, exclude, normalize, chunks
@@ -94,6 +94,7 @@ datasets = None
 @description("Provides access to volumes information")
 class VolumeProvider(Provider):
     @query('volume')
+    @generator
     def query(self, filter=None, params=None):
         def is_upgraded(pool):
             if pool['properties.version.value'] != '-':
@@ -174,7 +175,7 @@ class VolumeProvider(Provider):
 
             return vol
 
-        return self.datastore.query('volumes', *(filter or []), callback=extend, **(params or {}))
+        return self.datastore.query_stream('volumes', *(filter or []), callback=extend, **(params or {}))
 
     @description("Finds volumes available for import")
     @accepts()
@@ -243,7 +244,7 @@ class VolumeProvider(Provider):
     @accepts(str, str)
     @returns(str)
     def resolve_path(self, volname, path):
-        volume = self.query([('id', '=', volname)], {'single': True})
+        volume = self.dispatcher.call_sync('volume.query', [('id', '=', volname)], {'single': True})
         if not volume:
             raise RpcException(errno.ENOENT, 'Volume {0} not found'.format(volname))
 
@@ -403,13 +404,15 @@ class VolumeProvider(Provider):
 
 
 class DatasetProvider(Provider):
+    @generator
     def query(self, filter=None, params=None):
-        return datasets.query(*(filter or []), **(params or {}))
+        return iter(datasets.query(*(filter or []), **(params or {})))
 
 
 class SnapshotProvider(Provider):
+    @generator
     def query(self, filter=None, params=None):
-        return snapshots.query(*(filter or []), **(params or {}))
+        return iter(snapshots.query(*(filter or []), **(params or {})))
 
 
 @description("Creates new volume")

@@ -66,7 +66,7 @@ from datastore import get_datastore
 from datastore.migrate import migrate_db, MigrationException
 from datastore.config import ConfigStore
 from freenas.dispatcher.jsonenc import loads, dumps
-from freenas.dispatcher.rpc import RpcContext, RpcException, ServerLockProxy
+from freenas.dispatcher.rpc import RpcContext, RpcStreamingResponse, RpcException, ServerLockProxy
 from freenas.dispatcher.client import FileDescriptor
 from resources import ResourceGraph
 from services import (
@@ -80,6 +80,7 @@ from freenas.utils import FaultTolerantLogHandler, load_module_from_file, xrecvm
 
 
 MAXFDS = 128
+CMSGCRED_SIZE = struct.calcsize('iiiih16i')
 DEFAULT_CONFIGFILE = '/usr/local/etc/middleware.conf'
 LOGGING_FORMAT = '%(asctime)s %(levelname)s %(filename)s:%(lineno)d %(message)s'
 trace_log_file = None
@@ -350,6 +351,8 @@ class Dispatcher(object):
         self.balancer = Balancer(self)
         self.auth = PasswordAuthenticator(self)
         self.rpc = ServerRpcContext(self)
+        self.rpc.streaming_enabled = True
+        self.rpc.streaming_burst = self.configstore.get('middleware.streaming_burst_size') or 1
         register_general_purpose_schemas(self)
 
         self.rpc.register_service('management', ManagementService)
@@ -799,15 +802,7 @@ class ServerRpcContext(RpcContext):
         self.dispatcher = dispatcher
 
     def call_sync(self, name, *args):
-        svcname, _, method = name.rpartition('.')
-        svc = self.get_service(svcname)
-        if svc is None:
-            raise RpcException(errno.ENOENT, 'Service {0} not found'.format(svcname))
-
-        if not hasattr(svc, method):
-            raise RpcException(errno.ENOENT, 'Method {0} in service {1} not found'.format(method, svcname))
-
-        return copy.deepcopy(getattr(svc, method)(*args))
+        return copy.deepcopy(self.dispatch_call(name, list(args), streaming=False, validation=False))
 
 
 class ServerResource(Resource):
@@ -849,8 +844,6 @@ class UnixSocketServer(object):
             import types
             self.dispatcher = dispatcher
             self.connfd = connfd
-            self.rfd = connfd.makefile('rb')
-            self.wfd = connfd.makefile('wb')
             self.address = address
             self.server = server
             self.handler = types.SimpleNamespace()
@@ -872,8 +865,7 @@ class UnixSocketServer(object):
                         return
 
                     wait_write(fd, 10)
-                    xsendmsg(self.connfd, header)
-                    xsendmsg(self.connfd, data, [
+                    xsendmsg(self.connfd, header + data, [
                         (socket.SOL_SOCKET, socket.SCM_RIGHTS, array.array('i', [i.fd for i in fds]))
                     ])
 
@@ -894,17 +886,23 @@ class UnixSocketServer(object):
 
             while True:
                 try:
-                    header, _ = xrecvmsg(self.connfd, 8, socket.CMSG_LEN(1024))
+                    fds = array.array('i')
+                    header, ancdata = xrecvmsg(
+                        self.connfd, 8,
+                        socket.CMSG_SPACE(MAXFDS * fds.itemsize) + socket.CMSG_SPACE(CMSGCRED_SIZE)
+                    )
+
                     if header == b'' or len(header) != 8:
+                        if len(header) > 0:
+                            self.server.logger.info('Short read (len {0})'.format(len(header)))
                         break
 
                     magic, length = struct.unpack('II', header)
                     if magic != 0xdeadbeef:
                         self.server.logger.info('Message with wrong magic dropped (magic {0:x})'.format(magic))
-                        continue
+                        break
 
-                    fds = array.array('i')
-                    msg, ancdata = xrecvmsg(self.connfd, length, socket.CMSG_LEN(MAXFDS * fds.itemsize))
+                    msg, _ = xrecvmsg(self.connfd, length)
                     if msg == b'' or len(msg) != length:
                         self.server.logger.info('Message with wrong length dropped; closing connection')
                         break
@@ -936,8 +934,6 @@ class UnixSocketServer(object):
                 self.conn.on_close('Bye bye')
                 self.conn = None
                 try:
-                    self.rfd.close()
-                    self.wfd.close()
                     self.connfd.shutdown(socket.SHUT_RDWR)
                     self.connfd.close()
                 except OSError:
@@ -1355,13 +1351,46 @@ class ServerConnection(WebSocketApplication, EventEmitter):
                     }
                 })
             else:
-                self.send_json({
-                    "namespace": "rpc",
-                    "name": "response",
-                    "id": id,
-                    "timestamp": time.time(),
-                    "args": result
-                })
+                if isinstance(result, RpcStreamingResponse):
+                    try:
+                        for i in result:
+                            self.send_json({
+                                "namespace": "rpc",
+                                "name": "response_fragment",
+                                "id": id,
+                                "timestamp": time.time(),
+                                "args": i
+                            })
+                    except RpcException as err:
+                        self.send_json({
+                            "namespace": "rpc",
+                            "name": "error",
+                            "id": id,
+                            "timestamp": time.time(),
+                            "args": {
+                                "code": err.code,
+                                "message": err.message,
+                                "extra": err.extra
+                            }
+                        })
+
+                        return
+
+                    self.send_json({
+                        "namespace": "rpc",
+                        "name": "response_end",
+                        "id": id,
+                        "timestamp": time.time(),
+                        "args": None
+                    })
+                else:
+                    self.send_json({
+                        "namespace": "rpc",
+                        "name": "response",
+                        "id": id,
+                        "timestamp": time.time(),
+                        "args": result
+                    })
 
         if self.user is None:
             self.emit_rpc_error(id, errno.EACCES, 'Not logged in')

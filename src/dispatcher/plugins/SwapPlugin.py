@@ -189,7 +189,10 @@ def _init(dispatcher, plugin):
     plugin.attach_hook('volume.pre_destroy', volumes_pre_detach)
     plugin.attach_hook('volume.pre_detach', volumes_pre_detach)
 
-    bsd.kld.kldload('/boot/kernel/geom_mirror.ko')
+    try:
+        bsd.kld.kldload('/boot/kernel/geom_mirror.ko')
+    except FileExistsError:
+        pass
 
     clear_swap(dispatcher)
     rearrange_swap(dispatcher)

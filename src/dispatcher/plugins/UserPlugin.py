@@ -34,7 +34,7 @@ import string
 import re
 from task import Provider, Task, TaskException, TaskWarning, ValidationException, VerifyException, query
 from debug import AttachFile
-from freenas.dispatcher.rpc import RpcException, description, accepts, returns, SchemaHelper as h
+from freenas.dispatcher.rpc import RpcException, description, accepts, returns, SchemaHelper as h, generator
 from datastore import DuplicateKeyException, DatastoreException
 from lib.system import SubprocessException, system
 from freenas.utils import normalize
@@ -76,6 +76,7 @@ def crypted_password(cleartext):
 class UserProvider(Provider):
     @description("Lists users present in the system")
     @query('user')
+    @generator
     def query(self, filter=None, params=None):
         def extend(user):
             # If there's no 'attributes' property, put empty dict in that place
@@ -88,7 +89,7 @@ class UserProvider(Provider):
 
             return user
 
-        return self.datastore.query('users', *(filter or []), callback=extend, **(params or {}))
+        yield from self.datastore.query_stream('users', *(filter or []), callback=extend, **(params or {}))
 
     def get_profile_picture(self, uid):
         pass
@@ -116,6 +117,7 @@ class UserProvider(Provider):
 class GroupProvider(Provider):
     @description("Lists groups present in the system")
     @query('group')
+    @generator
     def query(self, filter=None, params=None):
         def extend(group):
             group['members'] = [x['id'] for x in self.datastore.query(
@@ -127,7 +129,7 @@ class GroupProvider(Provider):
             )]
             return group
 
-        return self.datastore.query('groups', *(filter or []), callback=extend, **(params or {}))
+        yield from self.datastore.query_stream('groups', *(filter or []), callback=extend, **(params or {}))
 
     @description("Retrieve the next GID available")
     @returns(int)
