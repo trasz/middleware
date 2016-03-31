@@ -37,13 +37,17 @@ DebuggerApp.config(['$routeProvider', function($routeProvider) {
           templateUrl: '../static/partials/tasks.html' ,
           controller: TasksController
       }).
+    //   when('/vm',{
+    //       templateUrl: '../static/partials/vm.html',
+    //       controller: VMController
+    //   }).
       when('/filebrowser',{
           templateUrl: '../static/partials/filebrowser.html' ,
           controller: FileBrowserController
       }).
-      when('/apidocs/', {
-          templateUrl: '../static/partials/apidocs.html',
-          controller: APIdocController
+      when('/apidocs/rpc', {
+          templateUrl: '../static/partials/apidoc_rpc.html',
+          controller: RPCdocController
         }).
       when('/404',{
           templateUrl: '../static/partials/404.html',
@@ -59,36 +63,3 @@ DebuggerApp.config(['$routeProvider', function($routeProvider) {
       }).
       otherwise({redirectTo: '/'});
 }]);
-
-DebuggerApp.service('synchronousService', [function () {
-    var serviceMethod = function (url) {
-        var request;
-        if (window.XMLHttpRequest) {
-            request = new XMLHttpRequest();
-        } else if (window.ActiveXObject) {
-            request = new ActiveXObject("Microsoft.XMLHTTP");
-        } else {
-            throw new Error("Your browser don't support XMLHttpRequest");
-        }
-
-        request.open('GET', url, false);
-        request.send(null);
-
-        if (request.status === 200) {
-            return request.responseText;
-        }
-    };
-    return serviceMethod;
-}]);
-
-DebuggerApp.directive('ngRightClick', function($parse) {
-    return function(scope, element, attrs) {
-        var fn = $parse(attrs.ngRightClick);
-        element.bind('contextmenu', function(event) {
-            scope.$apply(function() {
-                event.preventDefault();
-                fn(scope, {$event:event});
-            });
-        });
-    };
-});

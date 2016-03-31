@@ -136,9 +136,6 @@ function TermController($scope, synchronousService) {
     $scope.init = function () {
         var syncUrl = "/static/term.js";
         synchronousService(syncUrl);
-        // var s = document.createElement('script');
-        // s.src = '/static/term.js';
-        // document.body.appendChild(s);
         sock.onError = function(err) {
             $("#socket_status ").attr("src", "/static/images/service_issue_diamond.png");
             $("#refresh_page_glyph").show();
@@ -645,6 +642,77 @@ function TasksController($scope) {
     }
 }
 
+function VMController($scope) {
+    var sock = new middleware.DispatcherClient(document.domain);
+    var term;
+    var conn;
+    var currentId = null;
+    sock.connect();
+
+    function connect_term(client, vm) {
+        conn = new middleware.ContainerConsoleClient(client);
+        conn.connect(vm);
+        conn.onOpen = function() {
+            term = new Terminal({
+                cols: 80,
+                rows: 24,
+                screenKeys: true
+            });
+
+            term.on('data', function (data) {
+                conn.send(data);
+            });
+
+            conn.onData = function (data) {
+                term.write(data);
+            };
+
+            term.open($("#terminal")[0])
+        }
+    }
+    $scope.init = function() {
+        var syncUrl = "/static/term.js";
+        synchronousService(syncUrl);
+        sock.onError = function(err) {
+            $("#socket_status ").attr("src", "/static/images/service_issue_diamond.png");
+            $("#refresh_page_glyph").show();
+        };
+        sock.onConnect = function() {
+            if (!sessionStorage.getItem("freenas:username")) {
+                var username = prompt("Username:");
+                var password = prompt("Password:");
+                sessionStorage.setItem("freenas:username", username);
+                sessionStorage.setItem("freenas:password", password);
+            }
+
+            sock.login(
+                sessionStorage.getItem("freenas:username"),
+                sessionStorage.getItem("freenas:password")
+            );
+        };
+    }
+    $("#containers").on("click", "a.container-entry", function() {
+        sock.call("containerd.management.get_status", [$(this).attr("data-id")], function (response) {
+            $("#state").text("State: " + response.state);
+        });
+
+        if (term) {
+            term.destroy();
+            conn.disconnect();
+        }
+
+        currentId = $(this).attr("data-id");
+        connect_term(sock, currentId);
+    });
+    $("#start-container").on("click", function() {
+        sock.call("task.submit", ["container.start", [currentId]]);
+    });
+
+    $("#stop-container").on("click", function() {
+        sock.call("task.submit", ["container.stop", [currentId]]);
+    });
+}
+
 function Four04Controller($scope) {
 
 }
@@ -657,6 +725,56 @@ function HTTPStatusController($scope, $http, $routeParams, $location) {
     $scope.status_code = $routeParams.status_code;
 }
 
-function APIdocController($scope) {
-	console.log("api doc page");
+function RPCdocController($scope) {
+    document.title = "RPC API Page";
+    var sock = new middleware.DispatcherClient(document.domain);
+    sock.connect();
+    $scope.init = function() {
+        $(".json").each(function() {
+            $(this).JSONView($(this).text(), { "collapsed": true });
+            $(this).JSONView('expand', 1);
+        });
+        sock.onError = function(err) {
+            $("#socket_status ").attr("src", "/static/images/service_issue_diamond.png");
+            $("#refresh_page_glyph").show();
+        };
+        sock.onConnect = function() {
+            if (!sessionStorage.getItem("freenas:username")) {
+                var username = prompt("Username:");
+                var password = prompt("Password:");
+                sessionStorage.setItem("freenas:username", username);
+                sessionStorage.setItem("freenas:password", password);
+            }
+
+            sock.login(
+                sessionStorage.getItem("freenas:username"),
+                sessionStorage.getItem("freenas:password")
+            );
+            $("#login_username").html(username);
+        };
+        sock.onLogin = function() {
+            sock.call("discovery.get_services", null, function (services) {
+                $scope.$apply(function(){
+                    $scope.services = services;
+                });
+                var service_dict = {};
+                $.each(services, function(idx, i) {
+                    var temp_list = [];
+                    sock.call("discovery.get_methods", [i], function(methods) {
+                        for(var tmp = 0; tmp < methods.length; tmp++) {
+                           temp_list.push(methods[tmp]);
+                        }
+                    service_dict[i] = temp_list;
+                      $scope.$apply(function(){
+                        $scope.service_dict = service_dict;
+                      });
+                    });
+                });
+            });
+        };
+    }
+    $scope.getServiceList = function(service_name){
+        $scope.current_methods = $scope.service_dict[service_name];
+        $scope.current_service = service_name;
+    }
 }
