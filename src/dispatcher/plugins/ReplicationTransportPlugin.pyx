@@ -137,7 +137,7 @@ class TransportSendTask(Task):
             raise VerifyException(errno.EINVAL, 'Server address cannot be specified')
 
         host = self.dispatcher.call_sync(
-            'replication.known_host.query',
+            'replication.host.query',
             [('name', '=', client_address)],
             {'single': True}
         )
@@ -301,7 +301,7 @@ class TransportReceiveTask(ProgressTask):
         server_address = transport.get('server_address')
 
         host = self.dispatcher.call_sync(
-            'replication.known_host.query',
+            'replication.host.query',
             [('name', '=', server_address)],
             {'single': True}
         )
