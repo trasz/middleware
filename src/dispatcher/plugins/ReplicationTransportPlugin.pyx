@@ -213,11 +213,11 @@ class TransportSendTask(Task):
             recv_task_id = remote_client.call_task_async('replication.transport.receive', transport)
 
             conn, addr = sock.accept()
-            if addr != client_address:
+            if addr[0] != client_address:
                 raise TaskException(
                     errno.EINVAL,
                     'Connection from an unexpected address {0} - desired {1}'.format(
-                        addr,
+                        addr[0],
                         client_address
                     )
                 )
