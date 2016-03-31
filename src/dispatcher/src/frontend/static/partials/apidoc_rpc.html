@@ -28,16 +28,16 @@
                     Public
                   </span>
               </button>
-              <p ng-if="method['result-schema'] != undefined">
+              <p ng-show="method['result-schema'] != undefined" id="result-schema">
                   <span class="label label-primary">result</span>
-                  <pre>
-                      {{ method["result-schema"] | json:4 }}
+                  <pre ng-show="method['result-schema'] != undefined">
+{{ method["result-schema"] | json:4 }}
                   </pre>
               </p>
-              <p ng-if="method['params-schema'] != undefined">
+              <p ng-if="method['params-schema'] != undefined" id="params-schema">
                   <span class="label label-primary">params</span>
-                  <pre>
-                      {{ method["params-schema"] | json:4 }}
+                  <pre ng-if="method['params-schema'] != undefined">
+{{ method["params-schema"] | json:4 }}
                   </pre>
               </p>
             </li>
