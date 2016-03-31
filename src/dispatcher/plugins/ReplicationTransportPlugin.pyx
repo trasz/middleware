@@ -362,7 +362,7 @@ class TransportReceiveTask(ProgressTask):
                 break
 
             if sock is None:
-                raise TaskException(errno.EACCES, 'Could not open a socket at address {0}'.format(server_address))
+                raise TaskException(errno.EACCES, 'Could not connect to a socket at address {0}'.format(server_address))
 
             conn_fd = sock.fileno()
 
