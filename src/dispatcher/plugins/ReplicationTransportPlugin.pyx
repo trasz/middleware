@@ -226,7 +226,7 @@ class TransportSendTask(Task):
                         client_address
                     )
                 )
-            logger.debug('New connection from {0}:{1} to {2}:{3}'.format(addr[0], addr[1], server_address, server_port))
+            logger.debug('New connection from {0}:{1} to {2}:{3}'.format(*(addr + sock_addr)))
 
             conn_fd = conn.fileno()
             fds.append(conn_fd)
