@@ -28,7 +28,7 @@
 import time
 from datastore import DatastoreException
 from datetime import datetime
-from dispatcher.rpc import generator
+from freenas.dispatcher.rpc import generator
 from event import EventSource
 from task import Provider
 from debug import AttachDirectory
