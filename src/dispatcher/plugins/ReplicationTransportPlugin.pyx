@@ -208,7 +208,7 @@ class TransportSendTask(Task):
             transport['server_address'] = sock_addr[0]
             transport['server_port'] = sock_addr[1]
             transport['buffer_size'] = buffer_size
-            transport['token_size'] = token_size
+            transport['auth_token_size'] = token_size
 
             recv_task_id = remote_client.call_task_async('replication.transport.receive', transport)
 
