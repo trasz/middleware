@@ -987,18 +987,6 @@
                 "log": {
                     "link": "/var/log",
                     "children": {
-                        "riak": {
-                            "owner": "riak",
-                            "group": "riak"
-                        },
-                        "riak-cs": {
-                            "owner": "riakcs",
-                            "group": "riak"
-                        },
-                        "stanchion": {
-                            "owner": "stanchion",
-                            "group": "riak"
-                        },
                         "samba4": {}
                     }
                 },
@@ -1008,21 +996,6 @@
                     "children": {
                         "private": {}
                     }
-                },
-                "riak": {
-                    "link": "/var/db/riak",
-                    "owner": "riak",
-                    "group": "riak"
-                },
-                "riak-cs": {
-                    "link": "/var/db/riak-cs",
-                    "owner": "riakcs",
-                    "group": "riak"
-                },
-                "stanchion": {
-                    "link": "/var/db/stanchion",
-                    "owner": "stanchion",
-                    "group": "riak"
                 },
                 "swift": {
                     "link": "/var/db/swift",
