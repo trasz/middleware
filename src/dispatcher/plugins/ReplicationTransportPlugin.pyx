@@ -155,9 +155,9 @@ class TransportSendTask(Task):
 
     def run(self, fd, transport):
         cdef uint8_t *buffer
-        cdef int curr_pos = 0
-        cdef int ret
-        cdef int magic = 0xdeadbeef
+        cdef uint32_t curr_pos = 0
+        cdef uint32_t ret
+        cdef uint32_t magic = 0xdeadbeef
 
         sock = None
         conn = None
