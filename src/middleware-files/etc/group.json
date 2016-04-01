@@ -449,34 +449,6 @@
   },
   {
     "created_at": {
-      "$date": "2016-03-20 14:36:08.538000"
-    },
-    "name": "jceel",
-    "builtin": false,
-    "updated_at": {
-      "$date": "2016-03-20 14:36:08.538000"
-    },
-    "gid": 1000,
-    "members": [],
-    "id": "abac61a1-e020-4fb6-b4cd-68e260036c4d",
-    "sudo": false
-  },
-  {
-    "created_at": {
-      "$date": "2016-03-22 20:34:53.123000"
-    },
-    "name": "testuser",
-    "builtin": false,
-    "updated_at": {
-      "$date": "2016-03-22 20:34:53.123000"
-    },
-    "gid": 1001,
-    "members": [],
-    "id": "852f01f2-787d-4008-8594-9b39e8c559b7",
-    "sudo": false
-  },
-  {
-    "created_at": {
       "$date": "2016-03-08 22:21:49.987000"
     },
     "name": "nogroup",
