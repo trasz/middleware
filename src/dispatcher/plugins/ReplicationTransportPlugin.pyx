@@ -128,6 +128,10 @@ class TransportProvider(Provider):
     )
 )
 class TransportSendTask(Task):
+    def __init__(self, dispatcher, datastore):
+        super(TransportSendTask, self).__init__(dispatcher, datastore)
+        self.recv_finished = threading.Event()
+
     def verify(self, fd, transport):
         client_address = transport.get('client_address')
         if not client_address:
@@ -215,7 +219,12 @@ class TransportSendTask(Task):
             transport['buffer_size'] = buffer_size
             transport['auth_token_size'] = token_size
 
-            recv_task_id = remote_client.call_task_async('replication.transport.receive', transport)
+            recv_task_id = remote_client.call_task_async(
+                'replication.transport.receive',
+                transport,
+                callback=self.get_recv_status,
+                timeout=604800
+            )
 
             conn, addr = sock.accept()
             if addr[0] != client_address:
@@ -315,6 +324,18 @@ class TransportSendTask(Task):
                     os.close(fd)
             except OSError:
                 pass
+
+    def get_recv_status(self, status):
+        self.recv_finished.set()
+        if status.get('state') != 'FINISHED':
+            args = status['args'][0]
+            raise TaskException(
+                errno.ECONNABORTED,
+                'Receive process connected to {0}:{1} finished unexpectedly'.format(
+                    args['server_address'],
+                    args['server_port']
+                )
+            )
 
 
 @private
