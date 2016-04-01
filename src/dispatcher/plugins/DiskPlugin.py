@@ -195,7 +195,9 @@ class DiskGPTFormatTask(Task):
 
         blocksize = params.pop('blocksize', 4096)
         swapsize = params.pop('swapsize', 2048)
+        minswapsize = swapsize * 4 * 1024 * 1024
         bootcode = params.pop('bootcode', '/boot/pmbr-datadisk')
+        mediasize_mb = disk['mediasize']
 
         try:
             system('/sbin/gpart', 'destroy', '-F', disk['path'])
@@ -206,8 +208,12 @@ class DiskGPTFormatTask(Task):
         try:
             with self.dispatcher.get_lock('diskcache:{0}'.format(disk['path'])):
                 system('/sbin/gpart', 'create', '-s', 'gpt', disk['path'])
-                if swapsize > 0:
-                    system('/sbin/gpart', 'add', '-a', str(blocksize), '-b', '128', '-s', '{0}M'.format(swapsize), '-t', 'freebsd-swap', disk['path'])
+                if swapsize > 0 and mediasize_mb > minswapsize:
+                    system(
+                        '/sbin/gpart', 'add', '-a', str(blocksize), '-b', '128',
+                        '-s', '{0}M'.format(swapsize),
+                        '-t', 'freebsd-swap', disk['path']
+                    )
                     system('/sbin/gpart', 'add', '-a', str(blocksize), '-t', fstype, disk['path'])
                 else:
                     system('/sbin/gpart', 'add', '-a', str(blocksize), '-b', '128', '-t', fstype, disk['path'])
