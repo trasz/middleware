@@ -27,6 +27,7 @@
 
 #include <string.h>
 #include <unistd.h>
+#include <errno.h>
 #include <sys/param.h>
 #include <security/pam_appl.h>
 #include <security/pam_modules.h>
@@ -40,6 +41,7 @@
 static void flat_load_files();
 static json_t *flat_find_user(const char *);
 static int call_dispatcher(const char *, json_t *, json_t **);
+static int emit_event(const char *, json_t *);
 
 static json_t *flat_users;
 
@@ -49,6 +51,8 @@ flat_load_files()
     json_error_t err;
 
     flat_users = json_load_file(PASSWD_FILE, 0, &err);
+    if (flat_users == NULL)
+        PAM_LOG("Cannot read %s: %s", PASSWD_FILE, err.text);
 }
 
 static json_t *
@@ -109,6 +113,97 @@ call_dispatcher(const char *method, json_t *args, json_t **result)
     return (0);
 }
 
+static int
+emit_event(const char *event, json_t *args)
+{
+    connection_t *conn;
+    int err;
+
+    conn = dispatcher_open("unix");
+    if (conn == NULL) {
+        PAM_LOG("Cannot open unix domain socket connection");
+        return (-1);
+    }
+
+    if (dispatcher_login_service(conn, "pam-freenas") < 0) {
+        PAM_LOG("Cannot log in as pam-freenas");
+        dispatcher_close(conn);
+        return (-1);
+    }
+
+    err = dispatcher_emit_event(conn, event, args);
+    if (err != 0) {
+        PAM_LOG("Cannot emit event %s: %s", event, strerror(errno));
+        dispatcher_close(conn);
+        return (-1);
+    }
+
+    dispatcher_close(conn);
+    return (0);
+}
+
+PAM_EXTERN int
+pam_sm_open_session(struct pam_handle *pamh, int flags, int argc, const char *argv[])
+{
+    const char *username, *tty, *service;
+    json_t *args;
+    int err;
+
+    err = pam_get_user(pamh, &username, NULL);
+    if (err != PAM_SUCCESS)
+        return (err);
+
+    err = pam_get_item(pamh, PAM_TTY, &tty);
+    if (err != PAM_SUCCESS)
+        return (err);
+
+    err = pam_get_item(pamh, PAM_SERVICE, &service);
+    if (err != PAM_SUCCESS)
+        return (err);
+
+    args = json_pack("{ssssss}",
+        "username", username,
+        "tty", tty,
+        "service", service
+    );
+
+    if (emit_event("system.session.open", args) != 0)
+        return (PAM_SERVICE_ERR);
+
+    return (PAM_SUCCESS);
+}
+
+PAM_EXTERN int
+pam_sm_close_session(struct pam_handle *pamh, int flags, int argc, const char *argv[])
+{
+    const char *username, *tty, *service;
+    json_t *args;
+    int err;
+
+    err = pam_get_user(pamh, &username, NULL);
+    if (err != PAM_SUCCESS)
+        return (err);
+
+    err = pam_get_item(pamh, PAM_TTY, &tty);
+    if (err != PAM_SUCCESS)
+        return (err);
+
+    err = pam_get_item(pamh, PAM_SERVICE, &service);
+    if (err != PAM_SUCCESS)
+        return (err);
+
+    args = json_pack("{ssssss}",
+        "username", username,
+        "tty", tty,
+        "service", service
+    );
+
+    if (emit_event("system.session.close", args) != 0)
+        return (PAM_SERVICE_ERR);
+
+    return (PAM_SUCCESS);
+}
+
 PAM_EXTERN int
 pam_sm_setcred(struct pam_handle *pamh, int flags, int argc, const char *argv[])
 {
@@ -143,7 +238,8 @@ pam_sm_authenticate(struct pam_handle *pamh, int flags, int argc, const char *ar
 
     PAM_LOG("Got password");
 
-    if (call_dispatcher("dscached.account.authenticate", json_pack("[ss]", username, password), &result) != 0) {
+    if (call_dispatcher("dscached.account.authenticate",
+        json_pack("[ss]", username, password), &result) != 0) {
         PAM_LOG("Cannot call dispatcher, trying local file backend");
 
         /* Try flat file lookup */
