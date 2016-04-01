@@ -439,7 +439,6 @@ class TransportReceiveTask(ProgressTask):
 
             progress_t = threading.Thread(target=self.count_progress)
             progress_t.start()
-            subtasks.append(progress_t)
             logger.debug('Started zfs.receive task for {0}:{1} connection'.format(*addr))
 
             try:
@@ -470,6 +469,7 @@ class TransportReceiveTask(ProgressTask):
             self.running = False
             logger.debug('All data fetched for transfer from {0}:{1}. Waiting for plugins to close.'.format(*addr))
             self.join_subtasks(*subtasks)
+            progress_t.join()
             logger.debug('Receive from {0}:{1} finished. Closing connection'.format(*addr))
 
         finally:
