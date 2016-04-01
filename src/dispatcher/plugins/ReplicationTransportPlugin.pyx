@@ -52,7 +52,7 @@ REPL_HOME = '/var/tmp/replication'
 AUTH_FILE = os.path.join(REPL_HOME, '.ssh/authorized_keys')
 
 
-cdef int read_fd(int fd, uint8_t *buf, int nbytes, int curr_pos):
+cdef int read_fd(int fd, void *buf, int nbytes, int curr_pos):
     cdef int ret
     cdef int done = 0
 
@@ -71,7 +71,7 @@ cdef int read_fd(int fd, uint8_t *buf, int nbytes, int curr_pos):
             return done
 
 
-cdef int write_fd(int fd, uint8_t *buf, int nbytes):
+cdef int write_fd(int fd, void *buf, int nbytes):
     cdef int ret
     cdef int done = 0
 
@@ -128,6 +128,10 @@ class TransportProvider(Provider):
     )
 )
 class TransportSendTask(Task):
+    def __init__(self, dispatcher, datastore):
+        super(TransportSendTask, self).__init__(dispatcher, datastore)
+        self.recv_finished = threading.Event()
+
     def verify(self, fd, transport):
         client_address = transport.get('client_address')
         if not client_address:
@@ -151,9 +155,9 @@ class TransportSendTask(Task):
 
     def run(self, fd, transport):
         cdef uint8_t *buffer
-        cdef int curr_pos = 0
-        cdef int ret
-        cdef int magic = 0xdeadbeef
+        cdef uint32_t curr_pos = 0
+        cdef uint32_t ret
+        cdef uint32_t magic = 0xdeadbeef
 
         sock = None
         conn = None
@@ -215,7 +219,12 @@ class TransportSendTask(Task):
             transport['buffer_size'] = buffer_size
             transport['auth_token_size'] = token_size
 
-            recv_task_id = remote_client.call_task_async('replication.transport.receive', transport)
+            recv_task_id = remote_client.call_task_async(
+                'replication.transport.receive',
+                transport,
+                callback=self.get_recv_status,
+                timeout=604800
+            )
 
             conn, addr = sock.accept()
             if addr[0] != client_address:
@@ -275,6 +284,7 @@ class TransportSendTask(Task):
                     logger.debug('Registered {0} transport layer plugin for {1}:{2} connection'.format(type, *addr))
 
             if len(raw_subtasks):
+                logger.debug('Starting plugins for {1}:{2} connection'.format(*addr))
                 raw_subtasks[-1]['write_fd'] = conn_fd
                 for subtask in raw_subtasks:
                     subtasks.append(self.run_subtask(*subtask))
@@ -287,18 +297,29 @@ class TransportSendTask(Task):
             try:
                 while True:
                     ret = read_fd(fd.fd, buffer, buffer_size, 0)
-                    write_fd(header_wr, <uint8_t *> magic, sizeof(magic))
-                    write_fd(header_wr, <uint8_t *> ret, sizeof(ret))
+                    IF REPLICATION_TRANSPORT_DEBUG:
+                        logger.debug('Got {0} bytes of payload ({1}:{2})'.format(ret, *addr))
+                    write_fd(header_wr, &magic, sizeof(magic))
+                    IF REPLICATION_TRANSPORT_DEBUG:
+                        logger.debug('Written {0} bytes of header -> TCP socket ({1}:{2})'.format(sizeof(magic), *addr))
+                    write_fd(header_wr, &ret, sizeof(ret))
+                    IF REPLICATION_TRANSPORT_DEBUG:
+                        logger.debug('Written {0} bytes of length -> TCP socket ({1}:{2})'.format(sizeof(ret), *addr))
                     if ret == 0:
                         break
                     else:
                         write_fd(header_wr, buffer, ret)
+                        IF REPLICATION_TRANSPORT_DEBUG:
+                            logger.debug('Written {0} bytes of payload-> TCP socket ({1}:{2})'.format(ret, *addr))
             except IOError:
                 raise TaskException(errno.ECONNABORTED, 'Transport connection closed unexpectedly')
 
             logger.debug('All data fetched for transfer to {0}:{1}. Waiting for plugins to close.'.format(*addr))
 
             self.join_subtasks(*subtasks)
+
+            logger.debug('Waiting for receive task at {0}:{1} to finish'.format(*addr))
+            self.recv_finished.wait()
 
             logger.debug('Send to {0}:{1} finished. Closing connection'.format(*addr))
             remote_client.disconnect()
@@ -307,10 +328,27 @@ class TransportSendTask(Task):
             free(buffer)
             if sock:
                 sock.shutdown(socket.SHUT_RDWR)
+                sock.close()
             if conn:
                 conn.shutdown(socket.SHUT_RDWR)
-            for fd in fds:
-                os.close(fd)
+                sock.close()
+            try:
+                for fd in fds:
+                    os.close(fd)
+            except OSError:
+                pass
+
+    def get_recv_status(self, status):
+        self.recv_finished.set()
+        if status.get('state') != 'FINISHED':
+            args = status['args'][0]
+            raise TaskException(
+                errno.ECONNABORTED,
+                'Receive process connected to {0}:{1} finished unexpectedly'.format(
+                    args['server_address'],
+                    args['server_port']
+                )
+            )
 
 
 @private
@@ -349,18 +387,17 @@ class TransportReceiveTask(ProgressTask):
         return []
 
     def run(self, transport):
-        cdef uint8_t *buffer
-        cdef uint32_t *buffer32 = <uint32_t *> buffer
+        cdef uint32_t *buffer
         cdef uint8_t *token_buf
-        cdef int ret
-        cdef int length
-        cdef int magic = 0xdeadbeef
+        cdef uint32_t ret
+        cdef uint32_t length
+        cdef uint32_t magic = 0xdeadbeef
 
         sock = None
         fds = []
         try:
             buffer_size = transport.get('buffer_size', 1024*1024)
-            buffer = <uint8_t *>malloc(buffer_size * sizeof(uint8_t))
+            buffer = <uint32_t *>malloc(buffer_size * sizeof(uint8_t))
 
             self.estimated_size = transport.get('estimated_size', 0)
             server_address = transport.get('server_address')
@@ -439,30 +476,41 @@ class TransportReceiveTask(ProgressTask):
 
             progress_t = threading.Thread(target=self.count_progress)
             progress_t.start()
-            subtasks.append(progress_t)
             logger.debug('Started zfs.receive task for {0}:{1} connection'.format(*addr))
 
             try:
                 while True:
                     ret = read_fd(last_rd_fd, buffer, sizeof(uint32_t), 0)
+                    IF REPLICATION_TRANSPORT_DEBUG:
+                        logger.debug('Got {0} bytes of header ({1}:{2})'.format(ret, *addr))
                     if ret != 4:
                         raise IOError
-                    if buffer32[0] != magic:
+                    if buffer[0] != magic:
                         raise TaskException(
                             errno.EINVAL,
-                            'Bad magic {0} received. Expected {1}'.format(buffer32[0], magic)
+                            'Bad magic {0} received. Expected {1}'.format(buffer[0], magic)
                         )
                     ret = read_fd(last_rd_fd, buffer, sizeof(uint32_t), 0)
+                    IF REPLICATION_TRANSPORT_DEBUG:
+                        logger.debug('Got {0} bytes of length ({1}:{2})'.format(ret, *addr))
                     if ret != 4:
                         raise IOError
-                    length = buffer32[0]
+                    length = buffer[0]
+                    if length == 0:
+                        logger.debug('')
+                        break
+
                     ret = read_fd(last_rd_fd, buffer, length, 0)
+                    IF REPLICATION_TRANSPORT_DEBUG:
+                        logger.debug('Got {0} bytes of payload ({1}:{2})'.format(ret, *addr))
                     if ret != length:
                         raise IOError
 
                     self.done += ret
 
                     write_fd(zfs_wr, buffer, length)
+                    IF REPLICATION_TRANSPORT_DEBUG:
+                        logger.debug('Written {0} bytes of payload -> zfs.receive ({1}:{2})'.format(length, *addr))
 
             except IOError:
                 raise TaskException(errno.ECONNABORTED, 'Transport connection closed unexpectedly')
@@ -470,14 +518,19 @@ class TransportReceiveTask(ProgressTask):
             self.running = False
             logger.debug('All data fetched for transfer from {0}:{1}. Waiting for plugins to close.'.format(*addr))
             self.join_subtasks(*subtasks)
+            progress_t.join()
             logger.debug('Receive from {0}:{1} finished. Closing connection'.format(*addr))
 
         finally:
             free(buffer)
             if sock:
                 sock.shutdown(socket.SHUT_RDWR)
-            for fd in fds:
-                os.close(fd)
+                sock.close()
+            try:
+                for fd in fds:
+                    os.close(fd)
+            except OSError:
+                pass
 
     def count_progress(self):
         last_done = 0
@@ -490,6 +543,7 @@ class TransportReceiveTask(ProgressTask):
             self.set_progress(progress, 'Transfer speed {0} B/s'.format(self.done - last_done))
             last_done = self.done
             time.sleep(1)
+
 
 @private
 @description('Compress the input stream and pass it to the output')
