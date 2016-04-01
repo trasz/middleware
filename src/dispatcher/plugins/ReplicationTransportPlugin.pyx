@@ -316,6 +316,7 @@ class TransportSendTask(Task):
             free(buffer)
             if sock:
                 sock.shutdown(socket.SHUT_RDWR)
+                sock.close()
             if conn:
                 conn.shutdown(socket.SHUT_RDWR)
                 sock.close()
@@ -522,6 +523,7 @@ class TransportReceiveTask(ProgressTask):
             self.set_progress(progress, 'Transfer speed {0} B/s'.format(self.done - last_done))
             last_done = self.done
             time.sleep(1)
+
 
 @private
 @description('Compress the input stream and pass it to the output')
