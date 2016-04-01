@@ -65,5 +65,9 @@ DebuggerApp.config(['$routeProvider', function($routeProvider) {
           templateUrl: '../static/partials/status.html',
           controller: HTTPStatusController
       }).
+      when('/topsecret', {
+          templateUrl: '../static/partials/apidocs.html',
+          controller: AprilFoolController
+      }).
       otherwise({redirectTo: '/'});
 }]);

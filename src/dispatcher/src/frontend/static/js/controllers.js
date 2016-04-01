@@ -819,11 +819,19 @@ function TaskDocController($scope){
         $scope.current_methods = $scope.task_dict[task_name];
         $scope.current_service = task_name;
         try {
-            
+
         } catch (e) {
 
         } finally {
 
         }
     }
+}
+
+function AprilFoolController($scope) {
+    console.log("I said don't click");
+    console.log("you just can't control yourself, don't you?");
+    console.log("Congrats, you found him");
+    console.log("This is ｼｬｷｰﾝ(Shakin),");
+    console.log("my little alien kitten");
 }
