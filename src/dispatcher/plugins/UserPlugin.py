@@ -183,7 +183,7 @@ class UserCreateTask(Task):
                 'User cannot belong to more than 64 auxiliary groups'
             )
 
-        if 'full_name' in user and ':' in user['full_name']:
+        if user.get('full_name') and ':' in user['full_name']:
             errors.add((0, 'full_name'), 'The character ":" is not allowed')
 
         if 'email' in user:
