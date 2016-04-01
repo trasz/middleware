@@ -30,14 +30,13 @@ import os
 import sys
 import logging
 import argparse
-import re
+import crypt
+import errno
 import datastore
 import time
 import json
 import imp
-import threading
 import setproctitle
-from datetime import timedelta, datetime
 from datastore.config import ConfigStore
 from freenas.dispatcher.client import Client, ClientError
 from freenas.dispatcher.rpc import RpcService, RpcException
@@ -50,11 +49,24 @@ DEFAULT_CONFIGFILE = '/usr/local/etc/middleware.conf'
 
 class AccountService(RpcService):
     def __init__(self, context):
+        self.logger = context.logger
         self.context = context
 
     def __annotate(self, name, user):
         user['origin'] = {'directory': name}
         return user
+
+    def __get_user(self, user_name):
+        for name, plugin in self.context.plugins.items():
+            try:
+                user = plugin.getpwnam(user_name)
+            except:
+                continue
+
+            if user:
+                return self.__annotate(name, user), plugin
+
+        return None, None
 
     def query(self, filter=None, params=None):
         results = []
@@ -73,11 +85,31 @@ class AccountService(RpcService):
 
     def getpwnam(self, user_name):
         for name, plugin in self.context.plugins.items():
-            user = plugin.getpwnam(user_name)
+            try:
+                user = plugin.getpwnam(user_name)
+            except:
+                continue
+
             if user:
                 return self.__annotate(name, user)
 
         return None
+
+    def authenticate(self, user_name, password):
+        user = self.getpwnam(user_name)
+        if not user:
+            return False
+
+        unixhash = crypt.crypt(password, user['unixhash'])
+        return unixhash == user['unixhash']
+
+    def change_password(self, user_name, password):
+        self.logger.debug('Change password request for user {0}'.format(user_name))
+        user, plugin = self.__get_user(user_name)
+        if not user:
+            raise RpcException(errno.ENOENT, 'User {0} not found'.format(user_name))
+
+        plugin.change_password(user_name, password)
 
 
 class GroupService(RpcService):

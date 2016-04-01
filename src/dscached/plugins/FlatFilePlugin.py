@@ -25,9 +25,20 @@
 #
 #####################################################################
 
-import json
+import os
 import logging
+import crypt
+import random
+import string
+import datetime
+import errno
+import hashlib
+import binascii
+import select
+import threading
 from plugin import DirectoryServicePlugin
+from freenas.dispatcher.jsonenc import load, dump
+from freenas.utils import first_or_default
 from freenas.utils.query import wrap
 
 
@@ -36,23 +47,58 @@ GROUP_FILE = '/etc/group.json'
 logger = logging.getLogger(__name__)
 
 
+def crypted_password(cleartext):
+    return crypt.crypt(cleartext, '$6$' + ''.join([
+        random.choice(string.ascii_letters + string.digits) for _ in range(16)]))
+
+
 class FlatFilePlugin(DirectoryServicePlugin):
     def __init__(self, context):
         self.context = context
+        self.passwd = wrap([])
+        self.group = wrap([])
+        self.__load()
+        self.watch_thread = threading.Thread(target=self.__watch, daemon=True)
+        self.watch_thread.start()
 
+    def __load(self):
         try:
             with open(PASSWD_FILE, 'r') as f:
-                self.passwd = wrap(json.load(f))
+                self.passwd = wrap(load(f))
         except (IOError, ValueError) as err:
             logger.warn('Cannot read {0}: {1}'.format(PASSWD_FILE, str(err)))
-            self.passwd = wrap([])
 
         try:
             with open(GROUP_FILE, 'r') as f:
-                self.group = wrap(json.load(f))
+                self.group = wrap(load(f))
         except (IOError, ValueError) as err:
             logger.warn('Cannot read {0}: {1}'.format(GROUP_FILE, str(err)))
-            self.group = wrap([])
+
+    def __watch(self):
+        kq = select.kqueue()
+        passwd_fd = os.open(PASSWD_FILE, os.O_RDONLY)
+        group_fd = os.open(GROUP_FILE, os.O_RDONLY)
+
+        ev = [
+            select.kevent(
+                passwd_fd,
+                filter=select.KQ_FILTER_VNODE, flags=select.KQ_EV_ADD | select.KQ_EV_ENABLE | select.KQ_EV_CLEAR,
+                fflags=select.KQ_NOTE_WRITE | select.KQ_NOTE_EXTEND
+            ),
+            select.kevent(
+                group_fd,
+                filter=select.KQ_FILTER_VNODE, flags=select.KQ_EV_ADD | select.KQ_EV_ENABLE | select.KQ_EV_CLEAR,
+                fflags=select.KQ_NOTE_WRITE | select.KQ_NOTE_EXTEND
+            )
+        ]
+
+        kq.control(ev, 0)
+
+        while True:
+            event, = kq.control(None, 1)
+            name = PASSWD_FILE if event.ident == passwd_fd else GROUP_FILE
+            logger.warning('{0} was modified, reloading'.format(name))
+            self.__load()
 
     def getpwent(self, filter=None, params=None):
         return self.passwd.query(*(filter or []), **(params or {}))
@@ -71,6 +117,30 @@ class FlatFilePlugin(DirectoryServicePlugin):
 
     def getgrgid(self, gid):
         return self.group.query(('gid', '=', gid), single=True)
+
+    def change_password(self, username, password):
+        try:
+            with open(PASSWD_FILE, 'r') as f:
+                passwd = wrap(load(f))
+
+            user = first_or_default(lambda u: u['username'] == username, passwd)
+            if not user:
+                raise OSError(errno.ENOENT, os.strerror(errno.ENOENT))
+
+            nthash = hashlib.new('md4', password.encode('utf-16le')).digest()
+            user.update({
+                'unixhash': crypted_password(password),
+                'smbhash': binascii.hexlify(nthash).decode('utf-8'),
+                'password_changed_at': datetime.datetime.utcnow()
+            })
+
+            with open(PASSWD_FILE + '.tmp', 'w') as f:
+                dump(passwd, f, indent=4)
+
+            os.rename(PASSWD_FILE + '.tmp', PASSWD_FILE)
+        except (IOError, ValueError) as err:
+            logger.warn('Cannot read {0}: {1}'.format(PASSWD_FILE, str(err)))
+            self.passwd = wrap([])
 
 
 def _init(context):
