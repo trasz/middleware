@@ -374,18 +374,17 @@ class TransportReceiveTask(ProgressTask):
         return []
 
     def run(self, transport):
-        cdef uint8_t *buffer
-        cdef uint32_t *buffer32 = <uint32_t *> buffer
+        cdef uint32_t *buffer
         cdef uint8_t *token_buf
-        cdef int ret
-        cdef int length
-        cdef int magic = 0xdeadbeef
+        cdef uint32_t ret
+        cdef uint32_t length
+        cdef uint32_t magic = 0xdeadbeef
 
         sock = None
         fds = []
         try:
             buffer_size = transport.get('buffer_size', 1024*1024)
-            buffer = <uint8_t *>malloc(buffer_size * sizeof(uint8_t))
+            buffer = <uint32_t *>malloc(buffer_size * sizeof(uint8_t))
 
             self.estimated_size = transport.get('estimated_size', 0)
             server_address = transport.get('server_address')
@@ -471,15 +470,15 @@ class TransportReceiveTask(ProgressTask):
                     ret = read_fd(last_rd_fd, buffer, sizeof(uint32_t), 0)
                     if ret != 4:
                         raise IOError
-                    if buffer32[0] != magic:
+                    if buffer[0] != magic:
                         raise TaskException(
                             errno.EINVAL,
-                            'Bad magic {0} received. Expected {1}'.format(buffer32[0], magic)
+                            'Bad magic {0} received. Expected {1}'.format(buffer[0], magic)
                         )
                     ret = read_fd(last_rd_fd, buffer, sizeof(uint32_t), 0)
                     if ret != 4:
                         raise IOError
-                    length = buffer32[0]
+                    length = buffer[0]
                     ret = read_fd(last_rd_fd, buffer, length, 0)
                     if ret != length:
                         raise IOError
