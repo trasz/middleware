@@ -49,6 +49,10 @@ DebuggerApp.config(['$routeProvider', function($routeProvider) {
           templateUrl: '../static/partials/apidoc_rpc.html',
           controller: RPCdocController
         }).
+      when('/apidocs/tasks', {
+          templateUrl: '../static/partials/apidoc_tasks.html',
+          controller: TaskDocController
+      }).
       when('/404',{
           templateUrl: '../static/partials/404.html',
           controller: Four04Controller

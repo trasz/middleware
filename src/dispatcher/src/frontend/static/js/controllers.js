@@ -778,3 +778,52 @@ function RPCdocController($scope) {
         $scope.current_service = service_name;
     }
 }
+
+function TaskDocController($scope){
+    document.title = "Task API Page";
+    var sock = new middleware.DispatcherClient(document.domain);
+    sock.connect();
+    $scope.init = function() {
+        sock.onError = function(err) {
+            $("#socket_status ").attr("src", "/static/images/service_issue_diamond.png");
+            $("#refresh_page_glyph").show();
+        };
+        sock.onConnect = function() {
+            if (!sessionStorage.getItem("freenas:username")) {
+                var username = prompt("Username:");
+                var password = prompt("Password:");
+                sessionStorage.setItem("freenas:username", username);
+                sessionStorage.setItem("freenas:password", password);
+            }
+
+            sock.login(
+                sessionStorage.getItem("freenas:username"),
+                sessionStorage.getItem("freenas:password")
+            );
+            $("#login_username").html(username);
+        };
+        sock.onLogin = function() {
+            sock.call("discovery.get_tasks", null, function (tasks) {
+                var temp_list = [];
+                $.each(tasks, function(task_name, i) {
+                    temp_list.push(task_name);
+                })
+                $scope.$apply(function(){
+                  $scope.services = temp_list;
+                  $scope.task_dict = tasks;
+                });
+            });
+        };
+    }
+    $scope.getTaskList = function(task_name) {
+        $scope.current_methods = $scope.task_dict[task_name];
+        $scope.current_service = task_name;
+        try {
+            
+        } catch (e) {
+
+        } finally {
+
+        }
+    }
+}
