@@ -313,7 +313,9 @@ nss_freenas_getpwnam_r(void *retval, void *mdata, va_list ap)
         &user, false) < 0)
         user = flat_find_user(name, NULL, -1);
 
-    if (json_is_null(user)) {
+    if (user == NULL || json_is_null(user)) {
+        if (user != NULL)
+            json_decref(user);
         *ret = ENOENT;
         return (NS_NOTFOUND);
     }
@@ -346,7 +348,9 @@ nss_freenas_getpwuid_r(void *retval, void *mdata, va_list ap)
         &user, false) < 0)
         user = flat_find_user(NULL, NULL, uid);
 
-    if (json_is_null(user)) {
+    if (user == NULL || json_is_null(user)) {
+        if (user != NULL)
+            json_decref(user);
         *ret = ENOENT;
         return (NS_NOTFOUND);
     }
@@ -446,7 +450,9 @@ nss_freenas_getgrnam_r(void *retval, void *mdata __unused, va_list ap)
         &group, false) < 0)
         group = flat_find_group(name, NULL, -1);
 
-    if (json_is_null(group)) {
+    if (group == NULL || json_is_null(group)) {
+        if (group != NULL)
+            json_decref(group);
         *ret = ENOENT;
         return (NS_NOTFOUND);
     }
@@ -479,7 +485,9 @@ nss_freenas_getgrgid_r(void *retval, void *mdata __unused, va_list ap)
         &group, false) < 0)
         group = flat_find_group(NULL, NULL, gid);
 
-    if (json_is_null(group)) {
+    if (group == NULL || json_is_null(group)) {
+        if (group != NULL)
+            json_decref(group);
         *ret = ENOENT;
         return (NS_NOTFOUND);
     }
