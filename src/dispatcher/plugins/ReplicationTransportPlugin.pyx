@@ -479,6 +479,10 @@ class TransportReceiveTask(ProgressTask):
                     if ret != 4:
                         raise IOError
                     length = buffer[0]
+                    if length == 0:
+                        logger.debug('')
+                        break
+
                     ret = read_fd(last_rd_fd, buffer, length, 0)
                     if ret != length:
                         raise IOError
