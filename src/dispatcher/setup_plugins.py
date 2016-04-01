@@ -42,7 +42,11 @@ setup(
             "ReplicationTransportPlugin",
             ["plugins/ReplicationTransportPlugin.pyx"],
             extra_compile_args=["-g", "-O0"],
-            cython_compile_time_env={'FREEBSD_VERSION': freebsd_version, 'TRUEOS': os.getenv('TRUEOS')},
+            cython_compile_time_env={
+                'FREEBSD_VERSION': freebsd_version,
+                'TRUEOS': os.getenv('TRUEOS'),
+                'REPLICATION_TRANSPORT_DEBUG': os.getenv('REPLICATION_TRANSPORT_DEBUG')
+            },
             extra_link_args=["-g"],
         )
     ]
