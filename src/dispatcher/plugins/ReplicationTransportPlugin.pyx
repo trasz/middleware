@@ -309,8 +309,12 @@ class TransportSendTask(Task):
                 sock.shutdown(socket.SHUT_RDWR)
             if conn:
                 conn.shutdown(socket.SHUT_RDWR)
-            for fd in fds:
-                os.close(fd)
+                sock.close()
+            try:
+                for fd in fds:
+                    os.close(fd)
+            except OSError:
+                pass
 
 
 @private
@@ -476,8 +480,12 @@ class TransportReceiveTask(ProgressTask):
             free(buffer)
             if sock:
                 sock.shutdown(socket.SHUT_RDWR)
-            for fd in fds:
-                os.close(fd)
+                sock.close()
+            try:
+                for fd in fds:
+                    os.close(fd)
+            except OSError:
+                pass
 
     def count_progress(self):
         last_done = 0
