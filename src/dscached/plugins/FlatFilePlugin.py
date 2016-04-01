@@ -139,8 +139,8 @@ class FlatFilePlugin(DirectoryServicePlugin):
 
             os.rename(PASSWD_FILE + '.tmp', PASSWD_FILE)
         except (IOError, ValueError) as err:
-            logger.warn('Cannot read {0}: {1}'.format(PASSWD_FILE, str(err)))
-            self.passwd = wrap([])
+            logger.warn('Cannot change passowrd: {1}'.format(str(err)))
+            raise
 
 
 def _init(context):
