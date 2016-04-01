@@ -67,7 +67,7 @@ from datastore.migrate import migrate_db, MigrationException
 from datastore.config import ConfigStore
 from freenas.dispatcher.jsonenc import loads, dumps
 from freenas.dispatcher.rpc import RpcContext, RpcStreamingResponse, RpcException, ServerLockProxy
-from freenas.dispatcher.client import FileDescriptor
+from freenas.dispatcher.fd import FileDescriptor
 from resources import ResourceGraph
 from services import (
     ManagementService, DebugService, EventService, TaskService,

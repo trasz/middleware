@@ -1,4 +1,4 @@
-#
+#+
 # Copyright 2016 iXsystems, Inc.
 # All rights reserved
 #
@@ -25,34 +25,14 @@
 #
 #####################################################################
 
-import os
-import threading
-import uuid
-from task import Task
-from freenas.dispatcher.fd import FileDescriptor
 
+class FileDescriptor(object):
+    def __init__(self, fd=None, close=True):
+        self.fd = fd
+        self.close = True
 
-class TestDownloadTask(Task):
-    def verify(self):
-        return []
+    def __str__(self):
+        return "<FileDescriptor fd={0}>".format(self.fd)
 
-    def run(self):
-        rfd, wfd = os.pipe()
-
-        def feed():
-            with os.fdopen(wfd, 'w') as f:
-                for i in range(0, 100):
-                    f.write(str(uuid.uuid4()) + '\n')
-
-        t = threading.Thread(target=feed)
-        t.start()
-        url, = self.join_subtasks(self.run_subtask(
-            'file.prepare_url_download', FileDescriptor(rfd)
-        ))
-        t.join(timeout=1)
-
-        return url
-
-
-def _init(dispatcher, plugin):
-    plugin.register_task_handler('test.test_download', TestDownloadTask)
+    def __repr__(self):
+        return str(self)

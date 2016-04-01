@@ -33,7 +33,7 @@ import threading
 import hashlib
 from datetime import datetime
 from freenas.dispatcher.jsonenc import dumps, loads
-from freenas.dispatcher.client import FileDescriptor
+from freenas.dispatcher.fd import FileDescriptor
 from freenas.dispatcher.rpc import RpcException, accepts, returns, description, SchemaHelper as h
 from task import Provider, Task, ProgressTask, VerifyException, TaskException
 from freenas.utils import normalize, first_or_default
