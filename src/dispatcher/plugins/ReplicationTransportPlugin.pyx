@@ -52,7 +52,7 @@ REPL_HOME = '/var/tmp/replication'
 AUTH_FILE = os.path.join(REPL_HOME, '.ssh/authorized_keys')
 
 
-cdef int read_fd(int fd, uint8_t *buf, int nbytes, int curr_pos):
+cdef int read_fd(int fd, void *buf, int nbytes, int curr_pos):
     cdef int ret
     cdef int done = 0
 
@@ -71,7 +71,7 @@ cdef int read_fd(int fd, uint8_t *buf, int nbytes, int curr_pos):
             return done
 
 
-cdef int write_fd(int fd, uint8_t *buf, int nbytes):
+cdef int write_fd(int fd, void *buf, int nbytes):
     cdef int ret
     cdef int done = 0
 
