@@ -63,7 +63,7 @@ from mgmt import ManagementNetwork
 from ec2 import EC2MetadataServer
 
 
-gevent.monkey.patch_all(thread=False)
+gevent.monkey.patch_all()
 
 
 MGMT_ADDR = ipaddress.ip_interface('172.20.0.1/16')
