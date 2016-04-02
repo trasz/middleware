@@ -413,7 +413,7 @@ class TaskService(RpcService):
 
             return t
 
-        yield from self.__datastore.query_stream('tasks', *(filter or []), callback=extend, **(params or {}))
+        return self.__datastore.query_stream('tasks', *(filter or []), callback=extend, **(params or {}))
 
     @private
     @pass_sender
