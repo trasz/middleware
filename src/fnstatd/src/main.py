@@ -58,7 +58,7 @@ from freenas.utils import configure_logging, to_timedelta, materialized_paths_to
 
 DEFAULT_CONFIGFILE = '/usr/local/etc/middleware.conf'
 DEFAULT_DBFILE = 'stats.hdf'
-gevent.monkey.patch_all(thread=False)
+gevent.monkey.patch_all()
 
 
 def round_timestamp(timestamp, frequency):
