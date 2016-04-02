@@ -82,13 +82,13 @@ class FlatFilePlugin(DirectoryServicePlugin):
         ev = [
             select.kevent(
                 passwd_fd,
-                filter=select.KQ_FILTER_VNODE, flags=select.KQ_EV_ADD | select.KQ_EV_ENABLE | select.KQ_EV_CLEAR,
-                fflags=select.KQ_NOTE_WRITE | select.KQ_NOTE_EXTEND
+                filter=select.KQ_FILTER_VNODE, flags=select.KQ_EV_ADD | select.KQ_EV_ENABLE,
+                fflags=select.KQ_NOTE_WRITE | select.KQ_NOTE_EXTEND | select.KQ_NOTE_RENAME
             ),
             select.kevent(
                 group_fd,
-                filter=select.KQ_FILTER_VNODE, flags=select.KQ_EV_ADD | select.KQ_EV_ENABLE | select.KQ_EV_CLEAR,
-                fflags=select.KQ_NOTE_WRITE | select.KQ_NOTE_EXTEND
+                filter=select.KQ_FILTER_VNODE, flags=select.KQ_EV_ADD | select.KQ_EV_ENABLE,
+                fflags=select.KQ_NOTE_WRITE | select.KQ_NOTE_EXTEND | select.KQ_NOTE_RENAME
             )
         ]
 
@@ -138,8 +138,9 @@ class FlatFilePlugin(DirectoryServicePlugin):
                 dump(passwd, f, indent=4)
 
             os.rename(PASSWD_FILE + '.tmp', PASSWD_FILE)
+            self.__load()
         except (IOError, ValueError) as err:
-            logger.warn('Cannot change passowrd: {1}'.format(str(err)))
+            logger.warn('Cannot change password: {1}'.format(str(err)))
             raise
 
 
