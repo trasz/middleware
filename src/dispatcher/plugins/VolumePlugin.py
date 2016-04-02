@@ -904,14 +904,7 @@ class VolumeImportTask(Task):
             )
 
         if enc_params.get('key', None) is None:
-            return self.verify_subtask(
-                'zfs.pool.import',
-                self.dispatcher.call_sync(
-                    'volume.query',
-                    [('id', '=', id)],
-                    {'single': True, 'select': 'guid'}
-                )
-            )
+            return self.verify_subtask('zfs.pool.import', id)
         else:
             disks = enc_params.get('disks', None)
             if disks is None:
@@ -943,27 +936,12 @@ class VolumeImportTask(Task):
                 for dname in disks:
                     disk_id = self.dispatcher.call_sync('disk.path_to_id', dname)
                     self.join_subtasks(self.run_subtask('disk.geli.attach', disk_id, attach_params))
-
-                real_id = None
-                pool_info = self.dispatcher.call_sync('volume.find')
-                for pool in pool_info:
-                    if pool['name'] == new_name and pool['status'] == "ONLINE":
-                        real_id = pool['id']
-                        break
-                if real_id is None:
-                    raise TaskException('Importable volume {0} not found'.format(new_name))
-
             else:
                 salt = None
                 digest = None
-                real_id = self.dispatcher.call_sync(
-                    'volume.query',
-                    [('id', '=', id)],
-                    {'single': True, 'select': 'guid'}
-                )
 
             mountpoint = os.path.join(VOLUMES_ROOT, new_name)
-            self.join_subtasks(self.run_subtask('zfs.pool.import', real_id, new_name, params))
+            self.join_subtasks(self.run_subtask('zfs.pool.import', id, new_name, params))
             self.join_subtasks(self.run_subtask(
                 'zfs.update',
                 new_name,
@@ -975,7 +953,7 @@ class VolumeImportTask(Task):
 
             new_id = self.datastore.insert('volumes', {
                 'id': new_name,
-                'guid': real_id,
+                'guid': id,
                 'type': 'zfs',
                 'encryption': {
                     'key': key if key else None,
