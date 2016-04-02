@@ -437,19 +437,6 @@ class Main(object):
     def init_alert_config(self, name):
         config_name = name if self.datastore.exists('statd.alerts', ('id', '=', name)) else 'default'
         alert_config = self.datastore.get_by_id('statd.alerts', config_name)
-
-        self.client.call_sync(
-            'alert.register_alert',
-            'stat.{0}.too_high'.format(name),
-            '{0} statistic value is too high'.format(name)
-        )
-
-        self.client.call_sync(
-            'alert.register_alert',
-            'stat.{0}.too_low'.format(name),
-            '{0} statistic value is too low'.format(name)
-        )
-
         return alert_config
 
     def get_data_source(self, name):
