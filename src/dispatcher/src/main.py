@@ -863,14 +863,15 @@ class UnixSocketServer(object):
                 header = struct.pack('II', 0xdeadbeef, len(data))
                 try:
                     fd = self.connfd.fileno()
+                    ancdata = []
                     if fd == -1:
                         return
 
-                    wait_write(fd, 10)
-                    xsendmsg(self.connfd, header + data, [
-                        (socket.SOL_SOCKET, socket.SCM_RIGHTS, array.array('i', [i.fd for i in fds]))
-                    ])
+                    if fds:
+                        ancdata.append((socket.SOL_SOCKET, socket.SCM_RIGHTS, array.array('i', [i.fd for i in fds])))
 
+                    wait_write(fd, 10)
+                    xsendmsg(self.connfd, header + data, ancdata)
                     for i in fds:
                         if i.close:
                             try:
