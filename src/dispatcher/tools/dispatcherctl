@@ -165,15 +165,26 @@ def poll(task_id, server=DEFAULT_SERVER):
 def wait_server(server=DEFAULT_SERVER, timeout=DEFAULT_TIMEOUT):
     while timeout > 0:
         try:
+            total = 0
+            done = 0
+
             def callback(name, args):
+                nonlocal done
+                nonlocal total
+
+                if name == 'server.plugin.loaded':
+                    total += 1
+
                 if name == 'server.plugin.initialized':
-                    print('Plugin loaded: {0}'.format(args['name']))
+                    print('[{0}/{1}] Plugin loaded: {2}'.format(done, total, args['name']))
+                    done += 1
 
             c = Client()
             c.event_callback = callback
             c.connect(server)
             c.login_service('dispatcherctl', timeout)
-            c.subscribe_events('server.plugin.initialized')
+            total = len(c.call_sync('management.get_plugin_names'))
+            c.subscribe_events('server.plugin.initialized', 'server.plugin.loaded')
             c.call_sync('management.wait_ready', timeout=timeout)
             sys.exit(0)
         except socket.error as err:
