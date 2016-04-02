@@ -900,7 +900,7 @@ class VolumeImportTask(Task):
         if self.datastore.exists('volumes', ('id', '=', new_name)):
             raise VerifyException(
                 errno.ENOENT,
-                'Volume with id {0} already exists'.format(new_name)
+                'Volume with name {0} already exists'.format(new_name)
             )
 
         if enc_params.get('key', None) is None:
