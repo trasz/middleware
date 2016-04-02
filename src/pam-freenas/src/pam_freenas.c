@@ -48,229 +48,286 @@ static json_t *flat_users;
 static void
 flat_load_files()
 {
-    json_error_t err;
+	json_error_t err;
 
-    flat_users = json_load_file(PASSWD_FILE, 0, &err);
-    if (flat_users == NULL)
-        PAM_LOG("Cannot read %s: %s", PASSWD_FILE, err.text);
+	flat_users = json_load_file(PASSWD_FILE, 0, &err);
+	if (flat_users == NULL)
+		PAM_LOG("Cannot read %s: %s", PASSWD_FILE, err.text);
 }
 
 static json_t *
 flat_find_user(const char *name)
 {
-    json_t *user;
-    json_t *val;
-    size_t index;
+	json_t *user;
+	json_t *val;
+	size_t index;
 
-    if (flat_users == NULL)
-        flat_load_files();
+	if (flat_users == NULL)
+		flat_load_files();
 
-    /* Bail out if still null */
-    if (flat_users == NULL)
-        return (NULL);
+	/* Bail out if still null */
+	if (flat_users == NULL)
+		return (NULL);
 
-    json_array_foreach(flat_users, index, user) {
-        val = json_object_get(user, "username");
-        if (val == NULL)
-            continue;
+	json_array_foreach(flat_users, index, user) {
+		val = json_object_get(user, "username");
+		if (val == NULL)
+			continue;
 
-        if (strcmp(json_string_value(val), name) == 0) {
-            json_incref(user);
-            return (user);
-        }
-    }
+		if (strcmp(json_string_value(val), name) == 0) {
+			json_incref(user);
+			return (user);
+		}
+	}
 
-    return (NULL);
+	return (NULL);
 }
 
 static int
 call_dispatcher(const char *method, json_t *args, json_t **result)
 {
-    connection_t *conn;
-    int err;
+	connection_t *conn;
+	int err;
 
-    conn = dispatcher_open("unix");
-    if (conn == NULL) {
-        PAM_LOG("Cannot open unix domain socket connection");
-        return (-1);
-    }
+	conn = dispatcher_open("unix");
+	if (conn == NULL) {
+		PAM_LOG("Cannot open unix domain socket connection");
+		return (-1);
+	}
 
-    if (dispatcher_login_service(conn, "pam-freenas") < 0) {
-        PAM_LOG("Cannot log in as pam-freenas");
-        dispatcher_close(conn);
-        return (-1);
-    }
+	if (dispatcher_login_service(conn, "pam-freenas") < 0) {
+		PAM_LOG("Cannot log in as pam-freenas");
+		dispatcher_close(conn);
+		return (-1);
+	}
 
-    err = dispatcher_call_sync(conn, method, args, result);
-    if (err != RPC_CALL_DONE) {
-        PAM_LOG("Cannot call %s: %d", method, err);
-        dispatcher_close(conn);
-        return (-1);
-    }
+	err = dispatcher_call_sync(conn, method, args, result);
+	if (err != RPC_CALL_DONE) {
+		PAM_LOG("Cannot call %s: %d", method, err);
+		dispatcher_close(conn);
+		return (-1);
+	}
 
-    json_incref(*result);
-    dispatcher_close(conn);
-    return (0);
+	json_incref(*result);
+	dispatcher_close(conn);
+	return (0);
 }
 
 static int
 emit_event(const char *event, json_t *args)
 {
-    connection_t *conn;
-    int err;
+	connection_t *conn;
+	int err;
 
-    conn = dispatcher_open("unix");
-    if (conn == NULL) {
-        PAM_LOG("Cannot open unix domain socket connection");
-        return (-1);
-    }
+	conn = dispatcher_open("unix");
+	if (conn == NULL) {
+		PAM_LOG("Cannot open unix domain socket connection");
+		return (-1);
+	}
 
-    if (dispatcher_login_service(conn, "pam-freenas") < 0) {
-        PAM_LOG("Cannot log in as pam-freenas");
-        dispatcher_close(conn);
-        return (-1);
-    }
+	if (dispatcher_login_service(conn, "pam-freenas") < 0) {
+		PAM_LOG("Cannot log in as pam-freenas");
+		dispatcher_close(conn);
+		return (-1);
+	}
 
-    err = dispatcher_emit_event(conn, event, args);
-    if (err != 0) {
-        PAM_LOG("Cannot emit event %s: %s", event, strerror(errno));
-        dispatcher_close(conn);
-        return (-1);
-    }
+	err = dispatcher_emit_event(conn, event, args);
+	if (err != 0) {
+		PAM_LOG("Cannot emit event %s: %s", event, strerror(errno));
+		dispatcher_close(conn);
+		return (-1);
+	}
 
-    dispatcher_close(conn);
-    return (0);
+	dispatcher_close(conn);
+	return (0);
 }
 
 PAM_EXTERN int
 pam_sm_open_session(struct pam_handle *pamh, int flags, int argc, const char *argv[])
 {
-    const char *username, *tty, *service;
-    json_t *args;
-    int err;
+	const char *username, *tty, *service;
+	json_t *args;
+	int err;
 
-    err = pam_get_user(pamh, &username, NULL);
-    if (err != PAM_SUCCESS)
-        return (err);
+	err = pam_get_user(pamh, &username, NULL);
+	if (err != PAM_SUCCESS)
+		return (err);
 
-    err = pam_get_item(pamh, PAM_TTY, &tty);
-    if (err != PAM_SUCCESS)
-        return (err);
+	err = pam_get_item(pamh, PAM_TTY, (const void **)&tty);
+	if (err != PAM_SUCCESS)
+		return (err);
 
-    err = pam_get_item(pamh, PAM_SERVICE, &service);
-    if (err != PAM_SUCCESS)
-        return (err);
+	err = pam_get_item(pamh, PAM_SERVICE, (const void **)&service);
+	if (err != PAM_SUCCESS)
+		return (err);
 
-    args = json_pack("{ssssss}",
-        "username", username,
-        "tty", tty,
-        "service", service
-    );
+	args = json_pack("{ssssss}",
+		"username", username,
+		"tty", tty,
+		"service", service
+	);
 
-    if (emit_event("system.session.open", args) != 0)
-        return (PAM_SERVICE_ERR);
+	if (emit_event("system.session.open", args) != 0)
+		return (PAM_SERVICE_ERR);
 
-    return (PAM_SUCCESS);
+	return (PAM_SUCCESS);
 }
 
 PAM_EXTERN int
 pam_sm_close_session(struct pam_handle *pamh, int flags, int argc, const char *argv[])
 {
-    const char *username, *tty, *service;
-    json_t *args;
-    int err;
+	const char *username, *tty, *service;
+	json_t *args;
+	int err;
 
-    err = pam_get_user(pamh, &username, NULL);
-    if (err != PAM_SUCCESS)
-        return (err);
+	err = pam_get_user(pamh, &username, NULL);
+	if (err != PAM_SUCCESS)
+		return (err);
 
-    err = pam_get_item(pamh, PAM_TTY, &tty);
-    if (err != PAM_SUCCESS)
-        return (err);
+	err = pam_get_item(pamh, PAM_TTY, (const void **)&tty);
+	if (err != PAM_SUCCESS)
+		return (err);
 
-    err = pam_get_item(pamh, PAM_SERVICE, &service);
-    if (err != PAM_SUCCESS)
-        return (err);
+	err = pam_get_item(pamh, PAM_SERVICE, (const void **)&service);
+	if (err != PAM_SUCCESS)
+		return (err);
 
-    args = json_pack("{ssssss}",
-        "username", username,
-        "tty", tty,
-        "service", service
-    );
+	args = json_pack("{ssssss}",
+	    "username", username,
+	    "tty", tty,
+	    "service", service
+	);
 
-    if (emit_event("system.session.close", args) != 0)
-        return (PAM_SERVICE_ERR);
+	if (emit_event("system.session.close", args) != 0)
+		return (PAM_SERVICE_ERR);
 
-    return (PAM_SUCCESS);
+	return (PAM_SUCCESS);
 }
 
 PAM_EXTERN int
 pam_sm_setcred(struct pam_handle *pamh, int flags, int argc, const char *argv[])
 {
 
-    return (PAM_SUCCESS);
+	return (PAM_SUCCESS);
 }
 
 PAM_EXTERN int
 pam_sm_acct_mgmt(struct pam_handle *pamh, int flags, int argc, const char *argv[])
 {
 
-    return (PAM_SUCCESS);
+	return (PAM_SUCCESS);
 }
 
 PAM_EXTERN int
 pam_sm_authenticate(struct pam_handle *pamh, int flags, int argc, const char *argv[])
 {
-    const char *username, *password, *realpw;
-    char *result_s;
-    json_t *user, *result;
-    int err;
+	const char *username, *password, *realpw;
+	char *result_s;
+	json_t *user, *result;
+	int err;
 
-    err = pam_get_user(pamh, &username, NULL);
-    if (err != PAM_SUCCESS)
-        return (err);
+	err = pam_get_user(pamh, &username, NULL);
+	if (err != PAM_SUCCESS)
+		return (err);
 
-    PAM_LOG("Got user: %s", username);
+	PAM_LOG("Got user: %s", username);
 
-    err = pam_get_authtok(pamh, PAM_AUTHTOK, &password, PASSWORD_PROMPT);
-    if (err != PAM_SUCCESS)
-        return (err);
+	err = pam_get_authtok(pamh, PAM_AUTHTOK, &password, PASSWORD_PROMPT);
+	if (err != PAM_SUCCESS)
+		return (err);
 
-    PAM_LOG("Got password");
+	PAM_LOG("Got password");
 
-    if (call_dispatcher("dscached.account.authenticate",
-        json_pack("[ss]", username, password), &result) != 0) {
-        PAM_LOG("Cannot call dispatcher, trying local file backend");
+	if (call_dispatcher("dscached.account.authenticate",
+		json_pack("[ss]", username, password), &result) != 0) {
+		PAM_LOG("Cannot call dispatcher, trying local file backend");
 
-        /* Try flat file lookup */
-        flat_load_files();
+		/* Try flat file lookup */
+		flat_load_files();
 
-        user = flat_find_user(username);
-        if (user == NULL) {
-            PAM_LOG("User %s not found", username);
-            return (PAM_PERM_DENIED);
-        }
+		user = flat_find_user(username);
+		if (user == NULL) {
+			PAM_LOG("User %s not found", username);
+			return (PAM_PERM_DENIED);
+		}
 
-        realpw = json_string_value(json_object_get(user, "unixhash"));
-        if (realpw == NULL) {
-            PAM_LOG("User %s has empty password", username);
-            return (PAM_PERM_DENIED);
-        }
+		realpw = json_string_value(json_object_get(user, "unixhash"));
+		if (realpw == NULL) {
+			PAM_LOG("User %s has empty password", username);
+			return (PAM_PERM_DENIED);
+		}
 
-        if (strcmp(crypt(password, realpw), realpw) == 0)
-            return (PAM_SUCCESS);
+		if (strcmp(crypt(password, realpw), realpw) == 0)
+			return (PAM_SUCCESS);
 
-        return (PAM_AUTH_ERR);
-    }
+		return (PAM_AUTH_ERR);
+	}
 
-    result_s = json_dumps(result, JSON_ENCODE_ANY);
-    PAM_LOG("Result: %s", result_s);
-    free(result_s);
+	result_s = json_dumps(result, JSON_ENCODE_ANY);
+	PAM_LOG("Result: %s", result_s);
+	free(result_s);
 
-    if (json_is_true(result))
-        return (PAM_SUCCESS);
+	if (json_is_true(result))
+		return (PAM_SUCCESS);
 
-    return (PAM_AUTH_ERR);
+	return (PAM_AUTH_ERR);
+}
+
+PAM_EXTERN int
+pam_sm_chauthtok(struct pam_handle *pamh, int flags, int argc, const char *argv[])
+{
+	const char *username, *old_pass, *new_pass;
+	json_t *result;
+	int retval;
+
+	if (openpam_get_option(pamh, PAM_OPT_AUTH_AS_SELF))
+		username = getlogin();
+	else {
+		retval = pam_get_user(pamh, &username, NULL);
+		if (retval != PAM_SUCCESS)
+			return (retval);
+	}
+
+	PAM_LOG("Got user: %s", username);
+
+	if (flags & PAM_PRELIM_CHECK) {
+
+	}
+
+	if (flags & PAM_UPDATE_AUTHTOK) {
+		retval = pam_get_authtok(pamh,
+		    PAM_OLDAUTHTOK, &old_pass, NULL);
+		if (retval != PAM_SUCCESS)
+			return (retval);
+
+		PAM_LOG("Got old password");
+
+		/* get new password */
+		for (;;) {
+			retval = pam_get_authtok(pamh,
+			    PAM_AUTHTOK, &new_pass, NULL);
+			if (retval != PAM_TRY_AGAIN)
+				break;
+			pam_error(pamh, "Mismatch; try again, EOF to quit.");
+		}
+
+		PAM_LOG("Got new password");
+
+		if (retval != PAM_SUCCESS) {
+			PAM_VERBOSE_ERROR("Unable to get new password");
+			return (retval);
+		}
+
+		if (call_dispatcher("dscached.account.change_password",
+		    json_pack("[ss]", username, new_pass), &result)
+		    != RPC_CALL_DONE) {
+			retval = PAM_SERVICE_ERR;
+		} else
+			retval = PAM_SUCCESS;
+
+	}
+
+	return (retval);
 }
 
 PAM_MODULE_ENTRY("pam_freenas");
