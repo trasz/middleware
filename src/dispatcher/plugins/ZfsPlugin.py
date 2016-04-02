@@ -1079,7 +1079,7 @@ def _init(dispatcher, plugin):
 
     def on_device_attached(args):
         for p in pools.validvalues():
-            if p['status'] not in ('DEGRADED', 'UNAVAIL'):
+            if p['status'] != 'DEGRADED':
                 continue
 
             for vd in iterate_vdevs(p['groups']):
