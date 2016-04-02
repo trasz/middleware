@@ -122,7 +122,7 @@ class TransportProvider(Provider):
 @private
 @description('Send side of replication transport layer')
 @accepts(
-    h.object(),
+    FileDescriptor,
     h.all_of(
         h.ref('replication-transport'),
         h.required('client_address', 'receive_properties')
