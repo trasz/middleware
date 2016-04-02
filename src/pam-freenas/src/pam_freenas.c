@@ -319,8 +319,7 @@ pam_sm_chauthtok(struct pam_handle *pamh, int flags, int argc, const char *argv[
 		}
 
 		if (call_dispatcher("dscached.account.change_password",
-		    json_pack("[ss]", username, new_pass), &result)
-		    != RPC_CALL_DONE) {
+		    json_pack("[ss]", username, new_pass), &result) != 0) {
 			retval = PAM_SERVICE_ERR;
 		} else
 			retval = PAM_SUCCESS;
