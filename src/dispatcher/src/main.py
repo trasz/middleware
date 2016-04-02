@@ -880,7 +880,8 @@ class UnixSocketServer(object):
 
                 except (OSError, ValueError, socket.timeout) as err:
                     self.server.logger.info('Send failed: {0}; closing connection'.format(str(err)))
-                    self.connfd.shutdown(socket.SHUT_RDWR)
+                    if err.errno != errno.EBADF:
+                        self.connfd.shutdown(socket.SHUT_RDWR)
 
         def handle_connection(self):
             self.conn = ServerConnection(self, self.dispatcher)
