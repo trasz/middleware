@@ -238,6 +238,8 @@ class TransportSendTask(Task):
                 )
             logger.debug('New connection from {0}:{1} to {2}:{3}'.format(*(addr + sock_addr)))
 
+            conn.setsockopt(socket.SOL_SOCKET, socket.SO_SNDBUF, buffer_size)
+
             conn_fd = conn.fileno()
             fds.append(conn_fd)
 
@@ -431,6 +433,8 @@ class TransportReceiveTask(ProgressTask):
             if sock is None:
                 raise TaskException(errno.EACCES, 'Could not connect to a socket at address {0}'.format(server_address))
             logger.debug('Connected to a TCP socket at {0}:{1}'.format(*addr))
+
+            sock.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, buffer_size)
 
             conn_fd = sock.fileno()
             fds.append(conn_fd)
