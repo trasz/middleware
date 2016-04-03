@@ -60,7 +60,7 @@ cdef uint32_t read_fd(int fd, void *buf, uint32_t nbytes, uint32_t curr_pos):
     while True:
         try:
             with nogil:
-                ret = read(fd, <uint8_t *>(buf + curr_pos), nbytes - done)
+                ret = read(fd, <uint8_t *>(buf + curr_pos + done), nbytes - done)
         except IOError as e:
             if e.errno in (errno.EINTR, e.errno == errno.EAGAIN):
                 continue
