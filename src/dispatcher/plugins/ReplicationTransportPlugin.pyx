@@ -540,6 +540,7 @@ class TransportReceiveTask(ProgressTask):
     def count_progress(self):
         last_done = 0
         progress = 0
+        start_time = time.time()
         while self.running:
             if self.estimated_size:
                 progress = int((float(self.done) / float(self.estimated_size)) * 100)
@@ -548,6 +549,9 @@ class TransportReceiveTask(ProgressTask):
             self.set_progress(progress, 'Transfer speed {0} B/s'.format(self.done - last_done))
             last_done = self.done
             time.sleep(1)
+
+        transfer_speed = int(float(self.done) / float(time.time() - start_time))
+        logger.debug('Overall transfer speed {0} B/s - {1}:{2}'.format(transfer_speed, *self.addr))
 
 
 @private
