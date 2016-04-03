@@ -53,16 +53,14 @@ REPL_HOME = '/var/tmp/replication'
 AUTH_FILE = os.path.join(REPL_HOME, '.ssh/authorized_keys')
 
 
-cdef uint32_t read_fd(int fd, void *buf, uint32_t nbytes, uint32_t curr_pos):
-    cdef uint32_t ret
-    cdef uint32_t done = 0
+cdef int read_fd(int fd, void *buf, int nbytes, int curr_pos):
+    cdef int ret
+    cdef int done = 0
 
     while True:
         try:
-            logger.debug('b4 {0}'.format(nbytes-done))
             with nogil:
                 ret = read(fd, <uint8_t *>(buf + curr_pos), nbytes - done)
-            logger.debug('ret {0}'.format(ret))
         except IOError as e:
             if e.errno in (errno.EINTR, e.errno == errno.EAGAIN):
                 continue
@@ -70,14 +68,13 @@ cdef uint32_t read_fd(int fd, void *buf, uint32_t nbytes, uint32_t curr_pos):
                 raise
 
         done += ret
-        logger.debug('after {0}'.format(done))
         if (done == nbytes) or (ret == 0):
             return done
 
 
-cdef uint32_t write_fd(int fd, void *buf, uint32_t nbytes):
-    cdef uint32_t ret
-    cdef uint32_t done = 0
+cdef int write_fd(int fd, void *buf, int nbytes):
+    cdef int ret
+    cdef int done = 0
 
     while True:
         try:
@@ -301,17 +298,20 @@ class TransportSendTask(Task):
             try:
                 while True:
                     ret = read_fd(fd.fd, buffer, buffer_size, 0)
-                    logger.debug('Got {0} bytes of payload ({1}:{2})'.format(ret, *addr))
+                    IF REPLICATION_TRANSPORT_DEBUG:
+                        logger.debug('Got {0} bytes of payload ({1}:{2})'.format(ret, *addr))
                     write_fd(header_wr, &magic, sizeof(magic))
-                    logger.debug('Written {0} bytes of header -> TCP socket ({1}:{2})'.format(sizeof(magic), *addr))
+                    IF REPLICATION_TRANSPORT_DEBUG:
+                        logger.debug('Written {0} bytes of header -> TCP socket ({1}:{2})'.format(sizeof(magic), *addr))
                     write_fd(header_wr, &ret, sizeof(ret))
-                    logger.debug('Written {0} bytes of length -> TCP socket ({1}:{2})'.format(sizeof(ret), *addr))
+                    IF REPLICATION_TRANSPORT_DEBUG:
+                        logger.debug('Written {0} bytes of length -> TCP socket ({1}:{2})'.format(sizeof(ret), *addr))
                     if ret == 0:
                         break
                     else:
                         write_fd(header_wr, buffer, ret)
-                        logger.debug('Written {0} bytes of payload-> TCP socket ({1}:{2})'.format(ret, *addr))
-                        #logger.debug('{0}'.format(<bytes> buffer[:ret]))
+                        IF REPLICATION_TRANSPORT_DEBUG:
+                            logger.debug('Written {0} bytes of payload-> TCP socket ({1}:{2})'.format(ret, *addr))
             except IOError:
                 raise TaskException(errno.ECONNABORTED, 'Transport connection closed unexpectedly')
 
@@ -482,7 +482,8 @@ class TransportReceiveTask(ProgressTask):
             try:
                 while True:
                     ret = read_fd(last_rd_fd, buffer, sizeof(uint32_t), 0)
-                    logger.debug('Got {0} bytes of header ({1}:{2})'.format(ret, *addr))
+                    IF REPLICATION_TRANSPORT_DEBUG:
+                        logger.debug('Got {0} bytes of header ({1}:{2})'.format(ret, *addr))
                     if ret != 4:
                         raise IOError
                     if buffer[0] != magic:
@@ -491,7 +492,8 @@ class TransportReceiveTask(ProgressTask):
                             'Bad magic {0} received. Expected {1}'.format(buffer[0], magic)
                         )
                     ret = read_fd(last_rd_fd, buffer, sizeof(uint32_t), 0)
-                    logger.debug('Got {0} bytes of length ({1}:{2})'.format(ret, *addr))
+                    IF REPLICATION_TRANSPORT_DEBUG:
+                        logger.debug('Got {0} bytes of length ({1}:{2})'.format(ret, *addr))
                     if ret != 4:
                         raise IOError
                     length = buffer[0]
@@ -500,14 +502,16 @@ class TransportReceiveTask(ProgressTask):
                         break
 
                     ret = read_fd(last_rd_fd, buffer, length, 0)
-                    logger.debug('Got {0} bytes of payload ({1}:{2})'.format(ret, *addr))
+                    IF REPLICATION_TRANSPORT_DEBUG:
+                        logger.debug('Got {0} bytes of payload ({1}:{2})'.format(ret, *addr))
                     if ret != length:
                         raise IOError
 
                     self.done += ret
 
                     write_fd(zfs_wr, buffer, length)
-                    logger.debug('Written {0} bytes of payload -> zfs.receive ({1}:{2})'.format(length, *addr))
+                    IF REPLICATION_TRANSPORT_DEBUG:
+                        logger.debug('Written {0} bytes of payload -> zfs.receive ({1}:{2})'.format(length, *addr))
 
             except IOError:
                 raise TaskException(errno.ECONNABORTED, 'Transport connection closed unexpectedly')

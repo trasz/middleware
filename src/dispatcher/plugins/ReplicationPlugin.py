@@ -40,8 +40,6 @@ from dateutil.parser import parse as parse_datetime
 from task import Provider, Task, ProgressTask, VerifyException, TaskException, TaskWarning, query
 from freenas.dispatcher.rpc import RpcException, SchemaHelper as h, description, accepts, returns, private
 from freenas.dispatcher.client import Client
-from freenas.dispatcher.fd import FileDescriptor
-from utils import get_replication_client
 from freenas.utils import to_timedelta, first_or_default, extend
 from freenas.utils.query import wrap
 from utils import load_config
@@ -752,10 +750,10 @@ class ReplicationReserveServicesTask(ReplicationBaseTask):
             remote_client.disconnect()
 
 
-@accepts(str, str, bool, int, str, bool)
+@accepts(str, bool, int, str, bool)
 @returns(str)
 class SnapshotDatasetTask(Task):
-    def verify(self, pool, dataset, recursive, lifetime, prefix='auto', replicable=False):
+    def verify(self, dataset, recursive, lifetime, prefix='auto', replicable=False):
         if not self.dispatcher.call_sync('zfs.dataset.query', [('name', '=', dataset)], {'single': True}):
             raise VerifyException(errno.ENOENT, 'Dataset {0} not found'.format(dataset))
 
@@ -969,7 +967,7 @@ class ReplicateDatasetTask(ProgressTask):
         remoteds = options['remote_dataset']
         followdelete = options.get('followdelete', False)
         recursive = options.get('recursive', False)
-        lifetime = options.get('lifetime', 365*24*60*60)
+        lifetime = options.get('lifetime', '1y')
 
         self.join_subtasks(self.run_subtask(
             'volume.snapshot_dataset',
@@ -981,7 +979,7 @@ class ReplicateDatasetTask(ProgressTask):
             True
         ))
 
-        remote_client = get_replication_client(self.dispatcher, remote)
+        remote_client = get_remote_client(options['remote'])
 
         def is_replicated(snapshot):
             if snapshot.get('properties.org\\.freenas:replicate.value') != 'yes':
@@ -1062,29 +1060,28 @@ class ReplicateDatasetTask(ProgressTask):
                     action['snapshot']
                 ))
 
-                rd_fd, wr_fd = os.pipe()
-                fromsnap = action['anchor'] if 'anchor' in action else None
-
-                self.join_subtasks(
-                    self.run_subtask(
-                        'zfs.send',
-                        action['localfs'],
-                        fromsnap,
+                if not action['incremental']:
+                    send_dataset(
+                        remote,
+                        options.get('remote_hostkey'),
+                        None,
                         action['snapshot'],
-                        FileDescriptor(wr_fd)
-                    ),
-                    self.run_subtask(
-                        'replication.transport.send',
-                        FileDescriptor(rd_fd),
-                        {
-                            'client_address': remote,
-                            'receive_properties': {
-                                'name': action['remotefs'],
-                                'force': True
-                            }
-                        }
+                        action['localfs'],
+                        action['remotefs'],
+                        '',
+                        0
                     )
-                )
+                else:
+                    send_dataset(
+                        remote,
+                        options.get('remote_hostkey'),
+                        action['anchor'],
+                        action['snapshot'],
+                        action['localfs'],
+                        action['remotefs'],
+                        '',
+                        0
+                    )
 
             if action['type'] == ReplicationActionType.DELETE_DATASET.name:
                 self.set_progress(progress, 'Removing remote dataset {0}'.format(action['remotefs']))

@@ -756,11 +756,11 @@ class ZfsCloneTask(ZfsBaseTask):
 
 @private
 class ZfsSendTask(ZfsBaseTask):
-    def run(self, name, fromsnap, tosnap, fd):
+    def run(self, name, fromsnap, fd):
         try:
             zfs = get_zfs()
             obj = zfs.get_object(name)
-            obj.send(fd.fd, fromname=fromsnap, toname=tosnap, flags={
+            obj.send(fd.fd, fromname=fromsnap, flags={
                 libzfs.SendFlag.PROGRESS,
                 libzfs.SendFlag.PROPS
             })
