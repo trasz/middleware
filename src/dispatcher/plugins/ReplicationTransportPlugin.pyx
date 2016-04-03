@@ -606,12 +606,65 @@ class TransportDecryptTask(Task):
 @description('Limit throughput to one buffer size per second')
 @accepts(h.ref('throttle-plugin'))
 class TransportThrottleTask(Task):
-    def verify(self, transport):
+    def verify(self, plugin):
+        if 'read_fd' not in plugin:
+            raise VerifyException(errno.ENOENT, 'Read file descriptor is not specified')
+
+        if 'write_fd' not in plugin:
+            raise VerifyException(errno.ENOENT, 'Write file descriptor is not specified')
+
         return []
 
-    def run(self, transport):
-        return
+    def run(self, plugin):
+        cdef uint8_t *buffer
+        cdef uint32_t buffer_size
+        cdef uint32_t ret
+        cdef uint32_t done = 0
+        cdef boolean_t running = 1
 
+        timer_ovf = threading.Event()
+
+        def timer():
+            while running:
+                time.sleep(1)
+                done = 0
+                timer_ovf.set()
+
+        try:
+            buffer_size = plugin.get('buffer_size', 50*1024*1024)
+            buffer = <uint8_t *>malloc(buffer_size * sizeof(uint8_t))
+            rd_fd = plugin.get('read_fd').fd
+            wr_fd = plugin.get('write_fd').fd
+
+            timer_t = threading.Thread(target=timer)
+            timer_t.start()
+
+            while True:
+                try:
+                    with nogil:
+                        ret = read(rd_fd, buffer + done, buffer_size - done)
+                except IOError as e:
+                    if e.errno in (errno.EINTR, e.errno == errno.EAGAIN):
+                        continue
+
+                if ret == 0:
+                    running = 0
+                    break
+
+                write_fd(wr_fd, buffer, ret)
+
+                done += ret
+                if done == buffer_size:
+                    timer_ovf.wait()
+                    timer_ovf.clear()
+
+        finally:
+            free(buffer)
+            try:
+                os.close(wr_fd)
+                os.close(rd_fd)
+            except OSError:
+                pass
 
 
 @description('Exchange keys with remote machine for replication purposes')
@@ -823,7 +876,10 @@ def _init(dispatcher, plugin):
     plugin.register_schema_definition('throttle-plugin', {
         'type': 'object',
         'properties': {
-            'name': {'type': 'string'},
+            'name': {
+                'type': 'string',
+                'enum': ['throttle-plugin']
+            },
             'buffer_size': {'type': 'integer'},
             'read_fd': {'type': 'object'},
             'write_fd': {'type': 'object'}
