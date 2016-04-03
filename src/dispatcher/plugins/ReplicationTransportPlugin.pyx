@@ -155,17 +155,19 @@ class TransportSendTask(Task):
         return []
 
     def run(self, fd, transport):
-        cdef uint8_t *buffer
-        cdef uint32_t curr_pos = 0
+        cdef uint8_t *token_buffer
+        cdef uint32_t *buffer
         cdef uint32_t ret
-        cdef uint32_t magic = 0xdeadbeef
+        cdef uint32_t buffer_size
+        cdef uint32_t header_size = 2 * sizeof(uint32_t)
+        cdef uint32_t token_size
 
         sock = None
         conn = None
         fds = []
         try:
             buffer_size = transport.get('buffer_size', 1024*1024)
-            buffer = <uint8_t *>malloc(buffer_size * sizeof(uint8_t))
+            buffer = <uint32_t *>malloc((buffer_size + header_size) * sizeof(uint8_t))
 
             client_address = transport.get('client_address')
             remote_client = get_replication_client(self.dispatcher, client_address)
@@ -243,9 +245,9 @@ class TransportSendTask(Task):
             conn_fd = conn.fileno()
             fds.append(conn_fd)
 
+            token_buffer = <uint8_t *>malloc(token_size * sizeof(uint8_t))
             try:
-                ret = read_fd(conn_fd, buffer, token_size - curr_pos, curr_pos)
-                curr_pos += ret
+                ret = read_fd(conn_fd, token_buffer, token_size, 0)
                 if ret != token_size:
                     raise OSError
             except OSError:
@@ -253,8 +255,7 @@ class TransportSendTask(Task):
                     errno.ECONNABORTED,
                     'Connection with {0} aborted before authentication'.format(client_address)
                 )
-            recvd_token = <bytes> buffer[:curr_pos]
-            curr_pos = 0
+            recvd_token = <bytes> token_buffer[:token_size]
 
             if base64.b64decode(token.encode('utf-8')) != recvd_token:
                 raise TaskException(
@@ -297,23 +298,22 @@ class TransportSendTask(Task):
             logger.debug(
                 'Transport layer plugins registration finished for {0}:{1} connection. Starting transfer.'.format(*addr)
             )
+            buffer[0] = 0xdeadbeef
             try:
                 while True:
-                    ret = read_fd(fd.fd, buffer, buffer_size, 0)
+                    ret = read_fd(fd.fd, buffer, buffer_size, header_size)
                     IF REPLICATION_TRANSPORT_DEBUG:
                         logger.debug('Got {0} bytes of payload ({1}:{2})'.format(ret, *addr))
-                    write_fd(header_wr, &magic, sizeof(magic))
-                    IF REPLICATION_TRANSPORT_DEBUG:
-                        logger.debug('Written {0} bytes of header -> TCP socket ({1}:{2})'.format(sizeof(magic), *addr))
-                    write_fd(header_wr, &ret, sizeof(ret))
-                    IF REPLICATION_TRANSPORT_DEBUG:
-                        logger.debug('Written {0} bytes of length -> TCP socket ({1}:{2})'.format(sizeof(ret), *addr))
+                    buffer[1] = ret
+
                     if ret == 0:
+                        write_fd(header_wr, buffer, header_size)
                         break
                     else:
-                        write_fd(header_wr, buffer, ret)
-                        IF REPLICATION_TRANSPORT_DEBUG:
-                            logger.debug('Written {0} bytes of payload-> TCP socket ({1}:{2})'.format(ret, *addr))
+                        write_fd(header_wr, buffer, ret + header_size)
+
+                    IF REPLICATION_TRANSPORT_DEBUG:
+                        logger.debug('Written {0} bytes -> TCP socket ({1}:{2})'.format(ret, *addr))
             except IOError:
                 raise TaskException(errno.ECONNABORTED, 'Transport connection closed unexpectedly')
 
@@ -329,6 +329,7 @@ class TransportSendTask(Task):
 
         finally:
             free(buffer)
+            free(token_buffer)
             if sock:
                 sock.shutdown(socket.SHUT_RDWR)
                 sock.close()
@@ -363,6 +364,7 @@ class TransportReceiveTask(ProgressTask):
         self.done = 0
         self.estimated_size = 0
         self.running = True
+        self.addr = None
 
     def verify(self, transport):
         if 'auth_token' not in transport:
@@ -391,16 +393,20 @@ class TransportReceiveTask(ProgressTask):
 
     def run(self, transport):
         cdef uint32_t *buffer
+        cdef uint32_t *header_buffer
         cdef uint8_t *token_buf
         cdef uint32_t ret
         cdef uint32_t length
         cdef uint32_t magic = 0xdeadbeef
+        cdef uint32_t buffer_size
+        cdef uint32_t header_size = 2 * sizeof(uint32_t)
 
         sock = None
         fds = []
         try:
             buffer_size = transport.get('buffer_size', 1024*1024)
             buffer = <uint32_t *>malloc(buffer_size * sizeof(uint8_t))
+            header_buffer = <uint32_t *>malloc(header_size * sizeof(uint8_t))
 
             self.estimated_size = transport.get('estimated_size', 0)
             server_address = transport.get('server_address')
@@ -432,6 +438,7 @@ class TransportReceiveTask(ProgressTask):
 
             if sock is None:
                 raise TaskException(errno.EACCES, 'Could not connect to a socket at address {0}'.format(server_address))
+            self.addr = addr
             logger.debug('Connected to a TCP socket at {0}:{1}'.format(*addr))
 
             sock.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, buffer_size)
@@ -485,24 +492,20 @@ class TransportReceiveTask(ProgressTask):
 
             try:
                 while True:
-                    ret = read_fd(last_rd_fd, buffer, sizeof(uint32_t), 0)
+                    ret = read_fd(last_rd_fd, header_buffer, header_size, 0)
                     IF REPLICATION_TRANSPORT_DEBUG:
                         logger.debug('Got {0} bytes of header ({1}:{2})'.format(ret, *addr))
-                    if ret != 4:
+                    if ret != header_size:
                         raise IOError
-                    if buffer[0] != magic:
+                    if header_buffer[0] != magic:
                         raise TaskException(
                             errno.EINVAL,
-                            'Bad magic {0} received. Expected {1}'.format(buffer[0], magic)
+                            'Bad magic {0} received. Expected {1}'.format(header_buffer[0], magic)
                         )
-                    ret = read_fd(last_rd_fd, buffer, sizeof(uint32_t), 0)
-                    IF REPLICATION_TRANSPORT_DEBUG:
-                        logger.debug('Got {0} bytes of length ({1}:{2})'.format(ret, *addr))
-                    if ret != 4:
-                        raise IOError
-                    length = buffer[0]
+                    length = header_buffer[1]
                     if length == 0:
-                        logger.debug('')
+                        IF REPLICATION_TRANSPORT_DEBUG:
+                            logger.debug('Received header with 0 payload length. Ending connection.')
                         break
 
                     ret = read_fd(last_rd_fd, buffer, length, 0)
@@ -528,6 +531,7 @@ class TransportReceiveTask(ProgressTask):
 
         finally:
             free(buffer)
+            free(header_buffer)
             if sock:
                 sock.shutdown(socket.SHUT_RDWR)
                 sock.close()
