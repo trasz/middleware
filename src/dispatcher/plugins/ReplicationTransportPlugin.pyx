@@ -53,9 +53,9 @@ REPL_HOME = '/var/tmp/replication'
 AUTH_FILE = os.path.join(REPL_HOME, '.ssh/authorized_keys')
 
 
-cdef int read_fd(int fd, void *buf, int nbytes, int curr_pos):
-    cdef int ret
-    cdef int done = 0
+cdef uint32_t read_fd(int fd, void *buf, uint32_t nbytes, uint32_t curr_pos):
+    cdef uint32_t ret
+    cdef uint32_t done = 0
 
     while True:
         try:
@@ -72,9 +72,9 @@ cdef int read_fd(int fd, void *buf, int nbytes, int curr_pos):
             return done
 
 
-cdef int write_fd(int fd, void *buf, int nbytes):
-    cdef int ret
-    cdef int done = 0
+cdef uint32_t write_fd(int fd, void *buf, uint32_t nbytes):
+    cdef uint32_t ret
+    cdef uint32_t done = 0
 
     while True:
         try:
@@ -867,4 +867,3 @@ def _init(dispatcher, plugin):
     with open(AUTH_FILE, 'w') as auth_file:
         for host in dispatcher.call_sync('replication.host.query'):
             auth_file.write(host['pubkey'])
-
