@@ -284,12 +284,12 @@ class TransportSendTask(Task):
                     plugin['read_fd'] = FileDescriptor(last_rd_fd)
                     plugin['write_fd'] = FileDescriptor(wr)
                     last_rd_fd = rd
-                    raw_subtasks.append(('replication.transport.{0}'.format(type), plugin))
+                    raw_subtasks.append(['replication.transport.{0}'.format(type), plugin])
                     logger.debug('Registered {0} transport layer plugin for {1}:{2} connection'.format(type, *addr))
 
             if len(raw_subtasks):
                 logger.debug('Starting plugins for {1}:{2} connection'.format(*addr))
-                raw_subtasks[-1]['write_fd'] = conn_fd
+                raw_subtasks[-1][-1]['write_fd'] = conn_fd
                 for subtask in raw_subtasks:
                     subtasks.append(self.run_subtask(*subtask))
             else:
