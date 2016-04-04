@@ -252,8 +252,10 @@ pam_sm_authenticate(struct pam_handle *pamh, int flags, int argc, const char *ar
 		}
 
 		realpw = json_string_value(json_object_get(user, "unixhash"));
-		if (realpw == NULL) {
+		if (realpw == NULL || strcmp(realpw, "*") == 0) {
 			PAM_LOG("User %s has empty password", username);
+			if (openpam_get_option(pamh, PAM_OPT_NULLOK))
+				return (PAM_SUCCESS);
 			return (PAM_PERM_DENIED);
 		}
 
