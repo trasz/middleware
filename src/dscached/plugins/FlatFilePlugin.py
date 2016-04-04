@@ -26,6 +26,7 @@
 #####################################################################
 
 import os
+import shutil
 import logging
 import crypt
 import random
@@ -42,8 +43,6 @@ from freenas.utils import first_or_default
 from freenas.utils.query import wrap
 
 
-PASSWD_FILE = '/etc/passwd.json'
-GROUP_FILE = '/etc/group.json'
 logger = logging.getLogger(__name__)
 
 
@@ -53,8 +52,10 @@ def crypted_password(cleartext):
 
 
 class FlatFilePlugin(DirectoryServicePlugin):
-    def __init__(self, context):
+    def __init__(self, context, parameters):
         self.context = context
+        self.passwd_filename = parameters["passwd_file"]
+        self.group_filename = parameters["group_file"]
         self.passwd = wrap([])
         self.group = wrap([])
         self.__load()
@@ -63,21 +64,21 @@ class FlatFilePlugin(DirectoryServicePlugin):
 
     def __load(self):
         try:
-            with open(PASSWD_FILE, 'r') as f:
+            with open(self.passwd_filename, 'r') as f:
                 self.passwd = wrap(load(f))
         except (IOError, ValueError) as err:
-            logger.warn('Cannot read {0}: {1}'.format(PASSWD_FILE, str(err)))
+            logger.warn('Cannot read {0}: {1}'.format(self.passwd_filename, str(err)))
 
         try:
-            with open(GROUP_FILE, 'r') as f:
+            with open(self.group_filename, 'r') as f:
                 self.group = wrap(load(f))
         except (IOError, ValueError) as err:
-            logger.warn('Cannot read {0}: {1}'.format(GROUP_FILE, str(err)))
+            logger.warn('Cannot read {0}: {1}'.format(self.group_filename, str(err)))
 
     def __watch(self):
         kq = select.kqueue()
-        passwd_fd = os.open(PASSWD_FILE, os.O_RDONLY)
-        group_fd = os.open(GROUP_FILE, os.O_RDONLY)
+        passwd_fd = os.open(self.passwd_filename, os.O_RDONLY)
+        group_fd = os.open(self.group_filename, os.O_RDONLY)
 
         ev = [
             select.kevent(
@@ -96,7 +97,7 @@ class FlatFilePlugin(DirectoryServicePlugin):
 
         while True:
             event, = kq.control(None, 1)
-            name = PASSWD_FILE if event.ident == passwd_fd else GROUP_FILE
+            name = self.passwd_filename if event.ident == passwd_fd else self.group_filename
             logger.warning('{0} was modified, reloading'.format(name))
             self.__load()
 
@@ -120,7 +121,7 @@ class FlatFilePlugin(DirectoryServicePlugin):
 
     def change_password(self, username, password):
         try:
-            with open(PASSWD_FILE, 'r') as f:
+            with open(self.passwd_filename, 'r') as f:
                 passwd = wrap(load(f))
 
             user = first_or_default(lambda u: u['username'] == username, passwd)
@@ -134,10 +135,11 @@ class FlatFilePlugin(DirectoryServicePlugin):
                 'password_changed_at': datetime.datetime.utcnow()
             })
 
-            with open(PASSWD_FILE + '.tmp', 'w') as f:
+            with open(self.passwd_filename + '.tmp', 'w') as f:
                 dump(passwd, f, indent=4)
 
-            os.rename(PASSWD_FILE + '.tmp', PASSWD_FILE)
+            os.rename(self.passwd_filename + '.tmp', self.passwd_filename)
+            shutil.copy(self.passwd_filename, os.path.join('/conf/base', self.passwd_filename[1:]))
             self.__load()
         except (IOError, ValueError) as err:
             logger.warn('Cannot change password: {1}'.format(str(err)))

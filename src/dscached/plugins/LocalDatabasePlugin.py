@@ -29,24 +29,23 @@ from plugin import DirectoryServicePlugin
 
 
 class LocalDatabasePlugin(DirectoryServicePlugin):
-    def __init__(self, context):
+    def __init__(self, context, parameters):
         self.context = context
         self.datastore = context.datastore
 
     def getpwent(self, filter=None, params=None):
         filter = filter or []
-        filter.append(('builtin', '=', False))
         return self.datastore.query('users', *filter, **(params or {}))
 
     def getpwnam(self, name):
-        user = self.datastore.get_one('users', ('username', '=', name), ('builtin', '=', False))
+        user = self.datastore.get_one('users', ('username', '=', name))
         if not user:
             return None
 
         return user
 
     def getpwuid(self, uid):
-        user = self.datastore.get_one('users', ('uid', '=', uid), ('builtin', '=', False))
+        user = self.datastore.get_one('users', ('uid', '=', uid))
         if not user:
             return None
 
@@ -54,18 +53,17 @@ class LocalDatabasePlugin(DirectoryServicePlugin):
 
     def getgrent(self, filter=None, params=None):
         filter = filter or []
-        filter.append(('builtin', '=', False))
         return self.datastore.query('groups', *filter, **(params or {}))
 
     def getgrnam(self, name):
-        group = self.datastore.get_one('groups', ('username', '=', name), ('builtin', '=', False))
+        group = self.datastore.get_one('groups', ('username', '=', name))
         if not group:
             return None
 
         return group
 
     def getgrgid(self, gid):
-        group = self.datastore.get_one('groups', ('uid', '=', gid), ('builtin', '=', False))
+        group = self.datastore.get_one('groups', ('uid', '=', gid))
         if not group:
             return None
 
