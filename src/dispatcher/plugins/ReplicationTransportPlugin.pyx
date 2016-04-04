@@ -620,7 +620,7 @@ class TransportThrottleTask(Task):
         cdef uint32_t buffer_size
         cdef uint32_t ret
         cdef uint32_t done = 0
-        cdef boolean_t running = 1
+        cdef uint8_t running = 1
         cdef int rd_fd
         cdef int wr_fd
 
