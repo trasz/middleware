@@ -161,6 +161,7 @@ class TransportSendTask(Task):
         cdef uint32_t buffer_size
         cdef uint32_t header_size = 2 * sizeof(uint32_t)
         cdef uint32_t token_size
+        cdef int zfs_fd = fd.fd
 
         sock = None
         conn = None
@@ -301,7 +302,7 @@ class TransportSendTask(Task):
             buffer[0] = 0xdeadbeef
             try:
                 while True:
-                    ret = read_fd(fd.fd, buffer, buffer_size, header_size)
+                    ret = read_fd(zfs_fd, buffer, buffer_size, header_size)
                     IF REPLICATION_TRANSPORT_DEBUG:
                         logger.debug('Got {0} bytes of payload ({1}:{2})'.format(ret, *addr))
                     buffer[1] = ret
@@ -400,6 +401,7 @@ class TransportReceiveTask(ProgressTask):
         cdef uint32_t magic = 0xdeadbeef
         cdef uint32_t buffer_size
         cdef uint32_t header_size = 2 * sizeof(uint32_t)
+        cdef int last_rd_fd
 
         sock = None
         fds = []
