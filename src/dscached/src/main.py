@@ -37,6 +37,8 @@ import time
 import json
 import imp
 import setproctitle
+from itertools import chain
+from more_itertools import unique_everseen
 from datastore.config import ConfigStore
 from freenas.dispatcher.client import Client, ClientError
 from freenas.dispatcher.rpc import RpcService, RpcException
@@ -45,6 +47,24 @@ from freenas.utils.debug import DebugService
 
 
 DEFAULT_CONFIGFILE = '/usr/local/etc/middleware.conf'
+
+
+class Directory(object):
+    def __init__(self, context, definition):
+        self.context = context
+        self.plugin_type = definition['plugin']
+        self.parameters = definition['parameters']
+        self.min_uid, self.max_uid = definition['uid_range']
+        self.min_gid, self.max_gid = definition['gid_range']
+
+        self.context.logger.info('Initializing directory {0} (priority {1})'.format(self.plugin_type, definition['id']))
+
+        try:
+            self.instance = context.plugins[self.plugin_type](self.context, self.parameters)
+        except BaseException as err:
+            self.context.logger.errror('Failed to initialize directory {0}: {1}'.format(self.plugin_type, str(err)))
+            self.context.logger.errror('Parameters: {0}'.format(self.parameters))
+            raise ValueError('Failed to initialize {0}'.format(self.plugin_type))
 
 
 class AccountService(RpcService):
@@ -69,29 +89,29 @@ class AccountService(RpcService):
         return None, None
 
     def query(self, filter=None, params=None):
-        results = []
-        for name, plugin in self.context.plugins.items():
-            results.extend(self.__annotate(name, i) for i in plugin.getpwent(filter, params))
+        iters = []
+        for d in self.context.directories:
+            iters.append((self.__annotate(d.plugin_type, i) for i in d.instance.getpwent(filter, params)))
 
-        return results
+        return list(unique_everseen(chain(*iters), lambda i: i['id']))
     
     def getpwuid(self, uid):
-        for name, plugin in self.context.plugins.items():
-            user = plugin.getpwuid(uid)
+        for d in self.context.directories:
+            user = d.instance.getpwuid(uid)
             if user:
-                return self.__annotate(name, user)
+                return self.__annotate(d.plugin_type, user)
 
         return None
 
     def getpwnam(self, user_name):
-        for name, plugin in self.context.plugins.items():
+        for d in self.context.directories:
             try:
-                user = plugin.getpwnam(user_name)
+                user = d.instance.getpwnam(user_name)
             except:
                 continue
 
             if user:
-                return self.__annotate(name, user)
+                return self.__annotate(d.plugin_type, user)
 
         return None
 
@@ -121,25 +141,25 @@ class GroupService(RpcService):
         return user
 
     def query(self, filter=None, params=None):
-        results = []
-        for name, plugin in self.context.plugins.items():
-            results.extend(self.__annotate(name, i) for i in plugin.getgrent(filter, params))
+        iters = []
+        for d in self.context.directories:
+            iters.append((self.__annotate(d.plugin_type, i) for i in d.instance.getgrent(filter, params)))
 
-        return results
+        return list(unique_everseen(chain(*iters), lambda i: i['id']))
     
     def getgrnam(self, name):
-        for name, plugin in self.context.plugins.items():
-            group = plugin.getgrnam(name)
+        for d in self.context.directories:
+            group = d.instance.getgrnam(name)
             if group:
-                return self.__annotate(name, group)
+                return self.__annotate(d.plugin_type, group)
 
         return None
     
     def getgrgid(self, gid):
-        for name, plugin in self.context.plugins.items():
-            group = plugin.getgrgid(gid)
+        for d in self.context.plugins.items():
+            group = d.instance.getgrgid(gid)
             if group:
-                return self.__annotate(name, group)
+                return self.__annotate(d.plugin_type, group)
 
         return None
 
@@ -153,6 +173,7 @@ class Main(object):
         self.client = None
         self.plugin_dirs = []
         self.plugins = {}
+        self.directories = []
 
     def init_datastore(self):
         try:
@@ -221,8 +242,16 @@ class Main(object):
                 self.logger.error('Cannot initialize plugin {0}'.format(f), exc_info=True)
 
     def register_plugin(self, name, cls):
-        self.plugins[name] = cls(self)
+        self.plugins[name] = cls
         self.logger.info('Registered plugin {0} (class {1})'.format(name, cls))
+
+    def init_directories(self):
+        for i in self.datastore.query('dscached.sources', sort=['id']):
+            try:
+                directory = Directory(self, i)
+                self.directories.append(directory)
+            except:
+                continue
 
     def main(self):
         parser = argparse.ArgumentParser()
@@ -236,6 +265,7 @@ class Main(object):
         self.init_datastore()
         self.init_dispatcher()
         self.scan_plugins()
+        self.init_directories()
         self.client.wait_forever()
 
 
