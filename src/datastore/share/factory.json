@@ -1446,10 +1446,37 @@
             "migration": "keep",
             "pkey-type": "integer",
             "attributes": {
-                "type": "lof"
+                "type": "log"
             }
         },
         "data": {
+        }
+    },
+    {
+        "metadata": {
+            "name": "dscached.sources",
+            "migration": "replace",
+            "pkey-type": "integer",
+            "attributes": {
+                "type": "config"
+            }
+        },
+        "data": {
+            "0": {
+                "plugin": "local",
+                "uid_range": [1000, 99999],
+                "gid_range": [1000, 99999],
+                "parameters": {}
+            },
+            "999": {
+                "plugin": "file",
+                "uid_range": [0, 999],
+                "gid_range": [0, 999],
+                "parameters": {
+                    "passwd_file": "/etc/passwd.json",
+                    "group_file": "/etc/group.json"
+                }
+            }
         }
     }
 ]
