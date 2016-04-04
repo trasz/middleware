@@ -29,8 +29,7 @@
             },
             "migration": "merge-preserve",
             "name": "users",
-            "pkey-type": "uuid",
-            "last-id": 78
+            "pkey-type": "uuid"
         }
     },
     {
@@ -51,8 +50,7 @@
             },
             "migration": "merge-preserve",
             "name": "groups",
-            "pkey-type": "uuid",
-            "last-id": null
+            "pkey-type": "uuid"
         }
     },
     {
