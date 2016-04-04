@@ -289,7 +289,7 @@ class TransportSendTask(Task):
 
             if len(raw_subtasks):
                 logger.debug('Starting plugins for {0}:{1} connection'.format(*addr))
-                raw_subtasks[-1][-1]['write_fd'] = conn_fd
+                raw_subtasks[-1][-1]['write_fd'] = FileDescriptor(conn_fd)
                 for subtask in raw_subtasks:
                     subtasks.append(self.run_subtask(*subtask))
             else:
