@@ -38,17 +38,13 @@ import binascii
 import select
 import threading
 from plugin import DirectoryServicePlugin
+from utils import crypted_password, nt_password
 from freenas.dispatcher.jsonenc import load, dump
 from freenas.utils import first_or_default
 from freenas.utils.query import wrap
 
 
 logger = logging.getLogger(__name__)
-
-
-def crypted_password(cleartext):
-    return crypt.crypt(cleartext, '$6$' + ''.join([
-        random.choice(string.ascii_letters + string.digits) for _ in range(16)]))
 
 
 class FlatFilePlugin(DirectoryServicePlugin):
@@ -128,10 +124,9 @@ class FlatFilePlugin(DirectoryServicePlugin):
             if not user:
                 raise OSError(errno.ENOENT, os.strerror(errno.ENOENT))
 
-            nthash = hashlib.new('md4', password.encode('utf-16le')).digest()
             user.update({
                 'unixhash': crypted_password(password),
-                'smbhash': binascii.hexlify(nthash).decode('utf-8'),
+                'smbhash': nt_password(password),
                 'password_changed_at': datetime.datetime.utcnow()
             })
 
