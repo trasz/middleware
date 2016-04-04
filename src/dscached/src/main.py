@@ -56,7 +56,6 @@ class Directory(object):
         self.parameters = definition['parameters']
         self.min_uid, self.max_uid = definition['uid_range']
         self.min_gid, self.max_gid = definition['gid_range']
-
         self.context.logger.info('Initializing directory {0} (priority {1})'.format(self.plugin_type, definition['id']))
 
         try:
@@ -77,14 +76,14 @@ class AccountService(RpcService):
         return user
 
     def __get_user(self, user_name):
-        for name, plugin in self.context.plugins.items():
+        for d in self.context.directories:
             try:
-                user = plugin.getpwnam(user_name)
+                user = d.instance.getpwnam(user_name)
             except:
                 continue
 
             if user:
-                return self.__annotate(name, user), plugin
+                return self.__annotate(d.plugin_type, user), d.instance
 
         return None, None
 
