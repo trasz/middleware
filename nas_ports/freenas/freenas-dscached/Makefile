@@ -10,6 +10,8 @@ VALID_CATEGORIES+= freenas
 MAINTAINER=	dev@ixsystems.com
 COMMENT=	FreeNAS directory services daemon
 
+RUN_DEPENDS=	${PYTHON_PKGNAMEPREFIX}more-itertools>0:${PORTSDIR}/devel/py-more-itertools
+
 USES=		python
 USE_PYTHON=	py3kplist
 EXTRACT_ONLY=
