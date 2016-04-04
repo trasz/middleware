@@ -335,7 +335,7 @@ class TransportSendTask(Task):
                 sock.close()
             if conn:
                 conn.shutdown(socket.SHUT_RDWR)
-                sock.close()
+                conn.close()
             try:
                 for fd in fds:
                     os.close(fd)
