@@ -880,7 +880,7 @@ def _init(dispatcher, plugin):
         'properties': {
             'name': {
                 'type': 'string',
-                'enum': ['throttle-plugin']
+                'enum': ['throttle']
             },
             'buffer_size': {'type': 'integer'},
             'read_fd': {'type': 'object'},
