@@ -25,6 +25,8 @@
 #
 #####################################################################
 
+import os
+import errno
 from plugin import DirectoryServicePlugin
 
 
@@ -68,6 +70,15 @@ class LocalDatabasePlugin(DirectoryServicePlugin):
             return None
 
         return group
+
+    def change_password(self, user_name, password):
+        user = self.datastore.get_one('users', ('username', '=', user_name))
+        if not user:
+            raise OSError(errno.ENOENT, os.strerror(errno.ENOENT))
+
+        self.context.client.call_task_sync('user.update', user['id'], {
+            'password': password
+        })
 
 
 def _init(context):
