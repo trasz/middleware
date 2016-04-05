@@ -635,7 +635,6 @@ class TransportThrottleTask(Task):
         def timer():
             while running:
                 time.sleep(1)
-                done = 0
                 timer_ovf.set()
 
         try:
@@ -665,6 +664,7 @@ class TransportThrottleTask(Task):
                 if done == buffer_size:
                     timer_ovf.wait()
                     timer_ovf.clear()
+                    done = 0
 
         finally:
             free(buffer)
