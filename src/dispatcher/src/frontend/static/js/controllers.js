@@ -810,6 +810,51 @@ function TaskDocController($scope){
     }
 }
 
+function EventsDocController($scope){
+    document.title = "Events API Page";
+    var sock = new middleware.DispatcherClient(document.domain);
+    sock.connect();
+    $scope.init = function() {
+        sock.onError = function(err) {
+            $("#socket_status ").attr("src", "/static/images/service_issue_diamond.png");
+            $("#refresh_page_glyph").show();
+        };
+        sock.onConnect = function() {
+            if (!sessionStorage.getItem("freenas:username")) {
+                var username = prompt("Username:");
+                var password = prompt("Password:");
+                sessionStorage.setItem("freenas:username", username);
+                sessionStorage.setItem("freenas:password", password);
+            }
+
+            sock.login(
+                sessionStorage.getItem("freenas:username"),
+                sessionStorage.getItem("freenas:password")
+            );
+            $("#login_username").html(username);
+        };
+        sock.onLogin = function() {
+            sock.call("discovery.get_event_types", null, function (events) {
+                var temp_list = [];
+                $.each(events, function(event_name, i) {
+                    temp_list.push(event_name);
+                })
+                $scope.$apply(function(){
+                  $scope.events = temp_list;
+                  $scope.event_dict = events;
+                });
+            });
+        };
+    }
+    $scope.getTaskList = function(event_name) {
+        console.log(event_name);
+    }
+}
+
+function SchemaController($scope){
+    
+}
+
 function AprilFoolController($scope) {
     console.log("I said don't click");
     console.log("you just can't control yourself, don't you?");
