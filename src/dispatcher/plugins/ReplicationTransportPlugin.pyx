@@ -556,7 +556,10 @@ class TransportReceiveTask(ProgressTask):
             last_done = self.done
             time.sleep(1)
 
-        transfer_speed = int(float(self.done) / float(time.time() - start_time))
+        try:
+            transfer_speed = int(float(self.done) / float(time.time() - start_time))
+        except ZeroDivisionError:
+            transfer_speed = 0
         logger.debug('Overall transfer speed {0} B/s - {1}:{2}'.format(transfer_speed, *self.addr))
 
 
