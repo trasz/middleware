@@ -633,6 +633,8 @@ class TransportThrottleTask(Task):
         timer_ovf = threading.Event()
 
         def timer():
+            IF REPLICATION_TRANSPORT_DEBUG:
+                logger.debug('Starting throttle task timer')
             while running:
                 time.sleep(1)
                 timer_ovf.set()
@@ -642,6 +644,8 @@ class TransportThrottleTask(Task):
             buffer = <uint8_t *>malloc(buffer_size * sizeof(uint8_t))
             rd_fd = plugin.get('read_fd').fd
             wr_fd = plugin.get('write_fd').fd
+            IF REPLICATION_TRANSPORT_DEBUG:
+                logger.debug('Starting throttle task - max transfer speed {0} B/s'.format(buffer_size))
 
             timer_t = threading.Thread(target=timer)
             timer_t.start()
@@ -653,18 +657,30 @@ class TransportThrottleTask(Task):
                 except IOError as e:
                     if e.errno in (errno.EINTR, e.errno == errno.EAGAIN):
                         continue
+                    else:
+                        raise
+
+                IF REPLICATION_TRANSPORT_DEBUG:
+                    logger.debug('Got {0} bytes from read file descriptor'.format(ret))
 
                 if ret == 0:
+                    logger.debug('Null byte received. Ending task.')
                     running = 0
                     break
 
                 write_fd(wr_fd, buffer + done, ret)
+                IF REPLICATION_TRANSPORT_DEBUG:
+                    logger.debug('Written {0} bytes to write file descriptor'.format(ret))
 
                 done += ret
                 if done == buffer_size:
+                    IF REPLICATION_TRANSPORT_DEBUG:
+                        logger.debug('Buffer full. Waiting')
                     timer_ovf.wait()
                     timer_ovf.clear()
                     done = 0
+                    IF REPLICATION_TRANSPORT_DEBUG:
+                        logger.debug('Throttle task released by timer.')
 
         finally:
             free(buffer)
