@@ -658,7 +658,7 @@ class TransportThrottleTask(Task):
                     running = 0
                     break
 
-                write_fd(wr_fd, buffer, ret)
+                write_fd(wr_fd, buffer + done, ret)
 
                 done += ret
                 if done == buffer_size:
