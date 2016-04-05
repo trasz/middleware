@@ -28,11 +28,10 @@
                     Public
                   </span>
               </button>
-              <p ng-show="current_methods['schema'] != undefined" id="param_schema">
+              <p ng-show="schema_list != undefined" id="param_schema">
                   <h4>{{current_methods['description']}}</h4>
-                  <li ng-repeat="i in current_methods['schema']">
-                      <pre>
-    {{ i['ref'] | json:4 }}
+                  <li>
+                      <pre id="schema_pretty">
                       </pre>
                   </li>
               </p>

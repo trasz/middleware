@@ -77,20 +77,6 @@ function RpcController($scope) {
             $("#method").val(),
             JSON.parse($("#args").val()),
             function(result) {
-                console.log(result);
-                // if (result.length == undefined) {
-                    // result['extra'] = "<a href='' ng-click='setInput(" + result['extra']+ ")'>" + result['extra'] + "</a>";
-                // }else {
-                // $.each(result, function(idx, i) {
-                    // console.log(i);
-                    // there're 3 conditions : [], [object, object], RPCException
-                    // Now I got every single object from socket,
-                    // should add some check like doHaveRef(),
-                    // then add ref_link for `$ref`
-                    // use angular.toJson(obj, pretty);
-                    // and $compile(HTML)(scope);
-                // });
-                // }
                 $("#result").html(angular.toJson(result, 4));
                 $("#result").show("slow");
             }
@@ -818,13 +804,9 @@ function TaskDocController($scope){
     $scope.getTaskList = function(task_name) {
         $scope.current_methods = $scope.task_dict[task_name];
         $scope.current_service = task_name;
-        try {
-
-        } catch (e) {
-
-        } finally {
-
-        }
+        $scope.schema_list = [];
+        $scope.schema_list.push($scope.current_methods['schema']);
+        $("#schema_pretty").html(JSON.stringify($scope.schema_list,null, 4));
     }
 }
 
