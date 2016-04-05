@@ -846,13 +846,20 @@ function EventsDocController($scope){
             });
         };
     }
-    $scope.getTaskList = function(event_name) {
+    $scope.getEvent = function(event_name) {
         console.log(event_name);
+        console.log($scope.event_dict[event_name]);
+        $scope.current_service = event_name
+        if ($scope.event_dict[event_name]['event_schema']!= undefined) {
+            $("#schema_pretty").html(JSON.stringify($scope.event_dict[event_name]['event_schema'],null, 4))
+        }else {
+            $("#schema_pretty").html('No doc found');
+        }
     }
 }
 
 function SchemaController($scope){
-    
+
 }
 
 function AprilFoolController($scope) {
