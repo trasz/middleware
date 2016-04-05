@@ -42,6 +42,7 @@ lib/dispatcher/src/frontend/static/lib/WebsocketClient.js
 lib/dispatcher/src/frontend/static/partials/apidoc_rpc.html
 lib/dispatcher/src/frontend/static/partials/apidoc_events.html
 lib/dispatcher/src/frontend/static/partials/apidoc_tasks.html
+lib/dispatcher/src/frontend/static/partials/apidoc_schema.html
 lib/dispatcher/src/frontend/static/partials/apidocs.html
 lib/dispatcher/src/frontend/static/partials/events.html
 lib/dispatcher/src/frontend/static/partials/index.html
