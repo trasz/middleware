@@ -859,7 +859,51 @@ function EventsDocController($scope){
 }
 
 function SchemaController($scope){
+    document.title = "Schema API Page";
+    var sock = new middleware.DispatcherClient(document.domain);
+    sock.connect();
+    $scope.init = function() {
+        sock.onError = function(err) {
+            $("#socket_status ").attr("src", "/static/images/service_issue_diamond.png");
+            $("#refresh_page_glyph").show();
+        };
+        sock.onConnect = function() {
+            if (!sessionStorage.getItem("freenas:username")) {
+                var username = prompt("Username:");
+                var password = prompt("Password:");
+                sessionStorage.setItem("freenas:username", username);
+                sessionStorage.setItem("freenas:password", password);
+            }
 
+            sock.login(
+                sessionStorage.getItem("freenas:username"),
+                sessionStorage.getItem("freenas:password")
+            );
+            $("#login_username").html(username);
+        };
+        sock.onLogin = function() {
+            sock.call("discovery.get_schema", null, function (tasks) {
+                console.log(tasks['definitions']);
+                var temp_list = [];
+                $.each(tasks['definitions'], function(task_name, i) {
+                    temp_list.push(task_name);
+                })
+                $scope.$apply(function(){
+                  $scope.services = temp_list;
+                  $scope.task_dict = tasks['definitions'];
+                });
+            });
+        };
+    }
+    $scope.getTaskList = function (task_name) {
+        $scope.current_service = task_name;
+        $scope.current_methods = $scope.task_dict[task_name]['properties'];
+        if ($scope.task_dict[task_name]['properties'] != undefined) {
+            $("#schema_pretty").html(JSON.stringify($scope.task_dict[task_name]['properties'],null,4));
+        } else {
+            $("#schema_pretty").html('No doc found');
+        }
+    }
 }
 
 function AprilFoolController($scope) {
