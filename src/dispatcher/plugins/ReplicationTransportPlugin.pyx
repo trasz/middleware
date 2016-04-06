@@ -861,8 +861,8 @@ def _init(dispatcher, plugin):
         'properties': {
             'name': {'type': 'string'},
             'type': {'type': 'string'},
-            'read_fd': {'type': 'object'},
-            'write_fd': {'type': 'object'},
+            'read_fd': {'type': 'fd'},
+            'write_fd': {'type': 'fd'},
             'level': {'type': 'integer'},
             'buffer_size': {'type': 'integer'}
         },
@@ -881,8 +881,8 @@ def _init(dispatcher, plugin):
         'properties': {
             'name': {'type': 'string'},
             'type': {'type': 'string'},
-            'read_fd': {'type': 'object'},
-            'write_fd': {'type': 'object'},
+            'read_fd': {'type': 'fd'},
+            'write_fd': {'type': 'fd'},
             'key': {'type': 'string'},
             'renewal_interval': {'type': 'integer'},
             'buffer_size': {'type': 'integer'}
@@ -905,8 +905,8 @@ def _init(dispatcher, plugin):
                 'enum': ['throttle']
             },
             'buffer_size': {'type': 'integer'},
-            'read_fd': {'type': 'object'},
-            'write_fd': {'type': 'object'}
+            'read_fd': {'type': 'fd'},
+            'write_fd': {'type': 'fd'}
         },
         'additionalProperties': False
     })
