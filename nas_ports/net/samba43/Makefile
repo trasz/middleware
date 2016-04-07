@@ -399,8 +399,10 @@ CONFIGURE_ARGS+=	--without-utmp
 .if ${PORT_OPTIONS:MFREENAS}
 CONFIGURE_ARGS+=	--with-freenas
 SAMBA4_MODULES+=	pdb_freenas
+PLIST_SUB+=		PDB_FREENAS=""
 .else
 CONFIGURE_ARGS+=	--without-freenas
+PLIST_SUB+=		PDB_FREENAS="@comment "
 .endif
 
 .if defined(SAMBA4_WANT_ADS)
