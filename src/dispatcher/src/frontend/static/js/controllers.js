@@ -614,14 +614,18 @@ function TasksController($scope) {
             sock.subscribe("task.*");
             refresh_tasks();
             var item_list = [];
+            var service_list = [];
             sock.call("discovery.get_tasks", null, function (tasks) {
                 $.each(tasks, function(key, value) {
+                    console.log(key, value);
                     value['name'] = key;
                     value['schema'] = angular.toJson(value['schema'], 4);
                     item_list.push(value);
+                    service_list.push(key);
                 });
                 $scope.$apply(function(){
                   $scope.item_list = item_list;
+                  $scope.services = service_list;
                 });
             });
         }
