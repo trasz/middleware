@@ -28,19 +28,14 @@
 import os
 import shutil
 import logging
-import crypt
-import random
-import string
 import datetime
 import errno
-import hashlib
-import binascii
 import select
 import threading
 from plugin import DirectoryServicePlugin
 from utils import crypted_password, nt_password
 from freenas.dispatcher.jsonenc import load, dump
-from freenas.utils import first_or_default
+from freenas.utils import first_or_default, crypted_password, nt_password
 from freenas.utils.query import wrap
 
 
