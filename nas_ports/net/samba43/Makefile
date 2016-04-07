@@ -186,7 +186,6 @@ CONFIGURE_ARGS+=	\
 			--with-regedit \
 			--with-sendfile-support \
 			--with-winbind \
-			--with-freenas \
 			--without-fake-kaserver \
 			--without-lttng \
 			--without-profiling-data \
@@ -395,6 +394,13 @@ CONFIGURE_ARGS+=	--without-syslog
 CONFIGURE_ARGS+=	--with-utmp
 .else
 CONFIGURE_ARGS+=	--without-utmp
+.endif
+
+.if ${PORT_OPTIONS:MFREENAS}
+CONFIGURE_ARGS+=	--with-freenas
+SAMBA4_MODULES+=	pdb_freenas
+.else
+CONFIGURE_ARGS+=	--without-freenas
 .endif
 
 .if defined(SAMBA4_WANT_ADS)
