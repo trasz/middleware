@@ -625,7 +625,7 @@ function TasksController($scope) {
                 });
                 $scope.$apply(function(){
                   $scope.item_list = item_list;
-                  $scope.available_tasks = service_list;
+                  $scope.services = service_list;
                 });
             });
         }
