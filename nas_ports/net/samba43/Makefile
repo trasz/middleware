@@ -80,9 +80,13 @@ LIB_DEPENDS+=		libgcrypt.so:${PORTSDIR}/security/libgcrypt
 LIB_DEPENDS+=		libgnutls.so:${PORTSDIR}/security/gnutls
 # NFS4 ACL glue
 LIB_DEPENDS+=		libsunacl.so:${PORTSDIR}/sysutils/libsunacl
+# libdispatcherclient and libjansson
+LIB_DEPENDS+=		libdispatcherclient.so:${PORTSDIR}/freenas/libdispatcherclient \
+			libjansson.so:${PORTSDIR}/devel/jansson
 # Libarchive
 BUILD_DEPENDS+=		libarchive>=3.1.2:${PORTSDIR}/archivers/libarchive
 RUN_DEPENDS+=		libarchive>=3.1.2:${PORTSDIR}/archivers/libarchive
+
 
 # snapper needs dbus 
 LIB_DEPENDS+=		libdbus-1.so:${PORTSDIR}/devel/dbus 
@@ -182,6 +186,7 @@ CONFIGURE_ARGS+=	\
 			--with-regedit \
 			--with-sendfile-support \
 			--with-winbind \
+			--with-freenas \
 			--without-fake-kaserver \
 			--without-lttng \
 			--without-profiling-data \
@@ -430,7 +435,7 @@ CONFIGURE_ARGS+=	--with-shared-modules="${SAMBA4_MODULES:Q:C|(\\\\ )+|,|g:S|\\||
 .for module in	auth_samba4 auth_skel auth_unix auth_wbc gpext_registry gpext_scripts \
 		gpext_security idmap_ad idmap_ldap idmap_nss idmap_passdb idmap_tdb \
 		nss_info_template pdb_ldap pdb_samba_dsdb pdb_smbpasswd pdb_tdbsam \
-		pdb_test pdb_wbc_sam perfcount_test vfs_aio_posix vfs_aio_pthread \
+		pdb_test pdb_freenas pdb_wbc_sam perfcount_test vfs_aio_posix vfs_aio_pthread \
 		vfs_cacheprime vfs_dfs_samba4 vfs_fake_acls \
 		vfs_shadow_copy_test vfs_skel_opaque vfs_skel_transparent
 .	if !empty(SAMBA4_MODULES) && ${SAMBA4_MODULES:M${module}}
