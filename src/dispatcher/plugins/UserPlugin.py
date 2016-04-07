@@ -25,19 +25,16 @@
 #
 #####################################################################
 
-import crypt
 import copy
 import errno
 import os
-import random
-import string
 import re
 from task import Provider, Task, TaskException, TaskWarning, ValidationException, VerifyException, query
 from debug import AttachFile
 from freenas.dispatcher.rpc import RpcException, description, accepts, returns, SchemaHelper as h, generator
 from datastore import DuplicateKeyException, DatastoreException
 from lib.system import SubprocessException, system
-from freenas.utils import normalize
+from freenas.utils import normalize, crypted_password, nt_password
 
 
 EMAIL_REGEX = re.compile(r"\b[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]*[a-zA-Z0-9]\.[a-zA-Z]{2,4}\b")
@@ -65,11 +62,6 @@ def check_unixname(name):
 
     if invalids:
         yield errno.EINVAL, 'Your name contains invalid characters ({0}).'.format(''.join(invalids))
-
-
-def crypted_password(cleartext):
-    return crypt.crypt(cleartext, '$6$' + ''.join([
-        random.choice(string.ascii_letters + string.digits) for _ in range(16)]))
 
 
 @description("Provides access to users database")
@@ -222,6 +214,7 @@ class UserCreateTask(Task):
             password = user.pop('password', None)
             if password:
                 user['unixhash'] = crypted_password(password)
+                user['nthash'] = nt_password(password)
 
             if user.get('group') is None:
                 try:
@@ -237,16 +230,6 @@ class UserCreateTask(Task):
 
             id = self.datastore.insert('users', user)
             self.dispatcher.call_sync('etcd.generation.generate_group', 'accounts')
-
-            if password:
-                system(
-                    '/usr/local/bin/smbpasswd', '-D', '0', '-s', '-a', user['username'],
-                    stdin='{0}\n{1}\n'.format(password, password).encode('utf8')
-                )
-
-                user['smbhash'] = system('/usr/local/bin/pdbedit', '-d', '0', '-w', user['username'])[0]
-                self.datastore.update('users', id, user)
-
         except SubprocessException as e:
             raise TaskException(
                 errno.ENXIO,
@@ -419,18 +402,10 @@ class UserUpdateTask(Task):
             password = user.pop('password', None)
             if password:
                 user['unixhash'] = crypted_password(password)
+                user['nthash'] = nt_password(password)
 
             self.datastore.update('users', user['id'], user)
             self.dispatcher.call_sync('etcd.generation.generate_group', 'accounts')
-
-            if password:
-                system(
-                    '/usr/local/bin/smbpasswd', '-D', '0', '-s', '-a', user['username'],
-                    stdin='{0}\n{1}\n'.format(password, password).encode('utf8')
-                )
-                user['smbhash'] = system('/usr/local/bin/pdbedit', '-d', '0', '-w', user['username'])[0]
-                self.datastore.update('users', id, user)
-
         except SubprocessException as e:
             raise TaskException(
                 errno.ENXIO,
@@ -658,7 +633,7 @@ def _init(dispatcher, plugin):
             'home': {'type': 'string'},
             'password': {'type': ['string', 'null']},
             'unixhash': {'type': ['string', 'null']},
-            'smbhash': {'type': ['string', 'null']},
+            'nthash': {'type': ['string', 'null']},
             'sshpubkey': {'type': ['string', 'null']},
             'attributes': {'type': 'object'},
             'groups': {
