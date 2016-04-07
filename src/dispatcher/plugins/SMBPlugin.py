@@ -178,6 +178,7 @@ def configure_params(smb):
     conf['multicast dns register'] = yesno(smb['zeroconf'])
     conf['local master'] = yesno(smb['local_master'])
     conf['server role'] = 'auto'
+    conf['passdb backend'] = 'freenas'
     conf['log level'] = str(getattr(LogLevel, smb['log_level']).value)
     conf['username map'] = '/usr/local/etc/smbusers'
     conf['idmap config *: range'] = '90000001-100000000'
