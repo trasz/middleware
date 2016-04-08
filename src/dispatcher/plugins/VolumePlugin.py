@@ -406,13 +406,13 @@ class VolumeProvider(Provider):
 class DatasetProvider(Provider):
     @generator
     def query(self, filter=None, params=None):
-        return iter(datasets.query(*(filter or []), **(params or {})))
+        return datasets.query(*(filter or []), **(params or {}))
 
 
 class SnapshotProvider(Provider):
     @generator
     def query(self, filter=None, params=None):
-        return iter(snapshots.query(*(filter or []), **(params or {})))
+        return snapshots.query(*(filter or []), **(params or {}))
 
 
 @description("Creates new volume")
