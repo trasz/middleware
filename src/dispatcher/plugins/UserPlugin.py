@@ -29,6 +29,7 @@ import copy
 import errno
 import os
 import re
+from datetime import datetime
 from task import Provider, Task, TaskException, TaskWarning, ValidationException, VerifyException, query
 from debug import AttachFile
 from freenas.dispatcher.rpc import RpcException, description, accepts, returns, SchemaHelper as h, generator
@@ -202,7 +203,9 @@ class UserCreateTask(Task):
         try:
             normalize(user, {
                 'builtin': False,
-                'unixhash': '*',
+                'unixhash': None,
+                'nthash': None,
+                'password_changed_at': None,
                 'full_name': 'User &',
                 'shell': '/bin/sh',
                 'home': '/nonexistent',
@@ -213,8 +216,11 @@ class UserCreateTask(Task):
 
             password = user.pop('password', None)
             if password:
-                user['unixhash'] = crypted_password(password)
-                user['nthash'] = nt_password(password)
+                user.update({
+                    'unixhash': crypted_password(password),
+                    'nthash': nt_password(password),
+                    'password_changed_at': datetime.utcnow()
+                })
 
             if user.get('group') is None:
                 try:
@@ -401,8 +407,11 @@ class UserUpdateTask(Task):
 
             password = user.pop('password', None)
             if password:
-                user['unixhash'] = crypted_password(password)
-                user['nthash'] = nt_password(password)
+                user.update({
+                    'unixhash': crypted_password(password),
+                    'nthash': nt_password(password),
+                    'password_changed_at': datetime.utcnow()
+                })
 
             self.datastore.update('users', user['id'], user)
             self.dispatcher.call_sync('etcd.generation.generate_group', 'accounts')
@@ -628,6 +637,12 @@ def _init(dispatcher, plugin):
             'locked': {'type': 'boolean'},
             'sudo': {'type': 'boolean'},
             'password_disabled': {'type': 'boolean'},
+            'passowrd_changed_at': {
+                'oneOf': [
+                    {'type': 'null'},
+                    {'$ref': 'iso-datetime'}
+                ]
+            },
             'group': {'type': ['string', 'null']},
             'shell': {'type': 'string'},
             'home': {'type': 'string'},
@@ -642,6 +657,9 @@ def _init(dispatcher, plugin):
                     'type': 'string'
                 }
             },
+            'origin': {
+                'directory': {'type': 'string'},
+            }
         },
         'additionalProperties': False,
     })
