@@ -71,8 +71,9 @@ class AccountService(RpcService):
         self.logger = context.logger
         self.context = context
 
-    def __annotate(self, name, user):
-        user['origin'] = {'directory': name}
+    def __annotate(self, directory, user):
+        user['gids'] = [g['gid'] for g in directory.instance.getgrent([('id', 'in', user['groups'])])]
+        user['origin'] = {'directory': directory.plugin_type}
         return user
 
     def __get_user(self, user_name):
@@ -90,7 +91,7 @@ class AccountService(RpcService):
     def query(self, filter=None, params=None):
         iters = []
         for d in self.context.directories:
-            iters.append((self.__annotate(d.plugin_type, i) for i in d.instance.getpwent(filter, params)))
+            iters.append((self.__annotate(d, i) for i in d.instance.getpwent(filter, params)))
 
         return list(unique_everseen(chain(*iters), lambda i: i['id']))
     
@@ -98,7 +99,7 @@ class AccountService(RpcService):
         for d in self.context.directories:
             user = d.instance.getpwuid(uid)
             if user:
-                return self.__annotate(d.plugin_type, user)
+                return self.__annotate(d, user)
 
         return None
 
@@ -110,7 +111,7 @@ class AccountService(RpcService):
                 continue
 
             if user:
-                return self.__annotate(d.plugin_type, user)
+                return self.__annotate(d, user)
 
         return None
 
