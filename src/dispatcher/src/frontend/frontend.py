@@ -41,3 +41,7 @@ Bootstrap(app)
 @app.route('/')
 def index():
     return render_template('base.html')
+
+@app.route('/new')
+def new(arg):
+    pass
