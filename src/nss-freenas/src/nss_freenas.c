@@ -61,6 +61,12 @@ NSS_METHOD_PROTOTYPE(nss_freenas_getgrgid_r);
 NSS_METHOD_PROTOTYPE(nss_freenas_getgrent_r);
 NSS_METHOD_PROTOTYPE(nss_freenas_setgrent);
 NSS_METHOD_PROTOTYPE(nss_freenas_endgrent);
+NSS_METHOD_PROTOTYPE(nss_freenas_getgroupmembership);
+NSS_METHOD_PROTOTYPE(nss_freenas_getaddrinfo);
+NSS_METHOD_PROTOTYPE(nss_freenas_gethostbyaddr_r);
+NSS_METHOD_PROTOTYPE(nss_freenas_gethostbyname2_r);
+NSS_METHOD_PROTOTYPE(nss_freenas_ghbyaddr);
+NSS_METHOD_PROTOTYPE(nss_freenas_ghbyname);
 
 static json_t *flat_users;
 static json_t *flat_groups;
