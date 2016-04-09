@@ -404,12 +404,14 @@ class VolumeProvider(Provider):
 
 
 class DatasetProvider(Provider):
+    @query('volume-dataset')
     @generator
     def query(self, filter=None, params=None):
         return datasets.query(*(filter or []), **(params or {}))
 
 
 class SnapshotProvider(Provider):
+    @query('volume-snapshot')
     @generator
     def query(self, filter=None, params=None):
         return snapshots.query(*(filter or []), **(params or {}))
