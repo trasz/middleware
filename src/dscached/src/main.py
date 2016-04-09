@@ -84,7 +84,7 @@ class AccountService(RpcService):
                 continue
 
             if user:
-                return self.__annotate(d.plugin_type, user), d.instance
+                return self.__annotate(d, user), d.instance
 
         return None, None
 
