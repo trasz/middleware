@@ -36,7 +36,10 @@ import datastore
 import time
 import json
 import imp
+import ipaddress
+import socket
 import setproctitle
+import netif
 from itertools import chain
 from more_itertools import unique_everseen
 from datastore.config import ConfigStore
@@ -47,6 +50,23 @@ from freenas.utils.debug import DebugService
 
 
 DEFAULT_CONFIGFILE = '/usr/local/etc/middleware.conf'
+AF_MAP = {
+    socket.AF_INET: ipaddress.IPv4Address,
+    socket.AF_INET6: ipaddress.IPv6Address
+}
+
+
+def my_ips():
+    for iface in netif.list_interfaces().values():
+        for addr in iface.addresses:
+            if addr.af == netif.AddressFamily.LINK:
+                continue
+
+            yield str(addr.address)
+
+
+def filter_af(addresses, af):
+    return [a for a in addresses if type(ipaddress.ip_address(a)) is AF_MAP[af]]
 
 
 class Directory(object):
@@ -164,6 +184,52 @@ class GroupService(RpcService):
         return None
 
 
+class HostService(RpcService):
+    def __init__(self, context):
+        self.context = context
+
+    def query(self, filter=None, params=None):
+        pass
+
+    def gethostbyname(self, name, af):
+        host = self.context.datastore.get_by_id('network.hosts', name)
+        if host:
+            addrs = filter_af(host['addresses'], af)
+            if not addrs:
+                return
+
+            return {
+                'name': host['id'],
+                'aliases': [],
+                'addresses': addrs
+            }
+
+    def gethostbyaddr(self, addr, af):
+        if addr in list(my_ips()):
+            hostname = self.context.configstore.get('system.hostname')
+            return {
+                'name': hostname,
+                'aliases': [
+                    hostname.split('.')[0],
+                    'localhost',
+                    'localhost.localdomain'
+                ],
+                'addresses': [addr]
+            }
+
+        host = self.context.datastore.get_one('network.hosts', ('addresses', 'in', addr))
+        if host:
+            addrs = filter_af(host['addresses'], af)
+            if not addrs:
+                return
+
+            return {
+                'name': host['id'],
+                'aliases': [],
+                'addresses': addrs
+            }
+
+
 class Main(object):
     def __init__(self):
         self.logger = logging.getLogger('dscached')
@@ -215,10 +281,12 @@ class Main(object):
                 self.client.enable_server()
                 self.client.register_service('dscached.account', AccountService(self))
                 self.client.register_service('dscached.group', GroupService(self))
+                self.client.register_service('dscached.host', HostService(self))
                 self.client.register_service('dscached.debug', DebugService())
                 self.client.resume_service('dscached.account')
                 self.client.resume_service('dscached.group')
                 self.client.resume_service('dscached.debug')
+                self.client.resume_service('dscached.host')
                 return
             except (OSError, RpcException) as err:
                 self.logger.warning('Cannot connect to dispatcher: {0}, retrying in 1 second'.format(str(err)))
