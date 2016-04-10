@@ -362,7 +362,7 @@ class InterfaceRenewTask(Task):
 @description("Adds host entry to the database")
 @accepts(h.all_of(
     h.ref('network-host'),
-    h.required('id', 'address')
+    h.required('id', 'addresses')
 ))
 class AddHostTask(Task):
     def verify(self, host):
@@ -695,7 +695,10 @@ def _init(dispatcher, plugin):
         'additionalProperties': False,
         'properties': {
             'id': {'type': 'string'},
-            'address': {'$ref': 'ip-address'},
+            'addresses': {
+                'type': 'array',
+                'items': {'$ref': 'ip-address'}
+            }
         }
     })
 
