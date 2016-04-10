@@ -54,7 +54,7 @@ static json_t *flat_find_group(const char *, const char *, gid_t);
 static int call_dispatcher(const char *, json_t *, json_t **, bool ref);
 static void populate_user(json_t *, struct passwd *, char *, size_t);
 static void populate_group(json_t *, struct group *, char *, size_t);
-static void  populate_hostent(json_t *, struct hostent *, char *, size_t);
+static void populate_hostent(json_t *, struct hostent *, char *, size_t, int);
 static int gr_addgid(gid_t, gid_t *, int, int *);
 
 NSS_METHOD_PROTOTYPE(nss_freenas_getpwnam_r);
@@ -280,12 +280,12 @@ populate_group(json_t *group, struct group *grbuf, char *buf, size_t buflen)
 }
 
 static void
-populate_hostent(json_t *result, struct hostent *hp, char *buf, size_t buflen)
+populate_hostent(json_t *result, struct hostent *hp, char *buf, size_t buflen,
+    int af)
 {
 	json_t *addrs, *aliases, *i;
-	size_t idx, addrs_cnt, aliases_cnt;
-	struct in_addr addr;
-	struct in6_addr addr6;
+	size_t idx, addrs_cnt, aliases_cnt, addrlen;
+	struct in6_addr addr;
 
 	addrs = json_object_get(result, "addresses");
 	if (addrs == NULL)
@@ -297,18 +297,23 @@ populate_hostent(json_t *result, struct hostent *hp, char *buf, size_t buflen)
 
 	hp->h_addr_list = alloc_blob(&buf, &buflen,
 	    (json_array_size(addrs) + 1) * sizeof(void *));
-	hp->h_name = alloc_string(&buf, &buflen, json_string_value(
-	json_object_get(result, "name")));
-	hp->h_length = sizeof(in_addr_t);
-	hp->h_addrtype = AF_INET;
 	hp->h_aliases = alloc_blob(&buf, &buflen,
 	    (json_array_size(aliases) + 1) * sizeof(void *));
+	hp->h_name = alloc_string(&buf, &buflen, json_string_value(
+	    json_object_get(result, "name")));
+	hp->h_length = sizeof(in_addr_t);
+	hp->h_addrtype = af;
 
 	json_array_foreach(addrs, idx, i) {
-		inet_aton(json_string_value(i), &addr);
-		hp->h_addr_list[idx] = alloc_blob(&buf, &buflen,
-		    sizeof(in_addr_t));
-		memcpy(hp->h_addr_list[idx], &addr, sizeof(in_addr_t));
+		if (af == AF_INET)
+			addrlen = sizeof(struct in_addr);
+
+		if (af == AF_INET6)
+			addrlen = sizeof(struct in6_addr);
+
+		inet_pton(af, json_string_value(i), &addr);
+		hp->h_addr_list[idx] = alloc_blob(&buf, &buflen, addrlen);
+		memcpy(hp->h_addr_list[idx], &addr, addrlen);
 	}
 
 	hp->h_addr_list[idx] = NULL;
@@ -745,7 +750,7 @@ nss_freenas_gethostbyaddr_r(void *retval, void *mdata, va_list ap)
 		return (NS_NOTFOUND);
 	}
 
-	populate_hostent(result, hp, buf, buflen);
+	populate_hostent(result, hp, buf, buflen, af);
 
 	*resultp = hp;
 	*ret = 0;
@@ -789,7 +794,7 @@ nss_freenas_gethostbyname2_r(void *retval, void *mdata, va_list ap)
 		return (NS_NOTFOUND);
 	}
 
-	populate_hostent(result, hp, buf, buflen);
+	populate_hostent(result, hp, buf, buflen, af);
 
 	*resultp = hp;
 	*ret = 0;
