@@ -36,6 +36,7 @@ import logging
 import queue
 from threading import Event
 from freenas.dispatcher.client import Client
+from freenas.dispatcher.fd import FileDescriptor
 from freenas.dispatcher.rpc import RpcService, RpcException, RpcWarning
 from freenas.utils import load_module_from_file
 from datastore import get_datastore
@@ -175,6 +176,28 @@ class Context(object):
 
         self.conn.call_sync('task.put_status', obj)
 
+    def collect_fds(self, obj):
+        if isinstance(obj, dict):
+            for v in obj.values():
+                if isinstance(v, FileDescriptor):
+                    yield v
+                else:
+                    yield from self.__collect_fds(v)
+
+        if isinstance(obj, (list, tuple)):
+            for o in obj:
+                if isinstance(o, FileDescriptor):
+                    yield o
+                else:
+                    yield from self.__collect_fds(o)
+
+    def close_fds(self, fds):
+        for i in fds:
+            try:
+                os.close(i.fd)
+            except OSError:
+                pass
+
     def main(self):
         if len(sys.argv) != 2:
             print("Invalid number of arguments", file=sys.stderr)
@@ -209,6 +232,8 @@ class Context(object):
                 module = load_module_from_file(name, task['filename'])
                 setproctitle.setproctitle('task executor (tid {0})'.format(task['id']))
 
+                fds = list(self.collect_fds(task['args']))
+
                 try:
                     self.instance = getattr(module, task['class'])(DispatcherWrapper(self.conn), self.datastore)
                     self.instance.configstore = self.configstore
@@ -231,6 +256,7 @@ class Context(object):
                 else:
                     self.put_status('FINISHED', result=result)
                 finally:
+                    self.close_fds(fds)
                     self.running.clear()
 
             except RpcException as err:
