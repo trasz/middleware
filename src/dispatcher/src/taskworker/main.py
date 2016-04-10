@@ -182,14 +182,14 @@ class Context(object):
                 if isinstance(v, FileDescriptor):
                     yield v
                 else:
-                    yield from self.__collect_fds(v)
+                    yield from self.collect_fds(v)
 
         if isinstance(obj, (list, tuple)):
             for o in obj:
                 if isinstance(o, FileDescriptor):
                     yield o
                 else:
-                    yield from self.__collect_fds(o)
+                    yield from self.collect_fds(o)
 
     def close_fds(self, fds):
         for i in fds:
