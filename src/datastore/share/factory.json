@@ -1478,5 +1478,17 @@
                 }
             }
         }
+    },
+    {
+        "metadata": {
+            "name": "kerberos.realms",
+            "migration": "keep",
+            "pkey-type": "uuid",
+            "attributes": {
+                "type": "config"
+            }
+        },
+        "data": {
+        }
     }
 ]
