@@ -25,8 +25,8 @@
 #
 #####################################################################
 
-from freenas.dispatcher.rpc import SchemaHelper as h, accepts, returns
-from task import Task, TaskException, VerifyException, Provider, description, query
+from freenas.dispatcher.rpc import SchemaHelper as h, accepts, returns, description
+from task import Task, TaskException, VerifyException, Provider, query
 
 
 class KerberosRealmsProvider(Provider):
@@ -41,7 +41,7 @@ class KerberosKeytabsProvider(Provider):
         pass
 
 
-@accepts(h.ref('kerberos-keytab'))
+@accepts(h.ref('kerberos-realm'))
 class KerberosRealmCreateTask(Task):
     def verify(self, realm):
         return ['system']
@@ -56,7 +56,7 @@ class KerberosRealmCreateTask(Task):
         return id
 
 
-@accepts(str, h.ref('kerberos-keytab'))
+@accepts(str, h.ref('kerberos-realm'))
 class KerberosRealmUpdateTask(Task):
     def verify(self, id, realm):
         return ['system']
@@ -102,6 +102,7 @@ def _init(context, plugin):
     plugin.register_provider('kerberos.realm', KerberosRealmsProvider)
     plugin.register_provider('kerberos.keytab', KerberosKeytabsProvider)
 
+    plugin.register_event_type('kerberos.realm.changed')
     plugin.register_task_handler('kerberos.realm.create', KerberosRealmCreateTask)
     plugin.register_task_handler('kerberos.realm.update', KerberosRealmUpdateTask)
     plugin.register_task_handler('kerberos.realm.delete', KerberosRealmDeleteTask)
