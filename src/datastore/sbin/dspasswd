@@ -33,7 +33,7 @@ import crypt
 import sys
 import datastore
 from datetime import datetime
-from freenas.utils import normalize, crypted_password, nt_password
+from freenas.utils import crypted_password, nt_password
 
 
 DEFAULT_CONFIGFILE = '/usr/local/etc/middleware.conf'
