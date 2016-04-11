@@ -191,7 +191,7 @@ class TaskWarning(RpcWarning):
 
 class ValidationException(TaskException):
     def __init__(self, errors=None, extra=None, **kwargs):
-        super(ValidationException, self).__init__(errno.EBADMSG, 'Validation Exception Errors', extra=[])
+        super(ValidationException, self).__init__(errno.EBADMSG, 'Validation failed', extra=[])
 
         if errors:
             for path, code, message in errors:
@@ -252,7 +252,7 @@ class Provider(RpcService):
         self.configstore = self.dispatcher.configstore
 
 
-def metadata(d):
+def metadata(**d):
     def wrapped(fn):
         fn.metadata = d
 
