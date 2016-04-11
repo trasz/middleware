@@ -162,7 +162,7 @@ class GroupProvider(Provider):
 class UserCreateTask(Task):
     def __init__(self, dispatcher, datastore):
         super(UserCreateTask, self).__init__(dispatcher, datastore)
-        self.uid = None
+        self.id = None
         self.created_group = False
 
     def describe(self, user):
@@ -205,8 +205,6 @@ class UserCreateTask(Task):
         else:
             uid = user.pop('uid')
 
-        self.uid = uid
-
         try:
             normalize(user, {
                 'builtin': False,
@@ -236,6 +234,7 @@ class UserCreateTask(Task):
                 self.created_group = result[0]
 
             id = self.datastore.insert('users', user)
+            self.id = id
             self.dispatcher.call_sync('etcd.generation.generate_group', 'accounts')
 
             if password:
@@ -291,8 +290,8 @@ class UserCreateTask(Task):
             if os.path.isdir(user['home']):
                 os.rmdir(user['home'])
 
-        if self.datastore.exists('users', ('uid', '=', self.uid)):
-            self.datastore.delete('users', self.uid)
+        if self.datastore.exists('users', ('id', '=', self.id)):
+            self.datastore.delete('users', self.id)
             self.dispatcher.call_sync('etcd.generation.generate_group', 'accounts')
 
         if self.created_group:
