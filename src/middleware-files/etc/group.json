@@ -1,478 +1,492 @@
 [
-  {
-    "created_at": {
-      "$date": "2016-03-08 22:21:49.982000"
-    },
-    "name": "wheel",
-    "builtin": true,
-    "updated_at": {
-      "$date": "2016-03-08 22:21:49.982000"
-    },
-    "gid": 0,
-    "members": [],
-    "id": "0562D3BE-679B-45E3-A220-F9D9A2E938A9",
-    "sudo": false
-  },
-  {
-    "created_at": {
-      "$date": "2016-03-08 22:21:49.993000"
-    },
-    "name": "daemon",
-    "builtin": true,
-    "updated_at": {
-      "$date": "2016-03-08 22:21:49.993000"
-    },
-    "gid": 1,
-    "members": [],
-    "id": "36DD1308-699E-45B9-BA9E-D3253A14E1D5",
-    "sudo": false
-  },
-  {
-    "created_at": {
-      "$date": "2016-03-08 22:21:49.971000"
-    },
-    "name": "kmem",
-    "builtin": true,
-    "updated_at": {
-      "$date": "2016-03-08 22:21:49.971000"
-    },
-    "gid": 2,
-    "members": [],
-    "id": "3EE33D50-8A95-42A7-B6EC-B201CD51C298",
-    "sudo": false
-  },
-  {
-    "created_at": {
-      "$date": "2016-03-08 22:21:49.991000"
-    },
-    "name": "sys",
-    "builtin": true,
-    "updated_at": {
-      "$date": "2016-03-08 22:21:49.991000"
-    },
-    "gid": 3,
-    "members": [],
-    "id": "D2D5E4AB-8F0B-4D2B-B494-630ED71AB169",
-    "sudo": false
-  },
-  {
-    "created_at": {
-      "$date": "2016-03-08 22:21:50.013000"
-    },
-    "name": "tty",
-    "builtin": true,
-    "updated_at": {
-      "$date": "2016-03-08 22:21:50.013000"
-    },
-    "gid": 4,
-    "members": [],
-    "id": "C239E2E8-CDCD-44AD-890C-DFFCC347ACAC",
-    "sudo": false
-  },
-  {
-    "created_at": {
-      "$date": "2016-03-08 22:21:50.002000"
-    },
-    "name": "operator",
-    "builtin": true,
-    "updated_at": {
-      "$date": "2016-03-08 22:21:50.002000"
-    },
-    "gid": 5,
-    "members": [],
-    "id": "872D1632-EADD-431F-8C5F-8BD6222B602F",
-    "sudo": false
-  },
-  {
-    "created_at": {
-      "$date": "2016-03-08 22:21:50.004000"
-    },
-    "name": "mail",
-    "builtin": true,
-    "updated_at": {
-      "$date": "2016-03-08 22:21:50.004000"
-    },
-    "gid": 6,
-    "members": [],
-    "id": "070ED099-D9AE-4D82-AAD4-C8CF18C7998B",
-    "sudo": false
-  },
-  {
-    "created_at": {
-      "$date": "2016-03-08 22:21:49.962000"
-    },
-    "name": "bin",
-    "builtin": true,
-    "updated_at": {
-      "$date": "2016-03-08 22:21:49.962000"
-    },
-    "gid": 7,
-    "members": [],
-    "id": "566D4055-B736-4AC5-B324-889231381E27",
-    "sudo": false
-  },
-  {
-    "created_at": {
-      "$date": "2016-03-08 22:21:49.983000"
-    },
-    "name": "news",
-    "builtin": true,
-    "updated_at": {
-      "$date": "2016-03-08 22:21:49.983000"
-    },
-    "gid": 8,
-    "members": [],
-    "id": "75BB5D8A-8A36-46B4-A9BA-323EE310733A",
-    "sudo": false
-  },
-  {
-    "created_at": {
-      "$date": "2016-03-08 22:21:49.997000"
-    },
-    "name": "man",
-    "builtin": true,
-    "updated_at": {
-      "$date": "2016-03-08 22:21:49.997000"
-    },
-    "gid": 9,
-    "members": [],
-    "id": "A787B5E4-C875-47EB-BF44-A787581DD98A",
-    "sudo": false
-  },
-  {
-    "created_at": {
-      "$date": "2016-03-08 22:21:50.010000"
-    },
-    "name": "games",
-    "builtin": true,
-    "updated_at": {
-      "$date": "2016-03-08 22:21:50.010000"
-    },
-    "gid": 13,
-    "members": [],
-    "id": "C5B8F090-DB15-4083-BBE3-07FA541E7DAE",
-    "sudo": false
-  },
-  {
-    "created_at": {
-      "$date": "2016-03-08 22:21:49.994000"
-    },
-    "name": "ftp",
-    "builtin": true,
-    "updated_at": {
-      "$date": "2016-03-08 22:21:49.994000"
-    },
-    "gid": 14,
-    "members": [],
-    "id": "25E95D6D-AA2D-489C-8DAC-DD60ECC5F707",
-    "sudo": false
-  },
-  {
-    "created_at": {
-      "$date": "2016-03-08 22:21:49.980000"
-    },
-    "name": "staff",
-    "builtin": true,
-    "updated_at": {
-      "$date": "2016-03-08 22:21:49.980000"
-    },
-    "gid": 20,
-    "members": [],
-    "id": "ED4F031F-287B-40B2-804B-13856B41C780",
-    "sudo": false
-  },
-  {
-    "created_at": {
-      "$date": "2016-03-08 22:21:50.009000"
-    },
-    "name": "sshd",
-    "builtin": true,
-    "updated_at": {
-      "$date": "2016-03-08 22:21:50.009000"
-    },
-    "gid": 22,
-    "members": [],
-    "id": "C9AC8A31-FAE9-41EE-A8B1-07FA6E509626",
-    "sudo": false
-  },
-  {
-    "created_at": {
-      "$date": "2016-03-08 22:21:49.963000"
-    },
-    "name": "smmsp",
-    "builtin": true,
-    "updated_at": {
-      "$date": "2016-03-08 22:21:49.963000"
-    },
-    "gid": 25,
-    "members": [],
-    "id": "E41D0AED-EC6A-4C86-8063-4215F923135E",
-    "sudo": false
-  },
-  {
-    "created_at": {
-      "$date": "2016-03-08 22:21:49.976000"
-    },
-    "name": "mailnull",
-    "builtin": true,
-    "updated_at": {
-      "$date": "2016-03-08 22:21:49.976000"
-    },
-    "gid": 26,
-    "members": [],
-    "id": "14FC9B9E-97EA-45C8-970A-8853987F6BCE",
-    "sudo": false
-  },
-  {
-    "created_at": {
-      "$date": "2016-03-08 22:21:49.999000"
-    },
-    "name": "guest",
-    "builtin": true,
-    "updated_at": {
-      "$date": "2016-03-08 22:21:49.999000"
-    },
-    "gid": 31,
-    "members": [],
-    "id": "5CE39317-BE43-48C9-A2F3-04BDB3FFDDF8",
-    "sudo": false
-  },
-  {
-    "created_at": {
-      "$date": "2016-03-08 22:21:49.979000"
-    },
-    "name": "proxy",
-    "builtin": true,
-    "updated_at": {
-      "$date": "2016-03-08 22:21:49.979000"
-    },
-    "gid": 52,
-    "members": [],
-    "id": "74149B26-0808-4F8F-B711-FBFA8DF8446D",
-    "sudo": false
-  },
-  {
-    "created_at": {
-      "$date": "2016-03-08 22:21:50.005000"
-    },
-    "name": "bind",
-    "builtin": true,
-    "updated_at": {
-      "$date": "2016-03-08 22:21:50.005000"
-    },
-    "gid": 53,
-    "members": [],
-    "id": "FD259280-436B-45A6-B5AC-52BFAD816019",
-    "sudo": false
-  },
-  {
-    "created_at": {
-      "$date": "2016-03-08 22:21:49.973000"
-    },
-    "name": "proxy",
-    "builtin": true,
-    "updated_at": {
-      "$date": "2016-03-08 22:21:49.973000"
-    },
-    "gid": 62,
-    "members": [],
-    "id": "3A545AA3-45F7-4E82-BB9F-613E3DF55FD9",
-    "sudo": false
-  },
-  {
-    "created_at": {
-      "$date": "2016-03-08 22:21:49.968000"
-    },
-    "name": "authpf",
-    "builtin": true,
-    "updated_at": {
-      "$date": "2016-03-08 22:21:49.968000"
-    },
-    "gid": 63,
-    "members": [],
-    "id": "BCA1739C-E3E8-4DDC-A35B-D4141BE92EC3",
-    "sudo": false
-  },
-  {
-    "created_at": {
-      "$date": "2016-03-08 22:21:49.996000"
-    },
-    "name": "_pflogd",
-    "builtin": true,
-    "updated_at": {
-      "$date": "2016-03-08 22:21:49.996000"
-    },
-    "gid": 64,
-    "members": [],
-    "id": "F5E3DBDE-FF46-4E1C-B8C6-47713B28487C",
-    "sudo": false
-  },
-  {
-    "created_at": {
-      "$date": "2016-03-08 22:21:49.966000"
-    },
-    "name": "_dhcp",
-    "builtin": true,
-    "updated_at": {
-      "$date": "2016-03-08 22:21:49.966000"
-    },
-    "gid": 65,
-    "members": [],
-    "id": "901C6195-D94A-4CC9-BF1D-954DFB14F17B",
-    "sudo": false
-  },
-  {
-    "created_at": {
-      "$date": "2016-03-08 22:21:49.988000"
-    },
-    "name": "uucp",
-    "builtin": true,
-    "updated_at": {
-      "$date": "2016-03-08 22:21:49.988000"
-    },
-    "gid": 66,
-    "members": [],
-    "id": "04E287E2-6FB0-45A8-85CB-F548DBF7FFCF",
-    "sudo": false
-  },
-  {
-    "created_at": {
-      "$date": "2016-03-08 22:21:50.015000"
-    },
-    "name": "dialer",
-    "builtin": true,
-    "updated_at": {
-      "$date": "2016-03-08 22:21:50.015000"
-    },
-    "gid": 68,
-    "members": [],
-    "id": "454273BF-487B-4CC3-B6F0-9071253B0663",
-    "sudo": false
-  },
-  {
-    "created_at": {
-      "$date": "2016-03-08 22:21:49.969000"
-    },
-    "name": "network",
-    "builtin": true,
-    "updated_at": {
-      "$date": "2016-03-08 22:21:49.969000"
-    },
-    "gid": 69,
-    "members": [],
-    "id": "15ADE20D-2F95-4BBB-8706-7C64D339F285",
-    "sudo": false
-  },
-  {
-    "created_at": {
-      "$date": "2016-03-08 22:21:49.960000"
-    },
-    "name": "audit",
-    "builtin": true,
-    "updated_at": {
-      "$date": "2016-03-08 22:21:49.960000"
-    },
-    "gid": 77,
-    "members": [],
-    "id": "2941B683-7444-42A4-AA66-F86A8F20A947",
-    "sudo": false
-  },
-  {
-    "created_at": {
-      "$date": "2016-03-08 22:21:49.985000"
-    },
-    "name": "www",
-    "builtin": true,
-    "updated_at": {
-      "$date": "2016-03-08 22:21:49.985000"
-    },
-    "gid": 80,
-    "members": [],
-    "id": "9B9B8F5E-E737-46BC-B215-61F6A0579E9E",
-    "sudo": false
-  },
-  {
-    "created_at": {
-      "$date": "2016-03-08 22:21:50.012000"
-    },
-    "name": "ladvd",
-    "builtin": true,
-    "updated_at": {
-      "$date": "2016-03-08 22:21:50.012000"
-    },
-    "gid": 142,
-    "members": [],
-    "id": "6A5FE6A8-AED3-405D-86F9-CD1936137D2B",
-    "sudo": false
-  },
-  {
-    "created_at": {
-      "$date": "2016-03-08 22:21:49.977000"
-    },
-    "name": "messagebus",
-    "builtin": true,
-    "updated_at": {
-      "$date": "2016-03-08 22:21:49.977000"
-    },
-    "gid": 556,
-    "members": [],
-    "id": "70216FA9-D279-4E5A-B9D4-DBB2824FD218",
-    "sudo": false
-  },
-  {
-    "created_at": {
-      "$date": "2016-03-08 22:21:49.965000"
-    },
-    "name": "webdav",
-    "builtin": true,
-    "updated_at": {
-      "$date": "2016-03-08 22:21:49.965000"
-    },
-    "gid": 666,
-    "members": [],
-    "id": "1E5EA5EC-0075-492E-BE6A-0CE85F82F15D",
-    "sudo": false
-  },
-  {
-    "created_at": {
-      "$date": "2016-03-08 22:21:50"
-    },
-    "name": "mongodb",
-    "builtin": true,
-    "updated_at": {
-      "$date": "2016-03-08 22:21:50"
-    },
-    "gid": 922,
-    "members": [],
-    "id": "4F8F5150-28A0-4215-B822-EC4F4A617F6F",
-    "sudo": false
-  },
-  {
-    "created_at": {
-      "$date": "2016-03-08 22:21:49.987000"
-    },
-    "name": "nogroup",
-    "builtin": true,
-    "updated_at": {
-      "$date": "2016-03-08 22:21:49.987000"
-    },
-    "gid": 65533,
-    "members": [],
-    "id": "8980C534-6A71-4BFB-BC72-54CBD5A186DB",
-    "sudo": false
-  },
-  {
-    "created_at": {
-      "$date": "2016-03-08 22:21:49.974000"
-    },
-    "name": "nobody",
-    "builtin": true,
-    "updated_at": {
-      "$date": "2016-03-08 22:21:49.974000"
-    },
-    "gid": 65534,
-    "members": [],
-    "id": "AE3500A4-C5FD-41D1-BDD7-6831A9D1E4AA",
-    "sudo": false
-  }
+    {
+        "created_at": {
+            "$date": "2016-03-08 22:21:49.982000"
+        },
+        "name": "wheel",
+        "builtin": true,
+        "updated_at": {
+            "$date": "2016-03-08 22:21:49.982000"
+        },
+        "gid": 0,
+        "members": [],
+        "id": "0562D3BE-679B-45E3-A220-F9D9A2E938A9",
+        "sudo": false
+    },
+    {
+        "created_at": {
+            "$date": "2016-03-08 22:21:49.993000"
+        },
+        "name": "daemon",
+        "builtin": true,
+        "updated_at": {
+            "$date": "2016-03-08 22:21:49.993000"
+        },
+        "gid": 1,
+        "members": [],
+        "id": "36DD1308-699E-45B9-BA9E-D3253A14E1D5",
+        "sudo": false
+    },
+    {
+        "created_at": {
+            "$date": "2016-03-08 22:21:49.971000"
+        },
+        "name": "kmem",
+        "builtin": true,
+        "updated_at": {
+            "$date": "2016-03-08 22:21:49.971000"
+        },
+        "gid": 2,
+        "members": [],
+        "id": "3EE33D50-8A95-42A7-B6EC-B201CD51C298",
+        "sudo": false
+    },
+    {
+        "created_at": {
+            "$date": "2016-03-08 22:21:49.991000"
+        },
+        "name": "sys",
+        "builtin": true,
+        "updated_at": {
+            "$date": "2016-03-08 22:21:49.991000"
+        },
+        "gid": 3,
+        "members": [],
+        "id": "D2D5E4AB-8F0B-4D2B-B494-630ED71AB169",
+        "sudo": false
+    },
+    {
+        "created_at": {
+            "$date": "2016-03-08 22:21:50.013000"
+        },
+        "name": "tty",
+        "builtin": true,
+        "updated_at": {
+            "$date": "2016-03-08 22:21:50.013000"
+        },
+        "gid": 4,
+        "members": [],
+        "id": "C239E2E8-CDCD-44AD-890C-DFFCC347ACAC",
+        "sudo": false
+    },
+    {
+        "created_at": {
+            "$date": "2016-03-08 22:21:50.002000"
+        },
+        "name": "operator",
+        "builtin": true,
+        "updated_at": {
+            "$date": "2016-03-08 22:21:50.002000"
+        },
+        "gid": 5,
+        "members": [],
+        "id": "872D1632-EADD-431F-8C5F-8BD6222B602F",
+        "sudo": false
+    },
+    {
+        "created_at": {
+            "$date": "2016-03-08 22:21:50.004000"
+        },
+        "name": "mail",
+        "builtin": true,
+        "updated_at": {
+            "$date": "2016-03-08 22:21:50.004000"
+        },
+        "gid": 6,
+        "members": [],
+        "id": "070ED099-D9AE-4D82-AAD4-C8CF18C7998B",
+        "sudo": false
+    },
+    {
+        "created_at": {
+            "$date": "2016-03-08 22:21:49.962000"
+        },
+        "name": "bin",
+        "builtin": true,
+        "updated_at": {
+            "$date": "2016-03-08 22:21:49.962000"
+        },
+        "gid": 7,
+        "members": [],
+        "id": "566D4055-B736-4AC5-B324-889231381E27",
+        "sudo": false
+    },
+    {
+        "created_at": {
+            "$date": "2016-03-08 22:21:49.983000"
+        },
+        "name": "news",
+        "builtin": true,
+        "updated_at": {
+            "$date": "2016-03-08 22:21:49.983000"
+        },
+        "gid": 8,
+        "members": [],
+        "id": "75BB5D8A-8A36-46B4-A9BA-323EE310733A",
+        "sudo": false
+    },
+    {
+        "created_at": {
+            "$date": "2016-03-08 22:21:49.997000"
+        },
+        "name": "man",
+        "builtin": true,
+        "updated_at": {
+            "$date": "2016-03-08 22:21:49.997000"
+        },
+        "gid": 9,
+        "members": [],
+        "id": "A787B5E4-C875-47EB-BF44-A787581DD98A",
+        "sudo": false
+    },
+    {
+        "created_at": {
+            "$date": "2016-03-08 22:21:50.010000"
+        },
+        "name": "games",
+        "builtin": true,
+        "updated_at": {
+            "$date": "2016-03-08 22:21:50.010000"
+        },
+        "gid": 13,
+        "members": [],
+        "id": "C5B8F090-DB15-4083-BBE3-07FA541E7DAE",
+        "sudo": false
+    },
+    {
+        "created_at": {
+            "$date": "2016-03-08 22:21:49.994000"
+        },
+        "name": "ftp",
+        "builtin": true,
+        "updated_at": {
+            "$date": "2016-03-08 22:21:49.994000"
+        },
+        "gid": 14,
+        "members": [],
+        "id": "25E95D6D-AA2D-489C-8DAC-DD60ECC5F707",
+        "sudo": false
+    },
+    {
+        "created_at": {
+            "$date": "2016-03-08 22:21:49.980000"
+        },
+        "name": "staff",
+        "builtin": true,
+        "updated_at": {
+            "$date": "2016-03-08 22:21:49.980000"
+        },
+        "gid": 20,
+        "members": [],
+        "id": "ED4F031F-287B-40B2-804B-13856B41C780",
+        "sudo": false
+    },
+    {
+        "created_at": {
+            "$date": "2016-03-08 22:21:50.009000"
+        },
+        "name": "sshd",
+        "builtin": true,
+        "updated_at": {
+            "$date": "2016-03-08 22:21:50.009000"
+        },
+        "gid": 22,
+        "members": [],
+        "id": "C9AC8A31-FAE9-41EE-A8B1-07FA6E509626",
+        "sudo": false
+    },
+    {
+        "created_at": {
+            "$date": "2016-03-08 22:21:49.963000"
+        },
+        "name": "smmsp",
+        "builtin": true,
+        "updated_at": {
+            "$date": "2016-03-08 22:21:49.963000"
+        },
+        "gid": 25,
+        "members": [],
+        "id": "E41D0AED-EC6A-4C86-8063-4215F923135E",
+        "sudo": false
+    },
+    {
+        "created_at": {
+            "$date": "2016-03-08 22:21:49.976000"
+        },
+        "name": "mailnull",
+        "builtin": true,
+        "updated_at": {
+            "$date": "2016-03-08 22:21:49.976000"
+        },
+        "gid": 26,
+        "members": [],
+        "id": "14FC9B9E-97EA-45C8-970A-8853987F6BCE",
+        "sudo": false
+    },
+    {
+        "created_at": {
+            "$date": "2016-03-08 22:21:49.999000"
+        },
+        "name": "guest",
+        "builtin": true,
+        "updated_at": {
+            "$date": "2016-03-08 22:21:49.999000"
+        },
+        "gid": 31,
+        "members": [],
+        "id": "5CE39317-BE43-48C9-A2F3-04BDB3FFDDF8",
+        "sudo": false
+    },
+    {
+        "created_at": {
+            "$date": "2016-03-08 22:21:49.979000"
+        },
+        "name": "proxy",
+        "builtin": true,
+        "updated_at": {
+            "$date": "2016-03-08 22:21:49.979000"
+        },
+        "gid": 52,
+        "members": [],
+        "id": "74149B26-0808-4F8F-B711-FBFA8DF8446D",
+        "sudo": false
+    },
+    {
+        "created_at": {
+            "$date": "2016-03-08 22:21:50.005000"
+        },
+        "name": "bind",
+        "builtin": true,
+        "updated_at": {
+            "$date": "2016-03-08 22:21:50.005000"
+        },
+        "gid": 53,
+        "members": [],
+        "id": "FD259280-436B-45A6-B5AC-52BFAD816019",
+        "sudo": false
+    },
+    {
+        "created_at": {
+            "$date": "2016-03-08 22:21:50.005000"
+        },
+        "name": "unbound",
+        "builtin": true,
+        "updated_at": {
+            "$date": "2016-03-08 22:21:50.005000"
+        },
+        "gid": 59,
+        "members": [],
+        "id": "DBC444DE-F5B8-44EC-9153-97017E7A7D1D",
+        "sudo": false
+    },
+    {
+        "created_at": {
+            "$date": "2016-03-08 22:21:49.973000"
+        },
+        "name": "proxy",
+        "builtin": true,
+        "updated_at": {
+            "$date": "2016-03-08 22:21:49.973000"
+        },
+        "gid": 62,
+        "members": [],
+        "id": "3A545AA3-45F7-4E82-BB9F-613E3DF55FD9",
+        "sudo": false
+    },
+    {
+        "created_at": {
+            "$date": "2016-03-08 22:21:49.968000"
+        },
+        "name": "authpf",
+        "builtin": true,
+        "updated_at": {
+            "$date": "2016-03-08 22:21:49.968000"
+        },
+        "gid": 63,
+        "members": [],
+        "id": "BCA1739C-E3E8-4DDC-A35B-D4141BE92EC3",
+        "sudo": false
+    },
+    {
+        "created_at": {
+            "$date": "2016-03-08 22:21:49.996000"
+        },
+        "name": "_pflogd",
+        "builtin": true,
+        "updated_at": {
+            "$date": "2016-03-08 22:21:49.996000"
+        },
+        "gid": 64,
+        "members": [],
+        "id": "F5E3DBDE-FF46-4E1C-B8C6-47713B28487C",
+        "sudo": false
+    },
+    {
+        "created_at": {
+            "$date": "2016-03-08 22:21:49.966000"
+        },
+        "name": "_dhcp",
+        "builtin": true,
+        "updated_at": {
+            "$date": "2016-03-08 22:21:49.966000"
+        },
+        "gid": 65,
+        "members": [],
+        "id": "901C6195-D94A-4CC9-BF1D-954DFB14F17B",
+        "sudo": false
+    },
+    {
+        "created_at": {
+            "$date": "2016-03-08 22:21:49.988000"
+        },
+        "name": "uucp",
+        "builtin": true,
+        "updated_at": {
+            "$date": "2016-03-08 22:21:49.988000"
+        },
+        "gid": 66,
+        "members": [],
+        "id": "04E287E2-6FB0-45A8-85CB-F548DBF7FFCF",
+        "sudo": false
+    },
+    {
+        "created_at": {
+            "$date": "2016-03-08 22:21:50.015000"
+        },
+        "name": "dialer",
+        "builtin": true,
+        "updated_at": {
+            "$date": "2016-03-08 22:21:50.015000"
+        },
+        "gid": 68,
+        "members": [],
+        "id": "454273BF-487B-4CC3-B6F0-9071253B0663",
+        "sudo": false
+    },
+    {
+        "created_at": {
+            "$date": "2016-03-08 22:21:49.969000"
+        },
+        "name": "network",
+        "builtin": true,
+        "updated_at": {
+            "$date": "2016-03-08 22:21:49.969000"
+        },
+        "gid": 69,
+        "members": [],
+        "id": "15ADE20D-2F95-4BBB-8706-7C64D339F285",
+        "sudo": false
+    },
+    {
+        "created_at": {
+            "$date": "2016-03-08 22:21:49.960000"
+        },
+        "name": "audit",
+        "builtin": true,
+        "updated_at": {
+            "$date": "2016-03-08 22:21:49.960000"
+        },
+        "gid": 77,
+        "members": [],
+        "id": "2941B683-7444-42A4-AA66-F86A8F20A947",
+        "sudo": false
+    },
+    {
+        "created_at": {
+            "$date": "2016-03-08 22:21:49.985000"
+        },
+        "name": "www",
+        "builtin": true,
+        "updated_at": {
+            "$date": "2016-03-08 22:21:49.985000"
+        },
+        "gid": 80,
+        "members": [],
+        "id": "9B9B8F5E-E737-46BC-B215-61F6A0579E9E",
+        "sudo": false
+    },
+    {
+        "created_at": {
+            "$date": "2016-03-08 22:21:50.012000"
+        },
+        "name": "ladvd",
+        "builtin": true,
+        "updated_at": {
+            "$date": "2016-03-08 22:21:50.012000"
+        },
+        "gid": 142,
+        "members": [],
+        "id": "6A5FE6A8-AED3-405D-86F9-CD1936137D2B",
+        "sudo": false
+    },
+    {
+        "created_at": {
+            "$date": "2016-03-08 22:21:49.977000"
+        },
+        "name": "messagebus",
+        "builtin": true,
+        "updated_at": {
+            "$date": "2016-03-08 22:21:49.977000"
+        },
+        "gid": 556,
+        "members": [],
+        "id": "70216FA9-D279-4E5A-B9D4-DBB2824FD218",
+        "sudo": false
+    },
+    {
+        "created_at": {
+            "$date": "2016-03-08 22:21:49.965000"
+        },
+        "name": "webdav",
+        "builtin": true,
+        "updated_at": {
+            "$date": "2016-03-08 22:21:49.965000"
+        },
+        "gid": 666,
+        "members": [],
+        "id": "1E5EA5EC-0075-492E-BE6A-0CE85F82F15D",
+        "sudo": false
+    },
+    {
+        "created_at": {
+            "$date": "2016-03-08 22:21:50"
+        },
+        "name": "mongodb",
+        "builtin": true,
+        "updated_at": {
+            "$date": "2016-03-08 22:21:50"
+        },
+        "gid": 922,
+        "members": [],
+        "id": "4F8F5150-28A0-4215-B822-EC4F4A617F6F",
+        "sudo": false
+    },
+    {
+        "created_at": {
+            "$date": "2016-03-08 22:21:49.987000"
+        },
+        "name": "nogroup",
+        "builtin": true,
+        "updated_at": {
+            "$date": "2016-03-08 22:21:49.987000"
+        },
+        "gid": 65533,
+        "members": [],
+        "id": "8980C534-6A71-4BFB-BC72-54CBD5A186DB",
+        "sudo": false
+    },
+    {
+        "created_at": {
+            "$date": "2016-03-08 22:21:49.974000"
+        },
+        "name": "nobody",
+        "builtin": true,
+        "updated_at": {
+            "$date": "2016-03-08 22:21:49.974000"
+        },
+        "gid": 65534,
+        "members": [],
+        "id": "AE3500A4-C5FD-41D1-BDD7-6831A9D1E4AA",
+        "sudo": false
+    }
 ]
