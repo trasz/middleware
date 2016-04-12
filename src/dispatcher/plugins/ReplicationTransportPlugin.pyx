@@ -993,7 +993,8 @@ def _init(dispatcher, plugin):
             'type': {'type': 'string'},
             'read_fd': {'type': 'fd'},
             'write_fd': {'type': 'fd'},
-            'key': {'type': 'string'},
+            'auth_token': {'type': 'string'},
+            'remote': {'type': 'string'},
             'renewal_interval': {'type': 'integer'},
             'buffer_size': {'type': 'integer'}
         },
