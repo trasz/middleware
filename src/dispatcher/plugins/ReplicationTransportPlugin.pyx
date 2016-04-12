@@ -27,7 +27,6 @@
 
 import cython
 import libzfs
-import errno
 import socket
 import logging
 import os
@@ -141,7 +140,7 @@ class HostProvider(Provider):
                 with open(key_path) as f:
                      keys.append(f.read())
         except FileNotFoundError:
-            raise RpcException(errno.ENOENT, 'Key file {0} not found'.format(key_path))
+            raise RpcException(ENOENT, 'Key file {0} not found'.format(key_path))
 
         return [i for i in keys]
 
@@ -169,10 +168,10 @@ class TransportSendTask(Task):
     def verify(self, fd, transport):
         client_address = transport.get('client_address')
         if not client_address:
-            raise VerifyException(errno.ENOENT, 'Please specify address of a remote')
+            raise VerifyException(ENOENT, 'Please specify address of a remote')
 
         if 'server_address' in transport:
-            raise VerifyException(errno.EINVAL, 'Server address cannot be specified')
+            raise VerifyException(EINVAL, 'Server address cannot be specified')
 
         host = self.dispatcher.call_sync(
             'replication.host.query',
@@ -181,7 +180,7 @@ class TransportSendTask(Task):
         )
         if not host:
             raise VerifyException(
-                errno.ENOENT,
+                ENOENT,
                 'Client address {0} is not on local known replication hosts list'.format(client_address)
             )
 
@@ -221,7 +220,7 @@ class TransportSendTask(Task):
                     sock.listen(1)
                 except socket.timeout:
                     raise TaskException(
-                        errno.ETIMEDOUT,
+                        ETIMEDOUT,
                         'Timeout while waiting for connection from {0}'.format(client_address)
                     )
                 except OSError:
@@ -231,7 +230,7 @@ class TransportSendTask(Task):
                 break
 
             if sock is None:
-                raise TaskException(errno.EACCES, 'Could not open a socket at address {0}'.format(server_address))
+                raise TaskException(EACCES, 'Could not open a socket at address {0}'.format(server_address))
             logger.debug('Created a TCP socket at {0}:{1}'.format(*addr))
 
             token_size = transport.get('auth_token_size', 1024)
@@ -240,7 +239,7 @@ class TransportSendTask(Task):
                 actual_size = len(base64.b64decode(token.encode('utf-8')))
                 if actual_size != token_size:
                     raise TaskException(
-                        errno.EINVAL,
+                        EINVAL,
                         'Provided token size {0} does not match token size parameter value {1}'.format(
                             actual_size,
                             token_size
@@ -266,7 +265,7 @@ class TransportSendTask(Task):
             conn, addr = sock.accept()
             if addr[0] != client_address:
                 raise TaskException(
-                    errno.EINVAL,
+                    EINVAL,
                     'Connection from an unexpected address {0} - desired {1}'.format(
                         addr[0],
                         client_address
@@ -280,20 +279,17 @@ class TransportSendTask(Task):
             fds.append(conn_fd)
 
             token_buffer = <uint8_t *>malloc(token_size * sizeof(uint8_t))
-            try:
-                ret = read_fd(conn_fd, token_buffer, token_size, 0)
-                if ret != token_size:
-                    raise OSError
-            except OSError:
+            ret = read_fd(conn_fd, token_buffer, token_size, 0)
+            if ret != token_size:
                 raise TaskException(
-                    errno.ECONNABORTED,
+                    ECONNABORTED,
                     'Connection with {0} aborted before authentication'.format(client_address)
                 )
             recvd_token = <bytes> token_buffer[:token_size]
 
             if base64.b64decode(token.encode('utf-8')) != recvd_token:
                 raise TaskException(
-                    errno.EAUTH,
+                    ECONNABORTED,
                     'Transport layer authentication failed. Expected token {0}, was {1}'.format(
                         token,
                         recvd_token.decode('utf-8')
@@ -402,13 +398,13 @@ class TransportReceiveTask(ProgressTask):
 
     def verify(self, transport):
         if 'auth_token' not in transport:
-            raise VerifyException(errno.ENOENT, 'Authentication token is not specified')
+            raise VerifyException(ENOENT, 'Authentication token is not specified')
 
         if 'server_address' not in transport:
-            raise VerifyException(errno.ENOENT, 'Server address is not specified')
+            raise VerifyException(ENOENT, 'Server address is not specified')
 
         if 'server_port' not in transport:
-            raise VerifyException(errno.ENOENT, 'Server port is not specified')
+            raise VerifyException(ENOENT, 'Server port is not specified')
 
         server_address = transport.get('server_address')
 
@@ -419,7 +415,7 @@ class TransportReceiveTask(ProgressTask):
         )
         if not host:
             raise VerifyException(
-                errno.ENOENT,
+                ENOENT,
                 'Server address {0} is not on local known replication hosts list'.format(server_address)
             )
 
@@ -452,7 +448,7 @@ class TransportReceiveTask(ProgressTask):
 
             if len(token) != token_size:
                 raise TaskException(
-                    errno.EINVAL,
+                    EINVAL,
                     'Token size {0} does not match token size field {1}'.format(len(token), token_size)
                 )
 
@@ -472,7 +468,7 @@ class TransportReceiveTask(ProgressTask):
                 break
 
             if sock is None:
-                raise TaskException(errno.EACCES, 'Could not connect to a socket at address {0}'.format(server_address))
+                raise TaskException(EACCES, 'Could not connect to a socket at address {0}'.format(server_address))
             self.addr = addr
             logger.debug('Connected to a TCP socket at {0}:{1}'.format(*addr))
 
@@ -647,10 +643,10 @@ class TransportDecryptTask(Task):
 class TransportThrottleTask(Task):
     def verify(self, plugin):
         if 'read_fd' not in plugin:
-            raise VerifyException(errno.ENOENT, 'Read file descriptor is not specified')
+            raise VerifyException(ENOENT, 'Read file descriptor is not specified')
 
         if 'write_fd' not in plugin:
-            raise VerifyException(errno.ENOENT, 'Write file descriptor is not specified')
+            raise VerifyException(ENOENT, 'Write file descriptor is not specified')
 
         return []
 
@@ -684,14 +680,13 @@ class TransportThrottleTask(Task):
             timer_t.start()
 
             while True:
-                try:
-                    with nogil:
-                        ret = read(rd_fd, buffer + done, buffer_size - done)
-                except IOError as e:
-                    if e.errno in (errno.EINTR, e.errno == errno.EAGAIN):
-                        continue
-                    else:
-                        raise
+                with nogil:
+                    ret = read(rd_fd, buffer + done, buffer_size - done)
+                    if ret == -1:
+                        if errno in (EINTR, EAGAIN):
+                            continue
+                        else:
+                            break
 
                 IF REPLICATION_TRANSPORT_DEBUG:
                     logger.debug('Got {0} bytes from read file descriptor'.format(ret))
@@ -732,7 +727,7 @@ class HostsPairCreateTask(Task):
 
     def verify(self, username, remote, password):
         if self.datastore.exists('replication.known_hosts', ('id', '=', remote)):
-            raise VerifyException(errno.EEXIST, 'Known hosts entry for {0} already exists'.format(remote))
+            raise VerifyException(EEXIST, 'Known hosts entry for {0} already exists'.format(remote))
 
         return ['system']
 
@@ -741,10 +736,8 @@ class HostsPairCreateTask(Task):
         try:
             remote_client.connect('ws+ssh://{0}@{1}'.format(username, remote), password=password)
             remote_client.login_service('replicator')
-        except AuthenticationException:
-            raise TaskException(errno.EAUTH, 'Cannot connect to {0}'.format(remote))
-        except (OSError, ConnectionRefusedError):
-            raise TaskException(errno.ECONNREFUSED, 'Cannot connect to {0}'.format(remote))
+        except (AuthenticationException, OSError, ConnectionRefusedError):
+            raise TaskException(ECONNABORTED, 'Cannot connect to {0}'.format(remote))
 
         local_keys = self.dispatcher.call_sync('replication.host.get_keys')
         remote_keys = remote_client.call_sync('replication.host.get_keys')
@@ -780,7 +773,7 @@ class HostsPairCreateTask(Task):
 class KnownHostCreateTask(Task):
     def verify(self, known_host):
         if self.datastore.exists('replication.known_hosts', ('id', '=', known_host['name'])):
-            raise VerifyException(errno.EEXIST, 'Known hosts entry for {0} already exists'.format(known_host['name']))
+            raise VerifyException(EEXIST, 'Known hosts entry for {0} already exists'.format(known_host['name']))
 
         return ['system']
 
@@ -800,7 +793,7 @@ class KnownHostCreateTask(Task):
 class HostsPairDeleteTask(Task):
     def verify(self, remote):
         if not self.datastore.exists('replication.known_hosts', ('id', '=', remote)):
-            raise VerifyException(errno.ENOENT, 'Known hosts entry for {0} does not exist'.format(remote))
+            raise VerifyException(ENOENT, 'Known hosts entry for {0} does not exist'.format(remote))
 
         return ['system']
 
@@ -820,7 +813,7 @@ class HostsPairDeleteTask(Task):
             ))
         except ValueError as e:
             self.add_warning(TaskWarning(
-                errno.EINVAL,
+                EINVAL,
                 str(e)
             ))
 
@@ -836,7 +829,7 @@ class HostsPairDeleteTask(Task):
 class KnownHostDeleteTask(Task):
     def verify(self, name):
         if not self.datastore.exists('replication.known_hosts', ('id', '=', name)):
-            raise VerifyException(errno.ENOENT, 'Known hosts entry for {0} does not exist'.format(name))
+            raise VerifyException(ENOENT, 'Known hosts entry for {0} does not exist'.format(name))
 
         return ['system']
 
