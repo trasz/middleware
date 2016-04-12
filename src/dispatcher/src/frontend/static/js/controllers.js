@@ -7,10 +7,21 @@ function IndexController($scope) {
   console.log("index page");
 }
 
+function NavController($scope) {
+    console.log("nav bar Controller");
+    $scope.toggleModal = function(){
+        console.log("modal toggled");
+    }
+}
+
 function RpcController($scope) {
     document.title = "RPC Page";
     var sock = new middleware.DispatcherClient(document.domain);
     sock.connect();
+    $scope.showModal = false;
+    $scope.toggleModal = function(){
+        $scope.showModal = !$scope.showModal;
+    };
     $("#result").hide();
     $scope.init = function () {
         sock.onError = function(err) {
@@ -91,7 +102,6 @@ function RpcController($scope) {
 }
 
 function TermController($scope, synchronousService) {
-    console.log("200");
     document.title = "System Events";
     var sock = new middleware.DispatcherClient(document.domain);
     sock.connect();
@@ -481,7 +491,6 @@ function FileBrowserController($scope) {
       });
 
       $scope.uploadFiles = function() {
-          console.log("this is where we upload files");
           $scope.uploadFileList.map(uploadToSocket);
       }
 
@@ -490,10 +499,7 @@ function FileBrowserController($scope) {
       }
 
       $scope.downloadFile = function(filename) {
-          //downloadFromHttp(filename);
           downloadFromHttp( filename );
-        //   toggleMenuOff();
-        // console.log(filename);
       }
 
       function handleFileSelect ( evt ) {
@@ -560,6 +566,7 @@ function TasksController($scope) {
     document.title = "System Tasks";
     var sock = new middleware.DispatcherClient(document.domain);
     sock.connect();
+    $("#result").hide();
     function refresh_tasks(){
         $("#tasklist tbody").empty();
         sock.call("task.query", [[["state", "in", ["CREATED", "WAITING", "EXECUTING"]]]], function (tasks) {
@@ -617,7 +624,6 @@ function TasksController($scope) {
             var service_list = [];
             sock.call("discovery.get_tasks", null, function (tasks) {
                 $.each(tasks, function(key, value) {
-                    console.log(key, value);
                     value['name'] = key;
                     value['schema'] = angular.toJson(value['schema'], 4);
                     item_list.push(value);
@@ -630,6 +636,14 @@ function TasksController($scope) {
             });
         }
     }
+    $("#submit").click(function () {
+        console.log("task submitted");
+        sock.call("task.submit", [$("#task").val()].concat(JSON.parse($("#args").val())), function(result) {
+            console.log(result);
+            $("#result").html(angular.toJson(result, 4));
+            $("#result").show("slow")
+        });
+    });
 }
 
 function VMController($scope) {
@@ -851,8 +865,6 @@ function EventsDocController($scope){
         };
     }
     $scope.getEvent = function(event_name) {
-        console.log(event_name);
-        console.log($scope.event_dict[event_name]);
         $scope.current_service = event_name
         if ($scope.event_dict[event_name]['event_schema']!= undefined) {
             $("#schema_pretty").html(JSON.stringify($scope.event_dict[event_name]['event_schema'],null, 4))
@@ -887,7 +899,6 @@ function SchemaController($scope){
         };
         sock.onLogin = function() {
             sock.call("discovery.get_schema", null, function (tasks) {
-                console.log(tasks['definitions']);
                 var temp_list = [];
                 $.each(tasks['definitions'], function(task_name, i) {
                     temp_list.push(task_name);
