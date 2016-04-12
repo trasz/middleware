@@ -92,6 +92,18 @@ REPL_HOME = '/var/tmp/replication'
 AUTH_FILE = os.path.join(REPL_HOME, '.ssh/authorized_keys')
 
 
+encryption_data = {}
+
+
+cipher_types = {
+    'AES256': {
+        'function': <uintptr_t> &EVP_aes_256_ctr,
+        'key_size': 256,
+        'iv_size': 128
+    }
+}
+
+
 cdef uint32_t read_fd(int fd, void *buf, uint32_t nbytes, uint32_t curr_pos) nogil:
     cdef uint32_t ret
     cdef uint32_t done = 0
@@ -149,6 +161,12 @@ class TransportProvider(Provider):
     @private
     def plugin_types(self):
         return ['compress', 'decompress', 'encrypt', 'decrypt', 'throttle']
+
+    def set_encryption_data(self, key, data):
+        encryption_data[key] = data
+
+    def get_encryption_data(self, key):
+        return encryption_data.pop(key)
 
 
 @private
