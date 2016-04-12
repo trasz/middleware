@@ -639,7 +639,11 @@ def _init(dispatcher, plugin):
         'type': 'object',
         'properties': {
             'id': {'type': 'string'},
-            'uid': {'type': 'integer'},
+            'uid': {
+                'type': 'integer',
+                'minimum': 0,
+                'maximum': 4294967295
+            },
             'builtin': {'type': 'boolean', 'readOnly': True},
             'username': {'type': 'string'},
             'full_name': {'type': ['string', 'null']},
@@ -674,7 +678,11 @@ def _init(dispatcher, plugin):
         'type': 'object',
         'properties': {
             'id': {'type': 'string'},
-            'gid': {'type': 'integer'},
+            'gid': {
+                'type': 'integer',
+                'minimum': 0,
+                'maximum': 4294967295
+            },
             'builtin': {'type': 'boolean', 'readOnly': True},
             'name': {'type': 'string'},
             'sudo': {'type': 'boolean'},
