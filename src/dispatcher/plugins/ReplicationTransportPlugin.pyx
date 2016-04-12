@@ -44,6 +44,46 @@ from task import Task, ProgressTask, Provider, TaskException, TaskWarning, Verif
 from libc.stdlib cimport malloc, free
 from posix.unistd cimport read, write
 from libc.stdint cimport *
+from libc.stdio cimport *
+from libc.errno cimport *
+
+
+cdef extern from "openssl/ossl_typ.h" nogil:
+    ctypedef struct EVP_CIPHER_CTX:
+        pass
+
+    ctypedef struct EVP_CIPHER:
+        pass
+
+    ctypedef struct ENGINE:
+        pass
+
+
+cdef extern from "openssl/conf.h" nogil:
+    void OPENSSL_config(const char *config_name)
+    void OPENSSL_no_config()
+
+
+cdef extern from "openssl/evp.h" nogil:
+    void OpenSSL_add_all_algorithms()
+    void OpenSSL_add_all_ciphers()
+    void OpenSSL_add_all_digests()
+    void EVP_cleanup()
+    EVP_CIPHER_CTX *EVP_CIPHER_CTX_new()
+    int EVP_EncryptInit_ex(EVP_CIPHER_CTX *ctx, const EVP_CIPHER *type, ENGINE *impl, unsigned char *key, unsigned char *iv)
+    int EVP_EncryptUpdate(EVP_CIPHER_CTX *ctx, unsigned char *outb, int *outl, unsigned char *inb, int inl)
+    int EVP_EncryptFinal_ex(EVP_CIPHER_CTX *ctx, unsigned char *out, int *outl)
+    int EVP_DecryptInit_ex(EVP_CIPHER_CTX *ctx, const EVP_CIPHER *type, ENGINE *impl, unsigned char *key, unsigned char *iv)
+    int EVP_DecryptUpdate(EVP_CIPHER_CTX *ctx, unsigned char *outb, int *outl, unsigned char *inb, int inl)
+    int EVP_DecryptFinal_ex(EVP_CIPHER_CTX *ctx, unsigned char *outm, int *outl)
+    void EVP_CIPHER_CTX_free(EVP_CIPHER_CTX *ctx)
+    const EVP_CIPHER *EVP_aes_256_ctr()
+
+
+cdef extern from "openssl/err.h" nogil:
+    void ERR_load_crypto_strings()
+    void ERR_free_strings()
+    void ERR_print_errors_fp(FILE *fp)
 
 
 logger = logging.getLogger('ReplicationTransportPlugin')
