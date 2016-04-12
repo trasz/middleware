@@ -854,6 +854,12 @@ class KnownHostDeleteTask(Task):
             'ids': [name]
         })
 
+def close_fds(fds):
+    try:
+        for fd in fds:
+            os.close(fd)
+    except OSError:
+        pass
 
 def _init(dispatcher, plugin):
     # Register schemas
