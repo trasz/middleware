@@ -93,43 +93,36 @@ REPL_HOME = '/var/tmp/replication'
 AUTH_FILE = os.path.join(REPL_HOME, '.ssh/authorized_keys')
 
 
-cdef uint32_t read_fd(int fd, void *buf, uint32_t nbytes, uint32_t curr_pos):
+cdef uint32_t read_fd(int fd, void *buf, uint32_t nbytes, uint32_t curr_pos) nogil:
     cdef uint32_t ret
     cdef uint32_t done = 0
 
     while True:
-        try:
-            with nogil:
-                ret = read(fd, <uint8_t *>(buf + curr_pos + done), nbytes - done)
-        except IOError as e:
-            if e.errno in (errno.EINTR, e.errno == errno.EAGAIN):
+        ret = read(fd, <uint8_t *>(buf + curr_pos + done), nbytes - done)
+        if ret == -1:
+            if errno in (EINTR, EAGAIN):
                 continue
             else:
-                raise
+                return ret
 
         done += ret
         if (done == nbytes) or (ret == 0):
             return done
 
 
-cdef uint32_t write_fd(int fd, void *buf, uint32_t nbytes):
+cdef uint32_t write_fd(int fd, void *buf, uint32_t nbytes) nogil:
     cdef uint32_t ret
     cdef uint32_t done = 0
 
     while True:
-        try:
-            with nogil:
-                ret = write(fd, <uint8_t *>(buf + done), nbytes - done)
-        except IOError as e:
-            if e.errno in (errno.EINTR, errno.EAGAIN):
+        ret = write(fd, <uint8_t *>(buf + done), nbytes - done)
+        if ret == -1:
+            if errno in (EINTR, EAGAIN):
                 continue
             else:
-                raise
+                return ret
 
         done += ret
-        if ret == 0:
-            raise IOError
-
         if done == nbytes:
             return done
 
