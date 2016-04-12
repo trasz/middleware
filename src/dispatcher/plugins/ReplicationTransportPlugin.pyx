@@ -330,6 +330,9 @@ class TransportSendTask(Task):
                     plugin['read_fd'] = FileDescriptor(last_rd_fd)
                     plugin['write_fd'] = FileDescriptor(wr)
                     last_rd_fd = rd
+                    if type == 'encrypt':
+                        plugin['auth_token'] = token
+                        plugin['remote'] = client_address
                     raw_subtasks.append(['replication.transport.{0}'.format(type), plugin])
                     logger.debug('Registered {0} transport layer plugin for {1}:{2} connection'.format(type, *addr))
 
@@ -542,6 +545,7 @@ class TransportReceiveTask(ProgressTask):
                         plugin['name'] = 'decompress'
                     elif plugin['name'] == 'encrypt':
                         plugin['name'] = 'decrypt'
+                        plugin['auth_token'] = transport.get('auth_token').encode('utf-8')
                     rd, wr = os.pipe()
                     fds.append(rd)
                     fds.append(wr)
