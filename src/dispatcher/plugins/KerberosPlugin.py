@@ -25,6 +25,7 @@
 #
 #####################################################################
 
+import krb5
 from freenas.dispatcher.rpc import SchemaHelper as h, accepts, returns, description
 from task import Task, TaskException, VerifyException, Provider, query
 
@@ -37,8 +38,24 @@ class KerberosRealmsProvider(Provider):
 
 class KerberosKeytabsProvider(Provider):
     @query('kerberos-keytab')
-    def query(self):
-        pass
+    def query(self, filter=None, params=None):
+        ctx = krb5.Context()
+
+        def extend(keytab):
+            kt = krb5.Keytab(ctx, contents=keytab['keytab'])
+            keytab['entries'] = []
+
+            for i in kt.entries:
+                keytab['entries'].append({
+                    'vno': i.vno,
+                    'principal': i.principal,
+                    'enctype': i.enctype
+                })
+
+            del keytab['keytab']
+            return keytab
+
+        return self.datastore.query('kerberos.keytabs', *(filter or []), callback=extend, **(params or {}))
 
 
 @accepts(h.ref('kerberos-realm'))
@@ -87,7 +104,55 @@ class KerberosRealmDeleteTask(Task):
         })
 
 
-def _init(context, plugin):
+@accepts(h.ref('kerberos-keytab'))
+class KerberosKeytabCreateTask(Task):
+    def verify(self, keytab):
+        return ['system']
+
+    def run(self, keytab):
+        id = self.datastore.insert('kerberos.keytabs', keytab)
+        generate_keytab(self.datastore)
+        self.dispatcher.dispatch_event('kerberos.keytab.changed', {
+            'operation': 'create',
+            'ids': [id]
+        })
+        return id
+
+
+@accepts(str, h.ref('kerberos-keytab'))
+class KerberosKeytabUpdateTask(Task):
+    def verify(self, id, updated_fields):
+        return ['system']
+
+    def run(self, keytab):
+        pass
+
+
+@accepts(str)
+class KerberosKeytabDeleteTask(Task):
+    def verify(self, id):
+        return ['system']
+
+    def run(self, id):
+        self.datastore.delete('kerberos.keytabs', id)
+        generate_keytab(self.datastore)
+        self.dispatcher.dispatch_event('kerberos.keytab.changed', {
+            'operation': 'delete',
+            'ids': [id]
+        })
+
+
+def generate_keytab(datastore):
+    ctx = krb5.Context()
+    sys_keytab = krb5.Keytab(ctx, name='FILE:/etc/krb5.keytab')
+    sys_keytab.clear()
+    for i in datastore.query('kerberos.keytabs'):
+        k = krb5.Keytab(ctx, contents=i['keytab'])
+        for entry in k.entries:
+            sys_keytab.add(entry)
+
+
+def _init(dispatcher, plugin):
     plugin.register_schema_definition('kerberos-realm', {
         'type': 'object',
         'properties': {
@@ -99,6 +164,28 @@ def _init(context, plugin):
         }
     })
 
+    plugin.register_schema_definition('kerberos-keytab', {
+        'type': 'object',
+        'properties': {
+            'id': {'type': 'string'},
+            'name': {'type': 'string'},
+            'keytab': {'type': 'binary'},
+            'entries': {
+                'type': 'array',
+                'items': {'$ref': 'kerberos-keytab-entry'}
+            }
+        }
+    })
+
+    plugin.register_schema_definition('kerberos-keytab-entry', {
+        'type': 'object',
+        'properties': {
+            'principal': {'type': 'string'},
+            'enctype': {'type': 'string'},
+            'vno': {'type': 'integer'}
+        }
+    })
+
     plugin.register_provider('kerberos.realm', KerberosRealmsProvider)
     plugin.register_provider('kerberos.keytab', KerberosKeytabsProvider)
 
@@ -106,3 +193,10 @@ def _init(context, plugin):
     plugin.register_task_handler('kerberos.realm.create', KerberosRealmCreateTask)
     plugin.register_task_handler('kerberos.realm.update', KerberosRealmUpdateTask)
     plugin.register_task_handler('kerberos.realm.delete', KerberosRealmDeleteTask)
+
+    plugin.register_event_type('kerberos.keytab.changed')
+    plugin.register_task_handler('kerberos.keytab.create', KerberosKeytabCreateTask)
+    plugin.register_task_handler('kerberos.keytab.update', KerberosKeytabUpdateTask)
+    plugin.register_task_handler('kerberos.keytab.delete', KerberosKeytabDeleteTask)
+
+    generate_keytab(dispatcher.datastore)
