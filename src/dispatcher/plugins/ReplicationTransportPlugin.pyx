@@ -654,6 +654,7 @@ class TransportThrottleTask(Task):
         cdef uint8_t *buffer
         cdef uint32_t buffer_size
         cdef uint32_t ret
+        cdef uint32_t ret_wr
         cdef uint32_t done = 0
         cdef uint8_t running = 1
         cdef int rd_fd
@@ -696,7 +697,10 @@ class TransportThrottleTask(Task):
                     running = 0
                     break
 
-                write_fd(wr_fd, buffer + done, ret)
+                with nogil:
+                    ret_wr = write_fd(wr_fd, buffer + done, ret)
+                    if ret_wr == -1:
+                        break
                 IF REPLICATION_TRANSPORT_DEBUG:
                     logger.debug('Written {0} bytes to write file descriptor'.format(ret))
 
@@ -710,13 +714,15 @@ class TransportThrottleTask(Task):
                     IF REPLICATION_TRANSPORT_DEBUG:
                         logger.debug('Throttle task released by timer.')
 
+            if ret == -1:
+                raise TaskException(errno, 'Throttle task failed on read from file descriptor')
+
+            if ret_wr == -1:
+                raise TaskException(errno, 'Throttle task failed on write to file descriptor')
+
         finally:
             free(buffer)
-            try:
-                os.close(wr_fd)
-                os.close(rd_fd)
-            except OSError:
-                pass
+            close_fds([wr_fd, rd_fd])
 
 
 @description('Exchange keys with remote machine for replication purposes')
