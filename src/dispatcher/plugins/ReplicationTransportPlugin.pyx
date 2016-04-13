@@ -799,7 +799,7 @@ class TransportEncryptTask(Task):
         cdef uint32_t plain_ret = 0
         cdef uint32_t renewal_interval
         cdef EVP_CIPHER_CTX *ctx
-        cdef const EVP_CIPHER (*cipher_function) ()
+        cdef const EVP_CIPHER *(*cipher_function) () nogil
         cdef int rd_fd
         cdef int wr_fd
         cdef int cipher_ret
@@ -814,7 +814,7 @@ class TransportEncryptTask(Task):
             rd_fd = plugin.get('read_fd').fd
             wr_fd = plugin.get('write_fd').fd
             cipher = cipher_types.get(encryption_type)
-            cipher_function = <const EVP_CIPHER (*)()><uintptr_t> cipher['function']
+            cipher_function = <const EVP_CIPHER *(*)() nogil><uintptr_t> cipher['function']
             key_size = cipher['key_size']
             iv_size = cipher['iv_size']
 
