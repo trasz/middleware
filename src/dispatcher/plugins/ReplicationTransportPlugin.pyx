@@ -45,6 +45,7 @@ from posix.unistd cimport read, write
 from libc.stdint cimport *
 from libc.stdio cimport *
 from libc.errno cimport *
+from libc.string cimport memcpy
 
 
 cdef extern from "openssl/ossl_typ.h" nogil:
@@ -713,12 +714,207 @@ class TransportDecompressTask(Task):
 @description('Encrypt the input stream and pass it to the output')
 @accepts(h.ref('encrypt-plugin'))
 class TransportEncryptTask(Task):
-    def verify(self, transport):
+    def __init__(self, dispatcher, datastore):
+        super(TransportEncryptTask, self).__init__(dispatcher, datastore)
+        self.encrypt_t_status = None
+
+    def verify(self, plugin):
+        if 'auth_token' not in plugin:
+            raise VerifyException(ENOENT, 'Authentication token is missing')
+
+        if 'read_fd' not in plugin:
+            raise VerifyException(ENOENT, 'Read file descriptor is not specified')
+
+        if 'write_fd' not in plugin:
+            raise VerifyException(ENOENT, 'Write file descriptor is not specified')
+
         return []
 
-    def run(self, transport):
-        return
+    def run(self, plugin):
+        fds = []
+        try:
+            remote = plugin.get('remote')
+            encryption_type = plugin.get('type', 'AES256')
+            buffer_size = plugin.get('buffer_size', 1024*1024)
+            token = plugin.get('auth_token')
+            renewal_interval = plugin.get('renewal_interval', 0)
+            cipher = cipher_types.get(encryption_type)
+            key_size = cipher.get('key_size')
+            iv_size = cipher.get('iv_size')
 
+            py_key = os.urandom(key_size)
+            py_iv = os.urandom(iv_size)
+
+            if renewal_interval:
+                if (key_size + iv_size) > buffer_size:
+                    raise TaskException(
+                        EINVAL,
+                        'Selected buffer size {0} is to small to hold key of size {1} ad iv of size {2}'.format(
+                            buffer_size,
+                            key_size,
+                            iv_size
+                        )
+                    )
+
+            remote_client = get_replication_client(self.dispatcher, remote)
+            remote_client.call_sync(
+                'replication.transport.set_encryption_data',
+                token,
+                {
+                    'key': base64.b64encode(py_key).decode('utf-8'),
+                    'iv': base64.b64encode(py_iv).decode('utf-8')
+                }
+            )
+
+            encrypt_t = threading.Thread(target=self.encrypt_data, args=(plugin, py_key, py_iv))
+            encrypt_t.start()
+            encrypt_t.join()
+
+            plain_ret, ret, ret_wr, ctx, err = self.encrypt_t_status
+
+            if plain_ret == -1:
+                raise TaskException(err, 'Read from file descriptor failed during encryption task')
+
+            if ret != 1:
+                raise TaskException(err, 'Cryptographic function failed during encryption task')
+
+            if ret_wr == -1:
+                raise TaskException(err, 'Write to file descriptor failed during encryption task')
+
+            if ctx == 0:
+                raise TaskException(err, 'Cryptographic context creation failed')
+
+        finally:
+            close_fds(fds)
+
+    def encrypt_data(self, plugin, p_key, p_iv):
+        cdef uint32_t *plainbuffer
+        cdef unsigned char *cipherbuffer
+        cdef uint8_t *iv = p_iv
+        cdef uint8_t *key = p_key
+        cdef uint32_t buffer_size
+        cdef uint32_t header_size = 2 * sizeof(uint32_t)
+        cdef uint32_t ret = 1
+        cdef uint32_t ret_wr = 0
+        cdef uint32_t plain_ret = 0
+        cdef uint32_t renewal_interval
+        cdef EVP_CIPHER_CTX *ctx
+        cdef const EVP_CIPHER (*cipher_function) ()
+        cdef int rd_fd
+        cdef int wr_fd
+        cdef int cipher_ret
+
+        py_key = p_key
+        py_iv = p_iv
+        fds = []
+        try:
+            encryption_type = plugin.get('type', 'AES256')
+            buffer_size = plugin.get('buffer_size', 1024*1024)
+            renewal_interval = plugin.get('renewal_interval', 0)
+            rd_fd = plugin.get('read_fd').fd
+            wr_fd = plugin.get('write_fd').fd
+            cipher = cipher_types.get(encryption_type)
+            cipher_function = <const EVP_CIPHER (*)()><uintptr_t> cipher['function']
+            key_size = cipher['key_size']
+            iv_size = cipher['iv_size']
+
+            cipherbuffer = <unsigned char *>malloc((buffer_size + header_size) * sizeof(uint8_t))
+            plainbuffer = <uint32_t *>malloc((buffer_size + header_size) * sizeof(uint8_t))
+            plainbuffer[0] = 0xbadbeef0
+
+            with nogil:
+                ERR_load_crypto_strings()
+                OpenSSL_add_all_algorithms()
+                OPENSSL_config(NULL)
+                ctx = EVP_CIPHER_CTX_new()
+            if ctx == NULL:
+                ERR_print_errors_fp(stderr)
+                self.encrypt_t_status = (plain_ret, ret, ret_wr, 0, errno)
+                return
+            with nogil:
+                ret = EVP_EncryptInit_ex(ctx, cipher_function(), NULL, key, iv)
+            if ret != 1:
+                ERR_print_errors_fp(stderr)
+                self.encrypt_t_status = (plain_ret, ret, ret_wr, 1, errno)
+                return
+
+            while True:
+                with nogil:
+                    plain_ret = read_fd(rd_fd, plainbuffer, buffer_size, header_size)
+                    if plain_ret < 1:
+                        break
+                    plainbuffer[1] = plain_ret
+
+                    ret = EVP_EncryptUpdate(ctx, cipherbuffer, &cipher_ret, <unsigned char *> plainbuffer, plain_ret + header_size)
+                    if ret != 1:
+                        ERR_print_errors_fp(stderr)
+                        break
+
+                    ret_wr = write_fd(wr_fd, cipherbuffer, cipher_ret)
+                    if ret_wr == -1:
+                        break
+
+                if renewal_interval:
+                    renewal_interval -= 1
+                    if renewal_interval == 0:
+                        renewal_interval = plugin.get('renewal_interval')
+                        plainbuffer[0] = 0xbeefd00d
+                        plainbuffer[1] = key_size + iv_size
+                        py_key = os.urandom(key_size)
+                        py_iv = os.urandom(iv_size)
+                        key = py_key
+                        iv = py_iv
+
+                        memcpy(&plainbuffer[2], key, key_size)
+                        memcpy(&plainbuffer[key_size + 2], iv, iv_size)
+
+                        with nogil:
+                            ret = EVP_EncryptUpdate(ctx, cipherbuffer, &cipher_ret, <unsigned char *> plainbuffer, plain_ret)
+                            if ret != 1:
+                                ERR_print_errors_fp(stderr)
+                                break
+
+                        plainbuffer[0] = 0xbadbeef0
+
+                        with nogil:
+                            ret_wr = write_fd(wr_fd, cipherbuffer, cipher_ret)
+                            if ret_wr == -1:
+                                break
+
+                            ret = EVP_EncryptFinal_ex(ctx, cipherbuffer, &cipher_ret)
+                            if ret != 1:
+                                ERR_print_errors_fp(stderr)
+                                break
+                            if cipher_ret > 0:
+                                ret_wr = write_fd(wr_fd, cipherbuffer, cipher_ret)
+                                if ret_wr == -1:
+                                    break
+
+                            EVP_CIPHER_CTX_free(ctx)
+                            ctx = EVP_CIPHER_CTX_new()
+                            if ctx == NULL:
+                                ERR_print_errors_fp(stderr)
+                                break
+
+                            ret = EVP_EncryptInit_ex(ctx, cipher_function(), NULL, key, iv)
+                            if ret != 1:
+                                ERR_print_errors_fp(stderr)
+                                break
+            with nogil:
+                EVP_CIPHER_CTX_free(ctx)
+                if plain_ret == 0:
+                    ret = EVP_EncryptFinal_ex(ctx, cipherbuffer, &cipher_ret)
+                    if (cipher_ret > 0) and (ret == 1):
+                        ret_wr = write_fd(wr_fd, cipherbuffer, cipher_ret)
+
+            self.encrypt_t_status = (plain_ret, ret, ret_wr, 1, errno)
+
+        finally:
+            free(plainbuffer)
+            free(cipherbuffer)
+            free(iv)
+            free(key)
+            close_fds(fds)
 
 @private
 @description('Decrypt the input stream and pass it to the output')
