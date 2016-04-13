@@ -1292,6 +1292,7 @@ def _init(dispatcher, plugin):
         'properties': {
             'id': {'type': 'string'},
             'name': {'type': 'string'},
+            'path': {'type': 'string'},
             'description': {'type': 'string'},
             'serial': {'type': 'string'},
             'mediasize': {'type': 'integer'},
