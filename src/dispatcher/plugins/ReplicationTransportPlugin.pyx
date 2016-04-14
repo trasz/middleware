@@ -904,20 +904,20 @@ class TransportEncryptTask(Task):
                                 ERR_print_errors_fp(stderr)
                                 break
             with nogil:
-                EVP_CIPHER_CTX_free(ctx)
                 if plain_ret == 0:
                     ret = EVP_EncryptFinal_ex(ctx, cipherbuffer, &cipher_ret)
                     if (cipher_ret > 0) and (ret == 1):
                         ret_wr = write_fd(wr_fd, cipherbuffer, cipher_ret)
 
-            self.encrypt_t_status = (plain_ret, ret, ret_wr, 1, errno)
+            self.encrypt_t_status = (plain_ret, ret, ret_wr, 1 if ctx else 0, errno)
 
         finally:
+            with nogil:
+                EVP_CIPHER_CTX_free(ctx)
             free(plainbuffer)
             free(cipherbuffer)
-            free(iv)
-            free(key)
             close_fds(fds)
+
 
 @private
 @description('Decrypt the input stream and pass it to the output')
