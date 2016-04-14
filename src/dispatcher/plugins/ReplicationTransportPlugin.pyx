@@ -86,6 +86,11 @@ cdef extern from "openssl/err.h" nogil:
     void ERR_print_errors_fp(FILE *fp)
 
 
+cdef int encrypt_transfer_magic = 0xbadbeef0
+cdef int encrypt_rekey_magic = 0xbeefd00d
+cdef int transport_header_magic = 0xdeadbeef
+
+
 logger = logging.getLogger('ReplicationTransportPlugin')
 
 
@@ -420,7 +425,7 @@ class TransportSendTask(Task):
             with nogil:
                 buffer = <uint32_t *>malloc((buffer_size + header_size) * sizeof(uint8_t))
 
-                buffer[0] = 0xdeadbeef
+                buffer[0] = transport_header_magic
             while True:
                 with nogil:
                     ret = read_fd(rd_fd, buffer, buffer_size, header_size)
@@ -585,10 +590,10 @@ class TransportReceiveTask(ProgressTask):
             header_t.start()
             header_t.join()
 
-            if self.header_t_status[2] != 0xdeadbeef:
+            if self.header_t_status[2] != transport_header_magic:
                 raise TaskException(
                     EINVAL,
-                    'Bad magic {0} received. Expected {1}'.format(self.header_t_status[2], 0xdeadbeef)
+                    'Bad magic {0} received. Expected {1}'.format(self.header_t_status[2], transport_header_magic)
                 )
             if self.header_t_status[0] == -1:
                 raise TaskException(
@@ -637,7 +642,7 @@ class TransportReceiveTask(ProgressTask):
         cdef uint32_t *buffer
         cdef uint32_t *header_buffer
         cdef uint32_t length
-        cdef uint32_t magic = 0xdeadbeef
+        cdef uint32_t magic = transport_header_magic
         cdef uint32_t buffer_size = buf_size
         cdef uint32_t header_size = 2 * sizeof(uint32_t)
         cdef uint32_t ret
@@ -820,7 +825,7 @@ class TransportEncryptTask(Task):
 
             cipherbuffer = <unsigned char *>malloc((buffer_size + header_size) * sizeof(uint8_t))
             plainbuffer = <uint32_t *>malloc((buffer_size + header_size) * sizeof(uint8_t))
-            plainbuffer[0] = 0xbadbeef0
+            plainbuffer[0] = encrypt_transfer_magic
 
             with nogil:
                 ERR_load_crypto_strings()
@@ -858,7 +863,7 @@ class TransportEncryptTask(Task):
                     renewal_interval -= 1
                     if renewal_interval == 0:
                         renewal_interval = plugin.get('renewal_interval')
-                        plainbuffer[0] = 0xbeefd00d
+                        plainbuffer[0] = encrypt_rekey_magic
                         plainbuffer[1] = key_size + iv_size
                         py_key = os.urandom(key_size)
                         py_iv = os.urandom(iv_size)
@@ -874,7 +879,7 @@ class TransportEncryptTask(Task):
                                 ERR_print_errors_fp(stderr)
                                 break
 
-                        plainbuffer[0] = 0xbadbeef0
+                        plainbuffer[0] = encrypt_transfer_magic
 
                         with nogil:
                             ret_wr = write_fd(wr_fd, cipherbuffer, cipher_ret)
