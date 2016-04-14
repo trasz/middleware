@@ -736,61 +736,57 @@ class TransportEncryptTask(Task):
         return []
 
     def run(self, plugin):
-        fds = []
-        try:
-            remote = plugin.get('remote')
-            encryption_type = plugin.get('type', 'AES256')
-            buffer_size = plugin.get('buffer_size', 1024*1024)
-            token = plugin.get('auth_token')
-            renewal_interval = plugin.get('renewal_interval', 0)
-            cipher = cipher_types.get(encryption_type)
-            key_size = cipher.get('key_size')
-            iv_size = cipher.get('iv_size')
+        remote = plugin.get('remote')
+        encryption_type = plugin.get('type', 'AES256')
+        buffer_size = plugin.get('buffer_size', 1024*1024)
+        token = plugin.get('auth_token')
+        renewal_interval = plugin.get('renewal_interval', 0)
+        cipher = cipher_types.get(encryption_type)
+        key_size = cipher.get('key_size')
+        iv_size = cipher.get('iv_size')
 
-            py_key = os.urandom(key_size)
-            py_iv = os.urandom(iv_size)
+        py_key = os.urandom(key_size)
+        py_iv = os.urandom(iv_size)
 
-            if renewal_interval:
-                if (key_size + iv_size) > buffer_size:
-                    raise TaskException(
-                        EINVAL,
-                        'Selected buffer size {0} is to small to hold key of size {1} ad iv of size {2}'.format(
-                            buffer_size,
-                            key_size,
-                            iv_size
-                        )
+        if renewal_interval:
+            if (key_size + iv_size) > buffer_size:
+                raise TaskException(
+                    EINVAL,
+                    'Selected buffer size {0} is to small to hold key of size {1} ad iv of size {2}'.format(
+                        buffer_size,
+                        key_size,
+                        iv_size
                     )
+                )
 
-            remote_client = get_replication_client(self.dispatcher, remote)
-            remote_client.call_sync(
-                'replication.transport.set_encryption_data',
-                token,
-                {
-                    'key': base64.b64encode(py_key).decode('utf-8'),
-                    'iv': base64.b64encode(py_iv).decode('utf-8')
-                }
-            )
+        remote_client = get_replication_client(self.dispatcher, remote)
+        remote_client.call_sync(
+            'replication.transport.set_encryption_data',
+            token,
+            {
+                'key': base64.b64encode(py_key).decode('utf-8'),
+                'iv': base64.b64encode(py_iv).decode('utf-8')
+            }
+        )
+        remote_client.disconnect()
 
-            encrypt_t = threading.Thread(target=self.encrypt_data, args=(plugin, py_key, py_iv))
-            encrypt_t.start()
-            encrypt_t.join()
+        encrypt_t = threading.Thread(target=self.encrypt_data, args=(plugin, py_key, py_iv))
+        encrypt_t.start()
+        encrypt_t.join()
 
-            plain_ret, ret, ret_wr, ctx, err = self.encrypt_t_status
+        plain_ret, ret, ret_wr, ctx, err = self.encrypt_t_status
 
-            if plain_ret == -1:
-                raise TaskException(err, 'Read from file descriptor failed during encryption task')
+        if plain_ret == -1:
+            raise TaskException(err, 'Read from file descriptor failed during encryption task')
 
-            if ret != 1:
-                raise TaskException(err, 'Cryptographic function failed during encryption task')
+        if ret != 1:
+            raise TaskException(err, 'Cryptographic function failed during encryption task')
 
-            if ret_wr == -1:
-                raise TaskException(err, 'Write to file descriptor failed during encryption task')
+        if ret_wr == -1:
+            raise TaskException(err, 'Write to file descriptor failed during encryption task')
 
-            if ctx == 0:
-                raise TaskException(err, 'Cryptographic context creation failed')
-
-        finally:
-            close_fds(fds)
+        if ctx == 0:
+            raise TaskException(err, 'Cryptographic context creation failed')
 
     def encrypt_data(self, plugin, p_key, p_iv):
         cdef uint32_t *plainbuffer
@@ -817,7 +813,9 @@ class TransportEncryptTask(Task):
             buffer_size = plugin.get('buffer_size', 1024*1024)
             renewal_interval = plugin.get('renewal_interval', 0)
             rd_fd = plugin.get('read_fd').fd
+            fds.append(rd_fd)
             wr_fd = plugin.get('write_fd').fd
+            fds.append(wr_fd)
             cipher = cipher_types.get(encryption_type)
             cipher_function = <const EVP_CIPHER *(*)() nogil><uintptr_t> cipher['function']
             key_size = cipher['key_size']
