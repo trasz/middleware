@@ -923,11 +923,183 @@ class TransportEncryptTask(Task):
 @description('Decrypt the input stream and pass it to the output')
 @accepts(h.ref('decrypt-plugin'))
 class TransportDecryptTask(Task):
-    def verify(self, transport):
+    def __init__(self, dispatcher, datastore):
+        super(TransportDecryptTask, self).__init__(dispatcher, datastore)
+        self.decrypt_t_status = None
+
+    def verify(self, plugin):
+        if 'auth_token' not in plugin:
+            raise VerifyException(ENOENT, 'Authentication token is missing')
+
+        if 'read_fd' not in plugin:
+            raise VerifyException(ENOENT, 'Read file descriptor is not specified')
+
+        if 'write_fd' not in plugin:
+            raise VerifyException(ENOENT, 'Write file descriptor is not specified')
+
         return []
 
-    def run(self, transport):
-        return
+    def run(self, plugin):
+        encryption_type = plugin.get('type', 'AES256')
+        buffer_size = plugin.get('buffer_size', 1024*1024)
+        token = plugin.get('auth_token')
+
+        initial_cipher = self.dispatcher.call_sync('replication.transport.get_encryption_data', token)
+        py_key = base64.b64decode(initial_cipher['key'].encode('utf-8'))
+        py_iv = base64.b64decode(initial_cipher['iv'].encode('utf-8'))
+
+        decrypt_t = threading.Thread(target=self.decrypt_data, args=(plugin, py_key, py_iv))
+        decrypt_t.start()
+        decrypt_t.join()
+
+        cipher_ret, ret, ret_wr, ctx, magic, err = self.encrypt_t_status
+
+        if cipher_ret == -1:
+            raise TaskException(err, 'Read from file descriptor failed during decryption task')
+
+        if ret != 1:
+            raise TaskException(err, 'Cryptographic function failed during decryption task')
+
+        if ret_wr == -1:
+            raise TaskException(err, 'Write to file descriptor failed during decryption task')
+
+        if ctx == 0:
+            raise TaskException(err, 'Cryptographic context creation failed')
+
+        if magic:
+            if magic not in (encrypt_rekey_magic, encrypt_transfer_magic):
+                raise TaskException(EINVAL, 'Invalid magic received {0}'.format(magic))
+
+    def decrypt_data(self, plugin, p_key, p_iv):
+        cdef uint32_t *plainbuffer
+        cdef uint32_t *header_buffer
+        cdef unsigned char *cipherbuffer
+        cdef uint8_t *iv
+        cdef uint8_t *key
+        cdef uint32_t key_size
+        cdef uint32_t iv_size
+        cdef uint32_t buffer_size
+        cdef uint32_t header_size = 2 * sizeof(uint32_t)
+        cdef uint32_t ret = 1
+        cdef uint32_t ret_wr = 0
+        cdef uint32_t cipher_ret = 0
+        cdef uint32_t length
+        cdef EVP_CIPHER_CTX *ctx
+        cdef const EVP_CIPHER *(*cipher_function) () nogil
+        cdef int rd_fd
+        cdef int wr_fd
+        cdef int plain_ret
+
+        fds = []
+        try:
+            encryption_type = plugin.get('type', 'AES256')
+            buffer_size = plugin.get('buffer_size', 1024*1024)
+            rd_fd = plugin.get('read_fd').fd
+            fds.append(rd_fd)
+            wr_fd = plugin.get('write_fd').fd
+            fds.append(wr_fd)
+            cipher = cipher_types.get(encryption_type)
+            cipher_function = <const EVP_CIPHER *(*)() nogil><uintptr_t> cipher['function']
+            key_size = cipher['key_size']
+            iv_size = cipher['iv_size']
+
+            with nogil:
+                cipherbuffer = <unsigned char *>malloc(buffer_size * sizeof(uint8_t))
+                plainbuffer = <uint32_t *>malloc(buffer_size * sizeof(uint8_t))
+                header_buffer = <uint32_t *>malloc(header_size * sizeof(uint8_t))
+
+                key = <uint8_t *>malloc(key_size * sizeof(uint8_t))
+                iv = <uint8_t *>malloc(iv_size * sizeof(uint8_t))
+
+            memcpy(key, <const void *> p_key, key_size)
+            memcpy(iv, <const void *> p_iv, iv_size)
+
+            with nogil:
+                ERR_load_crypto_strings()
+                OpenSSL_add_all_algorithms()
+                OPENSSL_config(NULL)
+                ctx = EVP_CIPHER_CTX_new()
+            if ctx == NULL:
+                ERR_print_errors_fp(stderr)
+                self.decrypt_t_status = (cipher_ret, ret, ret_wr, 0, 0, errno)
+                return
+            with nogil:
+                ret = EVP_DecryptInit_ex(ctx, cipher_function(), NULL, key, iv)
+            if ret != 1:
+                ERR_print_errors_fp(stderr)
+                self.decrypt_t_status = (cipher_ret, ret, ret_wr, 1, 0, errno)
+                return
+
+            while True:
+                with nogil:
+                    cipher_ret = read_fd(rd_fd, cipherbuffer, header_size, 0)
+                    if cipher_ret == -1:
+                        break
+
+                    ret = EVP_DecryptUpdate(ctx, <unsigned char *> header_buffer, &plain_ret, cipherbuffer, header_size)
+                    if ret != 1:
+                        ERR_print_errors_fp(stderr)
+                        break
+
+                    length = header_buffer[1]
+                    if (header_buffer[0] != encrypt_transfer_magic) and (header_buffer[0] != encrypt_rekey_magic):
+                        break
+
+                    if length > 0:
+                        cipher_ret = read_fd(rd_fd, cipherbuffer, length, 0)
+                        if cipher_ret == -1:
+                            break
+
+                        ret = EVP_DecryptUpdate(ctx, <unsigned char *> plainbuffer, &plain_ret, cipherbuffer, length)
+                    else:
+                        ret = EVP_DecryptFinal_ex(ctx, <unsigned char *> plainbuffer, &plain_ret)
+
+                    if ret != 1:
+                        ERR_print_errors_fp(stderr)
+                        break
+
+                    if header_buffer[0] == encrypt_rekey_magic:
+                        ret = EVP_DecryptFinal_ex(ctx, <unsigned char *> plainbuffer, &plain_ret)
+                        if ret != 1:
+                            ERR_print_errors_fp(stderr)
+                            break
+                        if plain_ret > 0:
+                            ret_wr = write_fd(wr_fd, plainbuffer, plain_ret)
+                            if ret_wr == -1:
+                                break
+
+                        EVP_CIPHER_CTX_free(ctx)
+                        ctx = EVP_CIPHER_CTX_new()
+                        if ctx == NULL:
+                            ERR_print_errors_fp(stderr)
+                            break
+
+                        memcpy(key, plainbuffer, key_size)
+                        memcpy(iv, &plainbuffer[key_size], iv_size)
+
+                        ret = EVP_DecryptInit_ex(ctx, cipher_function(), NULL, key, iv)
+                        if ret != 1:
+                            ERR_print_errors_fp(stderr)
+                            break
+                    else:
+                        if plain_ret > 0:
+                            ret_wr = write_fd(wr_fd, plainbuffer, plain_ret)
+                            if ret_wr == -1:
+                                break
+                        if length == 0:
+                            break
+
+            self.decrypt_t_status = (cipher_ret, ret, ret_wr, 1 if ctx else 0, <bytes> header_buffer[0], errno)
+
+        finally:
+            with nogil:
+                EVP_CIPHER_CTX_free(ctx)
+            free(plainbuffer)
+            free(cipherbuffer)
+            free(header_buffer)
+            free(iv)
+            free(key)
+            close_fds(fds)
 
 
 @private
