@@ -77,7 +77,9 @@ cdef extern from "openssl/evp.h" nogil:
     int EVP_DecryptUpdate(EVP_CIPHER_CTX *ctx, unsigned char *outb, int *outl, unsigned char *inb, int inl)
     int EVP_DecryptFinal_ex(EVP_CIPHER_CTX *ctx, unsigned char *outm, int *outl)
     void EVP_CIPHER_CTX_free(EVP_CIPHER_CTX *ctx)
-    const EVP_CIPHER *EVP_aes_256_ctr()
+    const EVP_CIPHER *EVP_aes_128_ofb()
+    const EVP_CIPHER *EVP_aes_192_ofb()
+    const EVP_CIPHER *EVP_aes_256_ofb()
 
 
 cdef extern from "openssl/err.h" nogil:
@@ -102,8 +104,18 @@ encryption_data = {}
 
 
 cipher_types = {
+    'AES128': {
+        'function': <uintptr_t> &EVP_aes_128_ofb,
+        'key_size': 128,
+        'iv_size': 128
+    },
+    'AES192': {
+        'function': <uintptr_t> &EVP_aes_192_ofb,
+        'key_size': 192,
+        'iv_size': 128
+    },
     'AES256': {
-        'function': <uintptr_t> &EVP_aes_256_ctr,
+        'function': <uintptr_t> &EVP_aes_256_ofb,
         'key_size': 256,
         'iv_size': 128
     }
@@ -737,7 +749,7 @@ class TransportEncryptTask(Task):
 
     def run(self, plugin):
         remote = plugin.get('remote')
-        encryption_type = plugin.get('type', 'AES256')
+        encryption_type = plugin.get('type', 'AES128')
         buffer_size = plugin.get('buffer_size', 1024*1024)
         token = plugin.get('auth_token')
         renewal_interval = plugin.get('renewal_interval', 0)
@@ -809,7 +821,7 @@ class TransportEncryptTask(Task):
         py_iv = p_iv
         fds = []
         try:
-            encryption_type = plugin.get('type', 'AES256')
+            encryption_type = plugin.get('type', 'AES128')
             buffer_size = plugin.get('buffer_size', 1024*1024)
             renewal_interval = plugin.get('renewal_interval', 0)
             rd_fd = plugin.get('read_fd').fd
@@ -940,7 +952,7 @@ class TransportDecryptTask(Task):
         return []
 
     def run(self, plugin):
-        encryption_type = plugin.get('type', 'AES256')
+        encryption_type = plugin.get('type', 'AES128')
         buffer_size = plugin.get('buffer_size', 1024*1024)
         token = plugin.get('auth_token')
 
@@ -992,7 +1004,7 @@ class TransportDecryptTask(Task):
 
         fds = []
         try:
-            encryption_type = plugin.get('type', 'AES256')
+            encryption_type = plugin.get('type', 'AES128')
             buffer_size = plugin.get('buffer_size', 1024*1024)
             rd_fd = plugin.get('read_fd').fd
             fds.append(rd_fd)
