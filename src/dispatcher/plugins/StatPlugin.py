@@ -217,7 +217,7 @@ def dash_to_underscore(name):
 
 
 def _init(dispatcher, plugin):
-    plugin.register_schema('stat', {
+    plugin.register_schema_definition('stat', {
         'type': 'object',
         'additionalProperties': False,
         'properties': {
@@ -228,7 +228,7 @@ def _init(dispatcher, plugin):
             'alerts': {'$ref': 'stat-alert'},
         }
     })
-    plugin.register_schema('stat-alert', {
+    plugin.register_schema_definition('stat-alert', {
         'type': 'object',
         'additionalProperties': False,
         'properties': {
