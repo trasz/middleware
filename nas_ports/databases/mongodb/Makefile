@@ -3,6 +3,7 @@
 
 PORTNAME=	mongodb
 PORTVERSION=	3.2.4
+PORTREVISION=	2
 CATEGORIES=	databases net
 MASTER_SITES=	http://downloads.mongodb.org/src/
 DISTNAME=	${PORTNAME}-src-r${PORTVERSION}
@@ -65,16 +66,20 @@ TEST_TARGET+=	smokeSsl
 ALL_TARGET=	core tools
 .endif
 
+.if !defined(WITH_DEBUG)
+STRIP_COMMAND= strip ${STAGEDIR}${PREFIX}/bin/mongo \
+		strip ${STAGEDIR}${PREFIX}/bin/mongod \
+		strip ${STAGEDIR}${PREFIX}/bin/mongos \
+		strip ${STAGEDIR}${PREFIX}/bin/mongoperf \
+		strip ${STAGEDIR}${PREFIX}/bin/mongosniff
+.endif
+
 post-patch:
 	@${REINPLACE_CMD} 's/\["-O3"\]/"${CXXFLAGS}"/' \
 		${WRKSRC}/SConstruct
 
 post-stage:
-	strip ${STAGEDIR}${PREFIX}/bin/mongo
-	strip ${STAGEDIR}${PREFIX}/bin/mongod
-	strip ${STAGEDIR}${PREFIX}/bin/mongos
-	strip ${STAGEDIR}${PREFIX}/bin/mongoperf
-	strip ${STAGEDIR}${PREFIX}/bin/mongosniff
+	${STRIP_COMMAND}
 
 .if ${PORT_OPTIONS:MTEST}
 test: build-depends build
