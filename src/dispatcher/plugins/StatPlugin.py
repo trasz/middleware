@@ -217,6 +217,30 @@ def dash_to_underscore(name):
 
 
 def _init(dispatcher, plugin):
+    plugin.register_schema('stat', {
+        'type': 'object',
+        'additionalProperties': False,
+        'properties': {
+            'name': {'type': 'string'},
+            'short_name': {'type': 'string'},
+            'unit': {'type': 'string'},
+            'last_value': {'type': ['integer', 'number', 'null']},
+            'alerts': {'$ref': 'stat-alert'},
+        }
+    })
+    plugin.register_schema('stat-alert', {
+        'type': 'object',
+        'additionalProperties': False,
+        'properties': {
+            'alert_high': {'type': ['integer', 'number', 'null']},
+            'normalized_alert_high': {'type': ['integer', 'number', 'null']},
+            'alert_high_enabled': {'type': 'boolean'},
+            'alert_low': {'type': ['integer', 'number', 'null']},
+            'normalized_alert_low': {'type': ['integer', 'number', 'null']},
+            'alert_low_enabled': {'type': 'boolean'}
+        }
+    })
+
     plugin.register_provider('stat', StatProvider)
     plugin.register_provider('stat.cpu', CpuStatProvider)
     plugin.register_provider('stat.disk', DiskStatProvider)
