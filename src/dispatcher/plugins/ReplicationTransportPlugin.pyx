@@ -47,6 +47,7 @@ from libc.errno cimport *
 from libc.string cimport memcpy
 
 
+#Encryption imports
 cdef extern from "openssl/ossl_typ.h" nogil:
     ctypedef struct EVP_CIPHER_CTX:
         pass
@@ -87,6 +88,53 @@ cdef extern from "openssl/err.h" nogil:
     void ERR_print_errors_fp(FILE *fp)
 
 
+#Compression imports
+cdef extern from "zlib.h" nogil:
+    enum:
+        Z_FULL_FLUSH
+
+        Z_OK
+        Z_STREAM_END
+        Z_NEED_DICT
+        Z_ERRNO
+        Z_DATA_ERROR
+        Z_MEM_ERROR
+
+        Z_NO_COMPRESSION
+        Z_BEST_SPEED
+        Z_BEST_COMPRESSION
+        Z_DEFAULT_COMPRESSION
+
+        Z_NULL
+
+    ctypedef struct z_stream_s:
+        const uint8_t *next_in
+        unsigned int avail_in
+        unsigned long total_in
+
+        uint8_t *next_out
+        unsigned int avail_out
+        unsigned long total_out
+
+        uintptr_t zalloc
+        uintptr_t zfree
+        uintptr_t opaque
+
+        int data_type
+        unsigned long adler
+        unsigned long reserved
+    ctypedef z_stream_s z_stream
+
+    int deflateInit(z_stream *strm, int level)
+    int deflate(z_stream *strm, int flush)
+    int deflateEnd(z_stream *strm)
+
+    int inflateInit(z_stream *strm)
+    int inflate(z_stream *strm, int flush)
+    int inflateEnd(z_stream *strm)
+
+
+#Globals declaration
 cdef int encrypt_transfer_magic = 0xbadbeef0
 cdef int encrypt_rekey_magic = 0xbeefd00d
 cdef int transport_header_magic = 0xdeadbeef
@@ -708,22 +756,185 @@ class TransportReceiveTask(ProgressTask):
 @description('Compress the input stream and pass it to the output')
 @accepts(h.ref('compress-plugin'))
 class TransportCompressTask(Task):
-    def verify(self, transport):
+    def __init__(self, dispatcher, datastore):
+        super(TransportCompressTask, self).__init__(dispatcher, datastore)
+        self.compress_t_status = None
+
+    def verify(self, plugin):
+        if 'read_fd' not in plugin:
+            raise VerifyException(ENOENT, 'Read file descriptor is not specified')
+
+        if 'write_fd' not in plugin:
+            raise VerifyException(ENOENT, 'Write file descriptor is not specified')
+
         return []
 
-    def run(self, transport):
-        return
+    def run(self, plugin):
+        compress_t = threading.Thread(target=self.compress, args=plugin)
+        compress_t.start()
+        compress_t.join()
+        ret, ret_rd, ret_wr, err = self.compress_t_status
+
+        if ret == Z_ERRNO:
+            raise TaskException(err, 'Compression initialization failed')
+
+        if ret != Z_STREAM_END:
+            raise TaskException(err, 'Compression stream did not complete properly')
+
+        if ret_rd == -1:
+            raise TaskException(err, 'Read from file descriptor failed during compression task')
+
+        if ret_wr == -1:
+            raise TaskException(err, 'Write to file descriptor failed during compression task')
+
+    def compress(self, plugin):
+        cdef int ret
+        cdef int ret_rd = 0
+        cdef int ret_wr = 0
+        cdef int level = Z_DEFAULT_COMPRESSION
+        cdef int rd_fd = plugin['read_fd'].fd
+        cdef int wr_fd = plugin['write_fd'].fd
+        cdef uint32_t have
+        cdef z_stream strm
+        cdef unsigned char *in_buffer
+        cdef unsigned char *out_buffer
+        cdef uint32_t buffer_size = plugin.get('buffer_size', 1024*1024)
+
+        fds =[rd_fd, wr_fd]
+
+        comp_level = plugin.get('level', 'DEFAULT')
+        if comp_level == 'BEST':
+            level = Z_BEST_COMPRESSION
+        elif comp_level == 'FAST':
+            level = Z_BEST_SPEED
+
+        try:
+            with nogil:
+                in_buffer = <unsigned char *>malloc(buffer_size * sizeof(uint8_t))
+                out_buffer = <unsigned char *>malloc(buffer_size * sizeof(uint8_t))
+
+                strm.zalloc = Z_NULL
+                strm.zfree = Z_NULL
+                strm.opaque = Z_NULL
+                ret = deflateInit(&strm, level)
+            if ret != Z_OK:
+                self.compress_t_status = (Z_ERRNO, ret_rd, ret_wr, errno)
+                return
+
+            with nogil:
+                while True:
+                    ret_rd = read_fd(rd_fd, in_buffer, buffer_size, 0)
+                    strm.avail_in = ret_rd
+                    if ret_rd < 1:
+                        break
+                    strm.next_in = in_buffer
+                    strm.avail_out = buffer_size
+                    strm.next_out = out_buffer
+                    ret = deflate(&strm, Z_FULL_FLUSH)
+
+                    have = buffer_size - strm.avail_out
+                    ret_wr = write_fd(wr_fd, out_buffer, have)
+                    if ret_wr != have:
+                        break
+
+                deflateEnd(&strm)
+            self.compress_t_status = (ret, ret_rd, ret_wr, errno)
+        finally:
+            free(in_buffer)
+            free(out_buffer)
+            close_fds(fds)
 
 
 @private
 @description('Decompress the input stream and pass it to the output')
 @accepts(h.ref('decompress-plugin'))
 class TransportDecompressTask(Task):
-    def verify(self, transport):
+    def __init__(self, dispatcher, datastore):
+        super(TransportDecompressTask, self).__init__(dispatcher, datastore)
+        self.decompress_t_status = None
+
+    def verify(self, plugin):
+        if 'read_fd' not in plugin:
+            raise VerifyException(ENOENT, 'Read file descriptor is not specified')
+
+        if 'write_fd' not in plugin:
+            raise VerifyException(ENOENT, 'Write file descriptor is not specified')
+
         return []
 
-    def run(self, transport):
-        return
+    def run(self, plugin):
+        decompress_t = threading.Thread(target=self.decompress, args=plugin)
+        decompress_t.start()
+        decompress_t.join()
+        ret, ret_rd, ret_wr, err = self.decompress_t_status
+
+        if ret == Z_ERRNO:
+            raise TaskException(err, 'Decompression initialization failed')
+
+        if ret != Z_STREAM_END:
+            fault = 'Data error'
+            if ret == Z_MEM_ERROR:
+                fault = 'Not enough memory'
+            raise TaskException(err, 'Compression stream did not complete properly. {0}'.format(fault))
+
+        if ret_rd == -1:
+            raise TaskException(err, 'Read from file descriptor failed during decompression task')
+
+        if ret_wr == -1:
+            raise TaskException(err, 'Write to file descriptor failed during decompression task')
+
+    def decompress(self, plugin):
+        cdef int ret
+        cdef int ret_rd = 0
+        cdef int ret_wr = 0
+        cdef int rd_fd = plugin['read_fd'].fd
+        cdef int wr_fd = plugin['write_fd'].fd
+        cdef uint32_t have
+        cdef z_stream strm
+        cdef unsigned char *in_buffer
+        cdef unsigned char *out_buffer
+        cdef uint32_t buffer_size = plugin.get('buffer_size', 1024*1024)
+
+        fds =[rd_fd, wr_fd]
+        try:
+            with nogil:
+                in_buffer = <unsigned char *>malloc(buffer_size * sizeof(uint8_t))
+                out_buffer = <unsigned char *>malloc(buffer_size * sizeof(uint8_t))
+
+                strm.zalloc = Z_NULL
+                strm.zfree = Z_NULL
+                strm.opaque = Z_NULL
+                strm.avail_in = 0
+                strm.next_in = Z_NULL
+                ret = inflateInit(&strm)
+            if ret != Z_OK:
+                self.decompress_t_status = (Z_ERRNO, ret_rd, ret_wr, errno)
+                return
+
+            with nogil:
+                while True:
+                    ret_rd = read_fd(rd_fd, in_buffer, buffer_size, 0)
+                    strm.avail_in = ret_rd
+                    if ret_rd < 1:
+                        break
+                    strm.next_in = in_buffer
+                    strm.avail_out = buffer_size
+                    strm.next_out = out_buffer
+                    ret = inflate(&strm, Z_FULL_FLUSH)
+                    if (ret == Z_NEED_DICT) or (ret == Z_DATA_ERROR) or (ret == Z_MEM_ERROR):
+                        break
+
+                    have = buffer_size - strm.avail_out
+                    ret_wr = write_fd(wr_fd, out_buffer, have)
+                    if ret_wr != have:
+                        break
+
+                inflateEnd(&strm)
+            self.decompress_t_status = (ret, ret_rd, ret_wr, errno)
+        finally:
+            free(in_buffer)
+            free(out_buffer)
+            close_fds(fds)
 
 
 @private
@@ -1374,10 +1585,12 @@ def _init(dispatcher, plugin):
         'type': 'object',
         'properties': {
             'name': {'type': 'string'},
-            'type': {'type': 'string'},
             'read_fd': {'type': 'fd'},
             'write_fd': {'type': 'fd'},
-            'level': {'type': 'integer'},
+            'level': {
+                'type': 'string',
+                'enum': ['FAST', 'DEFAULT', 'BEST'],
+            },
             'buffer_size': {'type': 'integer'}
         },
         'additionalProperties': False
