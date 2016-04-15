@@ -26,7 +26,6 @@
 #####################################################################
 
 import cython
-import libzfs
 import socket
 import logging
 import os
