@@ -905,7 +905,7 @@ class TransportDecompressTask(Task):
                 strm.zfree = Z_NULL
                 strm.opaque = Z_NULL
                 strm.avail_in = 0
-                strm.next_in = Z_NULL
+                strm.next_in = NULL
                 ret = inflateInit(&strm)
             if ret != Z_OK:
                 self.decompress_t_status = (Z_ERRNO, ret_rd, ret_wr, errno)
