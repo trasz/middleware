@@ -122,7 +122,7 @@ cipher_types = {
 
 
 cdef uint32_t read_fd(int fd, void *buf, uint32_t nbytes, uint32_t curr_pos) nogil:
-    cdef uint32_t ret
+    cdef int ret
     cdef uint32_t done = 0
 
     while True:
@@ -139,7 +139,7 @@ cdef uint32_t read_fd(int fd, void *buf, uint32_t nbytes, uint32_t curr_pos) nog
 
 
 cdef uint32_t write_fd(int fd, void *buf, uint32_t nbytes) nogil:
-    cdef uint32_t ret
+    cdef int ret
     cdef uint32_t done = 0
 
     while True:
@@ -226,7 +226,7 @@ class TransportSendTask(Task):
 
     def run(self, fd, transport):
         cdef uint8_t *token_buffer
-        cdef uint32_t ret
+        cdef int ret
         cdef uint32_t token_size
 
         sock = None
@@ -426,8 +426,8 @@ class TransportSendTask(Task):
 
     def pack_headers(self, r_fd, w_fd, buf_size):
         cdef uint32_t *buffer
-        cdef uint32_t ret
-        cdef uint32_t ret_wr
+        cdef int ret
+        cdef int ret_wr
         cdef uint32_t buffer_size = buf_size
         cdef uint32_t header_size = 2 * sizeof(uint32_t)
         cdef int rd_fd = r_fd.fd
@@ -506,7 +506,7 @@ class TransportReceiveTask(ProgressTask):
 
     def run(self, transport):
         cdef uint8_t *token_buf
-        cdef uint32_t ret
+        cdef int ret
 
         sock = None
         fds = []
@@ -656,8 +656,8 @@ class TransportReceiveTask(ProgressTask):
         cdef uint32_t magic = transport_header_magic
         cdef uint32_t buffer_size = buf_size
         cdef uint32_t header_size = 2 * sizeof(uint32_t)
-        cdef uint32_t ret
-        cdef uint32_t ret_wr
+        cdef int ret
+        cdef int ret_wr
         cdef int rd_fd = r_fd
         cdef int wr_fd = wr_fd
         try:
@@ -807,8 +807,8 @@ class TransportEncryptTask(Task):
         cdef uint32_t buffer_size
         cdef uint32_t header_size = 2 * sizeof(uint32_t)
         cdef uint32_t ret = 1
-        cdef uint32_t ret_wr = 0
-        cdef uint32_t plain_ret = 0
+        cdef int ret_wr = 0
+        cdef int plain_ret = 0
         cdef uint32_t renewal_interval
         cdef EVP_CIPHER_CTX *ctx
         cdef const EVP_CIPHER *(*cipher_function) () nogil
@@ -992,8 +992,8 @@ class TransportDecryptTask(Task):
         cdef uint32_t buffer_size
         cdef uint32_t header_size = 2 * sizeof(uint32_t)
         cdef uint32_t ret = 1
-        cdef uint32_t ret_wr = 0
-        cdef uint32_t cipher_ret = 0
+        cdef int ret_wr = 0
+        cdef int cipher_ret = 0
         cdef uint32_t length
         cdef EVP_CIPHER_CTX *ctx
         cdef const EVP_CIPHER *(*cipher_function) () nogil
@@ -1129,8 +1129,8 @@ class TransportThrottleTask(Task):
     def run(self, plugin):
         cdef uint8_t *buffer
         cdef uint32_t buffer_size
-        cdef uint32_t ret
-        cdef uint32_t ret_wr
+        cdef int ret
+        cdef int ret_wr
         cdef uint32_t done = 0
         cdef uint8_t running = 1
         cdef int rd_fd
