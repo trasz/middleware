@@ -707,7 +707,7 @@ class TransportReceiveTask(ProgressTask):
         cdef int ret
         cdef int ret_wr
         cdef int rd_fd = r_fd
-        cdef int wr_fd = wr_fd
+        cdef int wr_fd = w_fd
         try:
             with nogil:
                 buffer = <uint32_t *>malloc(buffer_size * sizeof(uint8_t))
