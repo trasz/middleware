@@ -135,9 +135,9 @@ cdef extern from "zlib.h" nogil:
 
 
 #Globals declaration
-cdef int encrypt_transfer_magic = 0xbadbeef0
-cdef int encrypt_rekey_magic = 0xbeefd00d
-cdef int transport_header_magic = 0xdeadbeef
+cdef uint32_t encrypt_transfer_magic = 0xbadbeef0
+cdef uint32_t encrypt_rekey_magic = 0xbeefd00d
+cdef uint32_t transport_header_magic = 0xdeadbeef
 
 
 logger = logging.getLogger('ReplicationTransportPlugin')
