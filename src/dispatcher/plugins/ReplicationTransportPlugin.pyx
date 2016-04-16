@@ -701,7 +701,6 @@ class TransportReceiveTask(ProgressTask):
         cdef uint32_t *buffer
         cdef uint32_t *header_buffer
         cdef uint32_t length
-        cdef uint32_t magic = transport_header_magic
         cdef uint32_t buffer_size = buf_size
         cdef uint32_t header_size = 2 * sizeof(uint32_t)
         cdef int ret
@@ -722,7 +721,7 @@ class TransportReceiveTask(ProgressTask):
                     if ret != header_size:
                         ret = -1
                         break
-                    if header_buffer[0] != magic:
+                    if header_buffer[0] != transport_header_magic:
                         break
                     length = header_buffer[1]
                     if length == 0:
