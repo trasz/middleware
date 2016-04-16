@@ -86,6 +86,22 @@ class Directory(object):
             raise ValueError('Failed to initialize {0}'.format(self.plugin_type))
 
 
+class ManagementService(RpcService):
+    def __init__(self, context):
+        self.logger = context.logger
+        self.context = context
+
+    def get_realms(self):
+        realms = []
+
+        for d in self.context.directories:
+            realm = d.instance.get_kerberos_realm()
+            if realm:
+                realms.append(realm)
+
+        return realms
+
+
 class AccountService(RpcService):
     def __init__(self, context):
         self.logger = context.logger
@@ -282,11 +298,13 @@ class Main(object):
                 self.client.register_service('dscached.account', AccountService(self))
                 self.client.register_service('dscached.group', GroupService(self))
                 self.client.register_service('dscached.host', HostService(self))
+                self.client.register_service('dscached.management', ManagementService(self))
                 self.client.register_service('dscached.debug', DebugService())
                 self.client.resume_service('dscached.account')
                 self.client.resume_service('dscached.group')
-                self.client.resume_service('dscached.debug')
                 self.client.resume_service('dscached.host')
+                self.client.resume_service('dscached.management')
+                self.client.resume_service('dscached.debug')
                 return
             except (OSError, RpcException) as err:
                 self.logger.warning('Cannot connect to dispatcher: {0}, retrying in 1 second'.format(str(err)))

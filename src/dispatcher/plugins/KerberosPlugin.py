@@ -26,14 +26,20 @@
 #####################################################################
 
 import krb5
-from freenas.dispatcher.rpc import SchemaHelper as h, accepts, returns, description
+import itertools
+from freenas.dispatcher.rpc import SchemaHelper as h, accepts, returns, description, generator
 from task import Task, TaskException, VerifyException, Provider, query
+from freenas.utils.query import wrap
 
 
 class KerberosRealmsProvider(Provider):
     @query('kerberos-realm')
+    @generator
     def query(self, filter=None, params=None):
-        return self.datastore.query('kerberos.realms', *(filter or []), **(params or {}))
+        return wrap(
+            self.dispatcher.call_sync('dscached.management.get_realms') +
+            self.datastore.query('kerberos.realms')
+        ).query(*(filter or []), **(params or {}))
 
 
 class KerberosKeytabsProvider(Provider):
