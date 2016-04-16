@@ -41,6 +41,7 @@ setup(
         Extension(
             "ReplicationTransportPlugin",
             ["plugins/ReplicationTransportPlugin.pyx"],
+            libraries=['crypto', 'z'],
             extra_compile_args=["-g", "-O0"],
             cython_compile_time_env={
                 'FREEBSD_VERSION': freebsd_version,
