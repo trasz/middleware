@@ -1547,6 +1547,8 @@ class KnownHostDeleteTask(Task):
         })
 
 def close_fds(fds):
+    if isinstance(fds, int):
+        fds = [fds]
     try:
         for fd in fds:
             os.close(fd)
