@@ -446,17 +446,25 @@ class TransportSendTask(Task):
             if self.recv_status:
                 check_recv_status()
                 header_t.join()
+                if header_wr != conn_fd:
+                    close_fds(header_wr)
                 check_header_t_status()
             else:
                 self.finished.clear()
                 check_header_t_status()
-                self.finished.wait()
-                check_recv_status()
 
             if header_wr != conn_fd:
                 close_fds(header_wr)
+
             logger.debug('All data fetched for transfer to {0}:{1}. Waiting for plugins to close.'.format(*addr))
             self.join_subtasks(*subtasks)
+            conn.shutdown(socket.SHUT_RDWR)
+            conn.close()
+            conn = None
+
+            if not self.recv_status:
+                self.finished.wait()
+            check_recv_status()
 
             logger.debug('Send to {0}:{1} finished. Closing connection'.format(*addr))
             remote_client.disconnect()
