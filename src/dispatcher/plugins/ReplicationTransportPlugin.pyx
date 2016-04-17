@@ -356,7 +356,7 @@ class TransportSendTask(Task):
 
             conn.setsockopt(socket.SOL_SOCKET, socket.SO_SNDBUF, buffer_size)
 
-            conn_fd = conn.fileno()
+            conn_fd = os.dup(conn.fileno())
             fds.append(conn_fd)
 
             token_buffer = <uint8_t *>malloc(token_size * sizeof(uint8_t))
