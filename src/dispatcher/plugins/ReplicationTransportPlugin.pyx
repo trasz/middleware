@@ -511,8 +511,8 @@ class TransportSendTask(Task):
                 IF REPLICATION_TRANSPORT_DEBUG:
                     logger.debug('Written {0} bytes -> TCP socket ({1}:{2})'.format(ret, *self.addr))
 
-            self.finished.set()
             self.header_t_status = (ret, ret_wr, errno)
+            self.finished.set()
 
         finally:
             free(buffer)
