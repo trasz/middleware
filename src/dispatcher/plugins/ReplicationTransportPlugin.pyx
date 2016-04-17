@@ -772,7 +772,7 @@ class TransportCompressTask(Task):
         return []
 
     def run(self, plugin):
-        compress_t = threading.Thread(target=self.compress, args=plugin)
+        compress_t = threading.Thread(target=self.compress, args=(plugin,))
         compress_t.start()
         compress_t.join()
         ret, ret_rd, ret_wr, err = self.compress_t_status
@@ -865,7 +865,7 @@ class TransportDecompressTask(Task):
         return []
 
     def run(self, plugin):
-        decompress_t = threading.Thread(target=self.decompress, args=plugin)
+        decompress_t = threading.Thread(target=self.decompress, args=(plugin,))
         decompress_t.start()
         decompress_t.join()
         ret, ret_rd, ret_wr, err = self.decompress_t_status
