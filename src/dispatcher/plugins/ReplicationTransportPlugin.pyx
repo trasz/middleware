@@ -419,9 +419,13 @@ class TransportSendTask(Task):
 
             def check_recv_status():
                 if self.recv_status.get('state') != 'FINISHED':
+                    error = self.recv_status.get('error')
                     raise TaskException(
-                        ECONNABORTED,
-                        'Receive process connected to {0}:{1} finished unexpectedly'.format(*addr)
+                        error.code,
+                        'Receive task connected to {1}:{2} finished unexpectedly with message: {0}'.format(
+                            error.message,
+                            *addr
+                        )
                     )
                 else:
                     logger.debug('Receive task at {0}:{1} finished'.format(*addr))
