@@ -782,6 +782,7 @@ class TransportCompressTask(Task):
         return []
 
     def run(self, plugin):
+        logger.debug('Starting compression task')
         compress_t = threading.Thread(target=self.compress, args=(plugin,))
         compress_t.start()
         compress_t.join()
@@ -790,7 +791,7 @@ class TransportCompressTask(Task):
         if ret == Z_ERRNO:
             raise TaskException(err, 'Compression initialization failed')
 
-        if ret != Z_STREAM_END:
+        if ret != Z_OK:
             raise TaskException(err, 'Compression stream did not complete properly')
 
         if ret_rd == -1:
@@ -798,6 +799,8 @@ class TransportCompressTask(Task):
 
         if ret_wr == -1:
             raise TaskException(err, 'Write to file descriptor failed during compression task')
+
+        logger.debug('Compression task finished')
 
     def compress(self, plugin):
         cdef int ret
@@ -810,6 +813,7 @@ class TransportCompressTask(Task):
         cdef z_stream strm
         cdef unsigned char *in_buffer
         cdef unsigned char *out_buffer
+        cdef uint8_t err = 0
         cdef uint32_t buffer_size = plugin.get('buffer_size', 1024*1024)
 
         fds =[rd_fd, wr_fd]
@@ -832,23 +836,41 @@ class TransportCompressTask(Task):
             if ret != Z_OK:
                 self.compress_t_status = (Z_ERRNO, ret_rd, ret_wr, errno)
                 return
+            IF REPLICATION_TRANSPORT_DEBUG:
+                logger.debug('Compression context initialization completed')
 
-            with nogil:
-                while True:
+            while True:
+                with nogil:
                     ret_rd = read_fd(rd_fd, in_buffer, buffer_size, 0)
                     strm.avail_in = ret_rd
                     if ret_rd < 1:
                         break
                     strm.next_in = in_buffer
-                    strm.avail_out = buffer_size
-                    strm.next_out = out_buffer
-                    ret = deflate(&strm, Z_FULL_FLUSH)
+                IF REPLICATION_TRANSPORT_DEBUG:
+                    logger.debug('Compression: got {0} bytes'.format(ret_rd))
 
-                    have = buffer_size - strm.avail_out
-                    ret_wr = write_fd(wr_fd, out_buffer, have)
+                while True:
+                    with nogil:
+                        strm.avail_out = buffer_size
+                        strm.next_out = out_buffer
+                        ret = deflate(&strm, Z_FULL_FLUSH)
+                    IF REPLICATION_TRANSPORT_DEBUG:
+                        logger.debug('Compression: buffer deflated')
+
+                    with nogil:
+                        have = buffer_size - strm.avail_out
+                        ret_wr = write_fd(wr_fd, out_buffer, have)
+                    IF REPLICATION_TRANSPORT_DEBUG:
+                        logger.debug('Compression: sent {0} bytes'.format(ret_wr))
                     if ret_wr != have:
+                        err = 1
                         break
+                    if strm.avail_out != 0:
+                        break
+                if err == 1:
+                    break
 
+            with nogil:
                 deflateEnd(&strm)
             self.compress_t_status = (ret, ret_rd, ret_wr, errno)
         finally:
@@ -883,7 +905,7 @@ class TransportDecompressTask(Task):
         if ret == Z_ERRNO:
             raise TaskException(err, 'Decompression initialization failed')
 
-        if ret != Z_STREAM_END:
+        if ret != Z_OK:
             fault = 'Data error'
             if ret == Z_MEM_ERROR:
                 fault = 'Not enough memory'
@@ -919,28 +941,49 @@ class TransportDecompressTask(Task):
                 strm.avail_in = 0
                 strm.next_in = NULL
                 ret = inflateInit(&strm)
+                strm.next_in = in_buffer
             if ret != Z_OK:
                 self.decompress_t_status = (Z_ERRNO, ret_rd, ret_wr, errno)
                 return
 
-            with nogil:
-                while True:
+            IF REPLICATION_TRANSPORT_DEBUG:
+                logger.debug('Decompression context initialization completed')
+
+            while True:
+                with nogil:
                     ret_rd = read_fd(rd_fd, in_buffer, buffer_size, 0)
                     strm.avail_in = ret_rd
                     if ret_rd < 1:
                         break
                     strm.next_in = in_buffer
-                    strm.avail_out = buffer_size
-                    strm.next_out = out_buffer
-                    ret = inflate(&strm, Z_FULL_FLUSH)
-                    if (ret == Z_NEED_DICT) or (ret == Z_DATA_ERROR) or (ret == Z_MEM_ERROR):
-                        break
+                IF REPLICATION_TRANSPORT_DEBUG:
+                    logger.debug('Decompression: got {0} bytes'.format(ret_rd))
 
-                    have = buffer_size - strm.avail_out
-                    ret_wr = write_fd(wr_fd, out_buffer, have)
+                while True:
+                    with nogil:
+                        strm.avail_out = buffer_size
+                        strm.next_out = out_buffer
+                        ret = inflate(&strm, Z_FULL_FLUSH)
+                        if (ret == Z_NEED_DICT) or (ret == Z_DATA_ERROR) or (ret == Z_MEM_ERROR):
+                            err = 1
+                            break
+                    IF REPLICATION_TRANSPORT_DEBUG:
+                        logger.debug('Decompression: buffer inflated')
+
+                    with nogil:
+                        have = buffer_size - strm.avail_out
+                        ret_wr = write_fd(wr_fd, out_buffer, have)
+                    IF REPLICATION_TRANSPORT_DEBUG:
+                        logger.debug('Decompression: sent {0} bytes'.format(ret_wr))
                     if ret_wr != have:
+                        err = 1
                         break
+                    if strm.avail_out != 0:
+                        break
+                if err == 1:
+                    break
 
+            with nogil:
                 inflateEnd(&strm)
             self.decompress_t_status = (ret, ret_rd, ret_wr, errno)
         finally:
