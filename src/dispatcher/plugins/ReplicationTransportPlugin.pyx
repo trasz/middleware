@@ -620,7 +620,7 @@ class TransportReceiveTask(ProgressTask):
                     plugin['read_fd'] = FileDescriptor(last_rd_fd)
                     plugin['write_fd'] = FileDescriptor(wr)
                     last_rd_fd = rd
-                    subtasks.append(self.run_subtask('replication.transport.{0}'.format(type), plugin))
+                    subtasks.append(self.run_subtask('replication.transport.{0}'.format(plugin['name']), plugin))
                     logger.debug('Registered {0} transport layer plugin for {1}:{2} connection'.format(type, *addr))
 
             ret = write_fd(conn_fd, token_buf, token_size)
