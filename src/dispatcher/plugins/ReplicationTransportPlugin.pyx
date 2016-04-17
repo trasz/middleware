@@ -419,7 +419,6 @@ class TransportSendTask(Task):
 
             def check_recv_status():
                 if self.recv_status.get('state') != 'FINISHED':
-                    close_fds(fds)
                     raise TaskException(
                         ECONNABORTED,
                         'Receive process connected to {0}:{1} finished unexpectedly'.format(*addr)
@@ -429,13 +428,11 @@ class TransportSendTask(Task):
 
             def check_header_t_status():
                 if self.header_t_status[1] == -1:
-                    close_fds(fds)
                     raise TaskException(
                         self.header_t_status[2],
                         'Header write failed during transmission to {0}:{1}'.format(*addr)
                     )
                 if self.header_t_status[0] == -1:
-                    close_fds(fds)
                     raise TaskException(
                         self.header_t_status[2],
                         'Data read failed during transmission to {0}:{1}'.format(*addr)
