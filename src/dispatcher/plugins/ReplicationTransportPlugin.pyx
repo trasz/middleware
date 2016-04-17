@@ -599,7 +599,7 @@ class TransportReceiveTask(ProgressTask):
 
             sock.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, buffer_size)
 
-            conn_fd = sock.fileno()
+            conn_fd = os.dup(sock.fileno())
             fds.append(conn_fd)
 
             plugins = transport.get('transport_plugins', [])
@@ -623,7 +623,7 @@ class TransportReceiveTask(ProgressTask):
                     subtasks.append(self.run_subtask('replication.transport.{0}'.format(plugin['name']), plugin))
                     logger.debug('Registered {0} transport layer plugin for {1}:{2} connection'.format(type, *addr))
 
-            ret = write_fd(conn_fd, token_buf, token_size)
+            ret = write_fd(sock.fileno(), token_buf, token_size)
             if ret == -1:
                 raise TaskException(ECONNABORTED, 'Transport connection closed unexpectedly')
             elif ret != token_size:
