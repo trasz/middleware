@@ -452,6 +452,8 @@ class TransportSendTask(Task):
                 self.finished.wait()
                 check_recv_status()
 
+            if header_wr != conn_fd:
+                close_fds(header_wr)
             logger.debug('All data fetched for transfer to {0}:{1}. Waiting for plugins to close.'.format(*addr))
             self.join_subtasks(*subtasks)
 
