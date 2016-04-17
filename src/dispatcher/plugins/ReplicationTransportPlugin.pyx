@@ -94,7 +94,6 @@ cdef extern from "zlib.h" nogil:
         Z_FULL_FLUSH
 
         Z_OK
-        Z_STREAM_END
         Z_NEED_DICT
         Z_ERRNO
         Z_DATA_ERROR
