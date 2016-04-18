@@ -483,7 +483,7 @@ class TransportSendTask(Task):
             error = status.get('error')
             close_fds(self.fds)
             raise TaskException(
-                error.code,
+                error['code'],
                 'Receive task connected to {1}:{2} finished unexpectedly with message: {0}'.format(
                     error.message,
                     *self.addr
@@ -1182,6 +1182,7 @@ class TransportDecryptTask(Task):
         cdef uint32_t buffer_size
         cdef uint32_t header_size = 2 * sizeof(uint32_t)
         cdef uint32_t ret = 1
+        cdef uint32_t magic
         cdef int ret_wr = 0
         cdef int cipher_ret = 0
         cdef uint32_t length
@@ -1306,7 +1307,7 @@ class TransportDecryptTask(Task):
                 if not ctx:
                     raise TaskException(errno, 'Cryptographic context creation failed')
 
-                magic = <bytes> header_buffer[0]
+                magic = header_buffer[0]
                 if magic:
                     if magic not in (encrypt_rekey_magic, encrypt_transfer_magic):
                         raise TaskException(EINVAL, 'Invalid magic received {0}'.format(magic))
