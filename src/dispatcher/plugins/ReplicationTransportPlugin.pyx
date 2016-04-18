@@ -247,8 +247,8 @@ class TransportSendTask(Task):
         super(TransportSendTask, self).__init__(dispatcher, datastore)
         self.finished = threading.Event()
         self.addr = None
-        self.recv_status = None
-        self.header_t_status = None
+        self.aborted = False
+        self.fds = []
 
     def verify(self, fd, transport):
         client_address = transport.get('client_address')
@@ -275,10 +275,15 @@ class TransportSendTask(Task):
         cdef uint8_t *token_buffer
         cdef int ret
         cdef uint32_t token_size
+        cdef uint32_t *buffer
+        cdef int ret_wr
+        cdef uint32_t buffer_size
+        cdef uint32_t header_size = 2 * sizeof(uint32_t)
+        cdef int rd_fd = fd.fd
+        cdef int wr_fd
 
         sock = None
         conn = None
-        fds = []
         try:
             buffer_size = transport.get('buffer_size', 1024*1024)
 
@@ -356,7 +361,7 @@ class TransportSendTask(Task):
             conn.setsockopt(socket.SOL_SOCKET, socket.SO_SNDBUF, buffer_size)
 
             conn_fd = os.dup(conn.fileno())
-            fds.append(conn_fd)
+            self.fds.append(conn_fd)
 
             token_buffer = <uint8_t *>malloc(token_size * sizeof(uint8_t))
             ret = read_fd(conn_fd, token_buffer, token_size, 0)
@@ -379,8 +384,8 @@ class TransportSendTask(Task):
 
             plugins = transport.get('transport_plugins', [])
             header_rd, header_wr = os.pipe()
-            fds.append(header_rd)
-            fds.append(header_wr)
+            self.fds.append(header_rd)
+            self.fds.append(header_wr)
             last_rd_fd = header_rd
             subtasks = []
             raw_subtasks = []
@@ -389,8 +394,8 @@ class TransportSendTask(Task):
                 plugin = first_or_default(lambda p: p['name'] == type, plugins)
                 if plugin:
                     rd, wr = os.pipe()
-                    fds.append(rd)
-                    fds.append(wr)
+                    self.fds.append(rd)
+                    self.fds.append(wr)
                     plugin['read_fd'] = FileDescriptor(last_rd_fd)
                     plugin['write_fd'] = FileDescriptor(wr)
                     last_rd_fd = rd
@@ -413,84 +418,7 @@ class TransportSendTask(Task):
             )
             self.addr = addr
 
-            header_t = threading.Thread(target=self.pack_headers, args=(fd, header_wr, buffer_size))
-            header_t.start()
-
-            def check_recv_status():
-                if self.recv_status.get('state') != 'FINISHED':
-                    error = self.recv_status.get('error')
-                    raise TaskException(
-                        error.code,
-                        'Receive task connected to {1}:{2} finished unexpectedly with message: {0}'.format(
-                            error.message,
-                            *addr
-                        )
-                    )
-                else:
-                    logger.debug('Receive task at {0}:{1} finished'.format(*addr))
-
-            def check_header_t_status():
-                if self.header_t_status[1] == -1:
-                    raise TaskException(
-                        self.header_t_status[2],
-                        'Header write failed during transmission to {0}:{1}'.format(*addr)
-                    )
-                if self.header_t_status[0] == -1:
-                    raise TaskException(
-                        self.header_t_status[2],
-                        'Data read failed during transmission to {0}:{1}'.format(*addr)
-                    )
-
-            self.finished.wait()
-            if self.recv_status:
-                check_recv_status()
-                header_t.join()
-                if header_wr != conn_fd:
-                    close_fds(header_wr)
-                check_header_t_status()
-            else:
-                self.finished.clear()
-                check_header_t_status()
-
-            if header_wr != conn_fd:
-                close_fds(header_wr)
-
-            logger.debug('All data fetched for transfer to {0}:{1}. Waiting for plugins to close.'.format(*addr))
-            self.join_subtasks(*subtasks)
-            conn.shutdown(socket.SHUT_RDWR)
-            conn.close()
-            conn = None
-
-            if not self.recv_status:
-                self.finished.wait()
-            check_recv_status()
-
-            logger.debug('Send to {0}:{1} finished. Closing connection'.format(*addr))
-            remote_client.disconnect()
-
-        finally:
-            free(token_buffer)
-            if sock:
-                sock.shutdown(socket.SHUT_RDWR)
-                sock.close()
-            if conn:
-                conn.shutdown(socket.SHUT_RDWR)
-                conn.close()
-            close_fds(fds)
-
-    def get_recv_status(self, status):
-        self.recv_status = status
-        self.finished.set()
-
-    def pack_headers(self, r_fd, w_fd, buf_size):
-        cdef uint32_t *buffer
-        cdef int ret
-        cdef int ret_wr
-        cdef uint32_t buffer_size = buf_size
-        cdef uint32_t header_size = 2 * sizeof(uint32_t)
-        cdef int rd_fd = r_fd.fd
-        cdef int wr_fd = w_fd
-        try:
+            wr_fd = header_wr
             with nogil:
                 buffer = <uint32_t *>malloc((buffer_size + header_size) * sizeof(uint8_t))
 
@@ -518,11 +446,57 @@ class TransportSendTask(Task):
                 IF REPLICATION_TRANSPORT_DEBUG:
                     logger.debug('Written {0} bytes -> TCP socket ({1}:{2})'.format(ret, *self.addr))
 
-            self.header_t_status = (ret, ret_wr, errno)
-            self.finished.set()
-
         finally:
+            if header_wr != conn_fd:
+                close_fds(header_wr)
+            if not self.aborted:
+                if ret_wr == -1:
+                    raise TaskException(
+                        errno,
+                        'Header write failed during transmission to {0}:{1}'.format(*addr)
+                    )
+                if ret == -1:
+                    raise TaskException(
+                        errno,
+                        'Data read failed during transmission to {0}:{1}'.format(*addr)
+                    )
+                logger.debug('All data fetched for transfer to {0}:{1}. Waiting for plugins to close.'.format(*addr))
+                self.join_subtasks(*subtasks)
+                if conn:
+                    conn.shutdown(socket.SHUT_RDWR)
+                    conn.close()
+
+                self.finished.wait()
+
+                logger.debug('Send to {0}:{1} finished. Closing connection'.format(*addr))
+                remote_client.disconnect()
+
             free(buffer)
+            free(token_buffer)
+            if sock:
+                sock.shutdown(socket.SHUT_RDWR)
+                sock.close()
+            close_fds(self.fds)
+
+    def get_recv_status(self, status):
+        if status.get('state') != 'FINISHED':
+            error = status.get('error')
+            close_fds(self.fds)
+            raise TaskException(
+                error.code,
+                'Receive task connected to {1}:{2} finished unexpectedly with message: {0}'.format(
+                    error.message,
+                    *self.addr
+                )
+            )
+        else:
+            logger.debug('Receive task at {0}:{1} finished'.format(*self.addr))
+        self.finished.set()
+
+    def abort(self):
+        self.aborted = True
+        self.finished.set()
+        close_fds(self.fds)
 
 
 @private
@@ -535,7 +509,8 @@ class TransportReceiveTask(ProgressTask):
         self.estimated_size = 0
         self.running = True
         self.addr = None
-        self.header_t_status = None
+        self.aborted = False
+        self.fds = []
 
     def verify(self, transport):
         if 'auth_token' not in transport:
@@ -565,9 +540,16 @@ class TransportReceiveTask(ProgressTask):
     def run(self, transport):
         cdef uint8_t *token_buf
         cdef int ret
+        cdef uint32_t *buffer
+        cdef uint32_t *header_buffer
+        cdef uint32_t length
+        cdef uint32_t buffer_size
+        cdef uint32_t header_size = 2 * sizeof(uint32_t)
+        cdef int ret_wr
+        cdef int header_rd
+        cdef int header_wr
 
         sock = None
-        fds = []
         try:
             buffer_size = transport.get('buffer_size', 1024*1024)
 
@@ -607,7 +589,7 @@ class TransportReceiveTask(ProgressTask):
             sock.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, buffer_size)
 
             conn_fd = os.dup(sock.fileno())
-            fds.append(conn_fd)
+            self.fds.append(conn_fd)
 
             plugins = transport.get('transport_plugins', [])
             last_rd_fd = conn_fd
@@ -622,8 +604,8 @@ class TransportReceiveTask(ProgressTask):
                         plugin['name'] = 'decrypt'
                         plugin['auth_token'] = transport.get('auth_token').encode('utf-8')
                     rd, wr = os.pipe()
-                    fds.append(rd)
-                    fds.append(wr)
+                    self.fds.append(rd)
+                    self.fds.append(wr)
                     plugin['read_fd'] = FileDescriptor(last_rd_fd)
                     plugin['write_fd'] = FileDescriptor(wr)
                     last_rd_fd = rd
@@ -640,8 +622,8 @@ class TransportReceiveTask(ProgressTask):
             logger.debug('Authentication token sent to {0}:{1}'.format(*addr))
 
             zfs_rd, zfs_wr = os.pipe()
-            fds.append(zfs_wr)
-            fds.append(zfs_rd)
+            self.fds.append(zfs_wr)
+            self.fds.append(zfs_rd)
             recv_props = transport.get('receive_properties')
             subtasks.append(self.run_subtask(
                 'zfs.receive',
@@ -657,37 +639,75 @@ class TransportReceiveTask(ProgressTask):
             progress_t.start()
             logger.debug('Started zfs receive task for {0}:{1} connection'.format(*addr))
 
-            header_t = threading.Thread(target=self.unpack_headers, args=(last_rd_fd, zfs_wr, buffer_size))
-            header_t.start()
-            header_t.join()
+            header_rd = last_rd_fd
+            header_wr = zfs_wr
 
-            if self.header_t_status[2] != transport_header_magic:
-                raise TaskException(
-                    EINVAL,
-                    'Bad magic {0} received. Expected {1}'.format(self.header_t_status[2], transport_header_magic)
-                )
-            if self.header_t_status[0] == -1:
-                raise TaskException(
-                    self.header_t_status[3],
-                    'Data read failed during transmission from {0}:{1}'.format(*self.addr)
-                )
-            if self.header_t_status[1] == -1:
-                raise TaskException(
-                    self.header_t_status[3],
-                    'Data write failed during transmission from {0}:{1}'.format(*self.addr)
-                )
+            with nogil:
+                buffer = <uint32_t *>malloc(buffer_size * sizeof(uint8_t))
+                header_buffer = <uint32_t *>malloc(header_size * sizeof(uint8_t))
+            while True:
+                with nogil:
+                    ret = read_fd(header_rd, header_buffer, header_size, 0)
+                IF REPLICATION_TRANSPORT_DEBUG:
+                    logger.debug('Got {0} bytes of header ({1}:{2})'.format(ret, *self.addr))
 
-            self.running = False
-            logger.debug('All data fetched for transfer from {0}:{1}. Waiting for plugins to close.'.format(*addr))
-            self.join_subtasks(*subtasks)
-            progress_t.join()
-            logger.debug('Receive from {0}:{1} finished. Closing connection'.format(*addr))
+                with nogil:
+                    if ret != header_size:
+                        ret = -1
+                        break
+                    if header_buffer[0] != transport_header_magic:
+                        break
+                    length = header_buffer[1]
+                    if length == 0:
+                        break
+
+                    ret = read_fd(header_rd, buffer, length, 0)
+                IF REPLICATION_TRANSPORT_DEBUG:
+                    logger.debug('Got {0} bytes of payload ({1}:{2})'.format(ret, *self.addr))
+                with nogil:
+                    if ret != length:
+                        ret = -1
+                        break
+
+                self.done += ret
+
+                with nogil:
+                    ret_wr = write_fd(header_wr, buffer, length)
+                    if ret_wr == -1:
+                        break
+                IF REPLICATION_TRANSPORT_DEBUG:
+                    logger.debug('Written {0} bytes of payload -> zfs.receive ({1}:{2})'.format(length, *self.addr))
 
         finally:
+            if not self.aborted:
+                if header_buffer[0] != transport_header_magic:
+                    raise TaskException(
+                        EINVAL,
+                        'Bad magic {0} received. Expected {1}'.format(header_buffer[0], transport_header_magic)
+                    )
+                if ret == -1:
+                    raise TaskException(
+                        errno,
+                        'Data read failed during transmission from {0}:{1}'.format(*self.addr)
+                    )
+                if ret_wr == -1:
+                    raise TaskException(
+                        errno,
+                        'Data write failed during transmission from {0}:{1}'.format(*self.addr)
+                    )
+
+                logger.debug('All data fetched for transfer from {0}:{1}. Waiting for plugins to close.'.format(*addr))
+                self.join_subtasks(*subtasks)
+
+            self.running = False
+            progress_t.join()
+            logger.debug('Receive from {0}:{1} finished. Closing connection'.format(*addr))
+            free(buffer)
+            free(header_buffer)
             if sock:
                 sock.shutdown(socket.SHUT_RDWR)
                 sock.close()
-            close_fds(fds)
+            close_fds(self.fds)
 
     def count_progress(self):
         last_done = 0
@@ -709,58 +729,9 @@ class TransportReceiveTask(ProgressTask):
             transfer_speed = 0
         logger.debug('Overall transfer speed {0} B/s - {1}:{2}'.format(transfer_speed, *self.addr))
 
-    def unpack_headers(self, r_fd, w_fd, buf_size):
-        cdef uint32_t *buffer
-        cdef uint32_t *header_buffer
-        cdef uint32_t length
-        cdef uint32_t buffer_size = buf_size
-        cdef uint32_t header_size = 2 * sizeof(uint32_t)
-        cdef int ret
-        cdef int ret_wr
-        cdef int rd_fd = r_fd
-        cdef int wr_fd = w_fd
-        try:
-            with nogil:
-                buffer = <uint32_t *>malloc(buffer_size * sizeof(uint8_t))
-                header_buffer = <uint32_t *>malloc(header_size * sizeof(uint8_t))
-            while True:
-                with nogil:
-                    ret = read_fd(rd_fd, header_buffer, header_size, 0)
-                IF REPLICATION_TRANSPORT_DEBUG:
-                    logger.debug('Got {0} bytes of header ({1}:{2})'.format(ret, *self.addr))
-
-                with nogil:
-                    if ret != header_size:
-                        ret = -1
-                        break
-                    if header_buffer[0] != transport_header_magic:
-                        break
-                    length = header_buffer[1]
-                    if length == 0:
-                        break
-
-                    ret = read_fd(rd_fd, buffer, length, 0)
-                IF REPLICATION_TRANSPORT_DEBUG:
-                    logger.debug('Got {0} bytes of payload ({1}:{2})'.format(ret, *self.addr))
-                with nogil:
-                    if ret != length:
-                        ret = -1
-                        break
-
-                self.done += ret
-
-                with nogil:
-                    ret_wr = write_fd(wr_fd, buffer, length)
-                    if ret_wr == -1:
-                        break
-                IF REPLICATION_TRANSPORT_DEBUG:
-                    logger.debug('Written {0} bytes of payload -> zfs.receive ({1}:{2})'.format(length, *self.addr))
-
-            self.header_t_status = (ret, ret_wr, header_buffer[0], errno)
-
-        finally:
-            free(buffer)
-            free(header_buffer)
+    def abort(self):
+        self.aborted = True
+        close_fds(self.fds)
 
 
 @private
@@ -769,7 +740,8 @@ class TransportReceiveTask(ProgressTask):
 class TransportCompressTask(Task):
     def __init__(self, dispatcher, datastore):
         super(TransportCompressTask, self).__init__(dispatcher, datastore)
-        self.compress_t_status = None
+        self.fds = []
+        self.aborted = False
 
     def verify(self, plugin):
         if 'read_fd' not in plugin:
@@ -781,27 +753,6 @@ class TransportCompressTask(Task):
         return []
 
     def run(self, plugin):
-        logger.debug('Starting compression task')
-        compress_t = threading.Thread(target=self.compress, args=(plugin,))
-        compress_t.start()
-        compress_t.join()
-        ret, ret_rd, ret_wr, err = self.compress_t_status
-
-        if ret == Z_ERRNO:
-            raise TaskException(err, 'Compression initialization failed')
-
-        if ret != Z_OK:
-            raise TaskException(err, 'Compression stream did not complete properly')
-
-        if ret_rd == -1:
-            raise TaskException(err, 'Read from file descriptor failed during compression task')
-
-        if ret_wr == -1:
-            raise TaskException(err, 'Write to file descriptor failed during compression task')
-
-        logger.debug('Compression task finished')
-
-    def compress(self, plugin):
         cdef int ret
         cdef int ret_rd = 0
         cdef int ret_wr = 0
@@ -815,7 +766,8 @@ class TransportCompressTask(Task):
         cdef uint8_t err = 0
         cdef uint32_t buffer_size = plugin.get('buffer_size', 1024*1024)
 
-        fds =[rd_fd, wr_fd]
+        self.fds.append(rd_fd)
+        self.fds.append(wr_fd)
 
         comp_level = plugin.get('level', 'DEFAULT')
         if comp_level == 'BEST':
@@ -833,7 +785,6 @@ class TransportCompressTask(Task):
                 strm.opaque = Z_NULL
                 ret = deflateInit(&strm, level)
             if ret != Z_OK:
-                self.compress_t_status = (Z_ERRNO, ret_rd, ret_wr, errno)
                 return
             IF REPLICATION_TRANSPORT_DEBUG:
                 logger.debug('Compression context initialization completed')
@@ -871,11 +822,29 @@ class TransportCompressTask(Task):
 
             with nogil:
                 deflateEnd(&strm)
-            self.compress_t_status = (ret, ret_rd, ret_wr, errno)
+
         finally:
+            if not self.aborted:
+                if ret == Z_ERRNO:
+                    raise TaskException(err, 'Compression initialization failed')
+
+                if ret != Z_OK:
+                    raise TaskException(err, 'Compression stream did not complete properly')
+
+                if ret_rd == -1:
+                    raise TaskException(err, 'Read from file descriptor failed during compression task')
+
+                if ret_wr == -1:
+                    raise TaskException(err, 'Write to file descriptor failed during compression task')
+
+                logger.debug('Compression task finished')
             free(in_buffer)
             free(out_buffer)
-            close_fds(fds)
+            close_fds(self.fds)
+
+    def abort(self):
+        self.aborted = True
+        close_fds(self.fds)
 
 
 @private
@@ -884,7 +853,8 @@ class TransportCompressTask(Task):
 class TransportDecompressTask(Task):
     def __init__(self, dispatcher, datastore):
         super(TransportDecompressTask, self).__init__(dispatcher, datastore)
-        self.decompress_t_status = None
+        self.fds = []
+        self.aborted = False
 
     def verify(self, plugin):
         if 'read_fd' not in plugin:
@@ -896,27 +866,6 @@ class TransportDecompressTask(Task):
         return []
 
     def run(self, plugin):
-        decompress_t = threading.Thread(target=self.decompress, args=(plugin,))
-        decompress_t.start()
-        decompress_t.join()
-        ret, ret_rd, ret_wr, err = self.decompress_t_status
-
-        if ret == Z_ERRNO:
-            raise TaskException(err, 'Decompression initialization failed')
-
-        if ret != Z_OK:
-            fault = 'Data error'
-            if ret == Z_MEM_ERROR:
-                fault = 'Not enough memory'
-            raise TaskException(err, 'Compression stream did not complete properly. {0}'.format(fault))
-
-        if ret_rd == -1:
-            raise TaskException(err, 'Read from file descriptor failed during decompression task')
-
-        if ret_wr == -1:
-            raise TaskException(err, 'Write to file descriptor failed during decompression task')
-
-    def decompress(self, plugin):
         cdef int ret
         cdef int ret_rd = 0
         cdef int ret_wr = 0
@@ -928,7 +877,8 @@ class TransportDecompressTask(Task):
         cdef unsigned char *out_buffer
         cdef uint32_t buffer_size = plugin.get('buffer_size', 1024*1024)
 
-        fds =[rd_fd, wr_fd]
+        self.fds.append(rd_fd)
+        self.fds.append(wr_fd)
         try:
             with nogil:
                 in_buffer = <unsigned char *>malloc(buffer_size * sizeof(uint8_t))
@@ -942,7 +892,6 @@ class TransportDecompressTask(Task):
                 ret = inflateInit(&strm)
                 strm.next_in = in_buffer
             if ret != Z_OK:
-                self.decompress_t_status = (Z_ERRNO, ret_rd, ret_wr, errno)
                 return
 
             IF REPLICATION_TRANSPORT_DEBUG:
@@ -984,11 +933,30 @@ class TransportDecompressTask(Task):
 
             with nogil:
                 inflateEnd(&strm)
-            self.decompress_t_status = (ret, ret_rd, ret_wr, errno)
+
         finally:
+            if not self.aborted:
+                if ret == Z_ERRNO:
+                    raise TaskException(errno, 'Decompression initialization failed')
+
+                if ret != Z_OK:
+                    fault = 'Data error'
+                    if ret == Z_MEM_ERROR:
+                        fault = 'Not enough memory'
+                    raise TaskException(errno, 'Compression stream did not complete properly. {0}'.format(fault))
+
+                if ret_rd == -1:
+                    raise TaskException(errno, 'Read from file descriptor failed during decompression task')
+
+                if ret_wr == -1:
+                    raise TaskException(errno, 'Write to file descriptor failed during decompression task')
             free(in_buffer)
             free(out_buffer)
-            close_fds(fds)
+            close_fds(self.fds)
+
+    def abort(self):
+        self.aborted = True
+        close_fds(self.fds)
 
 
 @private
@@ -997,7 +965,8 @@ class TransportDecompressTask(Task):
 class TransportEncryptTask(Task):
     def __init__(self, dispatcher, datastore):
         super(TransportEncryptTask, self).__init__(dispatcher, datastore)
-        self.encrypt_t_status = None
+        self.fds = []
+        self.aborted = False
 
     def verify(self, plugin):
         if 'auth_token' not in plugin:
@@ -1012,6 +981,22 @@ class TransportEncryptTask(Task):
         return []
 
     def run(self, plugin):
+        cdef uint32_t *plainbuffer
+        cdef unsigned char *cipherbuffer
+        cdef uint8_t *iv
+        cdef uint8_t *key
+        cdef uint32_t buffer_size
+        cdef uint32_t header_size = 2 * sizeof(uint32_t)
+        cdef uint32_t ret = 1
+        cdef int ret_wr = 0
+        cdef int plain_ret = 0
+        cdef uint32_t renewal_interval
+        cdef EVP_CIPHER_CTX *ctx
+        cdef const EVP_CIPHER *(*cipher_function) () nogil
+        cdef int rd_fd
+        cdef int wr_fd
+        cdef int cipher_ret
+
         remote = plugin.get('remote')
         encryption_type = plugin.get('type', 'AES128')
         buffer_size = plugin.get('buffer_size', 1024*1024)
@@ -1023,6 +1008,8 @@ class TransportEncryptTask(Task):
 
         py_key = os.urandom(key_size)
         py_iv = os.urandom(iv_size)
+        key = py_key
+        iv = py_iv
 
         if renewal_interval:
             if (key_size + iv_size) > buffer_size:
@@ -1046,56 +1033,12 @@ class TransportEncryptTask(Task):
         )
         remote_client.disconnect()
 
-        encrypt_t = threading.Thread(target=self.encrypt_data, args=(plugin, py_key, py_iv))
-        encrypt_t.start()
-        encrypt_t.join()
-
-        plain_ret, ret, ret_wr, ctx, err = self.encrypt_t_status
-
-        if plain_ret == -1:
-            raise TaskException(err, 'Read from file descriptor failed during encryption task')
-
-        if ret != 1:
-            raise TaskException(err, 'Cryptographic function failed during encryption task')
-
-        if ret_wr == -1:
-            raise TaskException(err, 'Write to file descriptor failed during encryption task')
-
-        if ctx == 0:
-            raise TaskException(err, 'Cryptographic context creation failed')
-
-    def encrypt_data(self, plugin, p_key, p_iv):
-        cdef uint32_t *plainbuffer
-        cdef unsigned char *cipherbuffer
-        cdef uint8_t *iv = p_iv
-        cdef uint8_t *key = p_key
-        cdef uint32_t buffer_size
-        cdef uint32_t header_size = 2 * sizeof(uint32_t)
-        cdef uint32_t ret = 1
-        cdef int ret_wr = 0
-        cdef int plain_ret = 0
-        cdef uint32_t renewal_interval
-        cdef EVP_CIPHER_CTX *ctx
-        cdef const EVP_CIPHER *(*cipher_function) () nogil
-        cdef int rd_fd
-        cdef int wr_fd
-        cdef int cipher_ret
-
-        py_key = p_key
-        py_iv = p_iv
-        fds = []
         try:
-            encryption_type = plugin.get('type', 'AES128')
-            buffer_size = plugin.get('buffer_size', 1024*1024)
-            renewal_interval = plugin.get('renewal_interval', 0)
             rd_fd = plugin.get('read_fd').fd
-            fds.append(rd_fd)
+            self.fds.append(rd_fd)
             wr_fd = plugin.get('write_fd').fd
-            fds.append(wr_fd)
-            cipher = cipher_types.get(encryption_type)
+            self.fds.append(wr_fd)
             cipher_function = <const EVP_CIPHER *(*)() nogil><uintptr_t> cipher['function']
-            key_size = cipher['key_size']
-            iv_size = cipher['iv_size']
 
             cipherbuffer = <unsigned char *>malloc((buffer_size + header_size) * sizeof(uint8_t))
             plainbuffer = <uint32_t *>malloc((buffer_size + header_size) * sizeof(uint8_t))
@@ -1108,13 +1051,11 @@ class TransportEncryptTask(Task):
                 ctx = EVP_CIPHER_CTX_new()
             if ctx == NULL:
                 ERR_print_errors_fp(stderr)
-                self.encrypt_t_status = (plain_ret, ret, ret_wr, 0, errno)
                 return
             with nogil:
                 ret = EVP_EncryptInit_ex(ctx, cipher_function(), NULL, key, iv)
             if ret != 1:
                 ERR_print_errors_fp(stderr)
-                self.encrypt_t_status = (plain_ret, ret, ret_wr, 1, errno)
                 return
 
             while True:
@@ -1185,14 +1126,28 @@ class TransportEncryptTask(Task):
                     if (cipher_ret > 0) and (ret == 1):
                         ret_wr = write_fd(wr_fd, cipherbuffer, cipher_ret)
 
-            self.encrypt_t_status = (plain_ret, ret, ret_wr, 1 if ctx else 0, errno)
-
         finally:
+            if not self.aborted:
+                if plain_ret == -1:
+                    raise TaskException(errno, 'Read from file descriptor failed during encryption task')
+
+                if ret != 1:
+                    raise TaskException(errno, 'Cryptographic function failed during encryption task')
+
+                if ret_wr == -1:
+                    raise TaskException(errno, 'Write to file descriptor failed during encryption task')
+
+                if not ctx:
+                    raise TaskException(errno, 'Cryptographic context creation failed')
             with nogil:
                 EVP_CIPHER_CTX_free(ctx)
             free(plainbuffer)
             free(cipherbuffer)
-            close_fds(fds)
+            close_fds(self.fds)
+
+    def abort(self):
+        self.aborted = True
+        close_fds(self.fds)
 
 
 @private
@@ -1201,7 +1156,8 @@ class TransportEncryptTask(Task):
 class TransportDecryptTask(Task):
     def __init__(self, dispatcher, datastore):
         super(TransportDecryptTask, self).__init__(dispatcher, datastore)
-        self.decrypt_t_status = None
+        self.fds = []
+        self.aborted = False
 
     def verify(self, plugin):
         if 'auth_token' not in plugin:
@@ -1216,37 +1172,6 @@ class TransportDecryptTask(Task):
         return []
 
     def run(self, plugin):
-        encryption_type = plugin.get('type', 'AES128')
-        buffer_size = plugin.get('buffer_size', 1024*1024)
-        token = plugin.get('auth_token')
-
-        initial_cipher = self.dispatcher.call_sync('replication.transport.get_encryption_data', token)
-        py_key = base64.b64decode(initial_cipher['key'].encode('utf-8'))
-        py_iv = base64.b64decode(initial_cipher['iv'].encode('utf-8'))
-
-        decrypt_t = threading.Thread(target=self.decrypt_data, args=(plugin, py_key, py_iv))
-        decrypt_t.start()
-        decrypt_t.join()
-
-        cipher_ret, ret, ret_wr, ctx, magic, err = self.encrypt_t_status
-
-        if cipher_ret == -1:
-            raise TaskException(err, 'Read from file descriptor failed during decryption task')
-
-        if ret != 1:
-            raise TaskException(err, 'Cryptographic function failed during decryption task')
-
-        if ret_wr == -1:
-            raise TaskException(err, 'Write to file descriptor failed during decryption task')
-
-        if ctx == 0:
-            raise TaskException(err, 'Cryptographic context creation failed')
-
-        if magic:
-            if magic not in (encrypt_rekey_magic, encrypt_transfer_magic):
-                raise TaskException(EINVAL, 'Invalid magic received {0}'.format(magic))
-
-    def decrypt_data(self, plugin, p_key, p_iv):
         cdef uint32_t *plainbuffer
         cdef uint32_t *header_buffer
         cdef unsigned char *cipherbuffer
@@ -1266,18 +1191,22 @@ class TransportDecryptTask(Task):
         cdef int wr_fd
         cdef int plain_ret
 
-        fds = []
         try:
             encryption_type = plugin.get('type', 'AES128')
             buffer_size = plugin.get('buffer_size', 1024*1024)
             rd_fd = plugin.get('read_fd').fd
-            fds.append(rd_fd)
+            self.fds.append(rd_fd)
             wr_fd = plugin.get('write_fd').fd
-            fds.append(wr_fd)
+            self.fds.append(wr_fd)
             cipher = cipher_types.get(encryption_type)
             cipher_function = <const EVP_CIPHER *(*)() nogil><uintptr_t> cipher['function']
             key_size = cipher['key_size']
             iv_size = cipher['iv_size']
+            token = plugin.get('auth_token')
+
+            initial_cipher = self.dispatcher.call_sync('replication.transport.get_encryption_data', token)
+            py_key = base64.b64decode(initial_cipher['key'].encode('utf-8'))
+            py_iv = base64.b64decode(initial_cipher['iv'].encode('utf-8'))
 
             with nogil:
                 cipherbuffer = <unsigned char *>malloc(buffer_size * sizeof(uint8_t))
@@ -1287,8 +1216,8 @@ class TransportDecryptTask(Task):
                 key = <uint8_t *>malloc(key_size * sizeof(uint8_t))
                 iv = <uint8_t *>malloc(iv_size * sizeof(uint8_t))
 
-            memcpy(key, <const void *> p_key, key_size)
-            memcpy(iv, <const void *> p_iv, iv_size)
+            memcpy(key, <const void *> py_key, key_size)
+            memcpy(iv, <const void *> py_iv, iv_size)
 
             with nogil:
                 ERR_load_crypto_strings()
@@ -1297,13 +1226,11 @@ class TransportDecryptTask(Task):
                 ctx = EVP_CIPHER_CTX_new()
             if ctx == NULL:
                 ERR_print_errors_fp(stderr)
-                self.decrypt_t_status = (cipher_ret, ret, ret_wr, 0, 0, errno)
                 return
             with nogil:
                 ret = EVP_DecryptInit_ex(ctx, cipher_function(), NULL, key, iv)
             if ret != 1:
                 ERR_print_errors_fp(stderr)
-                self.decrypt_t_status = (cipher_ret, ret, ret_wr, 1, 0, errno)
                 return
 
             while True:
@@ -1365,9 +1292,25 @@ class TransportDecryptTask(Task):
                         if length == 0:
                             break
 
-            self.decrypt_t_status = (cipher_ret, ret, ret_wr, 1 if ctx else 0, <bytes> header_buffer[0], errno)
-
         finally:
+            if not self.aborted:
+                if cipher_ret == -1:
+                    raise TaskException(errno, 'Read from file descriptor failed during decryption task')
+
+                if ret != 1:
+                    raise TaskException(errno, 'Cryptographic function failed during decryption task')
+
+                if ret_wr == -1:
+                    raise TaskException(errno, 'Write to file descriptor failed during decryption task')
+
+                if not ctx:
+                    raise TaskException(errno, 'Cryptographic context creation failed')
+
+                magic = <bytes> header_buffer[0]
+                if magic:
+                    if magic not in (encrypt_rekey_magic, encrypt_transfer_magic):
+                        raise TaskException(EINVAL, 'Invalid magic received {0}'.format(magic))
+
             with nogil:
                 EVP_CIPHER_CTX_free(ctx)
             free(plainbuffer)
@@ -1375,13 +1318,22 @@ class TransportDecryptTask(Task):
             free(header_buffer)
             free(iv)
             free(key)
-            close_fds(fds)
+            close_fds(self.fds)
+
+    def abort(self):
+        self.aborted = True
+        close_fds(self.fds)
 
 
 @private
 @description('Limit throughput to one buffer size per second')
 @accepts(h.ref('throttle-plugin'))
 class TransportThrottleTask(Task):
+    def __init__(self, dispatcher, datastore):
+        super(TransportThrottleTask, self).__init__(dispatcher, datastore)
+        self.fds = []
+        self.aborted = False
+
     def verify(self, plugin):
         if 'read_fd' not in plugin:
             raise VerifyException(ENOENT, 'Read file descriptor is not specified')
@@ -1414,7 +1366,9 @@ class TransportThrottleTask(Task):
             buffer_size = plugin.get('buffer_size', 50*1024*1024)
             buffer = <uint8_t *>malloc(buffer_size * sizeof(uint8_t))
             rd_fd = plugin.get('read_fd').fd
+            self.fds.append(rd_fd)
             wr_fd = plugin.get('write_fd').fd
+            self.fds.append(wr_fd)
             IF REPLICATION_TRANSPORT_DEBUG:
                 logger.debug('Starting throttle task - max transfer speed {0} B/s'.format(buffer_size))
 
@@ -1455,15 +1409,20 @@ class TransportThrottleTask(Task):
                     IF REPLICATION_TRANSPORT_DEBUG:
                         logger.debug('Throttle task released by timer.')
 
-            if ret == -1:
-                raise TaskException(errno, 'Throttle task failed on read from file descriptor')
+            if not self.aborted:
+                if ret == -1:
+                    raise TaskException(errno, 'Throttle task failed on read from file descriptor')
 
-            if ret_wr == -1:
-                raise TaskException(errno, 'Throttle task failed on write to file descriptor')
+                if ret_wr == -1:
+                    raise TaskException(errno, 'Throttle task failed on write to file descriptor')
 
         finally:
             free(buffer)
             close_fds([wr_fd, rd_fd])
+
+    def abort(self):
+        self.aborted = True
+        close_fds(self.fds)
 
 
 @description('Exchange keys with remote machine for replication purposes')
