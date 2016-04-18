@@ -641,9 +641,21 @@ function TasksController($scope) {
         sock.call("task.submit", [$("#task").val()].concat(JSON.parse($("#args").val())), function(result) {
             console.log(result);
             $("#result").html(angular.toJson(result, 4));
-            $("#result").show("slow")
+            $("#result").show("slow");
+            refresh_tasks();
         });
     });
+    function refresh_tasks(){
+        $("#tasklist tbody").empty();
+        sock.call("task.query", [[["state", "in", ["CREATED", "WAITING", "EXECUTING"]]]], function (tasks) {
+            $.each(tasks, function(idx, i) {
+                $("<tr/>", {
+                    'data-id': i.id,
+                    'html': template_task(i)
+                }).appendTo("#tasklist tbody");
+            });
+        });
+    }
 }
 
 function VMController($scope) {
