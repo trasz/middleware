@@ -45,7 +45,7 @@ from more_itertools import unique_everseen
 from datastore.config import ConfigStore
 from freenas.dispatcher.client import Client, ClientError
 from freenas.dispatcher.rpc import RpcService, RpcException
-from freenas.utils import configure_logging
+from freenas.utils import first_or_default, configure_logging
 from freenas.utils.debug import DebugService
 
 
@@ -72,18 +72,28 @@ def filter_af(addresses, af):
 class Directory(object):
     def __init__(self, context, definition):
         self.context = context
+        self.id = definition['id']
         self.plugin_type = definition['plugin']
         self.parameters = definition['parameters']
         self.min_uid, self.max_uid = definition['uid_range']
         self.min_gid, self.max_gid = definition['gid_range']
-        self.context.logger.info('Initializing directory {0} (priority {1})'.format(self.plugin_type, definition['id']))
+        self.enabled = definition['enabled']
+        self.context.logger.info('Initializing directory {0}'.format(self.id))
 
         try:
             self.instance = context.plugins[self.plugin_type](self.context, self.parameters)
         except BaseException as err:
-            self.context.logger.errror('Failed to initialize directory {0}: {1}'.format(self.plugin_type, str(err)))
-            self.context.logger.errror('Parameters: {0}'.format(self.parameters))
+            self.context.logger.error('Failed to initialize directory {0}: {1}'.format(self.plugin_type, str(err)))
+            self.context.logger.error('Parameters: {0}'.format(self.parameters))
             raise ValueError('Failed to initialize {0}'.format(self.plugin_type))
+
+    def configure(self):
+        self.instance.configure(
+            self.enabled,
+            self.min_uid, self.max_uid,
+            self.min_gid, self.max_gid,
+            self.parameters
+        )
 
 
 class ManagementService(RpcService):
@@ -100,6 +110,24 @@ class ManagementService(RpcService):
                 realms.append(realm)
 
         return realms
+
+    def configure_directory(self, id):
+        ds_d = self.context.datastore.get_by_id('directories', id)
+        directory = first_or_default(lambda d: d.id == id, self.context.directories)
+        if not directory:
+            raise RpcException(errno.ENOENT, 'Directory {0} not found'.format(id))
+
+        if ds_d['enabled'] and not directory.enabled:
+            self.logger.info('Enabling directory {0}'.format(id))
+
+        if not ds_d['enabled'] and directory.enabled:
+            self.logger.info('Disabling directory {0}'.format(id))
+
+        directory.min_uid, directory.max_uid = ds_d['uid_range']
+        directory.min_gid, directory.max_gid = ds_d['gid_range']
+        directory.enabled = ds_d['enabled']
+        directory.parameters = ds_d['parameters']
+        directory.configure()
 
 
 class AccountService(RpcService):
@@ -127,7 +155,10 @@ class AccountService(RpcService):
     def query(self, filter=None, params=None):
         iters = []
         for d in self.context.directories:
-            iters.append((self.__annotate(d, i) for i in d.instance.getpwent(filter, params)))
+            try:
+                iters.append((self.__annotate(d, i) for i in d.instance.getpwent(filter, params)))
+            except BaseException:
+                continue
 
         return list(unique_everseen(chain(*iters), lambda i: i['id']))
     
@@ -327,16 +358,19 @@ class Main(object):
             except:
                 self.logger.error('Cannot initialize plugin {0}'.format(f), exc_info=True)
 
-    def register_plugin(self, name, cls):
+    def register_plugin(self, name, cls, schema=None):
         self.plugins[name] = cls
         self.logger.info('Registered plugin {0} (class {1})'.format(name, cls))
 
+        if schema:
+            self.client.register_schema('{0}-directory'.format(name), schema)
+
     def init_directories(self):
-        for i in self.datastore.query('dscached.sources', sort=['id']):
+        for i in self.datastore.query('directories', sort=['priority']):
             try:
                 directory = Directory(self, i)
                 self.directories.append(directory)
-            except:
+            except BaseException as err:
                 continue
 
     def main(self):
