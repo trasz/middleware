@@ -88,7 +88,13 @@ function RpcController($scope) {
             $("#method").val(),
             JSON.parse($("#args").val()),
             function(result) {
-                $("#result").html(angular.toJson(result, 4));
+                console.log(result);
+                $.each(result, function(idx, i) {
+                    if(i['created']){
+                        console.log(i['created']['$date']);
+                    }
+                });
+                $("#result").html(JSON.stringify(result, null, 4));
                 $("#result").show("slow");
             }
         );
@@ -640,7 +646,7 @@ function TasksController($scope) {
         console.log("task submitted");
         sock.call("task.submit", [$("#task").val()].concat(JSON.parse($("#args").val())), function(result) {
             console.log(result);
-            $("#result").html(angular.toJson(result, 4));
+            $("#result").html(JSON.stringify(result, null, 4));
             $("#result").show("slow");
             refresh_tasks();
         });
