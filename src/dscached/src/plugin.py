@@ -25,6 +25,24 @@
 #
 #####################################################################
 
+from freenas.dispatcher.rpc import convert_schema
+
+
+def params(sch):
+    def wrapped(fn):
+        fn.params_schema = convert_schema(sch)
+        return fn
+
+    return wrapped
+
+
+def status(sch):
+    def wrapped(fn):
+        fn.status_schema = convert_schema(sch)
+        return fn
+
+    return wrapped
+
 
 class DirectoryServicePlugin(object):
     def getpwent(self):
