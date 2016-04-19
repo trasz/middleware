@@ -40,7 +40,7 @@ from freenasOS.Update import (
 
 @description("Provides information on Boot pool")
 class BootPoolProvider(Provider):
-
+    @returns('zfs-pool')
     def get_config(self):
         return self.dispatcher.call_sync('zfs.pool.get_boot_pool')
 
@@ -179,7 +179,7 @@ def _init(dispatcher, plugin):
             'on_reboot': {'type': 'boolean'},
             'mountpoint': {'type': 'string'},
             'space': {'type': 'integer'},
-            'created': {'type': 'string'}
+            'created': {'type': 'datetime'}
         }
     })
 
