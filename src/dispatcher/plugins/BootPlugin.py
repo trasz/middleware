@@ -38,6 +38,14 @@ from freenasOS.Update import (
 )
 
 
+@description("Provides information on Boot pool")
+class BootPoolProvider(Provider):
+
+    @query('zfs-pool')
+    def query(self, filter=None, params=None):
+        return wrap(self.dispatcher.call_sync('zfs.pool.get_boot_pool')).query(*(filter or []), **(params or {}))
+
+
 @description("Provides information on Boot Environments")
 class BootEnvironmentsProvider(Provider):
 
@@ -176,6 +184,7 @@ def _init(dispatcher, plugin):
         }
     })
 
+    plugin.register_provider('boot.pool', BootPoolProvider)
     plugin.register_provider('boot.environment', BootEnvironmentsProvider)
     plugin.register_task_handler('boot.environment.clone', BootEnvironmentCreate)
     plugin.register_task_handler('boot.environment.activate', BootEnvironmentActivate)
