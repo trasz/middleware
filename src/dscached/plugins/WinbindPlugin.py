@@ -99,7 +99,7 @@ class WinbindPlugin(DirectoryServicePlugin):
             'winbind enum users': 'yes',
             'winbind enum groups': 'yes',
             'winbind nested groups': 'yes',
-            'winbind use default domain': 'yes',
+            'winbind use default domain': 'no',
             'winbind refresh tickets': 'yes',
             'idmap config {0}:backend'.format(workgroup): 'rid',
             'idmap config {0}:range'.format(workgroup):
