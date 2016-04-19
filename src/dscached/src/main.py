@@ -358,17 +358,18 @@ class Main(object):
             except:
                 self.logger.error('Cannot initialize plugin {0}'.format(f), exc_info=True)
 
-    def register_plugin(self, name, cls, schema=None):
+    def register_plugin(self, name, cls):
         self.plugins[name] = cls
         self.logger.info('Registered plugin {0} (class {1})'.format(name, cls))
 
-        if schema:
-            self.client.register_schema('{0}-directory'.format(name), schema)
+    def register_schema(self, name, schema):
+        self.client.register_schema(name, schema)
 
     def init_directories(self):
         for i in self.datastore.query('directories', sort=['priority']):
             try:
                 directory = Directory(self, i)
+                directory.configure()
                 self.directories.append(directory)
             except BaseException as err:
                 continue
