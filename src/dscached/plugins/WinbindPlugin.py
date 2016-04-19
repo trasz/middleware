@@ -33,7 +33,8 @@ import logging
 import subprocess
 import threading
 from datetime import datetime
-from plugin import DirectoryServicePlugin
+from plugin import DirectoryServicePlugin, params, status
+from freenas.dispatcher.rpc import SchemaHelper as h
 from freenas.utils.query import wrap
 
 
