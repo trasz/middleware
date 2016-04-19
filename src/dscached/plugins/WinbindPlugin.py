@@ -26,20 +26,109 @@
 #####################################################################
 
 import uuid
+import krb5
+import smbconf
 import wbclient
+import logging
+import subprocess
+import threading
+from datetime import datetime
 from plugin import DirectoryServicePlugin
 from freenas.utils.query import wrap
 
 
+AD_REALM_ID = '01a35b82-0168-11e6-88d6-0cc47a3511b4'
+WINBINDD_PIDFILE = '/var/run/samba4/winbindd.pid'
+logger = logging.getLogger(__name__)
+
+
+def yesno(val):
+    return 'yes' if val else 'no'
+
+
+@params(h.ref('winbind-directory-params'))
+@status(h.ref('winbind-directory-status'))
 class WinbindPlugin(DirectoryServicePlugin):
-    def __init__(self, context):
+    def __init__(self, context, parameters):
+        self.parameters = parameters
         self.context = context
+        self.uid_min = 100000
+        self.uid_max = 999999
+        self.dc = None
         self.wbc = wbclient.Context()
-        self.domain_name = self.wbc.interface.netbios_domain
+        self.keepalive_thread = None
+        self.keepalive_shutdown = threading.Event()
+        if self.wbc.interface:
+            self.joined = True
+            self.domain_name = self.wbc.interface.netbios_domain
+
+    @property
+    def realm(self):
+        return self.parameters['realm']
+
+    def __joined(self):
+        return self.wbc.interface is not None
+
+    def __join_keepalive(self):
+        while True:
+            try:
+                #self.dc = self.wbc.ping_dc(self.realm)
+                subprocess.check_call(['/usr/local/bin/net', 'ads', 'info'])
+            except subprocess.CalledProcessError as err:
+                # Try to rejoin
+                self.joined = False
+                self.join()
+
+            if self.keepalive_shutdown.wait(1):
+                self.leave()
+
+    def configure_smb(self, enable):
+        workgroup = self.parameters['realm'].split('.')[0]
+        cfg = smbconf.SambaConfig('registry')
+        params = {
+            'server role': 'member server',
+            'local master': 'no',
+            'domain master': 'no',
+            'preferred master': 'no',
+            'domain logons': 'no',
+            'workgroup': workgroup,
+            'realm': self.parameters['realm'],
+            'security': 'ads',
+            'winbind cache time': '7200',
+            'winbind offline logon': 'yes',
+            'winbind enum users': 'yes',
+            'winbind enum groups': 'yes',
+            'winbind nested groups': 'yes',
+            'winbind use default domain': 'yes',
+            'winbind refresh tickets': 'yes',
+            'idmap config {0}:backend'.format(workgroup): 'rid',
+            'idmap config {0}:range'.format(workgroup):
+                '{0}-{1}'.format(self.uid_min, self.uid_max),
+            'client use spnego': 'yes',
+            'allow trusted domains': 'no',
+            'client ldap sasl wrapping': 'plain',
+            'template shell': '/bin/sh',
+            'template homedir': '/home/%U'
+        }
+
+        if enable:
+            for k, v in params.items():
+                logger.debug('Setting samba parameter "{0}" to "{1}"'.format(k, v))
+                cfg[k] = v
+        else:
+            for k in params:
+                del cfg[k]
+
+            cfg.update({
+                'server role': 'auto',
+                'workgroup': self.context.configstore.get('service.smb.workgroup'),
+                'local master': yesno(self.context.configstore.get('service.smb.local_master'))
+            })
 
     def get_directory_info(self):
         return {
-            'domain_name': self.domain_name
+            'domain_name': self.domain_name,
+            'domain_controller': self.dc
         }
 
     def convert_user(self, user):
@@ -56,6 +145,7 @@ class WinbindPlugin(DirectoryServicePlugin):
             'locked': False,
             'sudo': False,
             'password_disabled': False,
+            'groups': [],
             'shell': user.passwd.pw_shell,
             'home': user.passwd.pw_dir
         }
@@ -69,29 +159,124 @@ class WinbindPlugin(DirectoryServicePlugin):
         }
 
     def getpwent(self, filter=None, params=None):
+        if not self.joined:
+            return []
+
         return wrap(self.convert_user(i) for i in self.wbc.query_users(self.domain_name)).query(
             *(filter or []),
             **(params or {})
         )
 
     def getpwuid(self, uid):
+        if not self.joined:
+            return
+
         return self.convert_user(self.wbc.get_user(uid=uid))
 
     def getpwnam(self, name):
+        if not self.joined:
+            return
+
         return self.convert_user(self.wbc.get_user(name=name))
 
     def getgrent(self, filter=None, params=None):
+        if not self.joined:
+            return []
+
         return wrap(self.convert_group(i) for i in self.wbc.query_groups(self.domain_name)).query(
             *(filter or []),
             **(params or {})
         )
 
     def getgrnam(self, name):
+        if not self.joined:
+            return
+
         return self.convert_group(self.wbc.get_group(name=name))
 
     def getgrgid(self, gid):
+        if not self.joined:
+            return
+
         return self.convert_group(self.wbc.get_group(gid=gid))
+
+    def configure(self, enable, uid_min, uid_max, gid_min, gid_max, parameters):
+        self.uid_min = uid_min
+        self.uid_max = uid_max
+        self.parameters = parameters
+
+        if enable:
+            self.keepalive_shutdown.clear()
+            self.keepalive_thread = threading.Thread(target=self.__join_keepalive, daemon=True)
+            self.keepalive_thread.start()
+        else:
+            self.keepalive_shutdown.set()
+            if self.keepalive_thread:
+                self.keepalive_thread.join()
+                self.keepalive_thread = None
+
+    def join(self):
+        logger.info('Trying to join to {0}...'.format(self.realm))
+        self.configure_smb(True)
+        krb = krb5.Context()
+        tgt = krb.obtain_tgt_password(
+            '{0}@{1}'.format(self.parameters['username'], self.parameters['realm'].upper()),
+            self.parameters['password']
+        )
+
+        ccache = krb5.CredentialsCache(krb)
+        ccache.add(tgt)
+        subprocess.call(['/usr/local/bin/net', 'ads', 'join', '-k', self.parameters['realm']])
+        logger.info('Sucessfully joined to the domain {0}'.format(self.realm))
+
+        self.joined = True
+
+    def leave(self):
+        logger.info('Leaving domain {0}'.format(self.realm))
+        subprocess.call(['/usr/local/bin/net', 'ads', 'leave', self.parameters['realm']])
+        self.configure_smb(False)
+        self.joined = False
+
+    def get_status(self):
+        return {
+            'joined': self.joined,
+
+        }
+
+    def get_kerberos_realm(self):
+        return {
+            'id': AD_REALM_ID,
+            'realm': self.parameters['realm'].upper(),
+            'created_at': datetime.utcnow(),
+            'updated_at': datetime.utcnow()
+        }
 
 
 def _init(context):
-    context.register_plugin('activedirectory', WinbindPlugin)
+    context.register_plugin('winbind', WinbindPlugin)
+
+    context.register_schema('winbind-directory-params', {
+        'type': 'object',
+        'additionalProperties': False,
+        'properties': {
+            'type': {'enum': ['winbind-directory-params']},
+            'realm': {'type': 'string'},
+            'username': {'type': 'string'},
+            'password': {'type': ['string', 'null']},
+            'keytab': {'type': ['string', 'null']},
+            'site_name': {'type': ['string', 'null']},
+            'dc_address': {'type': ['string', 'null']},
+            'gcs_address': {'type': ['string', 'null']},
+            'allow_dns_updates': {'type': 'boolean'}
+        }
+    })
+
+    context.register_schema('winbind-directory-status', {
+        'type': 'object',
+        'additionalProperties': False,
+        'properties': {
+            'joined': {'type': 'boolean'},
+            'domain_controller': {'type': 'string'},
+            'server_time': {'type': 'datetime'}
+        }
+    })
