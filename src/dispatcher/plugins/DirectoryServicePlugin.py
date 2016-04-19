@@ -61,7 +61,15 @@ class DirectoryServiceUpdateTask(Task):
         return ['system']
 
     def run(self, id, updated_params):
-        pass
+        directory = self.datastore.get_by_id('directories', id)
+        directory.update(updated_params)
+        self.datastore.update('directories', id, directory)
+        self.dispatcher.call_sync('dscached.management.configure_directory', id)
+
+        self.dispatcher.dispatch_event('directory.changed', {
+            'operation': 'update',
+            'ids': [id]
+        })
 
 
 def _init(dispatcher, plugin):
@@ -96,4 +104,5 @@ def _init(dispatcher, plugin):
     })
 
     plugin.register_provider('directory', DirectoryServicesProvider)
+    plugin.register_event_type('directory.changed')
     plugin.register_task_handler('directory.update', DirectoryServiceUpdateTask)
