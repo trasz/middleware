@@ -611,7 +611,7 @@ class TransportReceiveTask(ProgressTask):
                         plugin['name'] = 'decompress'
                     elif plugin['name'] == 'encrypt':
                         plugin['name'] = 'decrypt'
-                        plugin['auth_token'] = transport.get('auth_token').encode('utf-8')
+                        plugin['auth_token'] = transport.get('auth_token')
                     rd, wr = os.pipe()
                     self.fds.append(rd)
                     self.fds.append(wr)
