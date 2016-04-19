@@ -490,16 +490,17 @@ class TransportSendTask(Task):
         if status.get('state') != 'FINISHED':
             error = status.get('error')
             close_fds(self.fds)
+            self.finished.set()
             raise TaskException(
                 error['code'],
                 'Receive task connected to {1}:{2} finished unexpectedly with message: {0}'.format(
-                    error.message,
+                    error['message'],
                     *self.addr
                 )
             )
         else:
             logger.debug('Receive task at {0}:{1} finished'.format(*self.addr))
-        self.finished.set()
+            self.finished.set()
 
     def abort(self):
         self.aborted = True
