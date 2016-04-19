@@ -88,12 +88,15 @@ class Directory(object):
             raise ValueError('Failed to initialize {0}'.format(self.plugin_type))
 
     def configure(self):
-        self.instance.configure(
-            self.enabled,
-            self.min_uid, self.max_uid,
-            self.min_gid, self.max_gid,
-            self.parameters
-        )
+        try:
+            self.instance.configure(
+                self.enabled,
+                self.min_uid, self.max_uid,
+                self.min_gid, self.max_gid,
+                self.parameters
+            )
+        except BaseException as err:
+            self.context.logger.error('Failed to configure {0}: {1}'.format(self.id, str(err)))
 
 
 class ManagementService(RpcService):
