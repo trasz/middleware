@@ -222,15 +222,23 @@ class HostProvider(Provider):
 
 
 class TransportProvider(Provider):
+    def __init__(self):
+        super(TransportProvider, self).__init__()
+        self.cv = threading.Condition()
+
     @private
     def plugin_types(self):
         return ['compress', 'decompress', 'encrypt', 'decrypt', 'throttle']
 
     def set_encryption_data(self, key, data):
-        encryption_data[key] = data
+        with self.cv:
+            encryption_data[key] = data
+            self.cv.notify_all()
 
     def get_encryption_data(self, key):
-        return encryption_data.pop(key)
+        with self.cv:
+            self.cv.wait_for(lambda: key in encryption_data)
+            return encryption_data.pop(key)
 
 
 @private
