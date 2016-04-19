@@ -88,12 +88,6 @@ function RpcController($scope) {
             $("#method").val(),
             JSON.parse($("#args").val()),
             function(result) {
-                console.log(result);
-                $.each(result, function(idx, i) {
-                    if(i['created']){
-                        console.log(i['created']['$date']);
-                    }
-                });
                 $("#result").html(JSON.stringify(result, null, 4));
                 $("#result").show("slow");
             }
