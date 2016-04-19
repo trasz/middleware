@@ -57,7 +57,7 @@ class WinbindPlugin(DirectoryServicePlugin):
         self.uid_max = 999999
         self.dc = None
         self.wbc = wbclient.Context()
-        self.keepalive_thread = None
+        self.keepalive_thread = threading.Thread(target=self.__join_keepalive, daemon=True)
         self.keepalive_shutdown = threading.Event()
         if self.wbc.interface:
             self.joined = True
@@ -71,17 +71,21 @@ class WinbindPlugin(DirectoryServicePlugin):
         return self.wbc.interface is not None
 
     def __join_keepalive(self):
+        logger.debug('Keepalive thread: starting')
         while True:
             try:
-                #self.dc = self.wbc.ping_dc(self.realm)
-                subprocess.check_call(['/usr/local/bin/net', 'ads', 'info'])
-            except subprocess.CalledProcessError as err:
+                self.dc = self.wbc.ping_dc(self.realm)
+                #subprocess.check_call(['/usr/local/bin/net', 'ads', 'info'])
+            except wbclient.WinbindException as err:
                 # Try to rejoin
+                logger.debug('Keepalive thread: rejoining')
                 self.joined = False
                 self.join()
 
             if self.keepalive_shutdown.wait(1):
+                logger.debug('Keepalive thread: leaving now')
                 self.leave()
+                break
 
     def configure_smb(self, enable):
         workgroup = self.parameters['realm'].split('.')[0]
@@ -120,11 +124,18 @@ class WinbindPlugin(DirectoryServicePlugin):
             for k in params:
                 del cfg[k]
 
-            cfg.update({
+            params = {
                 'server role': 'auto',
                 'workgroup': self.context.configstore.get('service.smb.workgroup'),
                 'local master': yesno(self.context.configstore.get('service.smb.local_master'))
-            })
+            }
+
+            for k, v in params.items():
+                logger.debug('Setting samba parameter "{0}" to "{1}"'.format(k, v))
+                cfg[k] = v
+
+        #self.context.client.call_sync('service.reload', 'smb', 'reload')
+        subprocess.call(['/usr/sbin/service', 'samba_server', 'restart'])
 
     def get_directory_info(self):
         return {
@@ -160,7 +171,7 @@ class WinbindPlugin(DirectoryServicePlugin):
         }
 
     def getpwent(self, filter=None, params=None):
-        if not self.joined:
+        if not self.__joined():
             return []
 
         return wrap(self.convert_user(i) for i in self.wbc.query_users(self.domain_name)).query(
@@ -169,19 +180,19 @@ class WinbindPlugin(DirectoryServicePlugin):
         )
 
     def getpwuid(self, uid):
-        if not self.joined:
+        if not self.__joined():
             return
 
         return self.convert_user(self.wbc.get_user(uid=uid))
 
     def getpwnam(self, name):
-        if not self.joined:
+        if not self.__joined():
             return
 
         return self.convert_user(self.wbc.get_user(name=name))
 
     def getgrent(self, filter=None, params=None):
-        if not self.joined:
+        if not self.__joined():
             return []
 
         return wrap(self.convert_group(i) for i in self.wbc.query_groups(self.domain_name)).query(
@@ -190,13 +201,13 @@ class WinbindPlugin(DirectoryServicePlugin):
         )
 
     def getgrnam(self, name):
-        if not self.joined:
+        if not self.__joined():
             return
 
         return self.convert_group(self.wbc.get_group(name=name))
 
     def getgrgid(self, gid):
-        if not self.joined:
+        if not self.__joined():
             return
 
         return self.convert_group(self.wbc.get_group(gid=gid))
@@ -208,13 +219,13 @@ class WinbindPlugin(DirectoryServicePlugin):
 
         if enable:
             self.keepalive_shutdown.clear()
-            self.keepalive_thread = threading.Thread(target=self.__join_keepalive, daemon=True)
-            self.keepalive_thread.start()
+            if not self.keepalive_thread.is_alive():
+                self.keepalive_thread.start()
         else:
             self.keepalive_shutdown.set()
-            if self.keepalive_thread:
+            if self.keepalive_thread.is_alive():
                 self.keepalive_thread.join()
-                self.keepalive_thread = None
+                self.keepalive_thread = threading.Thread(target=self.__join_keepalive, daemon=True)
 
     def join(self):
         logger.info('Trying to join to {0}...'.format(self.realm))
