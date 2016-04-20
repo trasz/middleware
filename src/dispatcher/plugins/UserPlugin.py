@@ -52,6 +52,9 @@ def check_unixname(name):
     Returns: an array of errors [composed of a tuple (error code, error message)]
     """
 
+    if not name.strip():
+        yield errno.EINVAL, 'Name cannot be empty'
+
     if name.startswith('-'):
         yield errno.EINVAL, 'Your name cannot start with "-"'
 
