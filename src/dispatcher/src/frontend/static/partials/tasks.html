@@ -45,22 +45,24 @@
                 </tr>
             </thead>
             <tbody ng-repeat="task in pending_tasks">
-                <td>{{task.id}}</td>
-                <td>
-                    {{task.name}}
-                </td>
-                <td class="status">{{task.state}}</td>
-                <td>
-                    <div class="progress" style="width: 120px;">
-                        <div class="progress-bar" aria-valuenow="{{task.progress.percentage}}" role="progressbar" style="width: 30px; min-width: 30px;">
-                            {{task.progress.percentage}}
+                <tr data-id='{{task.id}}'>
+                    <td>{{task.id}}</td>
+                    <td>
+                        {{task.name}}
+                    </td>
+                    <td class="status">{{task.state}}</td>
+                    <td>
+                        <div class="progress" style="width: 120px;">
+                            <div class="progress-bar" aria-valuenow="{{task.progress.percentage}}" role="progressbar" style="width: 30px; min-width: 30px;">
+                                {{task.progress.percentage}}
+                            </div>
                         </div>
-                    </div>
-                </td>
-                <td class="message"></td>
-                <td>
-                    <button type="button" ng-click="abortTask(task.id)" class="abort-button btn btn-danger">Abort</button>
-                </td>
+                    </td>
+                    <td class="message"></td>
+                    <td>
+                        <button type="button" ng-click="abortTask(task.id)" class="abort-button btn btn-danger">Abort</button>
+                    </td>
+                </tr>
             </tbody>
         </table>
         <h1>Available task classes</h1>

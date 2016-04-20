@@ -585,7 +585,11 @@ function TasksController($scope, $interval) {
             $("#refresh_page_glyph").show();
         };
         sock.onEvent = function(name, args) {
-
+            if (name == "task.created") {
+                $scope.$apply(function(){
+                    $scope.pending_tasks.push(args);
+                });
+            }
             if (name == "task.updated") {
                 var tr = $("#tasklist").find("tr[data-id='" + args.id + "']");
                 tr.find(".status").text(args.state);
