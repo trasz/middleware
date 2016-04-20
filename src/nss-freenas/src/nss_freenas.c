@@ -33,6 +33,7 @@
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <sys/param.h>
+#include <sys/time.h>
 #include <arpa/inet.h>
 #include <netinet/in.h>
 #include <pwd.h>
@@ -329,7 +330,10 @@ populate_hostent(json_t *result, struct hostent *hp, char *buf, size_t buflen,
 static int
 call_dispatcher(const char *method, json_t *args, json_t **result, bool ref)
 {
+	struct timespec ts;
+	struct timeval tv;
 	connection_t *conn;
+	rpc_call_t *call;
 
 	conn = dispatcher_open("unix");
 	if (conn == NULL)
@@ -340,10 +344,28 @@ call_dispatcher(const char *method, json_t *args, json_t **result, bool ref)
 		return (-1);
 	}
 
-	if (dispatcher_call_sync(conn, method, args, result) != RPC_CALL_DONE) {
+	gettimeofday(&tv, NULL);
+	ts.tv_sec = tv.tv_sec + 2;
+	ts.tv_nsec = tv.tv_usec * 1000;
+
+	call = dispatcher_call_async(conn, method, args, NULL, NULL);
+
+	if (call == NULL) {
 		dispatcher_close(conn);
 		return (-1);
 	}
+
+	if (rpc_call_timedwait(call, &ts) != 0) {
+		dispatcher_close(conn);
+		return (-1);
+	}
+
+	if (rpc_call_success(call) != RPC_CALL_DONE) {
+		dispatcher_close(conn);
+		return (-1);
+	}
+
+	*result = rpc_call_result(call);
 
 	if (ref)
 		json_incref(*result);
