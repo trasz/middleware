@@ -562,7 +562,7 @@ function FileBrowserController($scope) {
     };
 }
 
-function TasksController($scope) {
+function TasksController($scope, $interval) {
     document.title = "System Tasks";
     var sock = new middleware.DispatcherClient(document.domain);
     sock.connect();
@@ -570,11 +570,12 @@ function TasksController($scope) {
     function refresh_tasks(){
         $("#tasklist tbody").empty();
         sock.call("task.query", [[["state", "in", ["CREATED", "WAITING", "EXECUTING"]]]], function (tasks) {
+            var tmp_list = [];
             $.each(tasks, function(idx, i) {
-                $("<tr/>", {
-                    'data-id': i.id,
-                    'html': template_task(i)
-                }).appendTo("#tasklist tbody");
+                tmp_list.push(i);
+            });
+            $scope.$apply(function(){
+                $scope.pending_tasks = tmp_list;
             });
         });
     }
@@ -584,12 +585,6 @@ function TasksController($scope) {
             $("#refresh_page_glyph").show();
         };
         sock.onEvent = function(name, args) {
-            if (name == "task.created") {
-                $("<tr/>", {
-                    'data-id': args.id,
-                    'html': template_task(args)
-                }).appendTo("#tasklist tbody");
-            }
 
             if (name == "task.updated") {
                 var tr = $("#tasklist").find("tr[data-id='" + args.id + "']");
@@ -638,23 +633,25 @@ function TasksController($scope) {
     }
     $("#submit").click(function () {
         console.log("task submitted");
-        sock.call("task.submit", [$("#task").val()].concat(JSON.parse($("#args").val())), function(result) {
-            console.log(result);
-            $("#result").html(JSON.stringify(result, null, 4));
+        var task_args = JSON.parse($("#args").val());
+        task_args = "[" + task_args + "]";
+        sock.call("task.submit", [$("#task").val()].concat(task_args), function(result) {
+            $("#result").html("Task: "+JSON.stringify(result, null, 4)+" is added to pending list");
             $("#result").show("slow");
             refresh_tasks();
         });
     });
-    function refresh_tasks(){
-        $("#tasklist tbody").empty();
-        sock.call("task.query", [[["state", "in", ["CREATED", "WAITING", "EXECUTING"]]]], function (tasks) {
-            $.each(tasks, function(idx, i) {
-                $("<tr/>", {
-                    'data-id': i.id,
-                    'html': template_task(i)
-                }).appendTo("#tasklist tbody");
+    $scope.setTask = function(task_name){
+        $scope.searchText = task_name;
+        $("#task").val(task_name);
+    }
+    $scope.abortTask = function(task_id){
+        console.log(task_id);
+        if (confirm("Abort this task? ")) {
+            sock.call("task.abort", [task_id], function (result) {
             });
-        });
+            refresh_tasks();
+        }
     }
 }
 

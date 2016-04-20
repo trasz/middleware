@@ -11,7 +11,7 @@
             <ul class="nav nav-sidebar">
               <label>Search: <input ng-model="searchText" placeholder="input service name"></label>
               <li ng-repeat="service_name in services | orderBy:'toString()' | filter:searchText  ">
-                 <a href="" ng-click="getServiceList(service_name)" data-toggle="tooltip" title="click me for details"><span class="badge"></span>{{ service_name }}</a>
+                 <a href="" ng-click="setTask(service_name)" data-toggle="tooltip" title="click me for details"><span class="badge"></span>{{ service_name }}</a>
               </li>
             </ul>
     </div>
@@ -44,8 +44,23 @@
                     <td>Abort</td>
                 </tr>
             </thead>
-            <tbody>
-
+            <tbody ng-repeat="task in pending_tasks">
+                <td>{{task.id}}</td>
+                <td>
+                    {{task.name}}
+                </td>
+                <td class="status">{{task.state}}</td>
+                <td>
+                    <div class="progress" style="width: 120px;">
+                        <div class="progress-bar" aria-valuenow="{{task.progress.percentage}}" role="progressbar" style="width: 30px; min-width: 30px;">
+                            {{task.progress.percentage}}
+                        </div>
+                    </div>
+                </td>
+                <td class="message"></td>
+                <td>
+                    <button type="button" ng-click="abortTask(task.id)" class="abort-button btn btn-danger">Abort</button>
+                </td>
             </tbody>
         </table>
         <h1>Available task classes</h1>
