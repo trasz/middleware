@@ -56,7 +56,6 @@ class WinbindPlugin(DirectoryServicePlugin):
         self.uid_min = 100000
         self.uid_max = 999999
         self.dc = None
-        self.wbc = wbclient.Context()
         self.keepalive_thread = threading.Thread(target=self.__join_keepalive, daemon=True)
         self.keepalive_shutdown = threading.Event()
         if self.wbc.interface:
@@ -66,6 +65,10 @@ class WinbindPlugin(DirectoryServicePlugin):
     @property
     def realm(self):
         return self.parameters['realm']
+
+    @property
+    def wbc(self):
+        return wbclient.Context()
 
     def __joined(self):
         return self.wbc.interface is not None
