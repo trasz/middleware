@@ -171,6 +171,10 @@ class CreateShareTask(Task):
                 )
             )
 
+        share_path = self.dispatcher.call_sync('share.expand_path', share['target_path'], share['target_type'])
+        if not os.path.exists(share_path):
+            raise VerifyException(errno.ENOENT, 'Selected share path {0} does not exist'.format(share['target_path']))
+
         return ['system']
 
     def run(self, share):
@@ -266,6 +270,12 @@ class UpdateShareTask(Task):
                     share['name'],
                     share['type']
                 ))
+
+        path_after_update = updated_fields['target_path'] if 'target_path' in updated_fields else share['target_path']
+        type_after_update = updated_fields['target_type'] if 'target_type' in updated_fields else share['target_type']
+        share_path = self.dispatcher.call_sync('share.expand_path', path_after_update, type_after_update)
+        if not os.path.exists(share_path):
+            raise VerifyException(errno.ENOENT, 'Selected share path {0} does not exist'.format(path_after_update))
 
         return ['system']
 
