@@ -271,11 +271,11 @@ class UpdateShareTask(Task):
                     share['type']
                 ))
 
-        path_after_update = updated_fields['target_path'] if 'target_path' in updated_fields else share['target_path']
-        type_after_update = updated_fields['target_type'] if 'target_type' in updated_fields else share['target_type']
+        path_after_update = updated_fields.get('target_path', share['target_path'])
+        type_after_update = updated_fields.get('target_type', share['target_type'])
         share_path = self.dispatcher.call_sync('share.expand_path', path_after_update, type_after_update)
         if not os.path.exists(share_path):
-            raise VerifyException(errno.ENOENT, 'Selected share path {0} does not exist'.format(path_after_update))
+            raise VerifyException(errno.ENOENT, 'Selected share target {0} does not exist'.format(path_after_update))
 
         return ['system']
 
