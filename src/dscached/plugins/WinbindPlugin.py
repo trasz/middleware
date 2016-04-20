@@ -40,6 +40,7 @@ from freenas.utils.query import wrap
 
 AD_REALM_ID = '01a35b82-0168-11e6-88d6-0cc47a3511b4'
 WINBINDD_PIDFILE = '/var/run/samba4/winbindd.pid'
+WINBINDD_KEEPALIVE = 60
 logger = logging.getLogger(__name__)
 
 
@@ -78,14 +79,14 @@ class WinbindPlugin(DirectoryServicePlugin):
         while True:
             try:
                 self.dc = self.wbc.ping_dc(self.realm)
-                #subprocess.check_call(['/usr/local/bin/net', 'ads', 'info'])
             except wbclient.WinbindException as err:
                 # Try to rejoin
+                logger.warning('Cannot ping DC for {0}: {1}'.format(self.realm, str(err)))
                 logger.debug('Keepalive thread: rejoining')
                 self.joined = False
                 self.join()
 
-            if self.keepalive_shutdown.wait(1):
+            if self.keepalive_shutdown.wait(WINBINDD_KEEPALIVE):
                 logger.debug('Keepalive thread: leaving now')
                 self.leave()
                 break
@@ -174,6 +175,7 @@ class WinbindPlugin(DirectoryServicePlugin):
         }
 
     def getpwent(self, filter=None, params=None):
+        logger.debug('getpwent(filter={0}, params={1})'.format(filter, params))
         if not self.__joined():
             return []
 
@@ -183,18 +185,21 @@ class WinbindPlugin(DirectoryServicePlugin):
         )
 
     def getpwuid(self, uid):
+        logger.debug('getpwuid(uid={0})'.format(uid))
         if not self.__joined():
             return
 
         return self.convert_user(self.wbc.get_user(uid=uid))
 
     def getpwnam(self, name):
+        logger.debug('getpwnam(name={0})'.format(name))
         if not self.__joined():
             return
 
         return self.convert_user(self.wbc.get_user(name=name))
 
     def getgrent(self, filter=None, params=None):
+        logger.debug('getgrent(filter={0}, params={1})'.format(filter, params))
         if not self.__joined():
             return []
 
@@ -204,12 +209,14 @@ class WinbindPlugin(DirectoryServicePlugin):
         )
 
     def getgrnam(self, name):
+        logger.debug('getgrnam(name={0})'.format(name))
         if not self.__joined():
             return
 
         return self.convert_group(self.wbc.get_group(name=name))
 
     def getgrgid(self, gid):
+        logger.debug('getgrgid(gid={0})'.format(gid))
         if not self.__joined():
             return
 
