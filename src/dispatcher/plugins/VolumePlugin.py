@@ -1832,7 +1832,7 @@ class SnapshotConfigureTask(Task):
             id = new_id
 
         if 'lifetime' in updated_params:
-            params['org.freenas:lifetime'] = {'value': updated_params['lifetime']}
+            params['org.freenas:lifetime'] = {'value': str(updated_params['lifetime'])}
 
         if 'replicable' in updated_params:
             params['org.freenas:replicable'] = {'value': 'yes' if updated_params['replicable'] else 'no'}
