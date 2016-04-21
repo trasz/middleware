@@ -63,5 +63,8 @@ class DirectoryServicePlugin(object):
     def getgrgid(self, gid):
         raise NotImplementedError()
 
+    def configure(self, *args, **kwargs):
+        pass
+
     def get_kerberos_realms(self):
         return None

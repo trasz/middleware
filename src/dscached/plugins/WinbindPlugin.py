@@ -151,11 +151,13 @@ class WinbindPlugin(DirectoryServicePlugin):
         if not user:
             return
 
+        domain, username = user.passwd.pw_name.split('\\')
+
         return {
             'id': str(uuid.uuid4()),  # XXX this is wrong - id should be mapped to SID
             'uid': user.passwd.pw_uid,
             'builtin': False,
-            'username': user.passwd.pw_name,
+            'username': username,
             'full_name': user.passwd.pw_gecos,
             'email': None,
             'locked': False,
@@ -167,10 +169,12 @@ class WinbindPlugin(DirectoryServicePlugin):
         }
 
     def convert_group(self, group):
+        domain, groupname = group.group.gr_name.split('\\')
         return {
+            'id': str(uuid.uuid4()),  # XXX this is wrong - id should be mapped to SID
             'gid': group.group.gr_gid,
             'builtin': False,
-            'name': group.group.gr_name,
+            'name': groupname,
             'sudo': False
         }
 
@@ -193,6 +197,10 @@ class WinbindPlugin(DirectoryServicePlugin):
 
     def getpwnam(self, name):
         logger.debug('getpwnam(name={0})'.format(name))
+
+        if '\\' not in name:
+            name = '{0}\\{1}'.format(self.realm, name)
+
         if not self.__joined():
             return
 
@@ -210,6 +218,10 @@ class WinbindPlugin(DirectoryServicePlugin):
 
     def getgrnam(self, name):
         logger.debug('getgrnam(name={0})'.format(name))
+
+        if '\\' not in name:
+            name = '{0}\\{1}'.format(self.realm, name)
+
         if not self.__joined():
             return
 
@@ -237,6 +249,8 @@ class WinbindPlugin(DirectoryServicePlugin):
                 self.keepalive_thread.join()
                 self.keepalive_thread = threading.Thread(target=self.__join_keepalive, daemon=True)
 
+        return self.realm.lower()
+
     def join(self):
         logger.info('Trying to join to {0}...'.format(self.realm))
         self.configure_smb(True)
@@ -258,6 +272,9 @@ class WinbindPlugin(DirectoryServicePlugin):
         subprocess.call(['/usr/local/bin/net', 'ads', 'leave', self.parameters['realm']])
         self.configure_smb(False)
         self.joined = False
+
+    def get_domain_suffix(self):
+        return self.wbc.interface.dns_domain
 
     def get_status(self):
         return {

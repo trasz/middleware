@@ -134,6 +134,9 @@ class FlatFilePlugin(DirectoryServicePlugin):
             logger.warn('Cannot change password: {1}'.format(str(err)))
             raise
 
+    def configure(self, enable, uid_min, uid_max, gid_min, gid_max, parameters):
+        pass
+
 
 def _init(context):
     context.register_plugin('file', FlatFilePlugin)

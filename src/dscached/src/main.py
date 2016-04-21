@@ -73,6 +73,7 @@ class Directory(object):
     def __init__(self, context, definition):
         self.context = context
         self.id = definition['id']
+        self.domain_name = None
         self.plugin_type = definition['plugin']
         self.parameters = definition['parameters']
         self.min_uid, self.max_uid = definition['uid_range']
@@ -89,7 +90,7 @@ class Directory(object):
 
     def configure(self):
         try:
-            self.instance.configure(
+            self.domain_name = self.instance.configure(
                 self.enabled,
                 self.min_uid, self.max_uid,
                 self.min_gid, self.max_gid,
@@ -139,12 +140,15 @@ class AccountService(RpcService):
         self.context = context
 
     def __annotate(self, directory, user):
+        if directory.domain_name:
+            user['username'] = '{0}@{1}'.format(user['username'], directory.domain_name)
+
         user['gids'] = [g['gid'] for g in directory.instance.getgrent([('id', 'in', user['groups'])])]
         user['origin'] = {'directory': directory.plugin_type}
         return user
 
     def __get_user(self, user_name):
-        for d in self.context.directories:
+        for d in self.context.get_enabled_directories():
             try:
                 user = d.instance.getpwnam(user_name)
             except:
@@ -157,24 +161,35 @@ class AccountService(RpcService):
 
     def query(self, filter=None, params=None):
         iters = []
-        for d in self.context.directories:
+        for d in self.context.get_enabled_directories():
             try:
-                iters.append((self.__annotate(d, i) for i in d.instance.getpwent(filter, params)))
+                iters.append([self.__annotate(d, i) for i in d.instance.getpwent(filter, params)])
             except BaseException:
                 continue
 
         return list(unique_everseen(chain(*iters), lambda i: i['id']))
     
     def getpwuid(self, uid):
-        for d in self.context.directories:
+        d = self.context.get_directory_for_id(uid=uid)
+        try:
             user = d.instance.getpwuid(uid)
-            if user:
-                return self.__annotate(d, user)
+        except:
+            return None
+
+        if user:
+            return self.__annotate(d, user)
 
         return None
 
     def getpwnam(self, user_name):
-        for d in self.context.directories:
+        if '@' in user_name:
+            # Fully qualified user name
+            user_name, domain_name = user_name.split('@', 1)
+            dirs = [self.context.get_directory_by_domain(domain_name)]
+        else:
+            dirs = self.context.get_enabled_directories()
+
+        for d in dirs:
             try:
                 user = d.instance.getpwnam(user_name)
             except:
@@ -206,30 +221,48 @@ class GroupService(RpcService):
     def __init__(self, context):
         self.context = context
 
-    def __annotate(self, name, user):
-        user['origin'] = {'directory': name}
-        return user
+    def __annotate(self, directory, group):
+        if directory.domain_name:
+            group['name'] = '{0}@{1}'.format(group['name'], directory.domain_name)
+
+        group['origin'] = {'directory': directory.plugin_type}
+        return group
 
     def query(self, filter=None, params=None):
         iters = []
-        for d in self.context.directories:
-            iters.append((self.__annotate(d.plugin_type, i) for i in d.instance.getgrent(filter, params)))
+        for d in self.context.get_enabled_directories():
+            iters.append([self.__annotate(d, i) for i in d.instance.getgrent(filter, params)])
 
         return list(unique_everseen(chain(*iters), lambda i: i['id']))
     
     def getgrnam(self, name):
-        for d in self.context.directories:
-            group = d.instance.getgrnam(name)
+        if '@' in name:
+            # Fully qualified group name
+            name, domain_name = name.split('@', 1)
+            dirs = [self.context.get_directory_by_domain(domain_name)]
+        else:
+            dirs = self.context.get_enabled_directories()
+
+        for d in dirs:
+            try:
+                group = d.instance.getgrnam(name)
+            except:
+                continue
+
             if group:
-                return self.__annotate(d.plugin_type, group)
+                return self.__annotate(d, group)
 
         return None
     
     def getgrgid(self, gid):
-        for d in self.context.plugins.items():
+        d = self.context.get_directory_for_id(gid=gid)
+        try:
             group = d.instance.getgrgid(gid)
-            if group:
-                return self.__annotate(d.plugin_type, group)
+        except:
+            return None
+
+        if group:
+            return self.__annotate(d, group)
 
         return None
 
@@ -290,6 +323,33 @@ class Main(object):
         self.plugin_dirs = []
         self.plugins = {}
         self.directories = []
+
+    def get_enabled_directories(self):
+        return (d for d in self.directories if d.enabled)
+
+    def get_directory_by_domain(self, domain_name):
+        return first_or_default(lambda d: d.domain_name == domain_name, self.directories)
+
+    def get_directory_for_id(self, uid=None, gid=None):
+        if uid is not None:
+            if uid == 0:
+                # Special case for root user
+                return first_or_default(lambda d: d.plugin_type == 'local', self.directories)
+
+            return first_or_default(
+                lambda d: d.max_uid >= uid >= d.min_uid,
+                self.directories
+            )
+
+        if gid is not None:
+            if gid == 0:
+                # Special case for wheel group
+                return first_or_default(lambda d: d.plugin_type == 'local', self.directories)
+
+            return first_or_default(
+                        lambda d: d.max_gid >= gid >= d.min_gid,
+                        self.directories
+                    )
 
     def init_datastore(self):
         try:

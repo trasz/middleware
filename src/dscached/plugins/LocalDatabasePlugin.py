@@ -58,14 +58,14 @@ class LocalDatabasePlugin(DirectoryServicePlugin):
         return self.datastore.query('groups', *filter, **(params or {}))
 
     def getgrnam(self, name):
-        group = self.datastore.get_one('groups', ('username', '=', name))
+        group = self.datastore.get_one('groups', ('name', '=', name))
         if not group:
             return None
 
         return group
 
     def getgrgid(self, gid):
-        group = self.datastore.get_one('groups', ('uid', '=', gid))
+        group = self.datastore.get_one('groups', ('gid', '=', gid))
         if not group:
             return None
 
@@ -79,6 +79,9 @@ class LocalDatabasePlugin(DirectoryServicePlugin):
         self.context.client.call_task_sync('user.update', user['id'], {
             'password': password
         })
+
+    def configure(self, enable, uid_min, uid_max, gid_min, gid_max, parameters):
+        return 'local'
 
 
 def _init(context):
