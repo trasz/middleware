@@ -1455,27 +1455,43 @@
     },
     {
         "metadata": {
-            "name": "dscached.sources",
+            "name": "directories",
             "migration": "replace",
-            "pkey-type": "integer",
+            "pkey-type": "native",
             "attributes": {
-                "type": "config"
+                "type": "persistent"
             }
         },
         "data": {
-            "0": {
+            "local": {
+                "priority": 999,
                 "plugin": "local",
+                "enabled": true,
+                "immutable": true,
                 "uid_range": [1000, 99999],
                 "gid_range": [1000, 99999],
                 "parameters": {}
             },
-            "999": {
+            "system": {
+                "priority": 998,
                 "plugin": "file",
+                "enabled": true,
+                "immutable": true,
                 "uid_range": [0, 999],
                 "gid_range": [0, 999],
                 "parameters": {
                     "passwd_file": "/etc/passwd.json",
                     "group_file": "/etc/group.json"
+                }
+            },
+            "activedirectory": {
+                "priority": 1,
+                "plugin": "winbind",
+                "enabled": false,
+                "uid_range": [100000, 999999],
+                "gid_range": [100000, 999999],
+                "parameters": {
+                    "realm": null
                 }
             }
         }
@@ -1486,7 +1502,25 @@
             "migration": "keep",
             "pkey-type": "uuid",
             "attributes": {
-                "type": "config"
+                "type": "config",
+                "unique_indexes": [
+                    ["name"]
+                ]
+            }
+        },
+        "data": {
+        }
+    },
+    {
+        "metadata": {
+            "name": "kerberos.keytabs",
+            "migration": "keep",
+            "pkey-type": "uuid",
+            "attributes": {
+                "type": "config",
+                "unique_indexes": [
+                    ["name"]
+                ]
             }
         },
         "data": {
