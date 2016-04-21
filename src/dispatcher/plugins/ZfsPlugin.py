@@ -851,6 +851,7 @@ def sync_zpool_cache(dispatcher, pool, guid=None):
     except libzfs.ZFSException as e:
         if e.code == libzfs.Error.NOENT:
             pools.remove(pool)
+            snapshots.remove_predicate(lambda i: i['pool'] == pool)
             names = datasets.remove_predicate(lambda i: i['pool'] == pool)
             dispatcher.unregister_resources(['zfs:{0}'.format(i) for i in names])
             return
