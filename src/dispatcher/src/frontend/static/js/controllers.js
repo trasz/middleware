@@ -14,7 +14,7 @@ function NavController($scope) {
     }
 }
 
-function RpcController($scope) {
+function RpcController($scope, $location, $routeParams, $route) {
     document.title = "RPC Page";
     var sock = new middleware.DispatcherClient(document.domain);
     sock.connect();
@@ -25,8 +25,13 @@ function RpcController($scope) {
     $("#result").hide();
     $scope.init = function () {
         sock.onError = function(err) {
-            $("#socket_status ").attr("src", "/static/images/service_issue_diamond.png");
-            $("#refresh_page_glyph").show();
+            try {
+                $route.reload();
+            } catch (e) {
+                console.log(e);
+                $("#socket_status ").attr("src", "/static/images/service_issue_diamond.png");
+                $("#refresh_page_glyph").show();
+            }
         };
         sock.onConnect = function() {
             if (!sessionStorage.getItem("freenas:username")) {
@@ -101,7 +106,7 @@ function RpcController($scope) {
     }
 }
 
-function TermController($scope, synchronousService) {
+function TermController($scope, synchronousService, $location, $routeParams, $route) {
     document.title = "System Events";
     var sock = new middleware.DispatcherClient(document.domain);
     sock.connect();
@@ -133,8 +138,13 @@ function TermController($scope, synchronousService) {
         var syncUrl = "/static/term.js";
         synchronousService(syncUrl);
         sock.onError = function(err) {
-            $("#socket_status ").attr("src", "/static/images/service_issue_diamond.png");
-            $("#refresh_page_glyph").show();
+            try {
+                $route.reload();
+            } catch (e) {
+                console.log(e);
+                $("#socket_status ").attr("src", "/static/images/service_issue_diamond.png");
+                $("#refresh_page_glyph").show();
+            }
         };
     };
 
@@ -172,14 +182,19 @@ function TermController($scope, synchronousService) {
 
 }
 
-function EventsController($scope) {
+function EventsController($scope, $location, $routeParams, $route) {
     document.title = "System Events";
     var sock = new middleware.DispatcherClient(document.domain);
     sock.connect();
     $scope.init = function () {
         sock.onError = function(err) {
-            $("#socket_status ").attr("src", "/static/images/service_issue_diamond.png");
-            $("#refresh_page_glyph").show();
+            try {
+                $route.reload();
+            } catch (e) {
+                console.log(e);
+                $("#socket_status ").attr("src", "/static/images/service_issue_diamond.png");
+                $("#refresh_page_glyph").show();
+            }
         };
         sock.onConnect = function() {
             if (!sessionStorage.getItem("freenas:username")) {
@@ -212,14 +227,19 @@ function EventsController($scope) {
         };
     }
 }
-function SyslogController($scope) {
+function SyslogController($scope, $location, $routeParams, $route) {
     document.title = "System Logs";
     var sock = new middleware.DispatcherClient(document.domain);
     sock.connect();
     $scope.init = function () {
         sock.onError = function(err) {
-            $("#socket_status ").attr("src", "/static/images/service_issue_diamond.png");
-            $("#refresh_page_glyph").show();
+            try {
+                $route.reload();
+            } catch (e) {
+                console.log(e);
+                $("#socket_status ").attr("src", "/static/images/service_issue_diamond.png");
+                $("#refresh_page_glyph").show();
+            }
         };
         sock.onConnect = function() {
             if (!sessionStorage.getItem("freenas:username")) {
@@ -255,7 +275,7 @@ function SyslogController($scope) {
     }
 }
 
-function StatsController($scope) {
+function StatsController($scope, $location, $routeParams, $route) {
     document.title = "Stats Charts";
     var sock = new middleware.DispatcherClient(document.domain);
     var chart;
@@ -302,8 +322,13 @@ function StatsController($scope) {
     }
     $scope.init = function () {
         sock.onError = function(err) {
-            $("#socket_status ").attr("src", "/static/images/service_issue_diamond.png");
-            $("#refresh_page_glyph").show();
+            try {
+                $route.reload();
+            } catch (e) {
+                console.log(e);
+                $("#socket_status ").attr("src", "/static/images/service_issue_diamond.png");
+                $("#refresh_page_glyph").show();
+            }
         };
         sock.onConnect = function() {
             if (!sessionStorage.getItem("freenas:username")) {
@@ -346,15 +371,20 @@ function StatsController($scope) {
     }
 }
 
-function FileBrowserController($scope) {
+function FileBrowserController($scope, $location, $routeParams, $route) {
     document.title = "File Browser";
     var BUFSIZE = 1024;
     var sock = new middleware.DispatcherClient( document.domain );
     sock.connect();
     $scope.init = function () {
         sock.onError = function(err) {
-            $("#socket_status ").attr("src", "/static/images/service_issue_diamond.png");
-            $("#refresh_page_glyph").show();
+            try {
+                $route.reload();
+            } catch (e) {
+                console.log(e);
+                $("#socket_status ").attr("src", "/static/images/service_issue_diamond.png");
+                $("#refresh_page_glyph").show();
+            }
         };
 
         sock.onConnect = function ( ) {
@@ -562,7 +592,7 @@ function FileBrowserController($scope) {
     };
 }
 
-function TasksController($scope, $interval) {
+function TasksController($scope, $interval, $location, $routeParams, $route) {
     document.title = "System Tasks";
     var sock = new middleware.DispatcherClient(document.domain);
     sock.connect();
@@ -581,8 +611,13 @@ function TasksController($scope, $interval) {
     }
     $scope.init = function() {
         sock.onError = function(err) {
-            $("#socket_status ").attr("src", "/static/images/service_issue_diamond.png");
-            $("#refresh_page_glyph").show();
+            try {
+                $route.reload();
+            } catch (e) {
+                console.log(e);
+                $("#socket_status ").attr("src", "/static/images/service_issue_diamond.png");
+                $("#refresh_page_glyph").show();
+            }
         };
         sock.onEvent = function(name, args) {
             if (name == "task.created") {
@@ -659,7 +694,7 @@ function TasksController($scope, $interval) {
     }
 }
 
-function VMController($scope) {
+function VMController($scope, $location, $routeParams, $route) {
     var sock = new middleware.DispatcherClient(document.domain);
     var term;
     var conn;
@@ -691,8 +726,13 @@ function VMController($scope) {
         var syncUrl = "/static/term.js";
         synchronousService(syncUrl);
         sock.onError = function(err) {
-            $("#socket_status ").attr("src", "/static/images/service_issue_diamond.png");
-            $("#refresh_page_glyph").show();
+            try {
+                $route.reload();
+            } catch (e) {
+                console.log(e);
+                $("#socket_status ").attr("src", "/static/images/service_issue_diamond.png");
+                $("#refresh_page_glyph").show();
+            }
         };
         sock.onConnect = function() {
             if (!sessionStorage.getItem("freenas:username")) {
@@ -742,7 +782,7 @@ function HTTPStatusController($scope, $http, $routeParams, $location) {
     $scope.status_code = $routeParams.status_code;
 }
 
-function RPCdocController($scope) {
+function RPCdocController($scope, $location, $routeParams, $route) {
     document.title = "RPC API Page";
     var sock = new middleware.DispatcherClient(document.domain);
     sock.connect();
@@ -752,8 +792,13 @@ function RPCdocController($scope) {
             $(this).JSONView('expand', 1);
         });
         sock.onError = function(err) {
-            $("#socket_status ").attr("src", "/static/images/service_issue_diamond.png");
-            $("#refresh_page_glyph").show();
+            try {
+                $route.reload();
+            } catch (e) {
+                console.log(e);
+                $("#socket_status ").attr("src", "/static/images/service_issue_diamond.png");
+                $("#refresh_page_glyph").show();
+            }
         };
         sock.onConnect = function() {
             if (!sessionStorage.getItem("freenas:username")) {
@@ -796,14 +841,19 @@ function RPCdocController($scope) {
     }
 }
 
-function TaskDocController($scope){
+function TaskDocController($scope, $location, $routeParams, $route){
     document.title = "Task API Page";
     var sock = new middleware.DispatcherClient(document.domain);
     sock.connect();
     $scope.init = function() {
         sock.onError = function(err) {
-            $("#socket_status ").attr("src", "/static/images/service_issue_diamond.png");
-            $("#refresh_page_glyph").show();
+            try {
+                $route.reload();
+            } catch (e) {
+                console.log(e);
+                $("#socket_status ").attr("src", "/static/images/service_issue_diamond.png");
+                $("#refresh_page_glyph").show();
+            }
         };
         sock.onConnect = function() {
             if (!sessionStorage.getItem("freenas:username")) {
@@ -841,14 +891,19 @@ function TaskDocController($scope){
     }
 }
 
-function EventsDocController($scope){
+function EventsDocController($scope, $location, $routeParams, $route){
     document.title = "Events API Page";
     var sock = new middleware.DispatcherClient(document.domain);
     sock.connect();
     $scope.init = function() {
         sock.onError = function(err) {
-            $("#socket_status ").attr("src", "/static/images/service_issue_diamond.png");
-            $("#refresh_page_glyph").show();
+            try {
+                $route.reload();
+            } catch (e) {
+                console.log(e);
+                $("#socket_status ").attr("src", "/static/images/service_issue_diamond.png");
+                $("#refresh_page_glyph").show();
+            }
         };
         sock.onConnect = function() {
             if (!sessionStorage.getItem("freenas:username")) {
@@ -887,14 +942,19 @@ function EventsDocController($scope){
     }
 }
 
-function SchemaController($scope){
+function SchemaController($scope, $location, $routeParams, $route){
     document.title = "Schema API Page";
     var sock = new middleware.DispatcherClient(document.domain);
     sock.connect();
     $scope.init = function() {
         sock.onError = function(err) {
-            $("#socket_status ").attr("src", "/static/images/service_issue_diamond.png");
-            $("#refresh_page_glyph").show();
+            try {
+                $route.reload();
+            } catch (e) {
+                console.log(e);
+                $("#socket_status ").attr("src", "/static/images/service_issue_diamond.png");
+                $("#refresh_page_glyph").show();
+            }
         };
         sock.onConnect = function() {
             if (!sessionStorage.getItem("freenas:username")) {
