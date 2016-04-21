@@ -208,6 +208,7 @@
             "service.ups.auxiliary": null,
             "service.sshd.allow_pubkey_auth": true,
             "service.sshd.allow_password_auth": true,
+            "service.sshd.allow_gssapi_auth": true,
             "service.sshd.compression": false,
             "service.sshd.allow_port_forwarding": false,
             "service.sshd.permit_root_login": true,
