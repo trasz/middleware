@@ -186,6 +186,7 @@ class SystemAdvancedProvider(Provider):
             'swapondrive': cs.get('system.swapondrive'),
             'debugkernel': cs.get('system.debug.kernel'),
             'uploadcrash': cs.get('system.upload_crash'),
+            'home_directory_root': cs.get('system.home_directory_root'),
             'motd': cs.get('system.motd'),
             'boot_scrub_internal': cs.get('system.boot_scrub_internal'),
             'periodic_notify_user': cs.get('system.periodic.notify_user'),
@@ -359,6 +360,9 @@ class SystemAdvancedConfigureTask(Task):
             if 'uploadcrash' in props:
                 cs.set('system.upload_crash', props['uploadcrash'])
                 rc = True
+
+            if 'home_directory_root' in props:
+                self.configstore.set('system.home_directory_root', props['home_directory_root'])
 
             if 'motd' in props:
                 cs.set('system.motd', props['motd'])
@@ -554,6 +558,7 @@ def _init(dispatcher, plugin):
             'swapondrive': {'type': 'integer'},
             'debugkernel': {'type': 'boolean'},
             'uploadcrash': {'type': 'boolean'},
+            'home_directory_root': {'type': ['string', 'null']},
             'motd': {'type': 'string'},
             'boot_scrub_internal': {'type': 'integer'},
             'periodic_notify_user': {'type': 'integer'},

@@ -296,6 +296,7 @@
             "system.swapondrive": 2,
             "system.periodic.notify_user": 0,
             "system.upload_crash": true,
+            "system.home_directory_root": null,
             "mail.from": "",
             "mail.server": "",
             "mail.port": 25,
