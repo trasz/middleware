@@ -260,6 +260,8 @@ populate_user(json_t *user, struct passwd *pwbuf, char *buf, size_t buflen)
 	obj = json_object_get(user, "unixhash");
 	pwbuf->pw_passwd = alloc_string(&buf, &buflen,
 	obj != NULL ? json_string_value(obj) : "*");
+
+	pwbuf->pw_class = alloc_string(&buf, &buflen, "default");
 }
 
 static void
@@ -688,7 +690,6 @@ nss_freenas_getgroupmembership(void *retval, void *mdata, va_list ap)
 	groups = va_arg(ap, gid_t *);
 	maxgrp = va_arg(ap, int);
 	groupc = va_arg(ap, int *);
-	ret = va_arg(ap, int *);
 
 	if (call_dispatcher("dscached.account.getpwnam", json_pack("[s]", uname),
 	    &user) < 0)
@@ -697,7 +698,7 @@ nss_freenas_getgroupmembership(void *retval, void *mdata, va_list ap)
 	if (user == NULL || json_is_null(user)) {
 		if (user != NULL)
 			json_decref(user);
-		*ret = ENOENT;
+		*groupc = 0;
 		return (NS_NOTFOUND);
 	}
 
