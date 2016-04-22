@@ -28,6 +28,7 @@
 
 import os
 import sys
+import copy
 import logging
 import argparse
 import crypt
@@ -40,6 +41,8 @@ import ipaddress
 import socket
 import setproctitle
 import netif
+from threading import RLock
+from datetime import datetime, timedelta
 from itertools import chain
 from more_itertools import unique_everseen
 from datastore.config import ConfigStore
@@ -67,6 +70,84 @@ def my_ips():
 
 def filter_af(addresses, af):
     return [a for a in addresses if type(ipaddress.ip_address(a)) is AF_MAP[af]]
+
+
+class CacheItem(object):
+    def __init__(self, id, name, value, directory, ttl):
+        self.id = id
+        self.name = name
+        self.value = value
+        self.directory = directory
+        self.ttl = ttl
+        self.created_at = datetime.utcnow()
+        self.lock = RLock()
+        self.destroyed = False
+
+    @property
+    def expired(self):
+        return self.created_at + timedelta(seconds=self.ttl) < datetime.utcnow()
+
+    @property
+    def ttl_left(self):
+        return self.ttl - (datetime.utcnow() - self.created_at).total_seconds()
+
+
+class TTLCacheStore(object):
+    def __init__(self):
+        self.id_store = {}
+        self.name_store = {}
+        self.hits = 0
+        self.misses = 0
+
+    def __len__(self):
+        return len(self.id_store)
+
+    def __getstate__(self):
+        return {
+            'size': len(self),
+            'hits': self.hits,
+            'misses': self.misses
+        }
+
+    def get(self, id=None, name=None):
+        if id is not None:
+            item = self.id_store.get(id)
+        elif name is not None:
+            item = self.name_store.get(name)
+        else:
+            raise AssertionError('Either id= or name= parameter must be filled')
+
+        if item:
+            if item.expired:
+                with item.lock:
+                    if item.destroyed:
+                        return
+
+                    del self.name_store[item.name]
+                    del self.id_store[item.id]
+                    self.misses += 1
+                    return
+
+            self.hits += 1
+            return item
+
+        self.misses += 1
+        return
+
+    def set(self, item):
+        with item.lock:
+            self.id_store[item.id] = item
+            self.name_store[item.name] = item
+
+    def expire(self):
+        for id, item in self.id_store.items():
+            if item.expirsed:
+                del self.name_store[item.name]
+                del self.id_store[id]
+
+    def clear(self):
+        self.name_store.clear()
+        self.id_store.clear()
 
 
 class Directory(object):
@@ -115,6 +196,21 @@ class ManagementService(RpcService):
 
         return realms
 
+    def get_cache_stats(self):
+        return {
+            'users': self.context.users_cache.__getstate__(),
+            'groups': self.context.groups_cache.__getstate__(),
+            'hosts': self.context.hosts_cache.__getstate__()
+        }
+
+    def clean_cache(self):
+        for i in self.context.users_cache, self.context.groups_cache, self.context.hosts_cache:
+            i.expire()
+
+    def flush_cache(self):
+        for i in self.context.users_cache, self.context.groups_cache, self.context.hosts_cache:
+            i.clear()
+
     def configure_directory(self, id):
         ds_d = self.context.datastore.get_by_id('directories', id)
         directory = first_or_default(lambda d: d.id == id, self.context.directories)
@@ -139,12 +235,15 @@ class AccountService(RpcService):
         self.logger = context.logger
         self.context = context
 
-    def __annotate(self, directory, user):
+    def __annotate(self, directory, user, cache_item=None):
         if directory.domain_name:
             user['username'] = '{0}@{1}'.format(user['username'], directory.domain_name)
 
         user['gids'] = [g['gid'] for g in directory.instance.getgrent([('id', 'in', user['groups'])])]
-        user['origin'] = {'directory': directory.plugin_type}
+        user['origin'] = {
+            'directory': directory.plugin_type,
+            'ttl': cache_item.ttl_left if cache_item else None
+        }
         return user
 
     def __get_user(self, user_name):
@@ -182,6 +281,11 @@ class AccountService(RpcService):
         return None
 
     def getpwnam(self, user_name):
+        # Try the cache first
+        item = self.context.users_cache.get(name=user_name)
+        if item:
+            return self.__annotate(item.directory, copy.copy(item.value))
+
         if '@' in user_name:
             # Fully qualified user name
             user_name, domain_name = user_name.split('@', 1)
@@ -196,6 +300,8 @@ class AccountService(RpcService):
                 continue
 
             if user:
+                item = CacheItem(user['uid'], user_name, copy.copy(user), d, 300)
+                self.context.users_cache.set(item)
                 return self.__annotate(d, user)
 
         return None
@@ -323,6 +429,9 @@ class Main(object):
         self.plugin_dirs = []
         self.plugins = {}
         self.directories = []
+        self.users_cache = TTLCacheStore()
+        self.groups_cache = TTLCacheStore()
+        self.hosts_cache = TTLCacheStore()
 
     def get_enabled_directories(self):
         return (d for d in self.directories if d.enabled)
