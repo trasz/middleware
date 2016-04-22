@@ -866,7 +866,6 @@ def sync_dataset_cache(dispatcher, dataset, old_dataset=None, recursive=False):
     try:
         if old_dataset:
             datasets.rename(old_dataset, dataset)
-            return
 
         ds = zfs.get_dataset(dataset)
 
@@ -898,7 +897,6 @@ def sync_snapshot_cache(dispatcher, snapshot, old_snapshot=None):
     try:
         if old_snapshot:
             snapshots.rename(old_snapshot, snapshot)
-            return
 
         snapshots.put(snapshot, wrap(zfs.get_snapshot(snapshot).__getstate__()))
     except libzfs.ZFSException as e:
@@ -1042,7 +1040,7 @@ def _init(dispatcher, plugin):
         with dispatcher.get_lock('zfs-cache'):
             if '@' in args['ds']:
                 logger.info('Snapshot {0} renamed to: {1}'.format(args['ds'], args['new_ds']))
-                sync_snapshot_cache(dispatcher, args['new_ds'])
+                sync_snapshot_cache(dispatcher, args['new_ds'], args['ds'])
             else:
                 logger.info('Dataset {0} renamed to: {1}'.format(args['ds'], args['new_ds']))
                 sync_dataset_cache(dispatcher, args['new_ds'])
