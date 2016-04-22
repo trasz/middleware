@@ -50,7 +50,7 @@ from freenas.dispatcher.rpc import (
 )
 from utils import first_or_default, load_config
 from datastore import DuplicateKeyException
-from freenas.utils import include, exclude, normalize, chunks
+from freenas.utils import include, exclude, normalize, chunks, yesno_to_bool
 from freenas.utils.query import wrap
 from freenas.utils.copytree import count_files, copytree
 from cryptography.fernet import Fernet, InvalidToken
@@ -1955,7 +1955,7 @@ def _init(dispatcher, plugin):
             'dataset': dataset,
             'name': name,
             'lifetime': lifetime,
-            'replicable': snapshot.get('properties.org\\.freenas:replicable.value') or False,
+            'replicable': yesno_to_bool(snapshot.get('properties.org\\.freenas:replicable.value')),
             'properties': include(
                 snapshot['properties'],
                 'used', 'referenced', 'compressratio', 'clones', 'creation'
