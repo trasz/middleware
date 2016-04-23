@@ -37,6 +37,11 @@ DEFAULT_CONFIGFILE = '/usr/local/etc/middleware.conf'
 ds = None
 
 
+def indented(s):
+    for line in s.split('\n'):
+        print('  {0}'.format(line))
+
+
 def arg_indented(index, s):
     for idx, line in enumerate(s.split('\n')):
         s = '  {0}. '.format(index) if idx == 0 else '     '
@@ -60,6 +65,13 @@ def dump_task(ds, task):
     print("Started at: {0}".format(task['started_at']))
     print("Started by: {0}".format(task['user']))
     print("Resources assigned: {0}".format(', '.join(task['resources'])))
+    if task.get('error'):
+        print("Error:")
+        print("  Type: {0}".format(task['error']['type']))
+        print("  Code: {0}".format(task['error']['code']))
+        print("  Message: {0}".format(task['error']['message']))
+        print("  Extra:")
+        indented(json.dumps(task['error']['extra'], default=json_util.default, indent=4))
     print("Warnings:")
     for warn in task['warnings']:
         print("  {0}: {1}".format(warn['code'], warn['message']))
@@ -87,7 +99,13 @@ def main():
     if 'all' in args.tasks:
         tasks = ds.query('tasks')
     else:
-        tasks = ds.query('tasks', ('id', 'in', [int(i) for i in args.tasks]))
+        tasks = []
+        for arg in args.tasks:
+            if '-' in arg:
+                low, high = arg.split('-')
+                tasks += ds.query('tasks', ('id', '>=', int(low)), ('id', '<=', int(high)))
+            else:
+                tasks += ds.query('tasks', ('id', '=', int(arg)))
 
     for i in tasks:
         dump_task(ds, i)
