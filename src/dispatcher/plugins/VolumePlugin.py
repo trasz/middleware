@@ -1740,7 +1740,12 @@ class DatasetConfigureTask(Task):
             ds['id'] = updated_params['id']
 
         if 'properties' in updated_params:
-            props = exclude(updated_params['properties'], 'used', 'available', 'dedup', 'casesensitivity')
+            props = exclude(
+                updated_params['properties'],
+                'used', 'usedbydataset', 'usedbysnapshots', 'usedbychildren', 'logicalused', 'logicalreferenced',
+                'written', 'usedbyrefreservation', 'referenced', 'available', 'dedup', 'casesensitivity',
+                'compressratio', 'refcompressratio'
+            )
             self.join_subtasks(self.run_subtask('zfs.update', pool_name, ds['id'], props))
 
         if 'permissions_type' in updated_params:
