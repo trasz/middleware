@@ -388,15 +388,18 @@ class MongodbDatastore(object):
         else:
             obj = copy.copy(obj)
 
+        pkey_type = self.collection_get_pkey_type(collection)
         autopkey = pkey is None and 'id' not in obj
         retries = 100
 
         if 'id' in obj:
             pkey = obj.pop('id')
 
+        if pkey_type == 'uuid' and pkey:
+            pkey = pkey.lower()
+
         while True:
             if autopkey:
-                pkey_type = self.collection_get_pkey_type(collection)
                 if pkey_type in ('serial', 'integer'):
                     ret = self._get_db(collection).find_one(sort=[('_id', pymongo.DESCENDING)])
                     pkey = ret['_id'] + 1 if ret else 1
