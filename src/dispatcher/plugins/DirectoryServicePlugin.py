@@ -34,15 +34,14 @@ from freenas.dispatcher.rpc import (
     returns,
     SchemaHelper as h
 )
-
-from resources import Resource 
-
 from task import (
     query,
     Provider,
     Task,
     VerifyException
 )
+
+from freenas.utils import normalize
 
 logger = logging.getLogger('DirectoryServicePlugin')
 
@@ -56,6 +55,36 @@ class DirectoryServicesProvider(Provider):
         return self.datastore.query('directories', *(filter or []), callback=extend, **(params or {}))
 
 
+@accepts(
+    h.ref('directory'),
+    h.required('name', 'plugin'),
+    h.forbidden('immutable')
+)
+@returns(str)
+class DirectoryServiceCreateTask(Task):
+    def verify(self, directory):
+        return ['system']
+
+    def run(self, directory):
+        normalize(directory, {
+            'enabled': False,
+            'immutable': False,
+            'uid_range': None,
+            'gid_range': None,
+            'parametesrs': {}
+        })
+
+        id = self.datastore.insert('directories', directory)
+        self.dispatcher.call_sync('dscached.management.configure_directory', id)
+        self.dispatcher.dispatch_event('directory.changed', {
+            'operation': 'create',
+            'ids': [id]
+        })
+
+        return id
+
+
+@accepts(str, h.ref('directory'))
 class DirectoryServiceUpdateTask(Task):
     def verify(self, id, updated_params):
         return ['system']
@@ -65,15 +94,28 @@ class DirectoryServiceUpdateTask(Task):
         directory.update(updated_params)
         self.datastore.update('directories', id, directory)
         self.dispatcher.call_sync('dscached.management.configure_directory', id)
-
         self.dispatcher.dispatch_event('directory.changed', {
             'operation': 'update',
             'ids': [id]
         })
 
 
+@accepts(str)
+class DirectoryServiceDeleteTask(Task):
+    def verify(self, id):
+        pass
+
+    def run(self, id):
+        self.datastore.delete('directories', id)
+        self.dispatcher.call_sync('dscached.management.configure_directory', id)
+        self.dispatcher.dispatch_event('directory.changed', {
+            'operation': 'delete',
+            'ids': [id]
+        })
+
+
 def _init(dispatcher, plugin):
-    plugin.register_schema_definition('directoryservice',  {
+    plugin.register_schema_definition('directory',  {
         'type': 'object',
         'properties': {
             'id': {'type': 'string'},
@@ -81,14 +123,14 @@ def _init(dispatcher, plugin):
             'plugin': {'type': 'string'},
             'enabled': {'type': 'boolean'},
             'uid_range': {
-                'type': 'array',
+                'type': ['array', 'null'],
                 'items': [
                     {'type': 'integer'},
                     {'type': 'integer'}
                 ]
             },
             'gid_range': {
-                'type': 'array',
+                'type': ['array', 'null'],
                 'items': [
                     {'type': 'integer'},
                     {'type': 'integer'}
@@ -105,4 +147,6 @@ def _init(dispatcher, plugin):
 
     plugin.register_provider('directory', DirectoryServicesProvider)
     plugin.register_event_type('directory.changed')
+    plugin.register_task_handler('directory.create', DirectoryServiceCreateTask)
     plugin.register_task_handler('directory.update', DirectoryServiceUpdateTask)
+    plugin.register_task_handler('directory.delete', DirectoryServiceDeleteTask)
