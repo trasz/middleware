@@ -1339,42 +1339,6 @@
     },
     {
         "metadata": {
-            "name": "directoryservices",
-            "migration": "keep",
-            "pkey-type": "native",
-            "attributes": {
-                "type": "config"
-            }
-        },
-        "data": {
-        }
-    },
-    {
-         "metadata": {
-            "name": "directoryservice.ldap",
-            "migration": "keep",
-            "pkey-type": "uuid",
-            "attributes": {
-                "type": "config"
-            }
-        },
-        "data": {
-        }
-    },
-    {
-         "metadata": {
-            "name": "directoryservice.activedirectory",
-            "migration": "keep",
-            "pkey-type": "uuid",
-            "attributes": {
-                "type": "config"
-            }
-        },
-        "data": {
-        }
-    },
-    {
-        "metadata": {
             "name": "calendar_tasks",
             "migration": "keep",
             "pkey-type": "native",
@@ -1458,14 +1422,15 @@
         "metadata": {
             "name": "directories",
             "migration": "replace",
-            "pkey-type": "native",
+            "pkey-type": "uuid",
             "attributes": {
-                "type": "persistent"
+                "type": "config"
             }
         },
         "data": {
-            "local": {
+            "946331F6-475A-4F99-8482-0881EC0C616E": {
                 "priority": 999,
+                "name": "local",
                 "plugin": "local",
                 "enabled": true,
                 "immutable": true,
@@ -1473,8 +1438,9 @@
                 "gid_range": [1000, 99999],
                 "parameters": {}
             },
-            "system": {
+            "0B078C8C-B132-471F-B671-DC20C1396912": {
                 "priority": 998,
+                "name": "system",
                 "plugin": "file",
                 "enabled": true,
                 "immutable": true,
@@ -1483,16 +1449,6 @@
                 "parameters": {
                     "passwd_file": "/etc/passwd.json",
                     "group_file": "/etc/group.json"
-                }
-            },
-            "activedirectory": {
-                "priority": 1,
-                "plugin": "winbind",
-                "enabled": false,
-                "uid_range": [100000, 999999],
-                "gid_range": [100000, 999999],
-                "parameters": {
-                    "realm": null
                 }
             }
         }
