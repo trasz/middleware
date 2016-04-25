@@ -523,7 +523,6 @@ class Dispatcher(object):
                 self.logger.warning('Cannot initialize syslog: %s', str(err))
 
     def __init_syslog(self):
-        logging.setLoggerClass(TraceLogger)
         handler = logging.handlers.SysLogHandler('/var/run/log', facility='local3')
         logging.root.setLevel(logging.DEBUG)
         logging.root.addHandler(handler)
@@ -1874,6 +1873,7 @@ def main():
     parser.add_argument('-c', type=str, metavar='CONFIG', default=DEFAULT_CONFIGFILE, help='Configuration file path')
     args = parser.parse_args()
 
+    logging.setLoggerClass(TraceLogger)
     logging.basicConfig(
         level=logging.getLevelName(args.log_level),
         format=LOGGING_FORMAT)
