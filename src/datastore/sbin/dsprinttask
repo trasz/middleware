@@ -71,7 +71,7 @@ def dump_task(ds, task):
         print("  Code: {0}".format(task['error']['code']))
         print("  Message: {0}".format(task['error']['message']))
         print("  Extra:")
-        indented(json.dumps(task['error']['extra'], default=json_util.default, indent=4))
+        indented(json.dumps(task['error'].get('extra'), default=json_util.default, indent=4))
     print("Warnings:")
     for warn in task['warnings']:
         print("  {0}: {1}".format(warn['code'], warn['message']))
