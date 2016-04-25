@@ -1885,7 +1885,8 @@ def get_disks(topology):
 
 
 def get_disk_gptid(dispatcher, disk):
-    config = dispatcher.call_sync('disk.get_disk_config', disk)
+    id = dispatcher.call_sync('disk.path_to_id', disk)
+    config = dispatcher.call_sync('disk.get_disk_config_by_id', id)
     return config.get('data_partition_path', disk)
 
 
