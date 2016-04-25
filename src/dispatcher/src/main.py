@@ -528,6 +528,23 @@ class Dispatcher(object):
         logging.root.setLevel(logging.DEBUG)
         logging.root.addHandler(handler)
 
+    def set_syslog_level(self, level):
+        if level == 'CRITICAL':
+            log_level = logging.CRITICAL
+        elif level == 'ERROR':
+            log_level = logging.ERROR
+        elif level == 'WARNING':
+            log_level = logging.WARNING
+        elif level == 'INFO':
+            log_level = logging.INFO
+        elif level == 'DEBUG':
+            log_level = logging.DEBUG
+        elif level == 'TRACE':
+            log_level = logging.DEBUG - 5
+        else:
+            raise RpcException(errno.EINVAL, 'Invalid logging level {0} selected'.format(level))
+        logging.root.setLevel(log_level)
+
     def dispatch_event(self, name, args):
         with self.event_delivery_lock:
             if 'timestamp' not in args:
