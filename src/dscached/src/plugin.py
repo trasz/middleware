@@ -45,7 +45,7 @@ def status(sch):
 
 
 class DirectoryServicePlugin(object):
-    def getpwent(self):
+    def getpwent(self, filter=None, params=None):
         raise NotImplementedError()
 
     def getpwuid(self, name):
@@ -54,7 +54,7 @@ class DirectoryServicePlugin(object):
     def getpwnam(self, uid):
         raise NotImplementedError()
 
-    def getgrent(self):
+    def getgrent(self, filter=None, params=None):
         raise NotImplementedError()
 
     def getgrnam(self, name):

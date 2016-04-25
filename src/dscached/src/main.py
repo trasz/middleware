@@ -157,9 +157,16 @@ class Directory(object):
         self.domain_name = None
         self.plugin_type = definition['plugin']
         self.parameters = definition['parameters']
-        self.min_uid, self.max_uid = definition['uid_range']
-        self.min_gid, self.max_gid = definition['gid_range']
         self.enabled = definition['enabled']
+        self.max_uid = self.min_uid = None
+        self.max_gid = self.min_gid = None
+
+        if definition['uid_range']:
+            self.min_uid, self.max_uid = definition['uid_range']
+
+        if definition['gid_range']:
+            self.min_gid, self.max_gid = definition['gid_range']
+
         self.context.logger.info('Initializing directory {0}'.format(self.id))
 
         try:
@@ -223,8 +230,12 @@ class ManagementService(RpcService):
         if not ds_d['enabled'] and directory.enabled:
             self.logger.info('Disabling directory {0}'.format(id))
 
-        directory.min_uid, directory.max_uid = ds_d['uid_range']
-        directory.min_gid, directory.max_gid = ds_d['gid_range']
+        if ds_d['uid_range']:
+            directory.min_uid, directory.max_uid = ds_d['uid_range']
+
+        if ds_d['gid_range']:
+            directory.min_gid, directory.max_gid = ds_d['gid_range']
+
         directory.enabled = ds_d['enabled']
         directory.parameters = ds_d['parameters']
         directory.configure()
