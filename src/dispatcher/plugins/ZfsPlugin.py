@@ -864,16 +864,18 @@ def sync_dataset_cache(dispatcher, dataset, old_dataset=None, recursive=False):
     pool = dataset.split('/')[0]
     sync_zpool_cache(dispatcher, pool)
     try:
+        ds = zfs.get_dataset(dataset)
+
         if old_dataset:
             datasets.rename(old_dataset, dataset)
-            return
-
-        ds = zfs.get_dataset(dataset)
 
         if datasets.put(dataset, wrap(ds.__getstate__(recursive=False))):
             dispatcher.register_resource(
                 Resource('zfs:{0}'.format(dataset)),
                 parents=['zpool:{0}'.format(pool)])
+
+        for i in ds.snapshots:
+            sync_snapshot_cache(dispatcher, i.name)
 
         if recursive:
             for i in ds.children:
@@ -882,6 +884,7 @@ def sync_dataset_cache(dispatcher, dataset, old_dataset=None, recursive=False):
     except libzfs.ZFSException as e:
         if e.code == libzfs.Error.NOENT:
             if datasets.remove(dataset):
+                snapshots.remove_predicate(lambda i: i['pool'] == pool)
                 names = datasets.remove_predicate(lambda i: i['name'].startswith(dataset + '/'))
                 dispatcher.unregister_resources(
                     ['zfs:{0}'.format(i) for i in names] +
@@ -898,7 +901,6 @@ def sync_snapshot_cache(dispatcher, snapshot, old_snapshot=None):
     try:
         if old_snapshot:
             snapshots.rename(old_snapshot, snapshot)
-            return
 
         snapshots.put(snapshot, wrap(zfs.get_snapshot(snapshot).__getstate__()))
     except libzfs.ZFSException as e:
@@ -1042,7 +1044,7 @@ def _init(dispatcher, plugin):
         with dispatcher.get_lock('zfs-cache'):
             if '@' in args['ds']:
                 logger.info('Snapshot {0} renamed to: {1}'.format(args['ds'], args['new_ds']))
-                sync_snapshot_cache(dispatcher, args['new_ds'])
+                sync_snapshot_cache(dispatcher, args['new_ds'], args['ds'])
             else:
                 logger.info('Dataset {0} renamed to: {1}'.format(args['ds'], args['new_ds']))
                 sync_dataset_cache(dispatcher, args['new_ds'])
@@ -1423,16 +1425,17 @@ def _init(dispatcher, plugin):
         zfs = get_zfs()
         logger.info("Syncing ZFS pools...")
         pools = EventCacheStore(dispatcher, 'zfs.pool')
+        datasets = EventCacheStore(dispatcher, 'zfs.dataset')
+        snapshots = EventCacheStore(dispatcher, 'zfs.snapshot')
+        
         for i in zfs.pools:
             sync_zpool_cache(dispatcher, i.name)
 
         logger.info("Syncing ZFS datasets...")
-        datasets = EventCacheStore(dispatcher, 'zfs.dataset')
         for i in zfs.datasets:
             sync_dataset_cache(dispatcher, i.name)
 
         logger.info("Syncing ZFS snapshots...")
-        snapshots = EventCacheStore(dispatcher, 'zfs.snapshot')
         for i in zfs.snapshots:
             sync_snapshot_cache(dispatcher, i.name)
 

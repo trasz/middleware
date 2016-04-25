@@ -57,10 +57,11 @@ class Task(object):
     @classmethod
     def _get_metadata(cls):
         return {
-            'description': cls.description if hasattr(cls, 'description') else None,
-            'schema': cls.params_schema if hasattr(cls, 'params_schema') else None,
+            'description': getattr(cls, 'description', None),
+            'schema': getattr(cls, 'params_schema', None),
             'abortable': True if (hasattr(cls, 'abort') and isinstance(cls.abort, collections.Callable)) else False,
-            'private': cls.private if hasattr(cls, 'private') else False
+            'private': getattr(cls, 'private', False),
+            'metadata': getattr(cls, 'metadata', None)
         }
 
     def get_status(self):
@@ -190,7 +191,7 @@ class TaskWarning(RpcWarning):
 
 class ValidationException(TaskException):
     def __init__(self, errors=None, extra=None, **kwargs):
-        super(ValidationException, self).__init__(errno.EBADMSG, 'Validation Exception Errors', extra=[])
+        super(ValidationException, self).__init__(errno.EBADMSG, 'Validation failed', extra=[])
 
         if errors:
             for path, code, message in errors:
@@ -249,6 +250,13 @@ class Provider(RpcService):
         self.dispatcher = context.dispatcher
         self.datastore = self.dispatcher.datastore
         self.configstore = self.dispatcher.configstore
+
+
+def metadata(**d):
+    def wrapped(fn):
+        fn.metadata = d
+
+    return wrapped
 
 
 def query(result_type):

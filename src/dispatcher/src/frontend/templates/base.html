@@ -13,16 +13,17 @@
 <!-- Latest compiled and minified CSS -->
 <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.6/css/bootstrap.min.css" integrity="sha384-1q8mTJOASx8j1Au+a5WDVnPi2lkFfwwEAa8hDDdjZlpLegxhjVME1fgjWPGmkzs7" crossorigin="anonymous">
 <link rel="stylesheet" href="/static/css/dashboard.css" >
+<!-- <link rel="stylesheet" href="http://www.bootcss.com/p/flat-ui/css/flat-ui.css" media="screen" title="no title" charset="utf-8"> -->
 <style>
 	body { padding-top: 51px; }
 }
 </style>
 
 </head>
-<body>
+<body ng-app="DebuggerApp">
 	<nav class="navbar navbar-inverse navbar-fixed-top">
-	<div class="container" >
-          <nav id="navbar" class="collapse navbar-collapse" role="navigation">
+	<div class="container">
+          <nav id="navbar" class="collapse navbar-collapse" role="navigation" ng-app="NavController">
             <ul class="nav navbar-nav">
                 <li><a href="#/events">Events</a></li>
                 <li><a href="#/rpc/">RPC</a></li>
@@ -36,9 +37,9 @@
                   <a href="" class="dropdown-toggle" dropdown-toggle role="button" aria-haspopup="true" aria-expanded="false">API Docs <span class="caret"></span></a>
                   <ul class="dropdown-menu" dropdown-menu>
                     <li><a href="#/apidocs/rpc">RPC Interface</a></li>
-                    <li><a href="#/apidocs/tasks">Events</a></li>
-                    <li><a href="#">Tasks</a></li>
-                    <li><a href="#">JSON Schemas</a></li>
+                    <li><a href="#/apidocs/tasks">Tasks</a></li>
+                    <li><a href="#/apidocs/events">Events</a></li>
+                    <li><a href="#/apidocs/schema">JSON Schemas</a></li>
                     <li role="separator" class="divider"></li>
                     <li><a href="#">Features upcoming</a></li>
                     <li role="separator" class="divider"></li>
@@ -73,6 +74,7 @@
 <!-- <script src="https://ajax.googleapis.com/ajax/libs/angularjs/1.5.0/angular.min.js"></script>
 <script src="http://ajax.googleapis.com/ajax/libs/angularjs/1.5.0/angular-route.min.js"></script> -->
 <script data-require="angular.js@1.2.*" data-semver="1.2.27" src="https://code.angularjs.org/1.2.27/angular.js"></script>
+<script src="http://ajax.googleapis.com/ajax/libs/angularjs/1.2.27/angular-cookies.js" charset="utf-8"></script>
 <script src="https://code.angularjs.org/1.2.27/angular-resource.min.js" charset="utf-8"></script>
 <script src="http://ajax.googleapis.com/ajax/libs/angularjs/1.2.27/angular-route.min.js"></script>
 <script data-require="ui-bootstrap@*" data-semver="0.11.0" src="http://angular-ui.github.io/bootstrap/ui-bootstrap-tpls-0.12.0.min.js"></script>

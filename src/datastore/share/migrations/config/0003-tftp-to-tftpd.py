@@ -39,4 +39,4 @@ def probe(obj, ds):
 
 
 def apply(obj, ds):
-    del obj
+    return None

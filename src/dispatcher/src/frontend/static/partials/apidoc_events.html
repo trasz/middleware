@@ -5,12 +5,12 @@
 <div class="row">
     <div class="col-sm-2 col-md-2 sidebar">
             <ul class="nav nav-sidebar">
-              <li class="active"><a href="#/apidocs/rpc">Click on a Task<span class="sr-only">(current)</span></a></li>
+              <li class="active"><a href="#/apidocs/events">Click on a Event<span class="sr-only">(current)</span></a></li>
             </ul>
             <ul class="nav nav-sidebar">
               <label><input type="text" class="form-control" ng-model="searchText" placeholder="search it here, click me"></label>
-              <li ng-repeat="service_name in services | orderBy:'toString()' | filter:searchText  ">
-                 <a href="" ng-click="getTaskList(service_name)" data-toggle="tooltip" title="click me for details"><span class="badge"></span>{{ service_name }}</a>
+              <li ng-repeat="event_name in events | orderBy:'toString()' | filter:searchText  ">
+                 <a href="" ng-click="getEvent(event_name)" data-toggle="tooltip" title="click me for details"><span class="badge"></span>{{ event_name }}</a>
               </li>
             </ul>
     </div>

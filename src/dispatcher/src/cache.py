@@ -77,6 +77,7 @@ class CacheStore(object):
     def rename(self, oldkey, newkey):
         with self.lock:
             obj = self.get(oldkey)
+            obj['id'] = newkey
             self.put(newkey, obj)
             self.remove(oldkey)
 
@@ -144,7 +145,12 @@ class EventCacheStore(CacheStore):
         return result
 
     def rename(self, oldkey, newkey):
-        super(EventCacheStore, self).rename(oldkey, newkey)
+        with self.lock:
+            obj = super(EventCacheStore, self).get(oldkey)
+            obj['id'] = newkey
+            super(EventCacheStore, self).put(newkey, obj)
+            super(EventCacheStore, self).remove(oldkey)
+
         if self.ready:
             self.dispatcher.emit_event('{0}.changed'.format(self.name), {
                 'operation': 'rename',

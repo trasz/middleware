@@ -73,7 +73,7 @@ UNITS = {
 
 
 class StatProvider(Provider):
-    @query('stat')
+    @query('statistic')
     def query(self, filter=None, params=None):
         stats = self.dispatcher.call_sync('statd.output.get_current_state')
         return wrap(stats).query(*(filter or []), **(params or {}))
@@ -83,7 +83,7 @@ class StatProvider(Provider):
 
 
 class CpuStatProvider(Provider):
-    @query('stat')
+    @query('statistic')
     def query(self, filter=None, params=None):
         stats = self.dispatcher.call_sync('stat.query', [('name', '~', 'cpu')])
 
@@ -100,7 +100,7 @@ class CpuStatProvider(Provider):
 
 
 class DiskStatProvider(Provider):
-    @query('stat')
+    @query('statistic')
     def query(self, filter=None, params=None):
         stats = self.dispatcher.call_sync('stat.query', [('name', '~', 'disk')])
 
@@ -116,7 +116,7 @@ class DiskStatProvider(Provider):
 
 
 class NetworkStatProvider(Provider):
-    @query('stat')
+    @query('statistic')
     def query(self, filter=None, params=None):
         stats = self.dispatcher.call_sync('stat.query', [('name', '~', 'interface')])
 
@@ -132,7 +132,7 @@ class NetworkStatProvider(Provider):
 
 
 class SystemStatProvider(Provider):
-    @query('stat')
+    @query('statistic')
     def query(self, filter=None, params=None):
         stats = self.dispatcher.call_sync(
             'stat.query',
@@ -158,7 +158,7 @@ class SystemStatProvider(Provider):
         return wrap(stats).query(*(filter or []), **(params or {}))
 
 
-@accepts(str, h.ref('stat'))
+@accepts(str, h.ref('statistic'))
 class UpdateAlertTask(Task):
     def verify(self, name, stat):
         if name not in self.dispatcher.call_sync('statd.output.get_data_sources'):
@@ -217,6 +217,30 @@ def dash_to_underscore(name):
 
 
 def _init(dispatcher, plugin):
+    plugin.register_schema_definition('statistic', {
+        'type': 'object',
+        'additionalProperties': False,
+        'properties': {
+            'name': {'type': 'string'},
+            'short_name': {'type': 'string'},
+            'unit': {'type': 'string'},
+            'last_value': {'type': ['integer', 'number', 'null']},
+            'alerts': {'$ref': 'statistic-alert'},
+        }
+    })
+    plugin.register_schema_definition('statistic-alert', {
+        'type': 'object',
+        'additionalProperties': False,
+        'properties': {
+            'alert_high': {'type': ['integer', 'number', 'null']},
+            'normalized_alert_high': {'type': ['integer', 'number', 'null']},
+            'alert_high_enabled': {'type': 'boolean'},
+            'alert_low': {'type': ['integer', 'number', 'null']},
+            'normalized_alert_low': {'type': ['integer', 'number', 'null']},
+            'alert_low_enabled': {'type': 'boolean'}
+        }
+    })
+
     plugin.register_provider('stat', StatProvider)
     plugin.register_provider('stat.cpu', CpuStatProvider)
     plugin.register_provider('stat.disk', DiskStatProvider)

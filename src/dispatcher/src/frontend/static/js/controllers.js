@@ -7,15 +7,31 @@ function IndexController($scope) {
   console.log("index page");
 }
 
-function RpcController($scope) {
+function NavController($scope) {
+    console.log("nav bar Controller");
+    $scope.toggleModal = function(){
+        console.log("modal toggled");
+    }
+}
+
+function RpcController($scope, $location, $routeParams, $route) {
     document.title = "RPC Page";
     var sock = new middleware.DispatcherClient(document.domain);
     sock.connect();
+    $scope.showModal = false;
+    $scope.toggleModal = function(){
+        $scope.showModal = !$scope.showModal;
+    };
     $("#result").hide();
     $scope.init = function () {
         sock.onError = function(err) {
-            $("#socket_status ").attr("src", "/static/images/service_issue_diamond.png");
-            $("#refresh_page_glyph").show();
+            try {
+                $route.reload();
+            } catch (e) {
+                console.log(e);
+                $("#socket_status ").attr("src", "/static/images/service_issue_diamond.png");
+                $("#refresh_page_glyph").show();
+            }
         };
         sock.onConnect = function() {
             if (!sessionStorage.getItem("freenas:username")) {
@@ -77,21 +93,7 @@ function RpcController($scope) {
             $("#method").val(),
             JSON.parse($("#args").val()),
             function(result) {
-                console.log(result);
-                // if (result.length == undefined) {
-                    // result['extra'] = "<a href='' ng-click='setInput(" + result['extra']+ ")'>" + result['extra'] + "</a>";
-                // }else {
-                // $.each(result, function(idx, i) {
-                    // console.log(i);
-                    // there're 3 conditions : [], [object, object], RPCException
-                    // Now I got every single object from socket,
-                    // should add some check like doHaveRef(),
-                    // then add ref_link for `$ref`
-                    // use angular.toJson(obj, pretty);
-                    // and $compile(HTML)(scope);
-                // });
-                // }
-                $("#result").html(angular.toJson(result, 4));
+                $("#result").html(JSON.stringify(result, null, 4));
                 $("#result").show("slow");
             }
         );
@@ -104,8 +106,7 @@ function RpcController($scope) {
     }
 }
 
-function TermController($scope, synchronousService) {
-    console.log("200");
+function TermController($scope, synchronousService, $location, $routeParams, $route) {
     document.title = "System Events";
     var sock = new middleware.DispatcherClient(document.domain);
     sock.connect();
@@ -137,8 +138,13 @@ function TermController($scope, synchronousService) {
         var syncUrl = "/static/term.js";
         synchronousService(syncUrl);
         sock.onError = function(err) {
-            $("#socket_status ").attr("src", "/static/images/service_issue_diamond.png");
-            $("#refresh_page_glyph").show();
+            try {
+                $route.reload();
+            } catch (e) {
+                console.log(e);
+                $("#socket_status ").attr("src", "/static/images/service_issue_diamond.png");
+                $("#refresh_page_glyph").show();
+            }
         };
     };
 
@@ -176,14 +182,19 @@ function TermController($scope, synchronousService) {
 
 }
 
-function EventsController($scope) {
+function EventsController($scope, $location, $routeParams, $route) {
     document.title = "System Events";
     var sock = new middleware.DispatcherClient(document.domain);
     sock.connect();
     $scope.init = function () {
         sock.onError = function(err) {
-            $("#socket_status ").attr("src", "/static/images/service_issue_diamond.png");
-            $("#refresh_page_glyph").show();
+            try {
+                $route.reload();
+            } catch (e) {
+                console.log(e);
+                $("#socket_status ").attr("src", "/static/images/service_issue_diamond.png");
+                $("#refresh_page_glyph").show();
+            }
         };
         sock.onConnect = function() {
             if (!sessionStorage.getItem("freenas:username")) {
@@ -216,14 +227,19 @@ function EventsController($scope) {
         };
     }
 }
-function SyslogController($scope) {
+function SyslogController($scope, $location, $routeParams, $route) {
     document.title = "System Logs";
     var sock = new middleware.DispatcherClient(document.domain);
     sock.connect();
     $scope.init = function () {
         sock.onError = function(err) {
-            $("#socket_status ").attr("src", "/static/images/service_issue_diamond.png");
-            $("#refresh_page_glyph").show();
+            try {
+                $route.reload();
+            } catch (e) {
+                console.log(e);
+                $("#socket_status ").attr("src", "/static/images/service_issue_diamond.png");
+                $("#refresh_page_glyph").show();
+            }
         };
         sock.onConnect = function() {
             if (!sessionStorage.getItem("freenas:username")) {
@@ -259,7 +275,7 @@ function SyslogController($scope) {
     }
 }
 
-function StatsController($scope) {
+function StatsController($scope, $location, $routeParams, $route) {
     document.title = "Stats Charts";
     var sock = new middleware.DispatcherClient(document.domain);
     var chart;
@@ -306,8 +322,13 @@ function StatsController($scope) {
     }
     $scope.init = function () {
         sock.onError = function(err) {
-            $("#socket_status ").attr("src", "/static/images/service_issue_diamond.png");
-            $("#refresh_page_glyph").show();
+            try {
+                $route.reload();
+            } catch (e) {
+                console.log(e);
+                $("#socket_status ").attr("src", "/static/images/service_issue_diamond.png");
+                $("#refresh_page_glyph").show();
+            }
         };
         sock.onConnect = function() {
             if (!sessionStorage.getItem("freenas:username")) {
@@ -350,15 +371,20 @@ function StatsController($scope) {
     }
 }
 
-function FileBrowserController($scope) {
+function FileBrowserController($scope, $location, $routeParams, $route) {
     document.title = "File Browser";
     var BUFSIZE = 1024;
     var sock = new middleware.DispatcherClient( document.domain );
     sock.connect();
     $scope.init = function () {
         sock.onError = function(err) {
-            $("#socket_status ").attr("src", "/static/images/service_issue_diamond.png");
-            $("#refresh_page_glyph").show();
+            try {
+                $route.reload();
+            } catch (e) {
+                console.log(e);
+                $("#socket_status ").attr("src", "/static/images/service_issue_diamond.png");
+                $("#refresh_page_glyph").show();
+            }
         };
 
         sock.onConnect = function ( ) {
@@ -495,7 +521,6 @@ function FileBrowserController($scope) {
       });
 
       $scope.uploadFiles = function() {
-          console.log("this is where we upload files");
           $scope.uploadFileList.map(uploadToSocket);
       }
 
@@ -504,10 +529,7 @@ function FileBrowserController($scope) {
       }
 
       $scope.downloadFile = function(filename) {
-          //downloadFromHttp(filename);
           downloadFromHttp( filename );
-        //   toggleMenuOff();
-        // console.log(filename);
       }
 
       function handleFileSelect ( evt ) {
@@ -570,34 +592,39 @@ function FileBrowserController($scope) {
     };
 }
 
-function TasksController($scope) {
+function TasksController($scope, $interval, $location, $routeParams, $route) {
     document.title = "System Tasks";
     var sock = new middleware.DispatcherClient(document.domain);
     sock.connect();
+    $("#result").hide();
     function refresh_tasks(){
         $("#tasklist tbody").empty();
         sock.call("task.query", [[["state", "in", ["CREATED", "WAITING", "EXECUTING"]]]], function (tasks) {
+            var tmp_list = [];
             $.each(tasks, function(idx, i) {
-                $("<tr/>", {
-                    'data-id': i.id,
-                    'html': template_task(i)
-                }).appendTo("#tasklist tbody");
+                tmp_list.push(i);
+            });
+            $scope.$apply(function(){
+                $scope.pending_tasks = tmp_list;
             });
         });
     }
     $scope.init = function() {
         sock.onError = function(err) {
-            $("#socket_status ").attr("src", "/static/images/service_issue_diamond.png");
-            $("#refresh_page_glyph").show();
+            try {
+                $route.reload();
+            } catch (e) {
+                console.log(e);
+                $("#socket_status ").attr("src", "/static/images/service_issue_diamond.png");
+                $("#refresh_page_glyph").show();
+            }
         };
         sock.onEvent = function(name, args) {
             if (name == "task.created") {
-                $("<tr/>", {
-                    'data-id': args.id,
-                    'html': template_task(args)
-                }).appendTo("#tasklist tbody");
+                $scope.$apply(function(){
+                    $scope.pending_tasks.push(args);
+                });
             }
-
             if (name == "task.updated") {
                 var tr = $("#tasklist").find("tr[data-id='" + args.id + "']");
                 tr.find(".status").text(args.state);
@@ -628,21 +655,46 @@ function TasksController($scope) {
             sock.subscribe("task.*");
             refresh_tasks();
             var item_list = [];
+            var service_list = [];
             sock.call("discovery.get_tasks", null, function (tasks) {
                 $.each(tasks, function(key, value) {
                     value['name'] = key;
                     value['schema'] = angular.toJson(value['schema'], 4);
                     item_list.push(value);
+                    service_list.push(key);
                 });
                 $scope.$apply(function(){
                   $scope.item_list = item_list;
+                  $scope.services = service_list;
                 });
             });
         }
     }
+    $("#submit").click(function () {
+        console.log("task submitted");
+        var task_args = JSON.parse($("#args").val());
+        task_args = "[" + task_args + "]";
+        sock.call("task.submit", [$("#task").val()].concat(task_args), function(result) {
+            $("#result").html("Task: "+JSON.stringify(result, null, 4)+" is added to pending list");
+            $("#result").show("slow");
+            refresh_tasks();
+        });
+    });
+    $scope.setTask = function(task_name){
+        $scope.searchText = task_name;
+        $("#task").val(task_name);
+    }
+    $scope.abortTask = function(task_id){
+        console.log(task_id);
+        if (confirm("Abort this task? ")) {
+            sock.call("task.abort", [task_id], function (result) {
+            });
+            refresh_tasks();
+        }
+    }
 }
 
-function VMController($scope) {
+function VMController($scope, $location, $routeParams, $route) {
     var sock = new middleware.DispatcherClient(document.domain);
     var term;
     var conn;
@@ -674,8 +726,13 @@ function VMController($scope) {
         var syncUrl = "/static/term.js";
         synchronousService(syncUrl);
         sock.onError = function(err) {
-            $("#socket_status ").attr("src", "/static/images/service_issue_diamond.png");
-            $("#refresh_page_glyph").show();
+            try {
+                $route.reload();
+            } catch (e) {
+                console.log(e);
+                $("#socket_status ").attr("src", "/static/images/service_issue_diamond.png");
+                $("#refresh_page_glyph").show();
+            }
         };
         sock.onConnect = function() {
             if (!sessionStorage.getItem("freenas:username")) {
@@ -725,7 +782,7 @@ function HTTPStatusController($scope, $http, $routeParams, $location) {
     $scope.status_code = $routeParams.status_code;
 }
 
-function RPCdocController($scope) {
+function RPCdocController($scope, $location, $routeParams, $route) {
     document.title = "RPC API Page";
     var sock = new middleware.DispatcherClient(document.domain);
     sock.connect();
@@ -735,8 +792,13 @@ function RPCdocController($scope) {
             $(this).JSONView('expand', 1);
         });
         sock.onError = function(err) {
-            $("#socket_status ").attr("src", "/static/images/service_issue_diamond.png");
-            $("#refresh_page_glyph").show();
+            try {
+                $route.reload();
+            } catch (e) {
+                console.log(e);
+                $("#socket_status ").attr("src", "/static/images/service_issue_diamond.png");
+                $("#refresh_page_glyph").show();
+            }
         };
         sock.onConnect = function() {
             if (!sessionStorage.getItem("freenas:username")) {
@@ -779,14 +841,19 @@ function RPCdocController($scope) {
     }
 }
 
-function TaskDocController($scope){
+function TaskDocController($scope, $location, $routeParams, $route){
     document.title = "Task API Page";
     var sock = new middleware.DispatcherClient(document.domain);
     sock.connect();
     $scope.init = function() {
         sock.onError = function(err) {
-            $("#socket_status ").attr("src", "/static/images/service_issue_diamond.png");
-            $("#refresh_page_glyph").show();
+            try {
+                $route.reload();
+            } catch (e) {
+                console.log(e);
+                $("#socket_status ").attr("src", "/static/images/service_issue_diamond.png");
+                $("#refresh_page_glyph").show();
+            }
         };
         sock.onConnect = function() {
             if (!sessionStorage.getItem("freenas:username")) {
@@ -818,12 +885,111 @@ function TaskDocController($scope){
     $scope.getTaskList = function(task_name) {
         $scope.current_methods = $scope.task_dict[task_name];
         $scope.current_service = task_name;
-        try {
+        $scope.schema_list = [];
+        $scope.schema_list.push($scope.current_methods['schema']);
+        $("#schema_pretty").html(JSON.stringify($scope.schema_list,null, 4));
+    }
+}
 
-        } catch (e) {
+function EventsDocController($scope, $location, $routeParams, $route){
+    document.title = "Events API Page";
+    var sock = new middleware.DispatcherClient(document.domain);
+    sock.connect();
+    $scope.init = function() {
+        sock.onError = function(err) {
+            try {
+                $route.reload();
+            } catch (e) {
+                console.log(e);
+                $("#socket_status ").attr("src", "/static/images/service_issue_diamond.png");
+                $("#refresh_page_glyph").show();
+            }
+        };
+        sock.onConnect = function() {
+            if (!sessionStorage.getItem("freenas:username")) {
+                var username = prompt("Username:");
+                var password = prompt("Password:");
+                sessionStorage.setItem("freenas:username", username);
+                sessionStorage.setItem("freenas:password", password);
+            }
 
-        } finally {
+            sock.login(
+                sessionStorage.getItem("freenas:username"),
+                sessionStorage.getItem("freenas:password")
+            );
+            $("#login_username").html(username);
+        };
+        sock.onLogin = function() {
+            sock.call("discovery.get_event_types", null, function (events) {
+                var temp_list = [];
+                $.each(events, function(event_name, i) {
+                    temp_list.push(event_name);
+                })
+                $scope.$apply(function(){
+                  $scope.events = temp_list;
+                  $scope.event_dict = events;
+                });
+            });
+        };
+    }
+    $scope.getEvent = function(event_name) {
+        $scope.current_service = event_name
+        if ($scope.event_dict[event_name]['event_schema']!= undefined) {
+            $("#schema_pretty").html(JSON.stringify($scope.event_dict[event_name]['event_schema'],null, 4))
+        }else {
+            $("#schema_pretty").html('No doc found');
+        }
+    }
+}
 
+function SchemaController($scope, $location, $routeParams, $route){
+    document.title = "Schema API Page";
+    var sock = new middleware.DispatcherClient(document.domain);
+    sock.connect();
+    $scope.init = function() {
+        sock.onError = function(err) {
+            try {
+                $route.reload();
+            } catch (e) {
+                console.log(e);
+                $("#socket_status ").attr("src", "/static/images/service_issue_diamond.png");
+                $("#refresh_page_glyph").show();
+            }
+        };
+        sock.onConnect = function() {
+            if (!sessionStorage.getItem("freenas:username")) {
+                var username = prompt("Username:");
+                var password = prompt("Password:");
+                sessionStorage.setItem("freenas:username", username);
+                sessionStorage.setItem("freenas:password", password);
+            }
+
+            sock.login(
+                sessionStorage.getItem("freenas:username"),
+                sessionStorage.getItem("freenas:password")
+            );
+            $("#login_username").html(username);
+        };
+        sock.onLogin = function() {
+            sock.call("discovery.get_schema", null, function (tasks) {
+                var temp_list = [];
+                $.each(tasks['definitions'], function(task_name, i) {
+                    temp_list.push(task_name);
+                })
+                $scope.$apply(function(){
+                  $scope.services = temp_list;
+                  $scope.task_dict = tasks['definitions'];
+                });
+            });
+        };
+    }
+    $scope.getTaskList = function (task_name) {
+        $scope.current_service = task_name;
+        $scope.current_methods = $scope.task_dict[task_name]['properties'];
+        if ($scope.task_dict[task_name]['properties'] != undefined) {
+            $("#schema_pretty").html(JSON.stringify($scope.task_dict[task_name]['properties'],null,4));
+        } else {
+            $("#schema_pretty").html('No doc found');
         }
     }
 }

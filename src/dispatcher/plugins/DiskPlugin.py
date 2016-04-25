@@ -1193,6 +1193,7 @@ def persist_disk(dispatcher, disk):
     ds_disk.update({
         'lunid': disk['lunid'],
         'path': disk['path'],
+        'name': os.path.basename(disk['path']),
         'mediasize': disk['mediasize'],
         'serial': disk['serial'],
         'is_multipath': disk['is_multipath'],

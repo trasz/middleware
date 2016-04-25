@@ -53,6 +53,14 @@ DebuggerApp.config(['$routeProvider', function($routeProvider) {
           templateUrl: '../static/partials/apidoc_tasks.html',
           controller: TaskDocController
       }).
+      when('/apidocs/events', {
+          templateUrl: '../static/partials/apidoc_events.html',
+          controller: EventsDocController
+      }).
+      when('/apidocs/schema',{
+          templateUrl: '../static/partials/apidoc_schema.html',
+          controller: SchemaController
+      }).
       when('/404',{
           templateUrl: '../static/partials/404.html',
           controller: Four04Controller

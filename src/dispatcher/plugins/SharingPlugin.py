@@ -101,38 +101,44 @@ class SharesProvider(Provider):
 
     @private
     def translate_path(self, share_id):
-        root = self.dispatcher.call_sync('volume.get_volumes_root')
         share = self.datastore.get_by_id('shares', share_id)
+        return self.dispatcher.call_sync('share.expand_path', share['target_path'], share['target_type'])
 
-        if share['target_type'] == 'DATASET':
-            return os.path.join(root, share['target_path'])
+    @private
+    def expand_path(self, path, type):
+        root = self.dispatcher.call_sync('volume.get_volumes_root')
+        if type == 'DATASET':
+            return os.path.join(root, path)
 
-        if share['target_type'] == 'ZVOL':
-            return os.path.join('/dev/zvol', share['target_path'])
+        if type == 'ZVOL':
+            return os.path.join('/dev/zvol', path)
 
-        if share['target_type'] in ('DIRECTORY', 'FILE'):
-            return share['target_path']
+        if type in ('DIRECTORY', 'FILE'):
+            return path
 
-        raise RpcException(errno.EINVAL, 'Invalid share target type {0}'.format(share['target_type']))
+        raise RpcException(errno.EINVAL, 'Invalid share target type {0}'.format(type))
 
     @private
     def get_directory_path(self, share_id):
-        root = self.dispatcher.call_sync('volume.get_volumes_root')
         share = self.datastore.get_by_id('shares', share_id)
+        return self.dispatcher.call_sync('share.get_dir_by_path', share['target_path'], share['target_type'])
 
-        if share['target_type'] == 'DATASET':
-            return os.path.join(root, share['target_path'])
+    @private
+    def get_dir_by_path(self, path, type):
+        root = self.dispatcher.call_sync('volume.get_volumes_root')
+        if type == 'DATASET':
+            return os.path.join(root, path)
 
-        if share['target_type'] == 'ZVOL':
-            return os.path.dirname(os.path.join(root, share['target_path']))
+        if type == 'ZVOL':
+            return os.path.dirname(os.path.join(root, path))
 
-        if share['target_type'] == 'DIRECTORY':
-            return share['target_path']
+        if type == 'DIRECTORY':
+            return path
 
-        if share['target_type'] == 'FILE':
-            return os.path.dirname(share['target_path'])
+        if type == 'FILE':
+            return os.path.dirname(path)
 
-        raise RpcException(errno.EINVAL, 'Invalid share target type {0}'.format(share['target_type']))
+        raise RpcException(errno.EINVAL, 'Invalid share target type {0}'.format(type))
 
 
 @description("Creates new share")
@@ -164,6 +170,14 @@ class CreateShareTask(Task):
                     reserved_item['link_name']
                 )
             )
+
+        share_path = self.dispatcher.call_sync('share.expand_path', share['target_path'], share['target_type'])
+        if share['target_type'] != 'FILE':
+            share_path = os.path.dirname(share_path)
+        if not os.path.exists(share_path):
+            raise VerifyException(errno.ENOENT, 'Selected share target {0} does not exist or cannot be created'.format(
+                share['target_path']
+            ))
 
         return ['system']
 
@@ -260,6 +274,16 @@ class UpdateShareTask(Task):
                     share['name'],
                     share['type']
                 ))
+
+        path_after_update = updated_fields.get('target_path', share['target_path'])
+        type_after_update = updated_fields.get('target_type', share['target_type'])
+        share_path = self.dispatcher.call_sync('share.expand_path', path_after_update, type_after_update)
+        if type_after_update != 'FILE':
+            share_path = os.path.dirname(share_path)
+        if not os.path.exists(share_path):
+            raise VerifyException(errno.ENOENT, 'Selected share target {0} does not exist or cannot be created'.format(
+                path_after_update
+            ))
 
         return ['system']
 

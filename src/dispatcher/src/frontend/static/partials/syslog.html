@@ -15,7 +15,7 @@
         </thead>
         <tbody>
             <tr ng-repeat='log in syslog_list | filter:searchText'>
-                <td>{{ log.date }}</td>
+                <td>{{ log.created_at.$date }}</td>
                 <td>
                     <span class="label label-primary">{{ log.program }}</span>
                     <span class="label label-primary">{{ log.pid }}</span>

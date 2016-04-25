@@ -50,7 +50,7 @@ from freenas.dispatcher.rpc import (
 )
 from utils import first_or_default, load_config
 from datastore import DuplicateKeyException
-from freenas.utils import include, exclude, normalize, chunks
+from freenas.utils import include, exclude, normalize, chunks, yesno_to_bool
 from freenas.utils.query import wrap
 from freenas.utils.copytree import count_files, copytree
 from cryptography.fernet import Fernet, InvalidToken
@@ -404,12 +404,14 @@ class VolumeProvider(Provider):
 
 
 class DatasetProvider(Provider):
+    @query('volume-dataset')
     @generator
     def query(self, filter=None, params=None):
         return datasets.query(*(filter or []), **(params or {}))
 
 
 class SnapshotProvider(Provider):
+    @query('volume-snapshot')
     @generator
     def query(self, filter=None, params=None):
         return snapshots.query(*(filter or []), **(params or {}))
@@ -1738,7 +1740,12 @@ class DatasetConfigureTask(Task):
             ds['id'] = updated_params['id']
 
         if 'properties' in updated_params:
-            props = exclude(updated_params['properties'], 'used', 'available', 'dedup', 'casesensitivity')
+            props = exclude(
+                updated_params['properties'],
+                'used', 'usedbydataset', 'usedbysnapshots', 'usedbychildren', 'logicalused', 'logicalreferenced',
+                'written', 'usedbyrefreservation', 'referenced', 'available', 'dedup', 'casesensitivity',
+                'compressratio', 'refcompressratio'
+            )
             self.join_subtasks(self.run_subtask('zfs.update', pool_name, ds['id'], props))
 
         if 'permissions_type' in updated_params:
@@ -1953,7 +1960,7 @@ def _init(dispatcher, plugin):
             'dataset': dataset,
             'name': name,
             'lifetime': lifetime,
-            'replicable': snapshot.get('properties.org\\.freenas:replicable.value') or False,
+            'replicable': yesno_to_bool(snapshot.get('properties.org\\.freenas:replicable.value')),
             'properties': include(
                 snapshot['properties'],
                 'used', 'referenced', 'compressratio', 'clones', 'creation'
