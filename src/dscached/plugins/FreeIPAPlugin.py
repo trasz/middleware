@@ -31,9 +31,6 @@ import ldap3.utils.dn
 import logging
 from plugin import DirectoryServicePlugin
 
-
-LDAP_USER_UUID = uuid.UUID('ACA6D9B8-AF83-49D9-9BD7-A5E771CE17EB')
-LDAP_GROUP_UUID = uuid.UUID('86657E0F-C5E8-44E0-8896-DD57C78D9766')
 logger = logging.getLogger(__name__)
 
 
@@ -41,27 +38,15 @@ def dn_to_domain(dn):
     return '.'.join(name for typ, name, sep in ldap3.utils.dn.parse_dn(dn))
 
 
-class LDAPPlugin(DirectoryServicePlugin):
+class FreeIPAPlugin(DirectoryServicePlugin):
     def __init__(self, context, parameters):
         self.context = context
         self.parameters = None
         self.connection = None
 
-    def get_id(self, entry):
-        if hasattr(entry, 'entryUUID'):
-            return entry.entryUUID
-
-        if hasattr(entry, 'uidNumber'):
-            return uuid.uuid5(LDAP_USER_UUID, entry.uidNumber)
-
-        if hasattr(entry, 'gidNumber'):
-            return uuid.uuid5(LDAP_GROUP_UUID, entry.gidNumber)
-
-        return uuid.uuid4()
-
     def convert_user(self, entry):
         return {
-            'id': self.get_id(entry),
+            'id': entry.ipaUniqueId,
             'uid': int(entry.uidNumber.value),
             'builtin': False,
             'username': entry.uid.value,
@@ -73,7 +58,7 @@ class LDAPPlugin(DirectoryServicePlugin):
 
     def convert_group(self, entry):
         return {
-            'id': self.get_id(entry),
+            'id': entry.ipaUniqueId,
             'gid': int(entry.gidNumber.value),
             'name': entry.uid.value,
             'builtin': False,
@@ -120,19 +105,15 @@ class LDAPPlugin(DirectoryServicePlugin):
 
 
 def _init(context):
-    context.register_plugin('ldap', LDAPPlugin)
+    context.register_plugin('freeipa', FreeIPAPlugin)
 
-    context.register_schema('ldap-directory-params', {
+    context.register_schema('freeipa-directory-params', {
         'type': {'enum': ['ldap-directory-params']},
-        'server': {'type': 'string'},
-        'base_dn': {'type': 'string'},
+        'realm': {'type': 'string'},
         'bind_dn': {'type': 'string'},
         'password': {'type': 'string'},
-        'user_suffix': {'type': ['string', 'null']},
-        'group_suffix': {'type': ['string', 'null']},
-        'freeipa': {'type': 'boolean'}
     })
 
-    context.register_schema('ldap-directory-status', {
+    context.register_schema('freeipa-directory-status', {
 
     })
