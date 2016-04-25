@@ -35,6 +35,7 @@ import threading
 from datetime import datetime
 from plugin import DirectoryServicePlugin, params, status
 from freenas.dispatcher.rpc import SchemaHelper as h
+from freenas.utils import normalize
 from freenas.utils.query import wrap
 
 
@@ -70,6 +71,20 @@ class WinbindPlugin(DirectoryServicePlugin):
     @property
     def wbc(self):
         return wbclient.Context()
+
+    @staticmethod
+    def normalize_parameters(parameters):
+        return normalize(parameters, {
+            'type': 'winbind-directory-params',
+            'realm': '',
+            'username': 'Administrator',
+            'password': None,
+            'keytab': None,
+            'site_name': None,
+            'dc_address': None,
+            'gcs_address': None,
+            'allow_dns_updates': True
+        })
 
     def __joined(self):
         return self.wbc.interface is not None
@@ -272,9 +287,6 @@ class WinbindPlugin(DirectoryServicePlugin):
         subprocess.call(['/usr/local/bin/net', 'ads', 'leave', self.parameters['realm']])
         self.configure_smb(False)
         self.joined = False
-
-    def get_domain_suffix(self):
-        return self.wbc.interface.dns_domain
 
     def get_status(self):
         return {

@@ -218,11 +218,25 @@ class ManagementService(RpcService):
         for i in self.context.users_cache, self.context.groups_cache, self.context.hosts_cache:
             i.clear()
 
+    def normalize_parameters(self, plugin, parameters):
+        cls = self.context.plugins.get(plugin)
+        if not cls:
+            raise RpcException(errno.ENOENT, 'Plugin {0} not found'.format(plugin))
+
+        return cls.normalize_parameters(parameters)
+
     def configure_directory(self, id):
         ds_d = self.context.datastore.get_by_id('directories', id)
         directory = first_or_default(lambda d: d.id == id, self.context.directories)
         if not directory:
             raise RpcException(errno.ENOENT, 'Directory {0} not found'.format(id))
+
+        if not ds_d:
+            # Directory was removed
+            directory.enabled = False
+            directory.configure()
+            self.context.directories.remove(directory)
+            return
 
         if ds_d['enabled'] and not directory.enabled:
             self.logger.info('Enabling directory {0}'.format(id))

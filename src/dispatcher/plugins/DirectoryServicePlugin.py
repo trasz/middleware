@@ -66,12 +66,18 @@ class DirectoryServiceCreateTask(Task):
         return ['system']
 
     def run(self, directory):
+        params = self.dispatcher.call_sync(
+            'dscached.management.normalize_parameters',
+            directory['plugin'],
+            directory.get('parameters', {})
+        )
+
         normalize(directory, {
             'enabled': False,
             'immutable': False,
             'uid_range': None,
             'gid_range': None,
-            'parametesrs': {}
+            'parameters': params
         })
 
         id = self.datastore.insert('directories', directory)

@@ -25,11 +25,11 @@
 #
 #####################################################################
 
-import uuid
 import ldap3
 import ldap3.utils.dn
 import logging
 from plugin import DirectoryServicePlugin
+from freenas.utils import normalize
 
 logger = logging.getLogger(__name__)
 
@@ -44,9 +44,19 @@ class FreeIPAPlugin(DirectoryServicePlugin):
         self.parameters = None
         self.connection = None
 
+    @staticmethod
+    def normalize_parameters(parameters):
+        return normalize(parameters, {
+            'type': 'freeipa-directory-params',
+            'realm': '',
+            'server': None,
+            'username': '',
+            'password': '',
+        })
+
     def convert_user(self, entry):
         return {
-            'id': entry.ipaUniqueId,
+            'id': entry.ipaUniqueId.value,
             'uid': int(entry.uidNumber.value),
             'builtin': False,
             'username': entry.uid.value,
@@ -58,7 +68,7 @@ class FreeIPAPlugin(DirectoryServicePlugin):
 
     def convert_group(self, entry):
         return {
-            'id': entry.ipaUniqueId,
+            'id': entry.ipaUniqueId.value,
             'gid': int(entry.gidNumber.value),
             'name': entry.uid.value,
             'builtin': False,
@@ -110,7 +120,8 @@ def _init(context):
     context.register_schema('freeipa-directory-params', {
         'type': {'enum': ['ldap-directory-params']},
         'realm': {'type': 'string'},
-        'bind_dn': {'type': 'string'},
+        'server': {'type': ['string', 'null']},
+        'username': {'type': 'string'},
         'password': {'type': 'string'},
     })
 
