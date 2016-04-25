@@ -76,7 +76,7 @@ from services import (
 from schemas import register_general_purpose_schemas
 from balancer import Balancer
 from auth import PasswordAuthenticator, TokenStore, Token, TokenException, User, Service
-from freenas.utils import FaultTolerantLogHandler, load_module_from_file, xrecvmsg, xsendmsg
+from freenas.utils import FaultTolerantLogHandler, load_module_from_file, xrecvmsg, xsendmsg, TraceLogger
 
 
 MAXFDS = 128
@@ -523,6 +523,7 @@ class Dispatcher(object):
                 self.logger.warning('Cannot initialize syslog: %s', str(err))
 
     def __init_syslog(self):
+        logging.setLoggerClass(TraceLogger)
         handler = logging.handlers.SysLogHandler('/var/run/log', facility='local3')
         logging.root.setLevel(logging.DEBUG)
         logging.root.addHandler(handler)
