@@ -1793,7 +1793,7 @@ class SnapshotCreateTask(Task):
             recursive,
             {
                 'org.freenas:replicable': {'value': 'yes' if snapshot['replicable'] else 'no'},
-                'org.freenas:lifetime': {'value': str(snapshot['replicable'] or 'no')},
+                'org.freenas:lifetime': {'value': str(snapshot['lifetime'] or 'no')},
                 'org.freenas:uuid': {'value': str(uuid.uuid4())}
             }
         ))
@@ -1839,7 +1839,7 @@ class SnapshotConfigureTask(Task):
             id = new_id
 
         if 'lifetime' in updated_params:
-            params['org.freenas:lifetime'] = {'value': updated_params['lifetime']}
+            params['org.freenas:lifetime'] = {'value': str(updated_params['lifetime'] or 'no')}
 
         if 'replicable' in updated_params:
             params['org.freenas:replicable'] = {'value': 'yes' if updated_params['replicable'] else 'no'}
