@@ -40,6 +40,7 @@ from freenas.utils.query import wrap
 
 
 AD_REALM_ID = '01a35b82-0168-11e6-88d6-0cc47a3511b4'
+WINBIND_ID_BASE = uuid.UUID('E6AE958E-FDAA-44A1-8905-0A0C8D015245')
 WINBINDD_PIDFILE = '/var/run/samba4/winbindd.pid'
 WINBINDD_KEEPALIVE = 60
 logger = logging.getLogger(__name__)
@@ -162,6 +163,9 @@ class WinbindPlugin(DirectoryServicePlugin):
             'domain_controller': self.dc
         }
 
+    def generate_id(self, sid):
+        return uuid.uuid5(WINBIND_ID_BASE, str(sid))
+
     def convert_user(self, user):
         if not user:
             return
@@ -169,7 +173,7 @@ class WinbindPlugin(DirectoryServicePlugin):
         domain, username = user.passwd.pw_name.split('\\')
 
         return {
-            'id': str(uuid.uuid4()),  # XXX this is wrong - id should be mapped to SID
+            'id': self.generate_id(user.sid),
             'uid': user.passwd.pw_uid,
             'builtin': False,
             'username': username,
@@ -186,7 +190,7 @@ class WinbindPlugin(DirectoryServicePlugin):
     def convert_group(self, group):
         domain, groupname = group.group.gr_name.split('\\')
         return {
-            'id': str(uuid.uuid4()),  # XXX this is wrong - id should be mapped to SID
+            'id': self.generate_id(group.sid),
             'gid': group.group.gr_gid,
             'builtin': False,
             'name': groupname,
