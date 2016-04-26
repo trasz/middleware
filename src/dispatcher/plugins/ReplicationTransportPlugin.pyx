@@ -257,6 +257,7 @@ class TransportSendTask(Task):
         self.addr = None
         self.aborted = False
         self.fds = []
+        self.recv_status = None
 
     def verify(self, fd, transport):
         client_address = transport.get('client_address')
@@ -475,6 +476,17 @@ class TransportSendTask(Task):
                     conn.close()
 
                 self.finished.wait()
+                if self.recv_status.get('state') != 'FINISHED':
+                    error = self.recv_status.get('error')
+                    raise TaskException(
+                        error['code'],
+                        'Receive task connected to {1}:{2} finished unexpectedly with message: {0}'.format(
+                            error['message'],
+                            *self.addr
+                        )
+                    )
+                else:
+                    logger.debug('Receive task at {0}:{1} finished'.format(*self.addr))
 
                 logger.debug('Send to {0}:{1} finished. Closing connection'.format(*addr))
                 remote_client.disconnect()
@@ -487,20 +499,10 @@ class TransportSendTask(Task):
             close_fds(self.fds)
 
     def get_recv_status(self, status):
+        self.finished.set()
+        self.recv_status = status
         if status.get('state') != 'FINISHED':
-            error = status.get('error')
             close_fds(self.fds)
-            self.finished.set()
-            raise TaskException(
-                error['code'],
-                'Receive task connected to {1}:{2} finished unexpectedly with message: {0}'.format(
-                    error['message'],
-                    *self.addr
-                )
-            )
-        else:
-            logger.debug('Receive task at {0}:{1} finished'.format(*self.addr))
-            self.finished.set()
 
     def abort(self):
         self.aborted = True
