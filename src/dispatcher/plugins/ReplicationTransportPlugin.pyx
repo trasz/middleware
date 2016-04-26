@@ -1080,7 +1080,7 @@ class TransportEncryptTask(Task):
             while True:
                 with nogil:
                     plain_ret = read_fd(rd_fd, plainbuffer, buffer_size, header_size)
-                    if plain_ret < 1:
+                    if plain_ret < 0:
                         break
                     plainbuffer[1] = plain_ret
                 IF REPLICATION_TRANSPORT_DEBUG:
@@ -1105,6 +1105,8 @@ class TransportEncryptTask(Task):
                 IF REPLICATION_TRANSPORT_DEBUG:
                     logger.debug('Wrote {0} bytes of cipher text'.format(ret_wr))
 
+                if plain_ret == 0:
+                    break
 
                 if renewal_interval:
                     renewal_interval -= 1
@@ -1217,6 +1219,8 @@ class TransportDecryptTask(Task):
         cdef unsigned char *cipherbuffer
         cdef uint8_t *iv
         cdef uint8_t *key
+        cdef uint8_t *py_iv_t
+        cdef uint8_t *py_key_t
         cdef uint32_t key_size
         cdef uint32_t iv_size
         cdef uint32_t buffer_size
@@ -1255,6 +1259,8 @@ class TransportDecryptTask(Task):
 
             py_key = base64.b64decode(initial_cipher['key'].encode('utf-8'))
             py_iv = base64.b64decode(initial_cipher['iv'].encode('utf-8'))
+            py_key_t = py_key
+            py_iv_t = py_iv
 
             with nogil:
                 cipherbuffer = <unsigned char *>malloc(buffer_size * sizeof(uint8_t))
@@ -1264,8 +1270,8 @@ class TransportDecryptTask(Task):
                 key = <uint8_t *>malloc(key_size * sizeof(uint8_t))
                 iv = <uint8_t *>malloc(iv_size * sizeof(uint8_t))
 
-            memcpy(key, <const void *> py_key, key_size)
-            memcpy(iv, <const void *> py_iv, iv_size)
+            memcpy(key, <const void *> py_key_t, key_size)
+            memcpy(iv, <const void *> py_iv_t, iv_size)
 
             IF REPLICATION_TRANSPORT_DEBUG:
                 logger.debug('Key: {0}'.format(<bytes> key[:key_size]))
