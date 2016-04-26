@@ -1005,6 +1005,8 @@ class TransportEncryptTask(Task):
         cdef int rd_fd
         cdef int wr_fd
         cdef int cipher_ret
+        IF REPLICATION_TRANSPORT_DEBUG:
+            cdef uint8_t *log_buffer
 
         remote = plugin.get('remote')
         encryption_type = plugin.get('type', 'AES128')
@@ -1042,6 +1044,13 @@ class TransportEncryptTask(Task):
         )
         remote_client.disconnect()
 
+        IF REPLICATION_TRANSPORT_DEBUG:
+            logger.debug('Encryption data sent')
+            logger.debug('key: {0} - iv: {1}'.format(base64.b64encode(py_key).decode('utf-8'), base64.b64encode(py_iv).decode('utf-8')))
+
+            logger.debug('Key: {0}'.format(<bytes> key[:key_size]))
+            logger.debug('IV: {0}'.format(<bytes> iv[:iv_size]))
+
         try:
             rd_fd = plugin.get('read_fd').fd
             self.fds.append(rd_fd)
@@ -1066,6 +1075,7 @@ class TransportEncryptTask(Task):
             if ret != 1:
                 ERR_print_errors_fp(stderr)
                 return
+            logger.debug('Encryption context initialization completed')
 
             while True:
                 with nogil:
@@ -1073,15 +1083,28 @@ class TransportEncryptTask(Task):
                     if plain_ret < 1:
                         break
                     plainbuffer[1] = plain_ret
+                IF REPLICATION_TRANSPORT_DEBUG:
+                    logger.debug('Got {0} bytes of plain text'.format(plain_ret))
+                    log_buffer = <uint8_t *> plainbuffer
+                    logger.debug('Message: {0}'.format(<bytes> log_buffer[:plain_ret]))
 
+                with nogil:
                     ret = EVP_EncryptUpdate(ctx, cipherbuffer, &cipher_ret, <unsigned char *> plainbuffer, plain_ret + header_size)
                     if ret != 1:
                         ERR_print_errors_fp(stderr)
                         break
 
+                IF REPLICATION_TRANSPORT_DEBUG:
+                    logger.debug('Cipher text size returned {0} bytes'.format(cipher_ret))
+                    log_buffer = <uint8_t *> cipherbuffer
+                    logger.debug('Message: {0}'.format(<bytes> log_buffer[:cipher_ret]))
+                with nogil:
                     ret_wr = write_fd(wr_fd, cipherbuffer, cipher_ret)
                     if ret_wr == -1:
                         break
+                IF REPLICATION_TRANSPORT_DEBUG:
+                    logger.debug('Wrote {0} bytes of cipher text'.format(ret_wr))
+
 
                 if renewal_interval:
                     renewal_interval -= 1
@@ -1129,11 +1152,19 @@ class TransportEncryptTask(Task):
                             if ret != 1:
                                 ERR_print_errors_fp(stderr)
                                 break
-            with nogil:
-                if plain_ret == 0:
+
+            if plain_ret == 0:
+                with nogil:
                     ret = EVP_EncryptFinal_ex(ctx, cipherbuffer, &cipher_ret)
-                    if (cipher_ret > 0) and (ret == 1):
+                logger.debug('Encryption context finalized. Returned last {0} bytes of cipher text'.format(cipher_ret))
+
+                if (cipher_ret > 0) and (ret == 1):
+                    with nogil:
                         ret_wr = write_fd(wr_fd, cipherbuffer, cipher_ret)
+                    IF REPLICATION_TRANSPORT_DEBUG:
+                        logger.debug('Wrote {0} bytes of cipher text'.format(ret_wr))
+                        log_buffer = <uint8_t *> cipherbuffer
+                        logger.debug('Message: {0}'.format(<bytes> log_buffer[:cipher_ret]))
 
         finally:
             if not self.aborted:
@@ -1200,6 +1231,8 @@ class TransportDecryptTask(Task):
         cdef int rd_fd
         cdef int wr_fd
         cdef int plain_ret
+        IF REPLICATION_TRANSPORT_DEBUG:
+            cdef uint8_t *log_buffer
 
         try:
             encryption_type = plugin.get('type', 'AES128')
@@ -1215,6 +1248,11 @@ class TransportDecryptTask(Task):
             token = plugin.get('auth_token')
 
             initial_cipher = self.dispatcher.call_sync('replication.transport.get_encryption_data', token)
+
+            IF REPLICATION_TRANSPORT_DEBUG:
+                logger.debug('Decryption data fetched')
+                logger.debug('key: {0} - iv: {1}'.format(initial_cipher['key'], initial_cipher['iv']))
+
             py_key = base64.b64decode(initial_cipher['key'].encode('utf-8'))
             py_iv = base64.b64decode(initial_cipher['iv'].encode('utf-8'))
 
@@ -1228,6 +1266,10 @@ class TransportDecryptTask(Task):
 
             memcpy(key, <const void *> py_key, key_size)
             memcpy(iv, <const void *> py_iv, iv_size)
+
+            IF REPLICATION_TRANSPORT_DEBUG:
+                logger.debug('Key: {0}'.format(<bytes> key[:key_size]))
+                logger.debug('IV: {0}'.format(<bytes> iv[:iv_size]))
 
             with nogil:
                 ERR_load_crypto_strings()
@@ -1243,17 +1285,30 @@ class TransportDecryptTask(Task):
                 ERR_print_errors_fp(stderr)
                 return
 
+            logger.debug('Decryption context initialization completed')
+
             while True:
                 with nogil:
                     cipher_ret = read_fd(rd_fd, cipherbuffer, header_size, 0)
                     if cipher_ret == -1:
                         break
+                IF REPLICATION_TRANSPORT_DEBUG:
+                    logger.debug('Got {0} bytes of cipher text'.format(cipher_ret))
+                    log_buffer = <uint8_t *> cipherbuffer
+                    logger.debug('Message: {0}'.format(<bytes> log_buffer[:cipher_ret]))
 
+                with nogil:
                     ret = EVP_DecryptUpdate(ctx, <unsigned char *> header_buffer, &plain_ret, cipherbuffer, header_size)
                     if ret != 1:
                         ERR_print_errors_fp(stderr)
                         break
+                IF REPLICATION_TRANSPORT_DEBUG:
+                    logger.debug('Plain text size returned {0} bytes - header'.format(plain_ret))
+                    logger.debug('Message length: {0} bytes'.format(header_buffer[1]))
+                    log_buffer = <uint8_t *> header_buffer
+                    logger.debug('Message: {0}'.format(<bytes> log_buffer[:plain_ret]))
 
+                with nogil:
                     length = header_buffer[1]
                     if (header_buffer[0] != encrypt_transfer_magic) and (header_buffer[0] != encrypt_rekey_magic):
                         break
@@ -1270,8 +1325,14 @@ class TransportDecryptTask(Task):
                     if ret != 1:
                         ERR_print_errors_fp(stderr)
                         break
+                IF REPLICATION_TRANSPORT_DEBUG:
+                    logger.debug('Plain text size returned {0} bytes'.format(plain_ret))
+                    log_buffer = <uint8_t *> plainbuffer
+                    logger.debug('Message: {0}'.format(<bytes> log_buffer[:plain_ret]))
 
-                    if header_buffer[0] == encrypt_rekey_magic:
+
+                if header_buffer[0] == encrypt_rekey_magic:
+                    with nogil:
                         ret = EVP_DecryptFinal_ex(ctx, <unsigned char *> plainbuffer, &plain_ret)
                         if ret != 1:
                             ERR_print_errors_fp(stderr)
@@ -1294,13 +1355,18 @@ class TransportDecryptTask(Task):
                         if ret != 1:
                             ERR_print_errors_fp(stderr)
                             break
-                    else:
+                else:
+                    with nogil:
                         if plain_ret > 0:
                             ret_wr = write_fd(wr_fd, plainbuffer, plain_ret)
                             if ret_wr == -1:
                                 break
-                        if length == 0:
-                            break
+                    if length == 0:
+                        IF REPLICATION_TRANSPORT_DEBUG:
+                            logger.debug('Decryption context finalized')
+                        break
+                    IF REPLICATION_TRANSPORT_DEBUG:
+                        logger.debug('Wrote {0} bytes of plain text'.format(ret_wr))
 
         finally:
             if not self.aborted:
