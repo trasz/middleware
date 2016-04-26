@@ -182,7 +182,7 @@ class WinbindPlugin(DirectoryServicePlugin):
             'locked': False,
             'sudo': False,
             'password_disabled': False,
-            'groups': [],
+            'groups': [self.generate_id(sid) for sid in user.groups],
             'shell': user.passwd.pw_shell,
             'home': user.passwd.pw_dir
         }
