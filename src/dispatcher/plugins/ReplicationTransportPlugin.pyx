@@ -1126,12 +1126,25 @@ class TransportEncryptTask(Task):
 
                         memcpy(&plainbuffer[2], key, key_size)
                         memcpy(&plainbuffer[key_size + 2], iv, iv_size)
+                        IF REPLICATION_TRANSPORT_DEBUG:
+                            logger.debug('Rekey started')
+                            logger.debug('py_key: {0} - py_iv: {1}'.format(
+                                py_key,
+                                py_iv
+                            ))
+                            logger.debug('Key: {0}'.format(<bytes> key[:key_size]))
+                            logger.debug('IV: {0}'.format(<bytes> iv[:iv_size]))
 
                         with nogil:
                             ret = EVP_EncryptUpdate(ctx, cipherbuffer, &cipher_ret, <unsigned char *> plainbuffer, plain_ret)
                             if ret != 1:
                                 ERR_print_errors_fp(stderr)
                                 break
+
+                        IF REPLICATION_TRANSPORT_DEBUG:
+                            logger.debug('Cipher text size returned {0} bytes'.format(cipher_ret))
+                            log_buffer = <uint8_t *> cipherbuffer
+                            logger.debug('Message: {0}'.format(<bytes> log_buffer[:cipher_ret]))
 
                         plainbuffer[0] = encrypt_transfer_magic
 
@@ -1140,6 +1153,10 @@ class TransportEncryptTask(Task):
                             if ret_wr == -1:
                                 break
 
+                        IF REPLICATION_TRANSPORT_DEBUG:
+                            logger.debug('Wrote {0} bytes of cipher text'.format(ret_wr))
+
+                        with nogil:
                             ret = EVP_EncryptFinal_ex(ctx, cipherbuffer, &cipher_ret)
                             if ret != 1:
                                 ERR_print_errors_fp(stderr)
@@ -1149,6 +1166,10 @@ class TransportEncryptTask(Task):
                                 if ret_wr == -1:
                                     break
 
+                        IF REPLICATION_TRANSPORT_DEBUG:
+                            logger.debug('Encryption context finalized. Returned last {0} bytes of cipher text. Starting new context'.format(cipher_ret))
+
+                        with nogil:
                             EVP_CIPHER_CTX_free(ctx)
                             ctx = EVP_CIPHER_CTX_new()
                             if ctx == NULL:
@@ -1343,6 +1364,8 @@ class TransportDecryptTask(Task):
 
 
                 if header_buffer[0] == encrypt_rekey_magic:
+                    IF REPLICATION_TRANSPORT_DEBUG:
+                        logger.debug('Rekey magic received')
                     with nogil:
                         ret = EVP_DecryptFinal_ex(ctx, <unsigned char *> plainbuffer, &plain_ret)
                         if ret != 1:
@@ -1353,6 +1376,10 @@ class TransportDecryptTask(Task):
                             if ret_wr == -1:
                                 break
 
+                    IF REPLICATION_TRANSPORT_DEBUG:
+                        logger.debug('Decryption context finalized. Starting new context')
+
+                    with nogil:
                         EVP_CIPHER_CTX_free(ctx)
                         ctx = EVP_CIPHER_CTX_new()
                         if ctx == NULL:
@@ -1366,6 +1393,12 @@ class TransportDecryptTask(Task):
                         if ret != 1:
                             ERR_print_errors_fp(stderr)
                             break
+
+                    IF REPLICATION_TRANSPORT_DEBUG:
+                        logger.debug('Initialized new decryption context.')
+                        logger.debug('Key: {0}'.format(<bytes> key[:key_size]))
+                        logger.debug('IV: {0}'.format(<bytes> iv[:iv_size]))
+
                 else:
                     with nogil:
                         if plain_ret > 0:
@@ -1373,8 +1406,7 @@ class TransportDecryptTask(Task):
                             if ret_wr == -1:
                                 break
                     if length == 0:
-                        IF REPLICATION_TRANSPORT_DEBUG:
-                            logger.debug('Decryption context finalized')
+                        logger.debug('Decryption context finalized')
                         break
                     IF REPLICATION_TRANSPORT_DEBUG:
                         logger.debug('Wrote {0} bytes of plain text'.format(ret_wr))
