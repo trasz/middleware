@@ -502,11 +502,11 @@ class TransportSendTask(Task):
             )
         else:
             logger.debug('Receive task at {0}:{1} finished'.format(*self.addr))
-            self.finished.set()
+            self.finished.set(True)
 
     def abort(self):
         self.aborted = True
-        self.finished.set()
+        self.finished.set(True)
         close_fds(self.fds)
 
 
