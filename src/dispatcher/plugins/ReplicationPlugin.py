@@ -38,72 +38,16 @@ from paramiko import RSAKey, AuthenticationException
 from datetime import datetime
 from dateutil.parser import parse as parse_datetime
 from task import Provider, Task, ProgressTask, VerifyException, TaskException, TaskWarning, query
-from freenas.dispatcher.rpc import RpcException, SchemaHelper as h, description, accepts, returns, private
+from freenas.dispatcher.rpc import RpcException, SchemaHelper as h, description, accepts, returns
 from freenas.dispatcher.client import Client
 from freenas.dispatcher.fd import FileDescriptor
 from utils import get_replication_client
-from freenas.utils import to_timedelta, first_or_default, extend
+from freenas.utils import first_or_default
 from freenas.utils.query import wrap
 from utils import load_config
 from lib import sendzfs
 
-"""
-# Bandwidth Limit.
-if  bandlim != 0:
-    throttle = '/usr/local/bin/throttle -K %d | ' % bandlim
-else:
-    throttle = ''
-
-#
-# Build the SSH command
-#
-
-# Cipher
-if cipher == 'fast':
-    sshcmd = ('/usr/bin/ssh -c arcfour256,arcfour128,blowfish-cbc,'
-              'aes128-ctr,aes192-ctr,aes256-ctr -i /data/ssh/replication'
-              ' -o BatchMode=yes -o StrictHostKeyChecking=yes'
-              # There's nothing magical about ConnectTimeout, it's an average
-              # of wiliam and josh's thoughts on a Wednesday morning.
-              # It will prevent hunging in the status of "Sending".
-              ' -o ConnectTimeout=7'
-             )
-elif cipher == 'disabled':
-    sshcmd = ('/usr/bin/ssh -ononeenabled=yes -ononeswitch=yes -i /data/ssh/replication -o BatchMode=yes'
-              ' -o StrictHostKeyChecking=yes'
-              ' -o ConnectTimeout=7')
-else:
-    sshcmd = ('/usr/bin/ssh -i /data/ssh/replication -o BatchMode=yes'
-              ' -o StrictHostKeyChecking=yes'
-              ' -o ConnectTimeout=7')
-
-# Remote IP/hostname and port.  This concludes the preparation task to build SSH command
-sshcmd = '%s -p %d %s' % (sshcmd, remote_port, remote)
-"""
-
 logger = logging.getLogger(__name__)
-SYSTEM_RE = re.compile('^[^/]+/.system.*')
-AUTOSNAP_RE = re.compile(
-    '^(?P<prefix>\w+)-(?P<year>\d{4})(?P<month>\d{2})(?P<day>\d{2})'
-    '.(?P<hour>\d{2})(?P<minute>\d{2})-(?P<lifetime>\d+[hdwmy])(-(?P<sequence>\d+))?$'
-)
-SSH_OPTIONS = {
-    'NONE': [
-        '-ononeenabled=yes',
-        '-ononeswitch=yes',
-        '-o BatchMode=yes',
-        '-o ConnectTimeout=7'
-    ],
-    'FAST': [
-        '-c arcfour256,arcfour128,blowfish-cbc,aes128-ctr,aes192-ctr,aes256-ctr',
-        '-o BatchMode=yes',
-        '-o ConnectTimeout=7'
-    ],
-    'NORMAL': [
-        '-o BatchMode=yes',
-        '-o ConnectTimeout=7'
-    ]
-}
 
 
 class ReplicationActionType(enum.Enum):
@@ -945,21 +889,6 @@ class CalculateReplicationDeltaTask(Task):
 
 
 @description("Runs a replication task with the specified arguments")
-#@accepts(h.all_of(
-#    h.ref('autorepl'),
-#    h.required(
-#        'remote',
-#        'remote_port',
-#        'dedicateduser',
-#        'cipher',
-#        'localfs',
-#        'remotefs',
-#        'compression',
-#        'bandlim',
-#        'followdelete',
-#        'recursive',
-#    ),
-#))
 class ReplicateDatasetTask(ProgressTask):
     def verify(self, pool, localds, options, dry_run=False):
         return ['zfs:{0}'.format(localds)]
