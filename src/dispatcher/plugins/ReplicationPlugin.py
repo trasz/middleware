@@ -32,16 +32,14 @@ import os
 import errno
 import re
 import logging
-import paramiko
 from resources import Resource
-from paramiko import RSAKey, AuthenticationException
+from paramiko import RSAKey
 from datetime import datetime
 from dateutil.parser import parse as parse_datetime
 from task import Provider, Task, ProgressTask, VerifyException, TaskException, TaskWarning, query
 from freenas.dispatcher.rpc import RpcException, SchemaHelper as h, description, accepts, returns
-from freenas.dispatcher.client import Client
 from freenas.dispatcher.fd import FileDescriptor
-from utils import get_replication_client, load_config
+from utils import get_replication_client, load_config, split_dataset
 from freenas.utils import first_or_default
 from freenas.utils.query import wrap
 
