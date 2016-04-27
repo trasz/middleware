@@ -1048,7 +1048,10 @@ class TransportEncryptTask(Task):
 
         IF REPLICATION_TRANSPORT_DEBUG:
             logger.debug('Encryption data sent')
-            logger.debug('key: {0} - iv: {1}'.format(base64.b64encode(py_key).decode('utf-8'), base64.b64encode(py_iv).decode('utf-8')))
+            logger.debug('py_key: {0} - py_iv: {1}'.format(
+                base64.b64encode(py_key).decode('utf-8'),
+                base64.b64encode(py_iv).decode('utf-8'))
+            )
 
             logger.debug('Key: {0}'.format(<bytes> key[:key_size]))
             logger.debug('IV: {0}'.format(<bytes> iv[:iv_size]))
@@ -1257,7 +1260,7 @@ class TransportDecryptTask(Task):
 
             IF REPLICATION_TRANSPORT_DEBUG:
                 logger.debug('Decryption data fetched')
-                logger.debug('key: {0} - iv: {1}'.format(initial_cipher['key'], initial_cipher['iv']))
+                logger.debug('py_key: {0} - py_iv: {1}'.format(initial_cipher['key'], initial_cipher['iv']))
 
             py_key = base64.b64decode(initial_cipher['key'].encode('utf-8'))
             py_iv = base64.b64decode(initial_cipher['iv'].encode('utf-8'))
