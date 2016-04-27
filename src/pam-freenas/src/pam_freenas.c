@@ -143,7 +143,8 @@ emit_event(const char *event, json_t *args)
 }
 
 PAM_EXTERN int
-pam_sm_open_session(struct pam_handle *pamh, int flags, int argc, const char *argv[])
+pam_sm_open_session(struct pam_handle *pamh, int flags, int argc,
+    const char *argv[])
 {
 	const char *username, *tty, *service;
 	json_t *args;
@@ -174,7 +175,8 @@ pam_sm_open_session(struct pam_handle *pamh, int flags, int argc, const char *ar
 }
 
 PAM_EXTERN int
-pam_sm_close_session(struct pam_handle *pamh, int flags, int argc, const char *argv[])
+pam_sm_close_session(struct pam_handle *pamh, int flags, int argc,
+    const char *argv[])
 {
 	const char *username, *tty, *service;
 	json_t *args;
@@ -212,14 +214,16 @@ pam_sm_setcred(struct pam_handle *pamh, int flags, int argc, const char *argv[])
 }
 
 PAM_EXTERN int
-pam_sm_acct_mgmt(struct pam_handle *pamh, int flags, int argc, const char *argv[])
+pam_sm_acct_mgmt(struct pam_handle *pamh, int flags, int argc,
+    const char *argv[])
 {
 
 	return (PAM_SUCCESS);
 }
 
 PAM_EXTERN int
-pam_sm_authenticate(struct pam_handle *pamh, int flags, int argc, const char *argv[])
+pam_sm_authenticate(struct pam_handle *pamh, int flags, int argc,
+    const char *argv[])
 {
 	const char *username, *password, *realpw;
 	char *result_s;
@@ -276,7 +280,8 @@ pam_sm_authenticate(struct pam_handle *pamh, int flags, int argc, const char *ar
 }
 
 PAM_EXTERN int
-pam_sm_chauthtok(struct pam_handle *pamh, int flags, int argc, const char *argv[])
+pam_sm_chauthtok(struct pam_handle *pamh, int flags, int argc,
+    const char *argv[])
 {
 	const char *username, *old_pass, *new_pass;
 	json_t *result;
