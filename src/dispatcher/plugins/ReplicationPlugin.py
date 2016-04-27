@@ -250,7 +250,7 @@ class ReplicationCreateTask(ReplicationBaseTask):
             link['update_date'] = str(datetime.utcnow())
 
         is_master, remote = self.get_replication_state(link)
-        remote_client = get_remote_client(remote)
+        remote_client = get_replication_client(self.dispatcher, remote)
 
         remote_link = remote_client.call_sync('replication.link.get_one_local', link['name'])
         id = self.datastore.insert('replication.links', link)
@@ -299,7 +299,7 @@ class ReplicationPrepareSlaveTask(ReplicationBaseTask):
             return disk
 
         is_master, remote = self.get_replication_state(link)
-        remote_client = get_remote_client(remote)
+        remote_client = get_replication_client(self.dispatcher, remote)
 
         if is_master:
             with self.dispatcher.get_lock('volumes'):
@@ -475,7 +475,7 @@ class ReplicationDeleteTask(ReplicationBaseTask):
             'ids': [link['id']]
         })
 
-        remote_client = get_remote_client(remote)
+        remote_client = get_replication_client(self.dispatcher, remote)
 
         if not is_master:
             for service in ['shares', 'containers']:
@@ -517,7 +517,7 @@ class ReplicationUpdateTask(ReplicationBaseTask):
     def run(self, name, updated_fields):
         link = self.join_subtasks(self.run_subtask('replication.get_latest_link', name))[0]
         is_master, remote = self.get_replication_state(link)
-        remote_client = get_remote_client(remote)
+        remote_client = get_replication_client(self.dispatcher, remote)
         partners = link['partners']
         old_slave_datasets = []
 
@@ -599,7 +599,7 @@ class ReplicationSyncTask(ReplicationBaseTask):
     def run(self, name):
         link = self.join_subtasks(self.run_subtask('replication.get_latest_link', name))[0]
         is_master, remote = self.get_replication_state(link)
-        remote_client = get_remote_client(remote)
+        remote_client = get_replication_client(self.dispatcher, remote)
         if is_master:
             with self.dispatcher.get_lock('volumes'):
                 datasets_to_replicate = self.dispatcher.call_sync('replication.datasets_from_link', link)
@@ -689,7 +689,7 @@ class ReplicationReserveServicesTask(ReplicationBaseTask):
             else:
                 raise TaskException(errno.EINVAL, 'Selected link is not allowed to replicate services')
         else:
-            remote_client = get_remote_client(remote)
+            remote_client = get_replication_client(self.dispatcher, remote)
             remote_client.call_task_sync('replication.reserve_services', name)
             remote_client.disconnect()
 
@@ -1055,7 +1055,7 @@ class ReplicationGetLatestLinkTask(Task):
                 remote = partner
 
         try:
-            client = get_remote_client(remote)
+            client = get_replication_client(self.dispatcher, remote)
             remote_link = client.call_sync('replication.link.get_one_local', name)
         except RpcException:
             pass
@@ -1215,22 +1215,6 @@ class ReplicationRoleUpdateTask(ReplicationBaseTask):
                             )
 
                             self.join_subtasks(self.run_subtask('container.export', container['name']))
-
-
-def get_remote_client(remote):
-    with open('/etc/replication/key') as f:
-        pkey = RSAKey.from_private_key(f)
-
-    try:
-        remote_client = Client()
-        remote_client.connect('ws+ssh://{0}'.format(remote), pkey=pkey)
-        remote_client.login_service('replicator')
-        return remote_client
-
-    except AuthenticationException:
-        raise RpcException(errno.EAUTH, 'Cannot connect to {0}'.format(remote))
-    except (OSError, ConnectionRefusedError):
-        raise RpcException(errno.ECONNREFUSED, 'Cannot connect to {0}'.format(remote))
 
 
 def _depends():
