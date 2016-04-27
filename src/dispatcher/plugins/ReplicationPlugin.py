@@ -70,12 +70,6 @@ class ReplicationAction(object):
 
 
 class ReplicationProvider(Provider):
-    def get_public_key(self):
-        return self.configstore.get('replication.key.public')
-
-    def scan_keys_on_host(self, hostname):
-        return self.dispatcher.call_task_sync('replication.scan_hostkey', hostname)
-
     def datasets_from_link(self, link):
         datasets = []
         for dataset in link['datasets']:
@@ -130,21 +124,6 @@ class ReplicationLinkProvider(Provider):
             return self.datastore.get_one('replication.links', ('name', '=', name))
         else:
             return None
-
-
-@accepts(str)
-class ScanHostKeyTask(Task):
-    def verify(self, hostname):
-        return []
-
-    def run(self, hostname):
-        transport = paramiko.transport.Transport(hostname)
-        transport.start_client()
-        key = transport.get_remote_server_key()
-        return {
-            'name': key.get_name(),
-            'key': key.get_base64()
-        }
 
 
 class ReplicationBaseTask(Task):
@@ -1295,7 +1274,6 @@ def _init(dispatcher, plugin):
     plugin.register_provider('replication', ReplicationProvider)
     plugin.register_provider('replication.link', ReplicationLinkProvider)
     plugin.register_task_handler('volume.snapshot_dataset', SnapshotDatasetTask)
-    plugin.register_task_handler('replication.scan_hostkey', ScanHostKeyTask)
     plugin.register_task_handler('replication.calculate_delta', CalculateReplicationDeltaTask)
     plugin.register_task_handler('replication.replicate_dataset', ReplicateDatasetTask)
     plugin.register_task_handler('replication.get_latest_link', ReplicationGetLatestLinkTask)
