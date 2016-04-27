@@ -626,6 +626,7 @@ def _init(dispatcher, plugin):
         'type': 'object',
         'properties': {
             'id': {'type': 'string'},
+            'sid': {'type': 'string'},
             'uid': {
                 'type': 'integer',
                 'minimum': 0,
@@ -654,6 +655,7 @@ def _init(dispatcher, plugin):
             'home': {'type': 'string'},
             'password': {'type': ['string', 'null']},
             'unixhash': {'type': ['string', 'null']},
+            'lmhash': {'type': ['string', 'null']},
             'nthash': {'type': ['string', 'null']},
             'sshpubkey': {'type': ['string', 'null']},
             'attributes': {'type': 'object'},
