@@ -572,7 +572,6 @@ class ReplicationSyncTask(ReplicationBaseTask):
                     self.join_subtasks(self.run_subtask(
                         'replication.replicate_dataset',
                         dataset['name'],
-                        dataset['name'],
                         {
                             'remote': remote,
                             'remote_dataset': dataset['name'],
@@ -662,13 +661,13 @@ class ReplicationReserveServicesTask(ReplicationBaseTask):
 @accepts(str, str, bool, int, str, bool)
 @returns(str)
 class SnapshotDatasetTask(Task):
-    def verify(self, pool, dataset, recursive, lifetime, prefix='auto', replicable=False):
+    def verify(self, dataset, recursive, lifetime, prefix='auto', replicable=False):
         if not self.dispatcher.call_sync('zfs.dataset.query', [('name', '=', dataset)], {'single': True}):
             raise VerifyException(errno.ENOENT, 'Dataset {0} not found'.format(dataset))
 
         return ['zfs:{0}'.format(dataset)]
 
-    def run(self, pool, dataset, recursive, lifetime, prefix='auto', replicable=False):
+    def run(self, dataset, recursive, lifetime, prefix='auto', replicable=False):
         snapname = '{0}-{1:%Y%m%d.%H%M}'.format(prefix, datetime.utcnow())
         params = {
             'org.freenas:uuid': {'value': str(uuid.uuid4())},
@@ -693,6 +692,8 @@ class SnapshotDatasetTask(Task):
                 continue
 
             break
+
+        pool, _ = split_dataset(dataset)
 
         self.join_subtasks(self.run_subtask(
             'zfs.create_snapshot',
@@ -853,10 +854,10 @@ class CalculateReplicationDeltaTask(Task):
 
 @description("Runs a replication task with the specified arguments")
 class ReplicateDatasetTask(ProgressTask):
-    def verify(self, pool, localds, options, dry_run=False):
+    def verify(self, localds, options, dry_run=False):
         return ['zfs:{0}'.format(localds)]
 
-    def run(self, pool, localds, options, dry_run=False):
+    def run(self, localds, options, dry_run=False):
         remote = options['remote']
         remoteds = options['remote_dataset']
         followdelete = options.get('followdelete', False)
@@ -865,7 +866,6 @@ class ReplicateDatasetTask(ProgressTask):
 
         self.join_subtasks(self.run_subtask(
             'volume.snapshot_dataset',
-            pool,
             localds,
             True,
             lifetime,
