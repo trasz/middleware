@@ -133,10 +133,10 @@ class ReplicationBaseTask(Task):
         ips = self.dispatcher.call_sync('network.config.get_my_ips')
         for ip in ips:
             for partner in link['partners']:
-                if partner.endswith(ip) and partner == link['master']:
+                if partner == ip and partner == link['master']:
                     is_master = True
         for partner in link['partners']:
-            if partner.split('@', 1)[1] not in ips:
+            if partner not in ips:
                 remote = partner
 
         return is_master, remote
@@ -180,12 +180,7 @@ class ReplicationCreateTask(ReplicationBaseTask):
         ips = self.dispatcher.call_sync('network.config.get_my_ips')
         for ip in ips:
             for partner in partners:
-                if '@' not in partner:
-                    raise VerifyException(
-                        errno.EINVAL,
-                        'Please provide replication link partners as username@host'
-                    )
-                if partner.endswith(ip):
+                if partner == ip:
                     ip_matches = True
 
         if not ip_matches:
@@ -200,19 +195,10 @@ class ReplicationCreateTask(ReplicationBaseTask):
                 'Replication link can only have 2 partners. Value {0} is not permitted.'.format(len(partners))
             )
 
-        usernames = [partners[0].split('@')[0], partners[1].split('@')[0]]
-        if self.dispatcher.call_sync('user.query', [('username', '=', usernames[0])], {'single': True}):
-            pass
-        elif not self.dispatcher.call_sync('user.query', [('username', '=', usernames[1])], {'single': True}):
-            raise VerifyException(
-                errno.ENOENT,
-                'At least one of provided user names is not valid: {0}, {1}'.format(usernames[0], usernames[1])
-            )
-
         if link['master'] not in partners:
             raise VerifyException(
                 errno.EINVAL,
-                'Replication master must be one of replication partners {0}, {1}'.format(partners[0], partners[1])
+                'Replication master must be one of replication partners {0}, {1}'.format(*partners)
             )
 
         if link['replicate_services'] and not link['bidirectional']:
@@ -312,11 +298,11 @@ class ReplicationPrepareSlaveTask(ReplicationBaseTask):
                                     'Container {0} already exists on {1}'.format(container['name'], remote.split('@', 1)[1])
                                 )
 
-                    split_dataset = dataset['name'].split('/', 1)
-                    volume_name = split_dataset[0]
+                    sp_dataset = dataset['name'].split('/', 1)
+                    volume_name = sp_dataset[0]
                     dataset_name = None
-                    if len(split_dataset) == 2:
-                        dataset_name = split_dataset[1]
+                    if len(sp_dataset) == 2:
+                        dataset_name = sp_dataset[1]
 
                     vol = self.datastore.get_one('volumes', ('id', '=', volume_name))
                     if vol.get('encrypted'):
@@ -506,7 +492,7 @@ class ReplicationUpdateTask(ReplicationBaseTask):
             if not updated_fields['master'] in partners:
                 raise TaskException(
                     errno.EINVAL,
-                    'Replication master must be one of replication partners {0}, {1}'.format(partners[0], partners[1])
+                    'Replication master must be one of replication partners {0}, {1}'.format(*partners)
                 )
 
         if 'datasets' in updated_fields:
@@ -1030,7 +1016,7 @@ class ReplicationGetLatestLinkTask(Task):
         latest_link = local_link
 
         for partner in local_link['partners']:
-            if partner.split('@', 1)[1] not in ips:
+            if partner not in ips:
                 remote = partner
 
         try:
@@ -1069,10 +1055,9 @@ class ReplicationUpdateLinkTask(Task):
             if partner not in remote_link.get('partners', []):
                 raise TaskException(
                     errno.EINVAL,
-                    'One of remote link partners {0} do not match local link partners {2}, {3}'.format(
+                    'One of remote link partners {0} do not match local link partners {1}, {2}'.format(
                         partner,
-                        remote_link['partners'][0],
-                        remote_link['partners'][1]
+                        *remote_link['partners']
                     )
                 )
 
