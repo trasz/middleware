@@ -45,7 +45,6 @@ from utils import get_replication_client
 from freenas.utils import first_or_default
 from freenas.utils.query import wrap
 from utils import load_config
-from lib import sendzfs
 
 logger = logging.getLogger(__name__)
 
@@ -1217,14 +1216,6 @@ class ReplicationRoleUpdateTask(ReplicationBaseTask):
                             )
 
                             self.join_subtasks(self.run_subtask('container.export', container['name']))
-
-
-#
-# Attempt to send a snapshot or increamental stream to remote.
-#
-def send_dataset(remote, hostkey, fromsnap, tosnap, dataset, remotefs, compression, throttle):
-    zfs = sendzfs.SendZFS()
-    zfs.send(remote, hostkey, fromsnap, tosnap, dataset, remotefs, compression, throttle, 1024*1024, None)
 
 
 def get_remote_client(remote):
