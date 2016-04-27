@@ -996,6 +996,9 @@ class TransportEncryptTask(Task):
         cdef unsigned char *cipherbuffer
         cdef uint8_t *iv
         cdef uint8_t *key
+        cdef uint8_t *byte_buffer
+        cdef uint32_t key_size
+        cdef uint32_t iv_size
         cdef uint32_t buffer_size
         cdef uint32_t header_size = 2 * sizeof(uint32_t)
         cdef uint32_t ret = 1
@@ -1066,6 +1069,7 @@ class TransportEncryptTask(Task):
             cipherbuffer = <unsigned char *>malloc((buffer_size + header_size) * sizeof(uint8_t))
             plainbuffer = <uint32_t *>malloc((buffer_size + header_size) * sizeof(uint8_t))
             plainbuffer[0] = encrypt_transfer_magic
+            byte_buffer = <uint8_t *> plainbuffer
 
             with nogil:
                 ERR_load_crypto_strings()
@@ -1124,8 +1128,6 @@ class TransportEncryptTask(Task):
                         key = py_key
                         iv = py_iv
 
-                        memcpy(&plainbuffer[2], key, key_size)
-                        memcpy(&plainbuffer[key_size + 2], iv, iv_size)
                         IF REPLICATION_TRANSPORT_DEBUG:
                             logger.debug('Rekey started')
                             logger.debug('py_key: {0} - py_iv: {1}'.format(
@@ -1135,8 +1137,11 @@ class TransportEncryptTask(Task):
                             logger.debug('Key: {0}'.format(<bytes> key[:key_size]))
                             logger.debug('IV: {0}'.format(<bytes> iv[:iv_size]))
 
+                        memcpy(&byte_buffer[header_size], key, key_size)
+                        memcpy(&byte_buffer[key_size + header_size], iv, iv_size)
+
                         with nogil:
-                            ret = EVP_EncryptUpdate(ctx, cipherbuffer, &cipher_ret, <unsigned char *> plainbuffer, plain_ret)
+                            ret = EVP_EncryptUpdate(ctx, cipherbuffer, &cipher_ret, <unsigned char *> plainbuffer, plainbuffer[1] + header_size)
                             if ret != 1:
                                 ERR_print_errors_fp(stderr)
                                 break
@@ -1243,6 +1248,7 @@ class TransportDecryptTask(Task):
         cdef uint32_t *plainbuffer
         cdef uint32_t *header_buffer
         cdef unsigned char *cipherbuffer
+        cdef uint8_t *byte_buffer
         cdef uint8_t *iv
         cdef uint8_t *key
         cdef uint8_t *py_iv_t
@@ -1292,6 +1298,8 @@ class TransportDecryptTask(Task):
                 cipherbuffer = <unsigned char *>malloc(buffer_size * sizeof(uint8_t))
                 plainbuffer = <uint32_t *>malloc(buffer_size * sizeof(uint8_t))
                 header_buffer = <uint32_t *>malloc(header_size * sizeof(uint8_t))
+
+                byte_buffer = <uint8_t *> plainbuffer
 
                 key = <uint8_t *>malloc(key_size * sizeof(uint8_t))
                 iv = <uint8_t *>malloc(iv_size * sizeof(uint8_t))
@@ -1386,8 +1394,8 @@ class TransportDecryptTask(Task):
                             ERR_print_errors_fp(stderr)
                             break
 
-                        memcpy(key, plainbuffer, key_size)
-                        memcpy(iv, &plainbuffer[key_size], iv_size)
+                        memcpy(key, byte_buffer, key_size)
+                        memcpy(iv, &byte_buffer[key_size], iv_size)
 
                         ret = EVP_DecryptInit_ex(ctx, cipher_function(), NULL, key, iv)
                         if ret != 1:
