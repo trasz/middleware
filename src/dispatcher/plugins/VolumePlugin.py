@@ -2107,8 +2107,15 @@ def _init(dispatcher, plugin):
             'encrypted': {'type': 'boolean'},
             'encryption': {'$ref': 'encryption'},
             'providers_presence': {
-                'type': 'string',
-                'enum': ['ALL', 'PART', 'NONE']
+                'oneOf': [
+                    {
+                        'type': 'string',
+                        'enum': ['ALL', 'PART', 'NONE']
+                    },
+                    {
+                        'type': 'null'
+                    }
+                ]
             },
             'properties': {'$ref': 'volume-properties'},
             'attributes': {'type': 'object'},
