@@ -37,7 +37,7 @@ from freenas.utils import first_or_default
 from freenas.dispatcher.client import Client
 from freenas.dispatcher.fd import FileDescriptor
 from paramiko import AuthenticationException
-from freenas.dispatcher.rpc import RpcException, SchemaHelper as h, description, accepts, returns, private
+from freenas.dispatcher.rpc import RpcException, SchemaHelper as h, description, accepts, private
 from utils import get_replication_client
 from task import Task, ProgressTask, Provider, TaskException, TaskWarning, VerifyException, query
 from libc.stdlib cimport malloc, free
