@@ -41,10 +41,9 @@ from task import Provider, Task, ProgressTask, VerifyException, TaskException, T
 from freenas.dispatcher.rpc import RpcException, SchemaHelper as h, description, accepts, returns
 from freenas.dispatcher.client import Client
 from freenas.dispatcher.fd import FileDescriptor
-from utils import get_replication_client
+from utils import get_replication_client, load_config
 from freenas.utils import first_or_default
 from freenas.utils.query import wrap
-from utils import load_config
 
 logger = logging.getLogger(__name__)
 
