@@ -295,13 +295,14 @@ class AccountService(RpcService):
     
     def getpwuid(self, uid):
         d = self.context.get_directory_for_id(uid=uid)
-        try:
-            user = d.instance.getpwuid(uid)
-        except:
-            return None
+        dirs = [d] if d else self.context.get_enabled_directories()
 
-        if user:
-            return self.__annotate(d, user)
+        for d in dirs:
+            try:
+                user = d.instance.getpwuid(uid)
+                return self.__annotate(d, user)
+            except:
+                continue
 
         return None
 
@@ -377,23 +378,22 @@ class GroupService(RpcService):
         for d in dirs:
             try:
                 group = d.instance.getgrnam(name)
+                return self.__annotate(d, group)
             except:
                 continue
-
-            if group:
-                return self.__annotate(d, group)
 
         return None
     
     def getgrgid(self, gid):
         d = self.context.get_directory_for_id(gid=gid)
-        try:
-            group = d.instance.getgrgid(gid)
-        except:
-            return None
+        dirs = [d] if d else self.context.get_enabled_directories()
 
-        if group:
-            return self.__annotate(d, group)
+        for d in dirs:
+            try:
+                group = d.instance.getgrgid(gid)
+                return self.__annotate(d, group)
+            except:
+                continue
 
         return None
 
@@ -471,7 +471,7 @@ class Main(object):
                 return first_or_default(lambda d: d.plugin_type == 'local', self.directories)
 
             return first_or_default(
-                lambda d: d.max_uid >= uid >= d.min_uid,
+                lambda d: d.max_uid and d.max_uid >= uid >= d.min_uid,
                 self.directories
             )
 
@@ -481,9 +481,9 @@ class Main(object):
                 return first_or_default(lambda d: d.plugin_type == 'local', self.directories)
 
             return first_or_default(
-                        lambda d: d.max_gid >= gid >= d.min_gid,
-                        self.directories
-                    )
+                lambda d: d.max_gid and d.max_gid >= gid >= d.min_gid,
+                self.directories
+            )
 
     def init_datastore(self):
         try:
