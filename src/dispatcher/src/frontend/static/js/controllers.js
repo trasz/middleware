@@ -672,7 +672,7 @@ function TasksController($scope, $interval, $location, $routeParams, $route) {
     }
     $("#submit").click(function () {
         console.log("task submitted");
-        var task_args = JSON.parse($("#args").val());
+        var task_args = JSON.parse($("#args").val().trim());
         task_args = "[" + task_args + "]";
         sock.call("task.submit", [$("#task").val()].concat(task_args), function(result) {
             $("#result").html("Task: "+JSON.stringify(result, null, 4)+" is added to pending list");
