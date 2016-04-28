@@ -9,7 +9,7 @@
               <li class="active"><a href="#rpc">Services<span class="sr-only">(current)</span></a></li>
             </ul>
             <ul class="nav nav-sidebar">
-              <label>Search: <input ng-model="searchText" placeholder="input service name"></label>
+              <label>Search: <input type="search" ng-model="searchText" ng-change="userInput=searchText" placeholder="input service name" /></label>
               <li ng-repeat="service_name in services | orderBy:'toString()' | filter:searchText  ">
                  <a href="" ng-click="setTask(service_name)" data-toggle="tooltip" title="click me for details"><span class="badge"></span>{{ service_name }}</a>
               </li>
@@ -67,7 +67,7 @@
         </table>
         <h1>Available task classes</h1>
         <div id="tasks">
-            <div class="panel panel-primary" style="width: 70%" ng-repeat="item in item_list | orderBy:'toString()' | filter:searchText">
+            <div class="panel panel-primary" style="width: 70%" ng-repeat="item in item_list | orderBy:'toString()' | filter:userInput">
                 <div class="panel-heading"><b>{{item.name}}</b></div>
                 <div class="panel-body">
                 <ul>

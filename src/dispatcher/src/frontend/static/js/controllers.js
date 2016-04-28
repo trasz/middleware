@@ -681,7 +681,7 @@ function TasksController($scope, $interval, $location, $routeParams, $route) {
         });
     });
     $scope.setTask = function(task_name){
-        $scope.searchText = task_name;
+        $scope.userInput = task_name;
         $("#task").val(task_name);
     }
     $scope.abortTask = function(task_id){
