@@ -48,8 +48,9 @@ from more_itertools import unique_everseen
 from datastore.config import ConfigStore
 from freenas.dispatcher.client import Client, ClientError
 from freenas.dispatcher.rpc import RpcService, RpcException
-from freenas.utils import first_or_default, configure_logging
+from freenas.utils import first_or_default, configure_logging, extend
 from freenas.utils.debug import DebugService
+from freenas.utils.query import QueryDict
 
 
 DEFAULT_CONFIGFILE = '/usr/local/etc/middleware.conf'
@@ -73,9 +74,10 @@ def filter_af(addresses, af):
 
 
 class CacheItem(object):
-    def __init__(self, id, name, value, directory, ttl):
+    def __init__(self, id, uuid, names, value, directory, ttl):
         self.id = id
-        self.name = name
+        self.uuid = uuid
+        self.names = names
         self.value = value
         self.directory = directory
         self.ttl = ttl
@@ -91,11 +93,22 @@ class CacheItem(object):
     def ttl_left(self):
         return self.ttl - (datetime.utcnow() - self.created_at).total_seconds()
 
+    @property
+    def annotated(self):
+        return extend(self.value, {
+            'origin': {
+                'directory': self.directory.name,
+                'cached_at': self.created_at,
+                'ttl': self.ttl_left
+            }
+        })
+
 
 class TTLCacheStore(object):
     def __init__(self):
-        self.id_store = {}
+        self.id_store = QueryDict()
         self.name_store = {}
+        self.uuid_store = {}
         self.hits = 0
         self.misses = 0
 
@@ -109,13 +122,15 @@ class TTLCacheStore(object):
             'misses': self.misses
         }
 
-    def get(self, id=None, name=None):
+    def get(self, id=None, uuid=None, name=None):
         if id is not None:
             item = self.id_store.get(id)
+        elif uuid is not None:
+            item = self.uuid_store.get(uuid)
         elif name is not None:
             item = self.name_store.get(name)
         else:
-            raise AssertionError('Either id= or name= parameter must be filled')
+            raise AssertionError('Either id=, uuid= or name= parameter must be filled')
 
         if item:
             if item.expired:
@@ -123,7 +138,9 @@ class TTLCacheStore(object):
                     if item.destroyed:
                         return
 
-                    del self.name_store[item.name]
+                    for i in item.names:
+                        del self.name_store[i]
+                    del self.uuid_store[item.uuid]
                     del self.id_store[item.id]
                     self.misses += 1
                     return
@@ -134,19 +151,27 @@ class TTLCacheStore(object):
         self.misses += 1
         return
 
+    def query(self, filter=None, params=None):
+        return self.id_store.query(*(filter or []), **(params or {}))
+
     def set(self, item):
         with item.lock:
             self.id_store[item.id] = item
-            self.name_store[item.name] = item
+            self.uuid_store[item.uuid] = item
+            for i in item.names:
+                self.name_store[i] = item
 
     def expire(self):
         for id, item in self.id_store.items():
-            if item.expirsed:
-                del self.name_store[item.name]
+            if item.expired:
+                for i in item.names:
+                    del self.name_store[i]
+                del self.uuid_store[item.uuid]
                 del self.id_store[id]
 
     def clear(self):
         self.name_store.clear()
+        self.uuid_store.clear()
         self.id_store.clear()
 
 
@@ -154,6 +179,7 @@ class Directory(object):
     def __init__(self, context, definition):
         self.context = context
         self.id = definition['id']
+        self.name = definition['name']
         self.domain_name = None
         self.plugin_type = definition['plugin']
         self.parameters = definition['parameters']
@@ -167,12 +193,12 @@ class Directory(object):
         if definition['gid_range']:
             self.min_gid, self.max_gid = definition['gid_range']
 
-        self.context.logger.info('Initializing directory {0}'.format(self.id))
+        self.context.logger.info('Initializing directory {0}'.format(self.name))
 
         try:
-            self.instance = context.plugins[self.plugin_type](self.context, self.parameters)
+            self.instance = context.plugins[self.plugin_type](self.context)
         except BaseException as err:
-            self.context.logger.error('Failed to initialize directory {0}: {1}'.format(self.plugin_type, str(err)))
+            self.context.logger.error('Failed to initialize directory {0}: {1}'.format(self.name, str(err)))
             self.context.logger.error('Parameters: {0}'.format(self.parameters))
             raise ValueError('Failed to initialize {0}'.format(self.plugin_type))
 
@@ -184,8 +210,11 @@ class Directory(object):
                 self.min_gid, self.max_gid,
                 self.parameters
             )
+
+            if self.instance.get_kerberos_realm():
+                self.context.client.call_sync('etcd.generation.generate_group', 'kerberos')
         except BaseException as err:
-            self.context.logger.error('Failed to configure {0}: {1}'.format(self.id, str(err)))
+            self.context.logger.error('Failed to configure {0}: {1}'.format(self.name, str(err)))
 
 
 class ManagementService(RpcService):
@@ -196,7 +225,7 @@ class ManagementService(RpcService):
     def get_realms(self):
         realms = []
 
-        for d in self.context.directories:
+        for d in self.context.get_enabled_directories():
             realm = d.instance.get_kerberos_realm()
             if realm:
                 realms.append(realm)
@@ -218,6 +247,9 @@ class ManagementService(RpcService):
         for i in self.context.users_cache, self.context.groups_cache, self.context.hosts_cache:
             i.clear()
 
+    def populate_caches(self):
+        self.context.populate_caches()
+
     def normalize_parameters(self, plugin, parameters):
         cls = self.context.plugins.get(plugin)
         if not cls:
@@ -229,7 +261,11 @@ class ManagementService(RpcService):
         ds_d = self.context.datastore.get_by_id('directories', id)
         directory = first_or_default(lambda d: d.id == id, self.context.directories)
         if not directory:
-            raise RpcException(errno.ENOENT, 'Directory {0} not found'.format(id))
+            try:
+                directory = Directory(self.context, ds_d)
+                self.context.directories.append(directory)
+            except BaseException as err:
+                raise RpcException(errno.ENXIO, str(err))
 
         if not ds_d:
             # Directory was removed
@@ -254,22 +290,26 @@ class ManagementService(RpcService):
         directory.parameters = ds_d['parameters']
         directory.configure()
 
+    def get_status(self, id):
+        directory = first_or_default(lambda d: d.id == id, self.context.directories)
+        if not directory:
+            raise RpcException(errno.ENOENT, 'Directory {0} not found'.format(id))
+
+        return {
+
+        }
+
+    def reload_config(self):
+        self.context.search_order = self.context.configstore.get('directory.search_order')
+        self.context.cache_ttl = self.context.configstore.get('directory.cache_ttl')
+        self.context.cache_enumerations = self.context.configstore.get('directory.cache_enumerations')
+        self.context.cache_lookups = self.context.configstore.get('directory.cache_lookups')
+
 
 class AccountService(RpcService):
     def __init__(self, context):
         self.logger = context.logger
         self.context = context
-
-    def __annotate(self, directory, user, cache_item=None):
-        if directory.domain_name:
-            user['username'] = '{0}@{1}'.format(user['username'], directory.domain_name)
-
-        user['gids'] = [g['gid'] for g in directory.instance.getgrent([('id', 'in', user['groups'])])]
-        user['origin'] = {
-            'directory': directory.plugin_type,
-            'ttl': cache_item.ttl_left if cache_item else None
-        }
-        return user
 
     def __get_user(self, user_name):
         for d in self.context.get_enabled_directories():
@@ -284,16 +324,14 @@ class AccountService(RpcService):
         return None, None
 
     def query(self, filter=None, params=None):
-        iters = []
-        for d in self.context.get_enabled_directories():
-            try:
-                iters.append([self.__annotate(d, i) for i in d.instance.getpwent(filter, params)])
-            except BaseException:
-                continue
-
-        return list(unique_everseen(chain(*iters), lambda i: i['id']))
+        return [i.annotated for i in self.context.users_cache.query(filter, params)]
     
     def getpwuid(self, uid):
+        # Try the cache first
+        item = self.context.users_cache.get(id=uid)
+        if item:
+            return item.annotated
+
         d = self.context.get_directory_for_id(uid=uid)
         dirs = [d] if d else self.context.get_enabled_directories()
 
@@ -310,7 +348,7 @@ class AccountService(RpcService):
         # Try the cache first
         item = self.context.users_cache.get(name=user_name)
         if item:
-            return self.__annotate(item.directory, copy.copy(item.value))
+            return item.annotated
 
         if '@' in user_name:
             # Fully qualified user name
@@ -326,7 +364,7 @@ class AccountService(RpcService):
                 continue
 
             if user:
-                item = CacheItem(user['uid'], user_name, copy.copy(user), d, 300)
+                item = CacheItem(user['uid'], user['id'], user_name, copy.copy(user), d, 300)
                 self.context.users_cache.set(item)
                 return self.__annotate(d, user)
 
@@ -353,21 +391,15 @@ class GroupService(RpcService):
     def __init__(self, context):
         self.context = context
 
-    def __annotate(self, directory, group):
-        if directory.domain_name:
-            group['name'] = '{0}@{1}'.format(group['name'], directory.domain_name)
-
-        group['origin'] = {'directory': directory.plugin_type}
-        return group
-
     def query(self, filter=None, params=None):
-        iters = []
-        for d in self.context.get_enabled_directories():
-            iters.append([self.__annotate(d, i) for i in d.instance.getgrent(filter, params)])
-
-        return list(unique_everseen(chain(*iters), lambda i: i['id']))
+        return [i.annotated for i in self.context.groups_cache.query(filter, params)]
     
     def getgrnam(self, name):
+        # Try the cache first
+        item = self.context.groups_cache.get(name=name)
+        if item:
+            return item.annotated
+
         if '@' in name:
             # Fully qualified group name
             name, domain_name = name.split('@', 1)
@@ -385,6 +417,11 @@ class GroupService(RpcService):
         return None
     
     def getgrgid(self, gid):
+        # Try the cache first
+        item = self.context.groups_cache.get(id=gid)
+        if item:
+            return item.annotated
+
         d = self.context.get_directory_for_id(gid=gid)
         dirs = [d] if d else self.context.get_enabled_directories()
 
@@ -457,9 +494,14 @@ class Main(object):
         self.users_cache = TTLCacheStore()
         self.groups_cache = TTLCacheStore()
         self.hosts_cache = TTLCacheStore()
+        self.cache_ttl = 300
 
     def get_enabled_directories(self):
-        return (d for d in self.directories if d.enabled)
+        return [d for d in self.directories if d.enabled]
+
+    def get_search_order(self):
+        rest = [d.name for d in self.get_enabled_directories() if d.name not in self.search_order]
+        return ['local', 'system'] + self.search_order + rest
 
     def get_directory_by_domain(self, domain_name):
         return first_or_default(lambda d: d.domain_name == domain_name, self.directories)
@@ -484,6 +526,50 @@ class Main(object):
                 lambda d: d.max_gid and d.max_gid >= gid >= d.min_gid,
                 self.directories
             )
+
+    def alias(self, d, obj, name):
+        aliases = obj.get('aliases', [])
+        aliases.append(obj[name])
+        if d.domain_name:
+            obj[name] = '{0}@{1}'.format(obj[name], d.domain_name)
+            aliases.append(obj[name])
+
+        return aliases
+
+    def populate_caches(self):
+        self.logger.info('Populating caches started')
+        for d in self.get_enabled_directories():
+            self.logger.info('Populating cache from directory {0}...'.format(d.name))
+            try:
+                counter = 0
+                for i in d.instance.getpwent():
+                    i['gids'] = [g['gid'] for g in d.instance.getgrent([('id', 'in', i['groups'])])]
+                    aliases = self.alias(d, i, 'username')
+                    self.users_cache.set(CacheItem(
+                        i['uid'], i['id'], aliases, i, d,
+                        self.cache_ttl
+                    ))
+                    counter += 1
+            except BaseException as err:
+                self.logger.warning('Cannot fetch accounts from {0}: {1}'.format(d.name, str(err)), exc_info=True)
+            finally:
+                self.logger.info('Populated {0} accounts from {1}'.format(counter, d.name))
+
+            try:
+                counter = 0
+                for i in d.instance.getgrent():
+                    aliases = self.alias(d, i, 'name')
+                    self.groups_cache.set(CacheItem(
+                        i['gid'], i['id'], aliases, i, d,
+                        self.cache_ttl
+                    ))
+                    counter += 1
+            except BaseException as err:
+                self.logger.warning('Cannot fetch groups from {0}: {1}'.format(d.name, str(err)), exc_info=True)
+            finally:
+                self.logger.info('Populated {0} groups from {1}'.format(counter, d.name))
+
+        self.logger.info('Populating caches finished')
 
     def init_datastore(self):
         try:
@@ -563,7 +649,7 @@ class Main(object):
         self.client.register_schema(name, schema)
 
     def init_directories(self):
-        for i in self.datastore.query('directories', sort=['priority']):
+        for i in self.datastore.query('directories'):
             try:
                 directory = Directory(self, i)
                 directory.configure()
@@ -584,6 +670,7 @@ class Main(object):
         self.init_dispatcher()
         self.scan_plugins()
         self.init_directories()
+        self.populate_caches()
         self.client.wait_forever()
 
 
