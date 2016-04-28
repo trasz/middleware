@@ -13,7 +13,7 @@
 	forwardable = yes 
 
 [domain_realm]
-% for realm in ds.query('kerberos.realms'):
+% for realm in dispatcher.call_sync('kerberos.realm.query'):
 	${realm['realm']} = ${realm['realm'].upper()}
 	.${realm['realm']} = ${realm['realm'].upper()}
 	${realm['realm'].upper()} = ${realm['realm'].upper()}
@@ -21,7 +21,7 @@
 % endfor
 
 [realms]
-% for realm in ds.query('kerberos.realms'):
+% for realm in dispatcher.call_sync('kerberos.realm.query'):
 	${realm['realm']} = {
         % if realm.get('kdc_address'):
             kdc = ${realm['kdc_address']}
