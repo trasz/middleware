@@ -696,35 +696,36 @@ class TransportReceiveTask(ProgressTask):
                     logger.debug('Written {0} bytes of payload -> zfs.receive ({1}:{2})'.format(length, *self.addr))
 
         finally:
-            if not self.aborted:
-                if header_buffer[0] != transport_header_magic:
-                    raise TaskException(
-                        EINVAL,
-                        'Bad magic {0} received. Expected {1}'.format(header_buffer[0], transport_header_magic)
-                    )
-                if ret == -1:
-                    raise TaskException(
-                        errno,
-                        'Data read failed during transmission from {0}:{1}'.format(*self.addr)
-                    )
-                if ret_wr == -1:
-                    raise TaskException(
-                        errno,
-                        'Data write failed during transmission from {0}:{1}'.format(*self.addr)
-                    )
+            try:
+                if not self.aborted:
+                    if header_buffer[0] != transport_header_magic:
+                        raise TaskException(
+                            EINVAL,
+                            'Bad magic {0} received. Expected {1}'.format(header_buffer[0], transport_header_magic)
+                        )
+                    if ret == -1:
+                        raise TaskException(
+                            errno,
+                            'Data read failed during transmission from {0}:{1}'.format(*self.addr)
+                        )
+                    if ret_wr == -1:
+                        raise TaskException(
+                            errno,
+                            'Data write failed during transmission from {0}:{1}'.format(*self.addr)
+                        )
 
-                logger.debug('All data fetched for transfer from {0}:{1}. Waiting for plugins to close.'.format(*addr))
-                self.join_subtasks(*subtasks)
-
-            self.running = False
-            progress_t.join()
-            logger.debug('Receive from {0}:{1} finished. Closing connection'.format(*addr))
-            free(buffer)
-            free(header_buffer)
-            if sock:
-                sock.shutdown(socket.SHUT_RDWR)
-                sock.close()
-            close_fds(self.fds)
+                    logger.debug('All data fetched for transfer from {0}:{1}. Waiting for plugins to close.'.format(*addr))
+                    self.join_subtasks(*subtasks)
+            finally:
+                self.running = False
+                progress_t.join()
+                logger.debug('Receive from {0}:{1} finished. Closing connection'.format(*addr))
+                free(buffer)
+                free(header_buffer)
+                if sock:
+                    sock.shutdown(socket.SHUT_RDWR)
+                    sock.close()
+                close_fds(self.fds)
 
     def count_progress(self):
         last_done = 0
