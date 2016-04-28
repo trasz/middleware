@@ -39,8 +39,8 @@ from freenas.utils import normalize
 from freenas.utils.query import wrap
 
 
-AD_REALM_ID = '01a35b82-0168-11e6-88d6-0cc47a3511b4'
-WINBIND_ID_BASE = uuid.UUID('E6AE958E-FDAA-44A1-8905-0A0C8D015245')
+AD_REALM_ID = uuid.UUID('01a35b82-0168-11e6-88d6-0cc47a3511b4')
+WINBIND_ID_BASE = uuid.UUID('e6ae958e-fdaa-44a1-8905-0a0c8d015245')
 WINBINDD_PIDFILE = '/var/run/samba4/winbindd.pid'
 WINBINDD_KEEPALIVE = 60
 logger = logging.getLogger(__name__)
@@ -73,6 +73,10 @@ class WinbindPlugin(DirectoryServicePlugin):
     def wbc(self):
         return wbclient.Context()
 
+    @property
+    def principal(self):
+        return '{0}@{1}'.format(self.parameters['username'], self.parameters['realm'].upper())
+
     @staticmethod
     def normalize_parameters(parameters):
         return normalize(parameters, {
@@ -94,12 +98,12 @@ class WinbindPlugin(DirectoryServicePlugin):
         logger.debug('Keepalive thread: starting')
         while True:
             try:
+                self.__renew_ticket()
                 self.dc = self.wbc.ping_dc(self.realm)
             except wbclient.WinbindException as err:
                 # Try to rejoin
                 logger.warning('Cannot ping DC for {0}: {1}'.format(self.realm, str(err)))
                 logger.debug('Keepalive thread: rejoining')
-                self.joined = False
                 self.join()
 
             if self.keepalive_shutdown.wait(WINBINDD_KEEPALIVE):
@@ -119,7 +123,7 @@ class WinbindPlugin(DirectoryServicePlugin):
             'workgroup': workgroup,
             'realm': self.parameters['realm'],
             'security': 'ads',
-            'winbind cache time': '7200',
+            'winbind cache time': str(self.context.cache_ttl),
             'winbind offline logon': 'yes',
             'winbind enum users': 'yes',
             'winbind enum groups': 'yes',
@@ -177,6 +181,7 @@ class WinbindPlugin(DirectoryServicePlugin):
             'uid': user.passwd.pw_uid,
             'builtin': False,
             'username': username,
+            'aliases': [user.passwd.pw_name],
             'full_name': user.passwd.pw_gecos,
             'email': None,
             'locked': False,
@@ -194,6 +199,7 @@ class WinbindPlugin(DirectoryServicePlugin):
             'gid': group.group.gr_gid,
             'builtin': False,
             'name': groupname,
+            'aliases': [group.group.gr_name],
             'sudo': False
         }
 
@@ -202,7 +208,7 @@ class WinbindPlugin(DirectoryServicePlugin):
         if not self.__joined():
             return []
 
-        return wrap(self.convert_user(i) for i in self.wbc.query_users(self.domain_name)).query(
+        return wrap([self.convert_user(i) for i in self.wbc.query_users(self.domain_name)]).query(
             *(filter or []),
             **(params or {})
         )
@@ -275,8 +281,9 @@ class WinbindPlugin(DirectoryServicePlugin):
         self.configure_smb(True)
         krb = krb5.Context()
         tgt = krb.obtain_tgt_password(
-            '{0}@{1}'.format(self.parameters['username'], self.parameters['realm'].upper()),
-            self.parameters['password']
+            self.principal,
+            self.parameters['password'],
+            rewnew_life=86400
         )
 
         ccache = krb5.CredentialsCache(krb)
@@ -330,6 +337,7 @@ def _init(context):
         'type': 'object',
         'additionalProperties': False,
         'properties': {
+            'type': {'enum': ['winbind-directory-status']},
             'joined': {'type': 'boolean'},
             'domain_controller': {'type': 'string'},
             'server_time': {'type': 'datetime'}
