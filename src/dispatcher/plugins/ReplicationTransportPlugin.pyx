@@ -1610,6 +1610,8 @@ class HostsPairCreateTask(Task):
             }
         ))
 
+        remote_client.disconnect()
+
 
 @private
 @description('Create known host entry in database')
@@ -1665,6 +1667,8 @@ class HostsPairDeleteTask(Task):
             'replication.known_host.delete',
             remote
         ))
+
+        remote_client.disconnect()
 
 
 @private
