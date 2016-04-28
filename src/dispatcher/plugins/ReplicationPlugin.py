@@ -930,14 +930,14 @@ class ReplicateDatasetTask(ProgressTask):
         for idx, action in enumerate(actions):
             progress = float(idx) / len(actions) * 100
 
-            if action['type'] == ReplicationActionType.DELETE_SNAPSHOTS.name:
-                self.set_progress(progress, 'Removing snapshots on remote dataset {0}'.format(action.remotefs))
+            if action['type'] in (ReplicationActionType.DELETE_SNAPSHOTS.name, ReplicationActionType.CLEAR_SNAPSHOTS.name):
+                self.set_progress(progress, 'Removing snapshots on remote dataset {0}'.format(action['remotefs']))
                 # Remove snapshots on remote side
                 result = remote_client.call_task_sync(
                     'zfs.delete_multiple_snapshots',
                     action['remotefs'].split('/')[0],
                     action['remotefs'],
-                    list(action['snapshots'])
+                    action.get('snapshots')
                 )
 
                 if result['state'] != 'FINISHED':
@@ -952,29 +952,29 @@ class ReplicateDatasetTask(ProgressTask):
                     action['snapshot']
                 ))
 
-            rd_fd, wr_fd = os.pipe()
-            fromsnap = action['anchor'] if 'anchor' in action else None
+                rd_fd, wr_fd = os.pipe()
+                fromsnap = action['anchor'] if 'anchor' in action else None
 
-            self.join_subtasks(
-                self.run_subtask(
-                    'zfs.send',
-                    action['localfs'],
-                    fromsnap,
-                    action['snapshot'],
-                    FileDescriptor(wr_fd)
-                ),
-                self.run_subtask(
-                    'replication.transport.send',
-                    FileDescriptor(rd_fd),
-                    {
-                        'client_address': remote,
-                        'receive_properties': {
-                            'name': action['remotefs'],
-                            'force': True
+                self.join_subtasks(
+                    self.run_subtask(
+                        'zfs.send',
+                        action['localfs'],
+                        fromsnap,
+                        action['snapshot'],
+                        FileDescriptor(wr_fd)
+                    ),
+                    self.run_subtask(
+                        'replication.transport.send',
+                        FileDescriptor(rd_fd),
+                        {
+                            'client_address': remote,
+                            'receive_properties': {
+                                'name': action['remotefs'],
+                                'force': True
+                            }
                         }
-                    }
+                    )
                 )
-            )
 
             if action['type'] == ReplicationActionType.DELETE_DATASET.name:
                 self.set_progress(progress, 'Removing remote dataset {0}'.format(action['remotefs']))
