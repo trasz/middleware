@@ -424,7 +424,7 @@ class VolumeCreateTask(ProgressTask):
         if self.datastore.exists('volumes', ('id', '=', volume['id'])):
             raise VerifyException(errno.EEXIST, 'Volume with same name already exists')
 
-        return ['disk:{0}'.format(i) for i, _ in get_disks(volume['topology'])]
+        return ['disk:{0}'.format(disk_spec_to_path(self.dispatcher, i)) for i, _ in get_disks(volume['topology'])]
 
     def run(self, volume, password=None):
         name = volume['id']
@@ -547,7 +547,7 @@ class VolumeAutoCreateTask(Task):
                 'Volume with same name already exists'
             )
 
-        return ['disk:{0}'.format(os.path.join('/dev', i)) for i in disks]
+        return ['disk:{0}'.format(disk_spec_to_path(self.dispatcher, i)) for i in disks]
 
     def run(self, name, type, layout, disks, cache_disks=None, log_disks=None, encryption=False, password=None):
         vdevs = []
@@ -565,22 +565,22 @@ class VolumeAutoCreateTask(Task):
             if ltype == 'disk':
                 vdevs.append({
                     'type': 'disk',
-                    'path': os.path.join('/dev', chunk[0])
+                    'path': disk_spec_to_path(self.dispatcher, chunk[0])
                 })
             else:
                 vdevs.append({
                     'type': ltype,
                     'children': [
-                        {'type': 'disk', 'path': os.path.join('/dev', i)} for i in chunk
+                        {'type': 'disk', 'path': disk_spec_to_path(self.dispatcher, i)} for i in chunk
                     ]
                 })
 
         cache_vdevs = [
-            {'type': 'disk', 'path': os.path.join('/dev', i)} for i in cache_disks or []
+            {'type': 'disk', 'path': disk_spec_to_path(self.dispatcher, i)} for i in cache_disks or []
         ]
 
         log_vdevs = [
-            {'type': 'disk', 'path': os.path.join('/dev', i)} for i in log_disks or []
+            {'type': 'disk', 'path': disk_spec_to_path(self.dispatcher, i)} for i in log_disks or []
         ]
 
         self.join_subtasks(self.run_subtask(
@@ -1877,6 +1877,17 @@ def iterate_vdevs(topology):
             if 'children' in vdev:
                 for child in vdev['children']:
                     yield child, name
+
+
+def disk_spec_to_path(dispatcher, ident):
+    return dispatcher.call_sync(
+        'disk.query',
+        [
+            ('or', [('path', '=', ident), ('name', '=', ident), ('id', '=', ident)]),
+            ('online', '=', True)
+        ],
+        {'single': True, 'select': 'path'}
+    )
 
 
 def get_disks(topology):
