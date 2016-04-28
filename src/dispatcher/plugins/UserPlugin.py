@@ -74,18 +74,7 @@ class UserProvider(Provider):
     @query('user')
     @generator
     def query(self, filter=None, params=None):
-        def extend(user):
-            # If there's no 'attributes' property, put empty dict in that place
-            if 'attributes' not in user:
-                user['attributes'] = {}
-
-            # If there's no 'groups' property, put empty array in that place
-            if 'groups' not in user:
-                user['groups'] = []
-
-            return user
-
-        return self.datastore.query_stream('users', *(filter or []), callback=extend, **(params or {}))
+        return self.dispatcher.call_sync('dscached.account.query', filter, params)
 
     def get_profile_picture(self, uid):
         pass
@@ -115,17 +104,7 @@ class GroupProvider(Provider):
     @query('group')
     @generator
     def query(self, filter=None, params=None):
-        def extend(group):
-            group['members'] = [x['id'] for x in self.datastore.query(
-                'users',
-                ('or', (
-                    ('groups', 'in', group['gid']),
-                    ('group', '=', group['gid'])
-                ))
-            )]
-            return group
-
-        return self.datastore.query_stream('groups', *(filter or []), callback=extend, **(params or {}))
+        return self.dispatcher.call_sync('dscached.group.query', filter, params)
 
     @description("Retrieve the next GID available")
     @returns(int)
