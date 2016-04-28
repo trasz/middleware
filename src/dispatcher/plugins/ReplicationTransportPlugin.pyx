@@ -1560,9 +1560,9 @@ class TransportThrottleTask(Task):
 
 
 @description('Exchange keys with remote machine for replication purposes')
-@accepts(str, str, str)
+@accepts(str, str, str, int)
 class HostsPairCreateTask(Task):
-    def describe(self, username, remote, password):
+    def describe(self, username, remote, password, port=22):
         return 'Exchange keys with remote machine for replication purposes'
 
     def verify(self, username, remote, password):
@@ -1571,13 +1571,13 @@ class HostsPairCreateTask(Task):
 
         return ['system']
 
-    def run(self, username, remote, password):
+    def run(self, username, remote, password, port=22):
         remote_client = Client()
         try:
-            remote_client.connect('ws+ssh://{0}@{1}'.format(username, remote), password=password)
+            remote_client.connect('ws+ssh://{0}@{1}'.format(username, remote), port=port, password=password)
             remote_client.login_service('replicator')
         except (AuthenticationException, OSError, ConnectionRefusedError):
-            raise TaskException(ECONNABORTED, 'Cannot connect to {0}'.format(remote))
+            raise TaskException(ECONNABORTED, 'Cannot connect to {0}:{1}'.format(remote, port))
 
         local_keys = self.dispatcher.call_sync('replication.host.get_keys')
         remote_keys = remote_client.call_sync('replication.host.get_keys')
@@ -1586,13 +1586,16 @@ class HostsPairCreateTask(Task):
         remote_host_key = remote + ' ' + remote_keys[0].rsplit(' ', 1)[0]
         local_host_key = ip_at_remote_side + ' ' + local_keys[0].rsplit(' ', 1)[0]
 
+        local_ssh_config = self.dispatcher.call_sync('service.sshd.get_config')
+
         remote_client.call_task_sync(
             'replication.known_host.create',
             {
                 'name': ip_at_remote_side,
                 'id': ip_at_remote_side,
                 'pubkey': local_keys[1],
-                'hostkey': local_host_key
+                'hostkey': local_host_key,
+                'port': local_ssh_config['port']
             }
         )
 
@@ -1602,7 +1605,8 @@ class HostsPairCreateTask(Task):
                 'name': remote,
                 'id': remote,
                 'pubkey': remote_keys[1],
-                'hostkey': remote_host_key
+                'hostkey': remote_host_key,
+                'port': port
             }
         ))
 
@@ -1794,7 +1798,8 @@ def _init(dispatcher, plugin):
             'name': {'type': 'string'},
             'id': {'type': 'string'},
             'pubkey': {'type': 'string'},
-            'hostkey': {'type': 'string'}
+            'hostkey': {'type': 'string'},
+            'port': {'type': 'number'}
         },
         'additionalProperties': False
     })
