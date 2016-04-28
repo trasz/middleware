@@ -29,7 +29,10 @@ import uuid
 import ldap3
 import ldap3.utils.dn
 import logging
+import threading
 from plugin import DirectoryServicePlugin
+from utils import obtain_or_renew_ticket, join_dn, dn_to_domain, domain_to_dn
+from freenas.utils import first_or_default
 
 
 LDAP_USER_UUID = uuid.UUID('ACA6D9B8-AF83-49D9-9BD7-A5E771CE17EB')
@@ -37,57 +40,71 @@ LDAP_GROUP_UUID = uuid.UUID('86657E0F-C5E8-44E0-8896-DD57C78D9766')
 logger = logging.getLogger(__name__)
 
 
-def dn_to_domain(dn):
-    return '.'.join(name for typ, name, sep in ldap3.utils.dn.parse_dn(dn))
-
-
 class LDAPPlugin(DirectoryServicePlugin):
     def __init__(self, context):
         self.context = context
+        self.server = None
+        self.conn = None
         self.parameters = None
-        self.connection = None
+        self.base_dn = None
+        self.user_dn = None
+        self.group_dn = None
+        self.bind_lock = threading.RLock()
+
+    def search(self, search_base, search_filter, attributes=None):
+        if self.conn.closed:
+            with self.bind_lock:
+                self.conn.bind()
+
+        id = self.conn.search(search_base, search_filter, attributes=attributes or ldap3.ALL_ATTRIBUTES)
+        result, status = self.conn.get_response(id)
+        return result
+
+    def search_one(self, *args, **kwargs):
+        return first_or_default(None, self.search(*args, **kwargs))
 
     def get_id(self, entry):
-        if hasattr(entry, 'entryUUID'):
-            return entry.entryUUID
+        if 'entryUUID' in entry:
+            return entry['entryUUID.0']
 
-        if hasattr(entry, 'uidNumber'):
-            return uuid.uuid5(LDAP_USER_UUID, entry.uidNumber)
+        if 'uidNumber' in entry:
+            return uuid.uuid5(LDAP_USER_UUID, entry['uidNumber.0'])
 
-        if hasattr(entry, 'gidNumber'):
-            return uuid.uuid5(LDAP_GROUP_UUID, entry.gidNumber)
+        if 'gidNumber' in entry:
+            return uuid.uuid5(LDAP_GROUP_UUID, entry['gidNumber.0'])
 
         return uuid.uuid4()
 
     def convert_user(self, entry):
         return {
             'id': self.get_id(entry),
-            'uid': int(entry.uidNumber.value),
+            'sid': entry.get('sambaSID.0'),
+            'uid': int(entry['uidNumber.0']),
             'builtin': False,
-            'username': entry.uid.value,
-            'full_name': entry.gecos.value,
-            'shell': entry.loginShell.value,
-            'home': entry.homeDirectory.value,
-            'groups': []
+            'username': entry['uid.0'],
+            'full_name': entry.get('gecos.0', entry.get('displayName.0', '<unknown>')),
+            'shell': entry.get('loginShell.0', '/bin/sh'),
+            'home': entry.get('homeDirectory.0', '/nonexistent'),
+            'nthash': entry.get('sambaNTPassword.0'),
+            'lmhash': entry.get('sambaLMPassword.0'),
+            'groups': [],
+            'sudo': False
         }
 
     def convert_group(self, entry):
         return {
             'id': self.get_id(entry),
-            'gid': int(entry.gidNumber.value),
-            'name': entry.uid.value,
+            'gid': int(entry['gidNumber.0']),
+            'sid': entry.get('sambaSID.0'),
+            'name': entry['uid.0'],
             'builtin': False,
             'sudo': False
         }
 
     def getpwent(self, filter=None, params=None):
         logger.debug('getpwent(filter={0}, params={0})'.format(filter, params))
-        self.connection.search(','.join([
-            self.parameters['user_suffix'],
-            self.parameters['base_dn']
-        ]), '(objectclass=posixaccount)', attributes=ldap3.ALL_ATTRIBUTES)
-
-        return (self.convert_user(i) for i in self.connection.entries)
+        result = self.search(self.user_dn, '(objectclass=posixAccount)')
+        return (self.convert_user(i) for i in result)
 
     def getpwnam(self, name):
         logger.debug('getpwnam(name={0})'.format(name))
@@ -95,7 +112,7 @@ class LDAPPlugin(DirectoryServicePlugin):
             'uid={0}'.format(name),
             self.parameters['user_suffix'],
             self.parameters['base_dn']
-        ]), '(objectclass=posixaccount)', attributes=ldap3.ALL_ATTRIBUTES)
+        ]), '(objectclass=posixAccount)', attributes=ldap3.ALL_ATTRIBUTES)
 
     def getpwuid(self, uid):
         logger.debug('getpwuid(uid={0})'.format(uid))
@@ -112,11 +129,33 @@ class LDAPPlugin(DirectoryServicePlugin):
 
     def configure(self, enable, uid_min, uid_max, gid_min, gid_max, parameters):
         self.parameters = parameters
-        server = ldap3.Server(self.parameters['server'])
-        self.connection = ldap3.Connection(server)
-        self.connection.bind()
+        self.server = ldap3.Server(self.parameters['server'])
+        self.base_dn = self.parameters['base_dn']
+        self.user_dn = join_dn(self.parameters['user_suffix'], self.base_dn)
+        self.group_dn = join_dn(self.parameters['group_suffix'], self.base_dn)
+        self.conn = ldap3.Connection(
+            self.server,
+            client_strategy='ASYNC',
+            user=self.parameters['bind_dn'],
+            password=self.parameters['password']
+        )
 
+        self.conn.bind()
         return dn_to_domain(parameters['base_dn'])
+
+    def authenticate(self, user_name, password):
+        with self.bind_lock:
+            try:
+                self.conn.rebind(
+                    user=join_dn('uid={0}'.format(user_name), self.user_dn),
+                    password=password
+                )
+            except ldap3.LDAPBindError:
+                self.conn.bind()
+                return False
+
+            self.conn.bind()
+            return True
 
 
 def _init(context):
@@ -130,7 +169,7 @@ def _init(context):
         'password': {'type': 'string'},
         'user_suffix': {'type': ['string', 'null']},
         'group_suffix': {'type': ['string', 'null']},
-        'freeipa': {'type': 'boolean'}
+        'krb_realm': {'type': ['string', 'null']}
     })
 
     context.register_schema('ldap-directory-status', {

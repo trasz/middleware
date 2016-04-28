@@ -25,24 +25,49 @@
 #
 #####################################################################
 
+import uuid
 import ldap3
 import ldap3.utils.dn
 import logging
+from contextlib import contextmanager
+from dns import resolver
+from datetime import datetime
 from plugin import DirectoryServicePlugin
-from freenas.utils import normalize
+from utils import obtain_or_renew_ticket, join_dn, dn_to_domain, domain_to_dn
+from freenas.utils import normalize, first_or_default
+from freenas.utils.query import wrap
 
+
+FREEIPA_REALM_ID = uuid.UUID('e44553e1-0c0b-11e6-9898-000c2957240a')
+TICKET_RENEW_LIFE = 30 * 86400  # 30 days
 logger = logging.getLogger(__name__)
 
 
-def dn_to_domain(dn):
-    return '.'.join(name for typ, name, sep in ldap3.utils.dn.parse_dn(dn))
+def get_ldap_address(realm):
+    pass
 
 
 class FreeIPAPlugin(DirectoryServicePlugin):
     def __init__(self, context):
         self.context = context
         self.parameters = None
-        self.connection = None
+        self.server = None
+        self.conn = None
+        self.base_dn = None
+        self.user_dn = None
+        self.group_dn = None
+        self.principal = None
+
+    def search(self, search_base, search_filter, attributes=None):
+        if self.conn.closed:
+            self.conn.bind()
+
+        id = self.conn.search(search_base, search_filter, attributes=attributes or ldap3.ALL_ATTRIBUTES)
+        result, status = self.conn.get_response(id)
+        return result
+
+    def search_one(self, *args, **kwargs):
+        return first_or_default(None, self.search(*args, **kwargs))
 
     @staticmethod
     def normalize_parameters(parameters):
@@ -52,66 +77,98 @@ class FreeIPAPlugin(DirectoryServicePlugin):
             'server': None,
             'username': '',
             'password': '',
+            'user_suffix': 'cn=users,cn=accounts',
+            'group_suffix': 'cn=groups,cn=accounts'
         })
 
     def convert_user(self, entry):
+        entry = wrap(dict(entry['attributes']))
+        group = None
+
+        if 'gidNumber.0' in entry:
+            group = self.search_one(self.group_dn, '(gidNumber={0})'.format(entry['gidNumber.0']))
+            group = wrap(dict(group['attributes']))
+
         return {
-            'id': entry.ipaUniqueId.value,
-            'uid': int(entry.uidNumber.value),
+            'id': entry['ipaUniqueID.0'],
+            'uid': int(entry['uidNumber.0']),
             'builtin': False,
-            'username': entry.uid.value,
-            'full_name': entry.gecos.value,
-            'shell': entry.loginShell.value,
-            'home': entry.homeDirectory.value,
-            'groups': []
+            'username': entry['uid.0'],
+            'full_name': entry.get('gecos.0', entry.get('displayName.0', '<unknown>')),
+            'shell': entry.get('loginShell.0', '/bin/sh'),
+            'home': entry.get('homeDirectory.0', '/nonexistent'),
+            'group': group['ipaUniqueID.0'] if group else None,
+            'groups': [],
+            'sudo': False
         }
 
     def convert_group(self, entry):
+        entry = wrap(dict(entry['attributes']))
         return {
-            'id': entry.ipaUniqueId.value,
-            'gid': int(entry.gidNumber.value),
-            'name': entry.uid.value,
+            'id': entry['ipaUniqueID.0'],
+            'gid': int(entry['gidNumber.0']),
+            'name': entry['cn.0'],
             'builtin': False,
             'sudo': False
         }
 
     def getpwent(self, filter=None, params=None):
         logger.debug('getpwent(filter={0}, params={0})'.format(filter, params))
-        self.connection.search(','.join([
-            self.parameters['user_suffix'],
-            self.parameters['base_dn']
-        ]), '(objectclass=posixaccount)', attributes=ldap3.ALL_ATTRIBUTES)
-
-        return (self.convert_user(i) for i in self.connection.entries)
+        result = self.search(self.user_dn, '(objectclass=posixAccount)')
+        return (self.convert_user(i) for i in result)
 
     def getpwnam(self, name):
         logger.debug('getpwnam(name={0})'.format(name))
-        self.connection.search(','.join([
-            'uid={0}'.format(name),
-            self.parameters['user_suffix'],
-            self.parameters['base_dn']
-        ]), '(objectclass=posixaccount)', attributes=ldap3.ALL_ATTRIBUTES)
+        user = self.search_one(join_dn('uid={0}'.format(name), self.user_dn), '(objectclass=posixAccount)')
+        return self.convert_user(user)
+
+    def getpwid(self, uuid):
+        pass
 
     def getpwuid(self, uid):
         logger.debug('getpwuid(uid={0})'.format(uid))
+        user = self.search_one(self.user_dn, '(uidNumber={0})'.format(uid))
+        return self.convert_user(user)
 
     def getgrent(self, filter=None, params=None):
         logger.debug('getgrent(filter={0}, params={0})'.format(filter, params))
-        return []
+        result = self.search(self.group_dn, '(objectclass=posixGroup)')
+        return (self.convert_group(i) for i in result)
 
     def getgrnam(self, name):
         logger.debug('getgrnam(name={0})'.format(name))
+        group = self.search_one(join_dn('cn={0}'.format(name), self.group_dn), '(objectclass=posixGroup)')
+        return self.convert_group(group)
+
+    def getgrid(self, uuid):
+        pass
 
     def getgrgid(self, gid):
         logger.debug('getgrgid(gid={0})'.format(gid))
+        group = self.search_one(self.group_dn, '(gidNumber={0})'.format(gid))
+        return self.convert_group(group)
 
     def configure(self, enable, uid_min, uid_max, gid_min, gid_max, parameters):
         self.parameters = parameters
-        server = ldap3.Server(self.parameters['server'])
-        self.connection = ldap3.Connection(server)
-        self.connection.bind()
+        self.base_dn = domain_to_dn(parameters['realm'])
+        self.user_dn = ','.join([parameters['user_suffix'], self.base_dn])
+        self.group_dn = ','.join([parameters['group_suffix'], self.base_dn])
+        self.principal = '{0}@{1}'.format(self.parameters['username'], self.parameters['realm'].upper())
 
-        return dn_to_domain(parameters['base_dn'])
+        obtain_or_renew_ticket(self.principal, self.parameters['password'], renew_life=TICKET_RENEW_LIFE)
+        self.server = ldap3.Server(self.parameters['server'])
+        self.conn = ldap3.Connection(self.server, client_strategy='ASYNC', authentication=ldap3.SASL, sasl_mechanism='GSSAPI')
+        self.conn.bind()
+
+        return parameters['realm']
+
+    def get_kerberos_realm(self):
+        return {
+            'id': FREEIPA_REALM_ID,
+            'realm': self.parameters['realm'].upper(),
+            'created_at': datetime.utcnow(),
+            'updated_at': datetime.utcnow()
+        }
 
 
 def _init(context):
@@ -123,6 +180,13 @@ def _init(context):
         'server': {'type': ['string', 'null']},
         'username': {'type': 'string'},
         'password': {'type': 'string'},
+        'user_suffix': {'type': 'string'},
+        'group_suffix': {'type': 'string'},
+        'encryption': {
+            'type': 'string',
+            'enum': ['NONE', 'SSL', 'TLS']
+        },
+        'certificate': {'type': ['string', 'null']},
     })
 
     context.register_schema('freeipa-directory-status', {
