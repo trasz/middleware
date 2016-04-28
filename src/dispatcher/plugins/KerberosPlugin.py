@@ -25,6 +25,7 @@
 #
 #####################################################################
 
+import errno
 import krb5
 import itertools
 from freenas.dispatcher.rpc import SchemaHelper as h, accepts, returns, description, generator
@@ -110,9 +111,15 @@ class KerberosRealmDeleteTask(Task):
         })
 
 
-@accepts(h.ref('kerberos-keytab'))
+@accepts(h.all_of(
+    h.ref('kerberos-keytab'),
+    h.required('name', 'keytab')
+)
 class KerberosKeytabCreateTask(Task):
     def verify(self, keytab):
+        if self.datastore.exists('kerberos.keytabs', ('name', '=', keytab['name'])):
+            raise VerifyException(errno.EEXIST, 'Keytab {0} already exists'.format(keytab['name']))
+
         return ['system']
 
     def run(self, keytab):
@@ -125,18 +132,34 @@ class KerberosKeytabCreateTask(Task):
         return id
 
 
-@accepts(str, h.ref('kerberos-keytab'))
+@accepts(str, h.all_of(
+    h.ref('kerberos-keytab'),
+    h.forbidden('keytab', 'entries')
+))
 class KerberosKeytabUpdateTask(Task):
     def verify(self, id, updated_fields):
+        if not self.datastore.exists('kerberos.keytabs', ('id', '=', id)):
+            raise VerifyException(errno.ENOENT, 'Keytab with ID {0} doesn\'t exist'.format(id))
+        
         return ['system']
 
-    def run(self, keytab):
-        pass
+    def run(self, id, updated_fields):
+        keytab = self.datastore.get_by_id('kerberos.keytabs', id)
+        keytab.update(updated_fields)
+        self.datastore.update('kerberos.keytabs', id, keytab)
+        generate_keytab(self.datastore)
+        self.dispatcher.dispatch_event('kerberos.keytab.changed', {
+            'operation': 'update',
+            'ids': [id]
+        })
 
 
 @accepts(str)
 class KerberosKeytabDeleteTask(Task):
     def verify(self, id):
+        if not self.datastore.exists('kerberos.keytabs', ('id', '=', id)):
+            raise VerifyException(errno.ENOENT, 'Keytab with ID {0} doesn\'t exist'.format(id))
+
         return ['system']
 
     def run(self, id):
