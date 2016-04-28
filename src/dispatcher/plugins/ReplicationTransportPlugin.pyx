@@ -258,6 +258,8 @@ class TransportSendTask(Task):
         self.addr = None
         self.aborted = False
         self.fds = []
+        self.sock = None
+        self.conn = None
 
     def verify(self, fd, transport):
         client_address = transport.get('client_address')
@@ -291,8 +293,6 @@ class TransportSendTask(Task):
         cdef int rd_fd = fd.fd
         cdef int wr_fd
 
-        sock = None
-        conn = None
         try:
             buffer_size = transport.get('buffer_size', 1024*1024)
 
@@ -304,26 +304,26 @@ class TransportSendTask(Task):
             for conn_option in socket.getaddrinfo(server_address, server_port, socket.AF_UNSPEC, socket.SOCK_STREAM):
                 af, sock_type, proto, canonname, addr = conn_option
                 try:
-                    sock = socket.socket(af, sock_type, proto)
+                    self.sock = socket.socket(af, sock_type, proto)
                 except OSError:
-                    sock = None
+                    self.sock = None
                     continue
                 try:
-                    sock.bind(addr)
-                    sock.settimeout(30)
-                    sock.listen(1)
+                    self.sock.bind(addr)
+                    self.sock.settimeout(30)
+                    self.sock.listen(1)
                 except socket.timeout:
                     raise TaskException(
                         ETIMEDOUT,
                         'Timeout while waiting for connection from {0}'.format(client_address)
                     )
                 except OSError:
-                    sock.close()
-                    sock = None
+                    self.sock.close()
+                    self.sock = None
                     continue
                 break
 
-            if sock is None:
+            if self.sock is None:
                 raise TaskException(EACCES, 'Could not open a socket at address {0}'.format(server_address))
             logger.debug('Created a TCP socket at {0}:{1}'.format(*addr))
 
@@ -343,7 +343,7 @@ class TransportSendTask(Task):
                 token = base64.b64encode(os.urandom(token_size)).decode('utf-8')
                 transport['auth_token'] = token
 
-            sock_addr = sock.getsockname()
+            sock_addr = self.sock.getsockname()
             transport['server_address'] = sock_addr[0]
             transport['server_port'] = sock_addr[1]
             transport['buffer_size'] = buffer_size
@@ -356,7 +356,7 @@ class TransportSendTask(Task):
                 timeout=604800
             )
 
-            conn, addr = sock.accept()
+            self.conn, addr = self.sock.accept()
             if addr[0] != client_address:
                 raise TaskException(
                     EINVAL,
@@ -367,9 +367,9 @@ class TransportSendTask(Task):
                 )
             logger.debug('New connection from {0}:{1} to {2}:{3}'.format(*(addr + sock_addr)))
 
-            conn.setsockopt(socket.SOL_SOCKET, socket.SO_SNDBUF, buffer_size)
+            self.conn.setsockopt(socket.SOL_SOCKET, socket.SO_SNDBUF, buffer_size)
 
-            conn_fd = os.dup(conn.fileno())
+            conn_fd = os.dup(self.conn.fileno())
             self.fds.append(conn_fd)
 
             token_buffer = <uint8_t *>malloc(token_size * sizeof(uint8_t))
@@ -471,9 +471,9 @@ class TransportSendTask(Task):
                     )
                 logger.debug('All data fetched for transfer to {0}:{1}. Waiting for plugins to close.'.format(*addr))
                 self.join_subtasks(*subtasks)
-                if conn:
-                    conn.shutdown(socket.SHUT_RDWR)
-                    conn.close()
+                if self.conn:
+                    self.conn.shutdown(socket.SHUT_RDWR)
+                    self.conn.close()
 
                 self.finished.wait()
 
@@ -482,15 +482,21 @@ class TransportSendTask(Task):
 
             free(buffer)
             free(token_buffer)
-            if sock:
-                sock.shutdown(socket.SHUT_RDWR)
-                sock.close()
+            if self.sock:
+                self.sock.shutdown(socket.SHUT_RDWR)
+                self.sock.close()
             close_fds(self.fds)
 
     def get_recv_status(self, status):
         if status.get('state') != 'FINISHED':
             error = status.get('error')
             close_fds(self.fds)
+            if self.conn:
+                self.conn.shutdown(socket.SHUT_RDWR)
+                self.conn.close()
+            if self.sock:
+                self.sock.shutdown(socket.SHUT_RDWR)
+                self.sock.close()
             self.finished.set_exception(
                 TaskException(
                     error['code'],
