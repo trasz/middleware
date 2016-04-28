@@ -11,7 +11,8 @@ MAINTAINER=	dev@ixsystems.com
 COMMENT=	FreeNAS directory services daemon
 
 RUN_DEPENDS=	${PYTHON_PKGNAMEPREFIX}more-itertools>0:${PORTSDIR}/devel/py-more-itertools \
-		${PYTHON_PKGNAMEPREFIX}ldap3>0:${PORTSDIR}/net/py-ldap3
+		${PYTHON_PKGNAMEPREFIX}ldap3>0:${PORTSDIR}/net/py-ldap3 \
+		${PYTHON_PKGNAMEPREFIX}gssapi>0:${PORTSDIR}/devel/py-gssapi
 
 USES=		python
 USE_PYTHON=	py3kplist
