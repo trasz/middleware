@@ -39,7 +39,7 @@ def dn_to_domain(dn):
 
 
 class FreeIPAPlugin(DirectoryServicePlugin):
-    def __init__(self, context, parameters):
+    def __init__(self, context):
         self.context = context
         self.parameters = None
         self.connection = None

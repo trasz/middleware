@@ -53,12 +53,12 @@ def yesno(val):
 @params(h.ref('winbind-directory-params'))
 @status(h.ref('winbind-directory-status'))
 class WinbindPlugin(DirectoryServicePlugin):
-    def __init__(self, context, parameters):
-        self.parameters = parameters
+    def __init__(self, context):
         self.context = context
-        self.uid_min = 100000
-        self.uid_max = 999999
+        self.uid_min = None
+        self.uid_max = None
         self.dc = None
+        self.parameters = None
         self.keepalive_thread = threading.Thread(target=self.__join_keepalive, daemon=True)
         self.keepalive_shutdown = threading.Event()
         if self.wbc.interface:

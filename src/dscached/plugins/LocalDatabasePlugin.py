@@ -31,7 +31,7 @@ from plugin import DirectoryServicePlugin
 
 
 class LocalDatabasePlugin(DirectoryServicePlugin):
-    def __init__(self, context, parameters):
+    def __init__(self, context):
         self.context = context
         self.datastore = context.datastore
 

@@ -42,13 +42,10 @@ logger = logging.getLogger(__name__)
 
 
 class FlatFilePlugin(DirectoryServicePlugin):
-    def __init__(self, context, parameters):
+    def __init__(self, context):
         self.context = context
-        self.passwd_filename = parameters["passwd_file"]
-        self.group_filename = parameters["group_file"]
         self.passwd = wrap([])
         self.group = wrap([])
-        self.__load()
         self.watch_thread = threading.Thread(target=self.__watch, daemon=True)
         self.watch_thread.start()
 
@@ -135,7 +132,9 @@ class FlatFilePlugin(DirectoryServicePlugin):
             raise
 
     def configure(self, enable, uid_min, uid_max, gid_min, gid_max, parameters):
-        pass
+        self.passwd_filename = parameters["passwd_file"]
+        self.group_filename = parameters["group_file"]
+        self.__load()
 
 
 def _init(context):
