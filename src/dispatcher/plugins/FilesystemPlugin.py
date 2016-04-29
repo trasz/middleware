@@ -161,6 +161,24 @@ class FilesystemProvider(Provider):
 
         return token
 
+    @accepts(str)
+    @returns(h.array(h.ref('open-file')))
+    def get_open_files(self, path):
+        result = []
+        for proc in bsd.getprocs(bsd.ProcessLookupPredicate.PROC):
+            for f in proc.files:
+                if not f.path:
+                    continue
+
+                if f.path.startswith(path):
+                    result.append({
+                        'pid': proc.pid,
+                        'process_name': proc.command,
+                        'path': f.path
+                    })
+
+        return result
+
 
 @accepts(str)
 @private
@@ -393,6 +411,15 @@ def _init(dispatcher, plugin):
             'perms': {'type': 'object'},
             'flags': {'type': 'object'},
             'text': {'type': ['string', 'null']}
+        }
+    })
+
+    plugin.register_schema_definition('open-file', {
+        'type': 'object',
+        'properties': {
+            'pid': {'type': 'integer'},
+            'process_name': {'type': 'string'},
+            'path': {'type': 'string'}
         }
     })
 
