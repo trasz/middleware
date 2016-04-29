@@ -1692,6 +1692,9 @@ class DatasetDeleteTask(Task):
 
     def run(self, id):
         deps = self.dispatcher.call_sync('zfs.dataset.get_dependencies', id)
+        ds = self.dispatcher.call_sync('volume.dataset.query', [('id', '=', id)], {'single': True})
+        if not ds:
+            raise TaskException(errno.ENOENT, 'Dataset {0} not found', id)
 
         for i in deps:
             if i['type'] == 'FILESYSTEM':
@@ -1699,8 +1702,27 @@ class DatasetDeleteTask(Task):
 
             self.join_subtasks(self.run_subtask('zfs.destroy', i['id']))
 
-        self.join_subtasks(self.run_subtask('zfs.umount', id))
-        self.join_subtasks(self.run_subtask('zfs.destroy', id))
+        try:
+            self.join_subtasks(self.run_subtask('zfs.umount', id))
+            self.join_subtasks(self.run_subtask('zfs.destroy', id))
+        except RpcException as err:
+            if err.code == errno.EBUSY:
+                # Find out what's holding unmount or destroy
+                files = self.dispatcher.call_sync('filesystem.get_open_files', ds['mountpoint'])
+                if len(files) == 1:
+                    raise TaskException(
+                        errno.EBUSY,
+                        'Dataset is in use by {process_name} (pid {pid}, path {path})'.format(**files[0]),
+                        extra=files
+                    )
+                else:
+                    raise TaskException(
+                        errno.EBUSY,
+                        'Dataset is in use by {0} processes'.format(len(files)),
+                        extra=files
+                    )
+            else:
+                raise
 
 
 @description("Configures/Updates an existing Dataset's properties")
