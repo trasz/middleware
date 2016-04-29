@@ -144,13 +144,13 @@ class ReplicationBaseTask(Task):
             if client:
                 client.call_task_sync(
                     'zfs.update',
-                    dataset['name'], dataset['name'],
+                    dataset['name'],
                     {'readonly': {'value': 'on' if readonly else 'off'}}
                 )
             else:
                 self.join_subtasks(self.run_subtask(
                     'zfs.update',
-                    dataset['name'], dataset['name'],
+                    dataset['name'],
                     {'readonly': {'value': 'on' if readonly else 'off'}}
                 ))
 
@@ -691,11 +691,8 @@ class SnapshotDatasetTask(Task):
 
             break
 
-        pool, _ = split_dataset(dataset)
-
         self.join_subtasks(self.run_subtask(
             'zfs.create_snapshot',
-            pool,
             dataset,
             snapname,
             recursive,
@@ -935,7 +932,6 @@ class ReplicateDatasetTask(ProgressTask):
                 # Remove snapshots on remote side
                 result = remote_client.call_task_sync(
                     'zfs.delete_multiple_snapshots',
-                    action['remotefs'].split('/')[0],
                     action['remotefs'],
                     action.get('snapshots')
                 )

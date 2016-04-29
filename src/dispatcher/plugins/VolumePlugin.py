@@ -505,7 +505,7 @@ class VolumeCreateTask(ProgressTask):
 
             self.join_subtasks(self.run_subtask(
                 'zfs.update',
-                name, name,
+                name,
                 {'org.freenas:permissions_type': {'value': 'PERM'}}
             ))
 
@@ -689,7 +689,7 @@ class VolumeUpdateTask(Task):
             self.dispatcher.run_hook('volume.pre_rename', {'name': id, 'new_name': new_name})
 
             # Rename mountpoint
-            self.join_subtasks(self.run_subtask('zfs.update', id, id, {
+            self.join_subtasks(self.run_subtask('zfs.update', id, {
                 'mountpoint': {'value': '{0}/{1}'.format(VOLUMES_ROOT, new_name)}
             }))
 
@@ -697,7 +697,7 @@ class VolumeUpdateTask(Task):
             self.join_subtasks(self.run_subtask('zfs.pool.import', volume['guid'], new_name))
 
             # Configure newly imported volume
-            self.join_subtasks(self.run_subtask('zfs.update', new_name, new_name, {}))
+            self.join_subtasks(self.run_subtask('zfs.update', new_name, {}))
             self.join_subtasks(self.run_subtask('zfs.mount', new_name))
 
             volume['id'] = new_name
@@ -963,7 +963,6 @@ class VolumeImportTask(Task):
             self.join_subtasks(self.run_subtask('zfs.pool.import', id, new_name, params))
             self.join_subtasks(self.run_subtask(
                 'zfs.update',
-                new_name,
                 new_name,
                 {'mountpoint': {'value': mountpoint}}
             ))
@@ -1412,7 +1411,6 @@ class VolumeUnlockTask(Task):
             self.join_subtasks(self.run_subtask(
                 'zfs.update',
                 id,
-                id,
                 {'mountpoint': {'value': vol['mountpoint']}}
             ))
 
@@ -1683,7 +1681,6 @@ class DatasetCreateTask(Task):
         props['org.freenas:uuid'] = uuid.uuid4()
         self.join_subtasks(self.run_subtask(
             'zfs.create_dataset',
-            dataset['volume'],
             dataset['id'],
             dataset['type'],
             props
@@ -1755,7 +1752,7 @@ class DatasetConfigureTask(Task):
     def switch_to_acl(self, pool_name, path):
         fs_path = self.dispatcher.call_sync('volume.get_dataset_path', path)
         self.join_subtasks(
-            self.run_subtask('zfs.update', pool_name, path, {
+            self.run_subtask('zfs.update', path, {
                 'aclmode': {'value': 'restricted'},
                 'org.freenas:permissions_type': {'value': 'ACL'}
             }),
@@ -1765,7 +1762,7 @@ class DatasetConfigureTask(Task):
         )
 
     def switch_to_chmod(self, pool_name, path):
-        self.join_subtasks(self.run_subtask('zfs.update', pool_name, path, {
+        self.join_subtasks(self.run_subtask('zfs.update', path, {
             'aclmode': {'value': 'passthrough'},
             'org.freenas:permissions_type': {'value': 'PERM'}
         }))
@@ -1785,7 +1782,7 @@ class DatasetConfigureTask(Task):
                 'written', 'usedbyrefreservation', 'referenced', 'available', 'dedup', 'casesensitivity',
                 'compressratio', 'refcompressratio'
             )
-            self.join_subtasks(self.run_subtask('zfs.update', pool_name, ds['id'], props))
+            self.join_subtasks(self.run_subtask('zfs.update', ds['id'], props))
 
         if 'permissions_type' in updated_params:
             oldtyp = ds['properties.org\\.freenas:permissions_type.value']
@@ -1826,7 +1823,6 @@ class SnapshotCreateTask(Task):
 
         self.join_subtasks(self.run_subtask(
             'zfs.create_snapshot',
-            snapshot['volume'],
             snapshot['dataset'],
             snapshot['name'],
             recursive,
@@ -1849,7 +1845,6 @@ class SnapshotDeleteTask(Task):
         pool, ds, snap = split_snapshot_name(id)
         self.join_subtasks(self.run_subtask(
             'zfs.delete_snapshot',
-            pool,
             ds,
             snap
         ))
@@ -1883,7 +1878,7 @@ class SnapshotConfigureTask(Task):
         if 'replicable' in updated_params:
             params['org.freenas:replicable'] = {'value': 'yes' if updated_params['replicable'] else 'no'}
 
-        self.join_subtasks(self.run_subtask('zfs.update', pool, id, params))
+        self.join_subtasks(self.run_subtask('zfs.update', id, params))
 
 
 def compare_vdevs(vd1, vd2):
@@ -2001,7 +1996,7 @@ def _init(dispatcher, plugin):
 
         uuid_source = snapshot.get('properties.org\\.freenas:uuid.source')
         if not uuid_source or uuid_source == 'INHERITED':
-            dispatcher.submit_task('zfs.update', pool, snapshot['name'], {
+            dispatcher.submit_task('zfs.update', snapshot['name'], {
                 'org.freenas:uuid': {'value': str(uuid.uuid4())}
             })
 
@@ -2034,7 +2029,7 @@ def _init(dispatcher, plugin):
 
         uuid_source = ds.get('properties.org\\.freenas:uuid.source')
         if not uuid_source or uuid_source == 'INHERITED':
-            dispatcher.submit_task('zfs.update', ds['pool'], ds['name'], {
+            dispatcher.submit_task('zfs.update', ds['name'], {
                 'org.freenas:uuid': {'value': str(uuid.uuid4())}
             })
 
@@ -2099,7 +2094,7 @@ def _init(dispatcher, plugin):
                     logger.info('New volume {0} <{1}>'.format(i['name'], i['guid']))
 
                     # Set correct mountpoint
-                    dispatcher.call_task_sync('zfs.update', i['name'], i['name'], {
+                    dispatcher.call_task_sync('zfs.update', i['name'], {
                         'mountpoint': {'value': os.path.join(VOLUMES_ROOT, i['name'])}
                     })
 
