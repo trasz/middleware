@@ -2109,7 +2109,10 @@ def _init(dispatcher, plugin):
         'additionalProperties': False,
         'properties': {
             'id': {'type': 'string'},
-            'guid': {'type': 'string'},
+            'guid': {
+                'type': 'string',
+                'readOnly': True
+            },
             'type': {
                 'type': 'string',
                 'enum': ['zfs']
@@ -2126,9 +2129,10 @@ def _init(dispatcher, plugin):
                     {
                         'type': 'null'
                     }
-                ]
+                ],
+                'readOnly': True
             },
-            'properties': {'$ref': 'volume-properties'},
+            'properties': {'$ref': 'volume-properties', 'readOnly': True},
             'attributes': {'type': 'object'},
             'params': {'type': 'object'}
         }
