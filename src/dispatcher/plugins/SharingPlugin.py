@@ -245,11 +245,14 @@ class CreateShareTask(Task):
 
         new_share = self.datastore.get_by_id('shares', ids[0])
         path = self.dispatcher.call_sync('share.get_directory_path', new_share['id'])
-        save_config(
-            path,
-            '{0}-{1}'.format(new_share['type'], new_share['name']),
-            new_share
-        )
+        try:
+            save_config(
+                path,
+                '{0}-{1}'.format(new_share['type'], new_share['name']),
+                new_share
+            )
+        except OSError as err:
+            self.add_warning(errno.ENXIO, 'Cannot save backup config file: {0}'.format(str(err)))
 
         return ids[0]
 
@@ -327,11 +330,14 @@ class UpdateShareTask(Task):
 
         updated_share = self.datastore.get_by_id('shares', id)
         path = self.dispatcher.call_sync('share.get_directory_path', updated_share['id'])
-        save_config(
-            path,
-            '{0}-{1}'.format(updated_share['type'], updated_share['name']),
-            updated_share
-        )
+        try:
+            save_config(
+                path,
+                '{0}-{1}'.format(updated_share['type'], updated_share['name']),
+                updated_share
+            )
+        except OSError as err:
+            self.add_warning(errno.ENXIO, 'Cannot save backup config file: {0}'.format(str(err)))
 
 
 @description("Imports existing share")
