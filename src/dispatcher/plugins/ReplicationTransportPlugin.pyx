@@ -169,6 +169,9 @@ cipher_types = {
 }
 
 
+ssh_port = None
+
+
 cdef uint32_t read_fd(int fd, void *buf, uint32_t nbytes, uint32_t curr_pos) nogil:
     cdef int ret
     cdef uint32_t done = 0
@@ -1756,6 +1759,7 @@ def _depends():
     return ['SSHPlugin']
 
 def _init(dispatcher, plugin):
+    global ssh_port
     ssh_port = dispatcher.call_sync('service.sshd.get_config')['port']
     # Register schemas
     plugin.register_schema_definition('replication-transport', {
@@ -1885,6 +1889,7 @@ def _init(dispatcher, plugin):
 
     #Event handlers methods
     def on_ssh_change(args):
+        global ssh_port
         new_ssh_port = dispatcher.call_sync('service.sshd.get_config')['port']
         if ssh_port != new_ssh_port:
             ssh_port = new_ssh_port
