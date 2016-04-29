@@ -624,8 +624,27 @@ class VolumeDestroyTask(Task):
 
         with self.dispatcher.get_lock('volumes'):
             if config:
-                self.join_subtasks(self.run_subtask('zfs.umount', id))
-                self.join_subtasks(self.run_subtask('zfs.pool.destroy', id))
+                try:
+                    self.join_subtasks(self.run_subtask('zfs.umount', id))
+                    self.join_subtasks(self.run_subtask('zfs.pool.destroy', id))
+                except RpcException as err:
+                    if err.code == errno.EBUSY:
+                        # Find out what's holding unmount or destroy
+                        files = self.dispatcher.call_sync('filesystem.get_open_files', vol['mountpoint'])
+                        if len(files) == 1:
+                            raise TaskException(
+                                errno.EBUSY,
+                                'Volume is in use by {process_name} (pid {pid}, path {path})'.format(**files[0]),
+                                extra=files
+                            )
+                        else:
+                            raise TaskException(
+                                errno.EBUSY,
+                                'Volume is in use by {0} processes'.format(len(files)),
+                                extra=files
+                            )
+                    else:
+                        raise
 
             if encryption.get('key', None) is not None:
                 subtasks = []
