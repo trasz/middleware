@@ -1702,6 +1702,47 @@ class KnownHostDeleteTask(Task):
             'ids': [name]
         })
 
+
+@private
+@description('Update SSH port number in remote known host entry')
+@accepts(str, int)
+class HostsPairPortUpdateTask(Task):
+    def verify(self, name, port):
+        if not self.datastore.exists('replication.known_hosts', ('id', '=', name)):
+            raise VerifyException(ENOENT, 'Known hosts entry for {0} does not exist'.format(name))
+
+        return ['system']
+
+    def run(self, name, port):
+        remote_client = get_replication_client(self.dispatcher, name)
+        ip_at_remote_side = remote_client.call_sync('management.get_sender_address').split(',', 1)[0]
+
+        remote_client.call_task_sync('replication.known_host.update_port', ip_at_remote_side, port)
+        remote_client.disconnect()
+
+
+@private
+@description('Update SSH port number in known host entry')
+@accepts(str, int)
+class KnownHostPortUpdateTask(Task):
+    def verify(self, name, port):
+        if not self.datastore.exists('replication.known_hosts', ('id', '=', name)):
+            raise VerifyException(ENOENT, 'Known hosts entry for {0} does not exist'.format(name))
+
+        return ['system']
+
+    def run(self, name, port):
+        known_host = self.dispatcher.call_sync('replication.host.query', [('id', '=', name)], {'single': True})
+        known_host['port'] = port
+
+        self.datastore.update('replication.known_hosts', name, known_host)
+
+        self.dispatcher.dispatch_event('replication.host.changed', {
+            'operation': 'update',
+            'ids': [name]
+        })
+
+
 def close_fds(fds):
     if isinstance(fds, int):
         fds = [fds]
@@ -1711,7 +1752,11 @@ def close_fds(fds):
     except OSError:
         pass
 
+def _depends():
+    return ['SSHPlugin']
+
 def _init(dispatcher, plugin):
+    ssh_port = dispatcher.call_sync('service.sshd.get_config')['port']
     # Register schemas
     plugin.register_schema_definition('replication-transport', {
         'type': 'object',
@@ -1832,9 +1877,23 @@ def _init(dispatcher, plugin):
     plugin.register_task_handler("replication.known_host.create", KnownHostCreateTask)
     plugin.register_task_handler("replication.hosts_pair.delete", HostsPairDeleteTask)
     plugin.register_task_handler("replication.known_host.delete", KnownHostDeleteTask)
+    plugin.register_task_handler("replication.hosts_pair.update_port", HostsPairPortUpdateTask)
+    plugin.register_task_handler("replication.known_host.update_port", KnownHostPortUpdateTask)
 
-    # Register event handlers
+    # Register event types
     plugin.register_event_type('replication.host.changed')
+
+    #Event handlers methods
+    def on_ssh_change(args):
+        new_ssh_port = dispatcher.call_sync('service.sshd.get_config')['port']
+        if ssh_port != new_ssh_port:
+            ssh_port = new_ssh_port
+            hosts = dispatcher.call_sync('replication.host.query', [], {'select': 'name'})
+            for host in hosts:
+                dispatcher.call_task_sync('replication.hosts_pair.update_port', host, new_ssh_port)
+
+    #Register event handlers
+    plugin.register_event_handler('service.sshd.changed', on_ssh_change)
 
     #Create home directory and authorized keys file for replication user
     if not os.path.exists(REPL_HOME):
