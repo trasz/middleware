@@ -435,7 +435,7 @@ class VolumeCreateTask(ProgressTask):
             'mountpoint',
             os.path.join(VOLUMES_ROOT, volume['id'])
         )
-        encryption = params.pop('encryption', False)
+        encryption = volume.pop('encrypted', False)
 
         self.dispatcher.run_hook('volume.pre_create', {'name': name})
         if encryption:
@@ -593,9 +593,7 @@ class VolumeAutoCreateTask(Task):
                     'cache': cache_vdevs,
                     'log': log_vdevs
                 },
-                'params': {
-                    'encryption': encryption
-                }
+                'encrypted': encryption
             },
             password
         ))
