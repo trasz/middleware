@@ -2214,6 +2214,7 @@ def _init(dispatcher, plugin):
 
     plugin.register_schema_definition('encryption', {
         'type': 'object',
+        'readOnly': True,
         'properties': {
             'key': {'type': ['string', 'null']},
             'hashed_password': {'type': ['string', 'null']},
