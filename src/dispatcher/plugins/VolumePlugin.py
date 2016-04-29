@@ -342,7 +342,7 @@ class VolumeProvider(Provider):
                 ret[boot_disk] = {'type': 'BOOT'}
 
         for vol in self.dispatcher.call_sync('volume.query'):
-            if vol['status'] == 'UNAVAIL':
+            if vol['status'] in ('UNAVAIL', 'UNKNOWN'):
                 continue
 
             for dev in self.dispatcher.call_sync('volume.get_volume_disks', vol['id']):
