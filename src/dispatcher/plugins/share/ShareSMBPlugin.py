@@ -149,7 +149,9 @@ class DeleteSMBShareTask(Task):
         try:
             smb_conf = smbconf.SambaConfig('registry')
             del smb_conf.shares[share['name']]
+
             reload_samba()
+            drop_share_connections(share['name'])
         except smbconf.SambaConfigException:
             raise TaskException(errno.EFAULT, 'Cannot access samba registry')
 
@@ -180,6 +182,11 @@ def yesno(val):
 def reload_samba():
     rpc = smbconf.SambaMessagingContext()
     rpc.reload_config()
+
+
+def drop_share_connections(share):
+    rpc = smbconf.SambaMessagingContext()
+    rpc.kill_share_connections(share)
 
 
 def convert_share(ret, path, share):
