@@ -418,7 +418,13 @@ class SnapshotProvider(Provider):
 
 
 @description("Creates new volume")
-@accepts(h.ref('volume'), h.one_of(str, None))
+@accepts(
+    h.all_of(
+        h.ref('volume'),
+        h.required('id', 'topology')
+    ),
+    h.one_of(str, None)
+)
 class VolumeCreateTask(ProgressTask):
     def verify(self, volume, password=None):
         if self.datastore.exists('volumes', ('id', '=', volume['id'])):
