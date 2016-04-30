@@ -89,6 +89,7 @@ class CreateSMBShareTask(Task):
             smb_share = smbconf.SambaShare()
             convert_share(smb_share, path, share['properties'])
             smb_conf.shares[share['name']] = smb_share
+            reload_samba()
         except smbconf.SambaConfigException:
             raise TaskException(errno.EFAULT, 'Cannot access samba registry')
 
@@ -121,6 +122,7 @@ class UpdateSMBShareTask(Task):
             smb_share = smb_conf.shares[share['name']]
             convert_share(smb_share, path, share['properties'])
             smb_share.save()
+            reload_samba()
         except smbconf.SambaConfigException:
             raise TaskException(errno.EFAULT, 'Cannot access samba registry')
 
@@ -147,6 +149,7 @@ class DeleteSMBShareTask(Task):
         try:
             smb_conf = smbconf.SambaConfig('registry')
             del smb_conf.shares[share['name']]
+            reload_samba()
         except smbconf.SambaConfigException:
             raise TaskException(errno.EFAULT, 'Cannot access samba registry')
 
@@ -172,6 +175,11 @@ class ImportSMBShareTask(CreateSMBShareTask):
 
 def yesno(val):
     return 'yes' if val else 'no'
+
+
+def reload_samba():
+    rpc = smbconf.SambaMessagingContext()
+    rpc.reload_config()
 
 
 def convert_share(ret, path, share):
