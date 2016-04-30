@@ -1755,7 +1755,7 @@ class DatasetConfigureTask(Task):
 
         return ['zpool:{0}'.format(pool_name)]
 
-    def switch_to_acl(self, pool_name, path):
+    def switch_to_acl(self, path):
         fs_path = self.dispatcher.call_sync('volume.get_dataset_path', path)
         self.join_subtasks(
             self.run_subtask('zfs.update', path, {
@@ -1767,7 +1767,7 @@ class DatasetConfigureTask(Task):
             }, True)
         )
 
-    def switch_to_chmod(self, pool_name, path):
+    def switch_to_chmod(self, path):
         self.join_subtasks(self.run_subtask('zfs.update', path, {
             'aclmode': {'value': 'passthrough'},
             'org.freenas:permissions_type': {'value': 'PERM'}
@@ -1795,10 +1795,10 @@ class DatasetConfigureTask(Task):
             typ = updated_params['permissions_type']
 
             if oldtyp != 'ACL' and typ == 'ACL':
-                self.switch_to_acl(pool_name, ds['id'])
+                self.switch_to_acl(ds['id'])
 
             if oldtyp != 'PERM' and typ == 'PERM':
-                self.switch_to_chmod(pool_name, ds['id'])
+                self.switch_to_chmod(ds['id'])
 
         if 'permissions' in updated_params:
             fs_path = os.path.join(VOLUMES_ROOT, id)
