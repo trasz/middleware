@@ -30,7 +30,7 @@ import errno
 from freenas.dispatcher.rpc import description, accepts, returns, private
 from freenas.dispatcher.rpc import SchemaHelper as h, generator
 from task import Task, TaskException, VerifyException, Provider, RpcException, query
-from freenas.utils import normalize
+from freenas.utils import normalize, in_directory
 from utils import split_dataset, save_config, load_config, delete_config
 
 
@@ -91,7 +91,7 @@ class SharesProvider(Provider):
         for i in shares:
             target_path = self.translate_path(i['id'])
             if recursive:
-                if target_path.startswith(path):
+                if in_directory(target_path, path):
                     result.append(i)
             else:
                 if target_path == path:
