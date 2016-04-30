@@ -110,6 +110,8 @@ class SMBConfigureTask(Task):
             node = ConfigNode('service.smb', self.configstore)
             node.update(smb)
             configure_params(node.__getstate__())
+            rpc = smbconf.SambaMessagingContext()
+            rpc.reload_config()
 
             # XXX: Is restart to change netbios name/workgroup *really* needed?
             if 'netbiosname' in smb or 'workgroup' in smb:
