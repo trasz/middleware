@@ -1122,10 +1122,7 @@ def _init(dispatcher, plugin):
         'additionalProperties': False,
         'properties': {
             'path': {'type': ['string', 'null']},
-            'guid': {
-                'type': 'string',
-                'readOnly': True
-            },
+            'guid': {'type': 'string'},
             'status': {
                 'type': 'string',
                 'readOnly': True
