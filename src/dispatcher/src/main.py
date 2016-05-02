@@ -83,7 +83,7 @@ MAXFDS = 128
 CMSGCRED_SIZE = struct.calcsize('iiiih16i')
 DEFAULT_CONFIGFILE = '/usr/local/etc/middleware.conf'
 LOGGING_FORMAT = '%(asctime)s %(levelname)s %(filename)s:%(lineno)d %(message)s'
-FEATURES = ['streaming_responses']
+FEATURES = ['streaming_responses', 'strict_validation']
 trace_log_file = None
 
 
@@ -1470,6 +1470,9 @@ class ServerConnection(WebSocketApplication, EventEmitter):
     def enable_feature(self, feature):
         if feature not in self.dispatcher.features:
             raise ValueError('Invalid feature')
+
+        if feature == 'strict_validation':
+            self.dispatcher.rpc.strict_validation = True
 
         self.enabled_features.add(feature)
 

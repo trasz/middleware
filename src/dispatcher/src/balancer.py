@@ -313,6 +313,7 @@ class Task(object):
         self.ended = Event()
         self.debugger = None
         self.executor = None
+        self.strict_verify = None
 
     def __getstate__(self):
         return {
@@ -491,12 +492,17 @@ class Balancer(object):
             'maxItems': len(schema)
         }
 
-    def verify_schema(self, clazz, args):
+    def verify_schema(self, clazz, args, strict=False):
         if not hasattr(clazz, 'params_schema'):
             return []
 
         schema = self.schema_to_list(clazz.params_schema)
         val = validator.DefaultDraft4Validator(schema, resolver=self.dispatcher.rpc.get_schema_resolver(schema))
+        if strict:
+            val.fail_read_only = True
+        else:
+            val.remove_read_only = True
+
         return list(val.iter_errors(args))
 
     def submit(self, name, args, sender, env=None):
@@ -510,6 +516,7 @@ class Balancer(object):
         task.created_at = datetime.utcnow()
         task.clazz = self.dispatcher.tasks[name]
         task.args = copy.deepcopy(args)
+        task.strict_verify = 'strict_validation' in sender.enabled_features
 
         if env:
             if not isinstance(env, dict):
@@ -612,7 +619,7 @@ class Balancer(object):
             try:
                 self.logger.debug("Picked up task %d: %s with args %s", task.id, task.name, task.args)
 
-                errors = self.verify_schema(self.dispatcher.tasks[task.name], task.args)
+                errors = self.verify_schema(self.dispatcher.tasks[task.name], task.args, task.strict_verify)
                 if len(errors) > 0:
                     errors = list(validator.serialize_errors(errors))
                     self.logger.warning("Cannot submit task {0}: schema verification failed with errors {1}".format(
