@@ -849,10 +849,10 @@ class CalculateReplicationDeltaTask(Task):
 
 @description("Runs a replication task with the specified arguments")
 class ReplicateDatasetTask(ProgressTask):
-    def verify(self, localds, options, dry_run=False):
+    def verify(self, localds, options, transport_plugins=None, dry_run=False):
         return ['zfs:{0}'.format(localds)]
 
-    def run(self, localds, options, dry_run=False):
+    def run(self, localds, options, transport_plugins=None, dry_run=False):
         remote = options['remote']
         remoteds = options['remote_dataset']
         followdelete = options.get('followdelete', False)
@@ -964,6 +964,7 @@ class ReplicateDatasetTask(ProgressTask):
                         FileDescriptor(rd_fd),
                         {
                             'client_address': remote,
+                            'transport_plugins': transport_plugins,
                             'receive_properties': {
                                 'name': action['remotefs'],
                                 'force': True
@@ -1184,19 +1185,10 @@ def _init(dispatcher, plugin):
         'type': 'object',
         'properties': {
             'remote': {'type': 'string'},
-            'remote_port': {'type': 'string'},
-            'remote_hostkey': {'type': 'string'},
             'remote_dataset': {'type': 'string'},
-            'cipher': {
-                'type': 'string',
-                'enum': ['NORMAL', 'FAST', 'DISABLED']
-            },
-            'compression': {
-                'type': 'string',
-                'enum': ['none', 'pigz', 'plzip', 'lz4', 'xz']
-            },
-            'bandwidth_limit': {'type': 'string'},
             'followdelete': {'type': 'boolean'},
+            'lifetime': {'type': ['number', 'null']},
+            'transport_plugins': {'$ref': 'replication-transport-plugin'},
             'recursive': {'type': 'boolean'},
         },
         'additionalProperties': False,
