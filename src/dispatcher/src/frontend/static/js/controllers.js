@@ -672,10 +672,6 @@ function TasksController($scope, $interval, $location, $routeParams, $route) {
     }
     $("#submit").click(function () {
         console.log("task submitted");
-
-        // sock.call("task.submit", [$("#task").val()].concat(JSON.parse($("#args").val())), function(result) {
-        // });
-
         var task_args = JSON.parse("[" + $("#args").val().trim()+ "]");
         console.log(task_args);
         sock.call("task.submit", [$("#task").val()].concat(task_args), function(result) {
