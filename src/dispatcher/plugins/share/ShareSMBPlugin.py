@@ -28,11 +28,15 @@
 import errno
 import pwd
 import datetime
+import logging
 import smbconf
 from task import Task, TaskStatus, Provider, TaskException
 from freenas.dispatcher.rpc import RpcException, description, accepts, returns, private
 from freenas.dispatcher.rpc import SchemaHelper as h
 from freenas.utils import first_or_default, normalize
+
+
+logger = logging.getLogger(__name__)
 
 
 @description("Provides info about configured SMB shares")
@@ -180,13 +184,19 @@ def yesno(val):
 
 
 def reload_samba():
-    rpc = smbconf.SambaMessagingContext()
-    rpc.reload_config()
+    try:
+        rpc = smbconf.SambaMessagingContext()
+        rpc.reload_config()
+    except OSError as err:
+        logger.info('Cannot reload samba config: {0}'.format(str(err)))
 
 
 def drop_share_connections(share):
-    rpc = smbconf.SambaMessagingContext()
-    rpc.kill_share_connections(share)
+    try:
+        rpc = smbconf.SambaMessagingContext()
+        rpc.kill_share_connections(share)
+    except OSError as err:
+        logger.info('Cannot reload samba config: {0}'.format(str(err)))
 
 
 def convert_share(ret, path, share):
