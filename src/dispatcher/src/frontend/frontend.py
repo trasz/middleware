@@ -44,4 +44,4 @@ def index():
 
 @app.route('/new')
 def new():
-    return render_template('base.html')
+    return render_template('fixed.html')
