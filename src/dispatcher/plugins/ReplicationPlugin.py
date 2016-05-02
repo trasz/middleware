@@ -551,15 +551,15 @@ class ReplicationUpdateTask(ReplicationBaseTask):
 
 
 @description("Runs replication process based on saved link")
-@accepts(str)
+@accepts(str, h.array(h.ref('replication-transport-plugin')))
 class ReplicationSyncTask(ReplicationBaseTask):
-    def verify(self, name):
+    def verify(self, name, transport_plugins):
         if not self.datastore.exists('replication.links', ('name', '=', name)):
             raise VerifyException(errno.ENOENT, 'Replication link {0} do not exist.'.format(name))
 
         return ['replication:{0}'.format(name)]
 
-    def run(self, name):
+    def run(self, name, transport_plugins):
         link = self.join_subtasks(self.run_subtask('replication.get_latest_link', name))[0]
         is_master, remote = self.get_replication_state(link)
         remote_client = get_replication_client(self.dispatcher, remote)
@@ -574,7 +574,8 @@ class ReplicationSyncTask(ReplicationBaseTask):
                             'remote': remote,
                             'remote_dataset': dataset['name'],
                             'recursive': link['recursive']
-                        }
+                        },
+                        transport_plugins
                     ))
 
                 if link['replicate_services']:
