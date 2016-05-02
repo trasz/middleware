@@ -968,7 +968,8 @@ class ReplicateDatasetTask(ProgressTask):
                             'receive_properties': {
                                 'name': action['remotefs'],
                                 'force': True
-                            }
+                            },
+                            'estimated_size': send_size
                         }
                     )
                 )
