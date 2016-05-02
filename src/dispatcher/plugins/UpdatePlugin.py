@@ -49,7 +49,8 @@ if '/usr/local/lib' not in sys.path:
 from freenasOS import Configuration, Train
 from freenasOS.Exceptions import (
     UpdateManifestNotFound, ManifestInvalidSignature, UpdateBootEnvironmentException,
-    UpdatePackageException,
+    UpdatePackageException, UpdateIncompleteCacheException, UpdateBusyCacheException,
+    ChecksumFailException, UpdatePackageNotFound
 )
 from freenasOS.Update import CheckForUpdates, DownloadUpdate, ApplyUpdate
 
@@ -564,6 +565,21 @@ class DownloadUpdateTask(ProgressTask):
                 cache_dir,
                 get_handler=handler.get_handler,
                 check_handler=handler.check_handler
+            )
+        except ManifestInvalidSignature as e:
+            raise TaskException(
+                errno.EBADMSG, 'Latest manifest has invalid signature: {0}'.format(str(e))
+            )
+        except UpdateIncompleteCacheException as e:
+            raise TaskException(errno.EIO, 'Possibly with no network, cached update is incomplete')
+        except UpdateBusyCacheException as e:
+            raise TaskException(errno.EBUSY, str(e))
+        except ChecksumFailException as e:
+            raise TaskException(errno.EBADMSG, str(e))
+        except UpdatePackageNotFound as e:
+            raise TaskException(
+                errno.EIO,
+                "Update Package: '{0}' Not Found. This could be due to a failed Download".format(str(e))
             )
         except Exception as e:
             raise TaskException(
