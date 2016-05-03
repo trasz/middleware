@@ -1457,8 +1457,8 @@ def run(d, args):
 
     ws_options = {
         'kwargs': kwargs,
+        'endpoint': '/socket',
         'apps': {
-            '/socket': websocket.ServerApplication,
             '/shell': ShellConnection,
             '/file': FileConnection,
             '/filedownload': DownloadRequestHandler(d)
