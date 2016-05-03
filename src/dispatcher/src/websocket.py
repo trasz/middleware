@@ -58,6 +58,13 @@ class ServerApplication(WebSocketApplication):
         self.parent = parent
         self.conn = None
 
+    @property
+    def client_address(self):
+        return self.ws.handler.client_address[:2]
+
+    def send(self, message, fds):
+        self.ws.send(message)
+
     def on_open(self):
         self.conn = self.parent.on_connection(self)
 
