@@ -39,7 +39,7 @@ from dateutil.parser import parse as parse_datetime
 from task import Provider, Task, ProgressTask, VerifyException, TaskException, TaskWarning, query
 from freenas.dispatcher.rpc import RpcException, SchemaHelper as h, description, accepts, returns
 from freenas.dispatcher.fd import FileDescriptor
-from utils import get_replication_client, load_config, split_dataset
+from utils import get_replication_client, load_config
 from freenas.utils import first_or_default
 from freenas.utils.query import wrap
 
