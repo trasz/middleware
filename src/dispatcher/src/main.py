@@ -1191,7 +1191,7 @@ class DispatcherConnection(ServerConnection):
             # Delete the token at logout since otherwise
             # the reconnect will just log the session back in
             self.dispatcher.token_store.revoke_token(self.token)
-            self.ws.close()
+            self.transport.close()
         except WebSocketError as werr:
             # This error usually implies that the socket is dead
             # so just log it and move on
@@ -1465,12 +1465,15 @@ def run(d, args):
         }
     }
 
+    # IPv4 WebSocket server
     s4 = Server(d, connection_class=DispatcherConnection)
     s4.start('ws://0.0.0.0:{0}'.format(args.p), transport_options=ws_options)
 
+    # IPv6 WebSocket server
     s6 = Server(d, connection_class=DispatcherConnection)
     s6.start('ws://[::]:{0}'.format(args.p), transport_options=ws_options)
 
+    # Unix domain socket server
     su = Server(d, connection_class=DispatcherConnection)
     su.start('unix://{0}'.format(args.u))
 

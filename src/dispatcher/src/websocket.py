@@ -62,6 +62,9 @@ class ServerApplication(WebSocketApplication):
     def client_address(self):
         return self.ws.handler.client_address[:2]
 
+    def close(self):
+        self.ws.close()
+
     def send(self, message, fds):
         self.ws.send(message)
 
