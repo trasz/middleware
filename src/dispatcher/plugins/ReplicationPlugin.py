@@ -193,6 +193,9 @@ class ReplicationCreateTask(ReplicationBaseTask):
                 'Replication link can only have 2 partners. Value {0} is not permitted.'.format(len(partners))
             )
 
+        if not len(link['datasets']):
+            raise VerifyException(errno.ENOENT, 'At least one dataset have to be specified')
+
         if link['master'] not in partners:
             raise VerifyException(
                 errno.EINVAL,
@@ -474,6 +477,10 @@ class ReplicationUpdateTask(ReplicationBaseTask):
 
         if 'id' in updated_fields:
             raise VerifyException(errno.EINVAL, 'Id of replication link cannot be updated')
+
+        if 'datasets' in updated_fields:
+            if not len(updated_fields['datasets']):
+                raise VerifyException(errno.ENOENT, 'At least one dataset have to be specified')
 
         return ['replication:{0}'.format(name)]
 
