@@ -337,14 +337,9 @@ call_dispatcher(const char *method, json_t *args, json_t **result)
 	connection_t *conn;
 	rpc_call_t *call;
 
-	conn = dispatcher_open("unix");
+	conn = dispatcher_open("unix:///var/run/dscached.sock");
 	if (conn == NULL)
 		return (-1);
-
-	if (dispatcher_login_service(conn, "nss-freenas") < 0) {
-		dispatcher_close(conn);
-		return (-1);
-	}
 
 	gettimeofday(&tv, NULL);
 	ts.tv_sec = tv.tv_sec + 2;

@@ -89,15 +89,9 @@ call_dispatcher(const char *method, json_t *args, json_t **result)
 	connection_t *conn;
 	int err;
 
-	conn = dispatcher_open("unix");
+	conn = dispatcher_open("unix:///var/run/dscached.sock");
 	if (conn == NULL) {
 		PAM_LOG("Cannot open unix domain socket connection");
-		return (-1);
-	}
-
-	if (dispatcher_login_service(conn, "pam-freenas") < 0) {
-		PAM_LOG("Cannot log in as pam-freenas");
-		dispatcher_close(conn);
 		return (-1);
 	}
 
