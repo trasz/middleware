@@ -1568,7 +1568,7 @@ class HostsPairCreateTask(Task):
     def describe(self, username, remote, password, port=22):
         return 'Exchange keys with remote machine for replication purposes'
 
-    def verify(self, username, remote, password):
+    def verify(self, username, remote, password, port=22):
         if self.datastore.exists('replication.known_hosts', ('id', '=', remote)):
             raise VerifyException(EEXIST, 'Known hosts entry for {0} already exists'.format(remote))
 
