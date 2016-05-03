@@ -31,19 +31,24 @@ import io
 import os
 import errno
 import re
+import time
 import logging
+from cache import CacheStore
 from resources import Resource
 from paramiko import RSAKey
 from datetime import datetime
 from dateutil.parser import parse as parse_datetime
 from task import Provider, Task, ProgressTask, VerifyException, TaskException, TaskWarning, query
-from freenas.dispatcher.rpc import RpcException, SchemaHelper as h, description, accepts, returns
+from freenas.dispatcher.rpc import RpcException, SchemaHelper as h, description, accepts, returns, private
 from freenas.dispatcher.fd import FileDescriptor
 from utils import get_replication_client, load_config
 from freenas.utils import first_or_default
 from freenas.utils.query import wrap
 
 logger = logging.getLogger(__name__)
+
+
+status_cache = CacheStore()
 
 
 class ReplicationActionType(enum.Enum):
@@ -105,11 +110,17 @@ class ReplicationProvider(Provider):
 class ReplicationLinkProvider(Provider):
     @query('replication-link')
     def query(self, filter=None, params=None):
+        def extend(obj):
+            if status_cache.is_valid(obj['name']):
+                obj['status'] = status_cache.get(obj['name'])
+            return obj
+
         links = self.datastore.query('replication.links')
         latest_links = []
         for link in links:
             latest_links.append(self.dispatcher.call_task_sync('replication.get_latest_link', link['name']))
 
+            latest_links = list(map(extend, latest_links))
         return wrap(latest_links).query(*(filter or []), **(params or {}))
 
     def local_query(self, filter=None, params=None):
@@ -122,6 +133,14 @@ class ReplicationLinkProvider(Provider):
             return self.datastore.get_one('replication.links', ('name', '=', name))
         else:
             return None
+
+    @private
+    def put_status(self, name, status):
+        status_cache.put(name, status)
+        self.dispatcher.dispatch_event('replication.link.changed', {
+            'operation': 'update',
+            'ids': [name]
+        })
 
 
 class ReplicationBaseTask(Task):
@@ -571,22 +590,47 @@ class ReplicationSyncTask(ReplicationBaseTask):
         is_master, remote = self.get_replication_state(link)
         remote_client = get_replication_client(self.dispatcher, remote)
         if is_master:
-            with self.dispatcher.get_lock('volumes'):
-                datasets_to_replicate = self.dispatcher.call_sync('replication.datasets_from_link', link)
-                for dataset in datasets_to_replicate:
-                    self.join_subtasks(self.run_subtask(
-                        'replication.replicate_dataset',
-                        dataset['name'],
-                        {
-                            'remote': remote,
-                            'remote_dataset': dataset['name'],
-                            'recursive': link['recursive']
-                        },
-                        transport_plugins
-                    ))
+            start_time = time.time()
+            total_size = 0
+            status = 'SUCCESS'
+            message = ''
+            speed = 0
+            try:
+                with self.dispatcher.get_lock('volumes'):
+                    datasets_to_replicate = self.dispatcher.call_sync('replication.datasets_from_link', link)
+                    for dataset in datasets_to_replicate:
+                        result = self.join_subtasks(self.run_subtask(
+                            'replication.replicate_dataset',
+                            dataset['name'],
+                            {
+                                'remote': remote,
+                                'remote_dataset': dataset['name'],
+                                'recursive': link['recursive']
+                            },
+                            transport_plugins
+                        ))
 
-                if link['replicate_services']:
-                    remote_client.call_task_sync('replication.reserve_services', name)
+                        total_size += result[0][1]
+
+                    if link['replicate_services']:
+                        remote_client.call_task_sync('replication.reserve_services', name)
+            except TaskException as e:
+                status = 'FAILED'
+                message = e.message
+                raise
+            finally:
+                end_time = time.time()
+                if start_time != end_time:
+                    speed = int(float(total_size) / float(end_time - start_time))
+
+                status_dict = {
+                    'status': status,
+                    'message': message,
+                    'size': total_size,
+                    'speed': speed
+                }
+                self.dispatcher.call_sync('replication.link.put_status', name, status_dict)
+                remote_client.call_sync('replication.link.put_status', name, status_dict)
 
         else:
             remote_client.call_task_sync(
@@ -930,7 +974,7 @@ class ReplicateDatasetTask(ProgressTask):
         ))
 
         if dry_run:
-            return actions
+            return actions, send_size
 
         # 2nd pass - actual send
         for idx, action in enumerate(actions):
@@ -999,7 +1043,7 @@ class ReplicateDatasetTask(ProgressTask):
 
         remote_client.disconnect()
 
-        return actions
+        return actions, send_size
 
 
 @description("Returns latest replication link of given name")
@@ -1221,7 +1265,19 @@ def _init(dispatcher, plugin):
             },
             'bidirectional': {'type': 'boolean'},
             'replicate_services': {'type': 'boolean'},
-            'recursive': {'type': 'boolean'}
+            'recursive': {'type': 'boolean'},
+            'status': {'$ref': 'replication-status'}
+        },
+        'additionalProperties': False,
+    })
+
+    plugin.register_schema_definition('replication-status', {
+        'type': 'object',
+        'properties': {
+            'status': {'type': 'string'},
+            'message': {'type': 'string'},
+            'size': {'type': 'number'},
+            'speed': {'type': 'number'}
         },
         'additionalProperties': False,
     })
