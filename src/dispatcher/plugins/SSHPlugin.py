@@ -48,7 +48,7 @@ class SSHProvider(Provider):
 @description('Configure SSH service')
 @accepts(h.ref('service-sshd'))
 class SSHConfigureTask(Task):
-    def describe(self, share):
+    def describe(self, ssh):
         return 'Configuring SSH service'
 
     def verify(self, ssh):
