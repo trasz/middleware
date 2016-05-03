@@ -352,7 +352,7 @@ class Dispatcher(object):
 
         self.balancer = Balancer(self)
         self.auth = PasswordAuthenticator(self)
-        self.rpc = ServerRpcContext(self)
+        self.rpc = DispatcherRpcContext(self)
         self.rpc.streaming_enabled = True
         self.rpc.streaming_burst = self.configstore.get('middleware.streaming_burst_size') or 1
         register_general_purpose_schemas(self)
@@ -798,9 +798,9 @@ class Dispatcher(object):
             self.logger.debug('Log database server terminated with exit code {0}'.format(self.logdb_proc.returncode))
 
 
-class ServerRpcContext(RpcContext):
+class DispatcherRpcContext(RpcContext):
     def __init__(self, dispatcher):
-        super(ServerRpcContext, self).__init__()
+        super(DispatcherRpcContext, self).__init__()
         self.dispatcher = dispatcher
 
     def call_sync(self, name, *args):
