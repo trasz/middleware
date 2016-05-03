@@ -76,6 +76,7 @@ class TaskExecutor(object):
         self.checked_in = Event()
         self.result = AsyncResult()
         self.exiting = False
+        self.task_started = Event()
         self.thread = gevent.spawn(self.executor)
 
     def checkin(self, conn):
@@ -88,6 +89,7 @@ class TaskExecutor(object):
         if not self.conn:
             return None
 
+        self.task_started.wait()
         try:
             st = TaskStatus(0)
             if issubclass(self.task.clazz, MasterProgressTask):
@@ -171,6 +173,7 @@ class TaskExecutor(object):
         self.result = AsyncResult()
         self.task = task
         self.task.set_state(TaskState.EXECUTING)
+        self.task_started.set()
 
         filename = None
         module_name = inspect.getmodule(task.clazz).__name__
@@ -217,6 +220,7 @@ class TaskExecutor(object):
 
             self.task.ended.set()
             self.balancer.task_exited(self.task)
+            self.task_started.clear()
             self.state = WorkerState.IDLE
             return
 
@@ -224,6 +228,7 @@ class TaskExecutor(object):
         self.task.set_state(TaskState.FINISHED, TaskStatus(100, ''))
         self.task.ended.set()
         self.balancer.task_exited(self.task)
+        self.task_started.clear()
         self.state = WorkerState.IDLE
 
     def abort(self):
