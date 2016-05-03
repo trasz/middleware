@@ -41,19 +41,21 @@ import ipaddress
 import socket
 import setproctitle
 import netif
-from threading import RLock
+from threading import RLock, Thread
 from datetime import datetime, timedelta
 from itertools import chain
 from more_itertools import unique_everseen
 from datastore.config import ConfigStore
 from freenas.dispatcher.client import Client, ClientError
-from freenas.dispatcher.rpc import RpcService, RpcException
+from freenas.dispatcher.server import Server
+from freenas.dispatcher.rpc import RpcContext, RpcService, RpcException
 from freenas.utils import first_or_default, configure_logging, extend
 from freenas.utils.debug import DebugService
 from freenas.utils.query import QueryDict
 
 
 DEFAULT_CONFIGFILE = '/usr/local/etc/middleware.conf'
+DEFAULT_SOCKET_ADDRESS = 'unix:///var/run/dscached.sock'
 AF_MAP = {
     socket.AF_INET: ipaddress.IPv4Address,
     socket.AF_INET6: ipaddress.IPv6Address
@@ -487,7 +489,9 @@ class Main(object):
         self.config = None
         self.datastore = None
         self.configstore = None
+        self.rpc = RpcContext()
         self.client = None
+        self.server = None
         self.plugin_dirs = []
         self.plugins = {}
         self.directories = []
@@ -495,6 +499,11 @@ class Main(object):
         self.groups_cache = TTLCacheStore()
         self.hosts_cache = TTLCacheStore()
         self.cache_ttl = 300
+        self.rpc.register_service_instance('dscached.account', AccountService(self))
+        self.rpc.register_service_instance('dscached.group', GroupService(self))
+        self.rpc.register_service_instance('dscached.host', HostService(self))
+        self.rpc.register_service_instance('dscached.management', ManagementService(self))
+        self.rpc.register_service_instance('dscached.debug', DebugService())
 
     def get_enabled_directories(self):
         return [d for d in self.directories if d.enabled]
@@ -590,6 +599,13 @@ class Main(object):
         self.client.on_error(on_error)
         self.connect()
 
+    def init_server(self, address):
+        self.server = Server()
+        thread = Thread(target=self.server.start, args=(address, self.rpc))
+        thread.name = 'ServerThread'
+        thread.daemon = True
+        thread.start()
+
     def parse_config(self, filename):
         try:
             with open(filename, 'r') as f:
@@ -608,12 +624,7 @@ class Main(object):
             try:
                 self.client.connect('unix:')
                 self.client.login_service('dscached')
-                self.client.enable_server()
-                self.client.register_service('dscached.account', AccountService(self))
-                self.client.register_service('dscached.group', GroupService(self))
-                self.client.register_service('dscached.host', HostService(self))
-                self.client.register_service('dscached.management', ManagementService(self))
-                self.client.register_service('dscached.debug', DebugService())
+                self.client.enable_server(self.rpc)
                 self.client.resume_service('dscached.account')
                 self.client.resume_service('dscached.group')
                 self.client.resume_service('dscached.host')
@@ -660,6 +671,7 @@ class Main(object):
     def main(self):
         parser = argparse.ArgumentParser()
         parser.add_argument('-c', metavar='CONFIG', default=DEFAULT_CONFIGFILE, help='Middleware config file')
+        parser.add_argument('-s', metavar='SOCKET', default=DEFAULT_SOCKET_ADDRESS, help='Socket address to listen on')
         args = parser.parse_args()
         configure_logging('/var/log/dscached.log', 'DEBUG')
 
@@ -668,6 +680,7 @@ class Main(object):
         self.parse_config(self.config)
         self.init_datastore()
         self.init_dispatcher()
+        self.init_server(args.s)
         self.scan_plugins()
         self.init_directories()
         self.populate_caches()
