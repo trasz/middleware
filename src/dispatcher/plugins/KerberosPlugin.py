@@ -114,7 +114,7 @@ class KerberosRealmDeleteTask(Task):
 @accepts(h.all_of(
     h.ref('kerberos-keytab'),
     h.required('name', 'keytab')
-)
+))
 class KerberosKeytabCreateTask(Task):
     def verify(self, keytab):
         if self.datastore.exists('kerberos.keytabs', ('name', '=', keytab['name'])):
