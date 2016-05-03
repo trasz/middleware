@@ -621,6 +621,9 @@ class VolumeDestroyTask(Task):
 
     def run(self, id):
         vol = self.datastore.get_by_id('volumes', id)
+        if not vol:
+             raise TaskException(errno.ENOENT, 'Volume {0} not found'.format(id))
+
         encryption = vol.get('encryption', {})
         config = self.dispatcher.call_sync('zfs.pool.query', [('id', '=', id)], {'single': True})
 
