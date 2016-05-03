@@ -591,7 +591,8 @@ class ReplicationSyncTask(ReplicationBaseTask):
         else:
             remote_client.call_task_sync(
                 'replication.sync',
-                link['name']
+                link['name'],
+                transport_plugins
             )
 
         remote_client.disconnect()
