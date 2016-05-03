@@ -41,7 +41,7 @@ from balancer import TaskState
 from resources import Resource
 from debug import AttachData, AttachCommandOutput
 from freenas.utils import first_or_default
-from freenas.utils.query import QueryDict, wrap
+from freenas.utils.query import wrap
 
 
 logger = logging.getLogger('ZfsPlugin')
