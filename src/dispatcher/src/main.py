@@ -1,4 +1,4 @@
-#!/usr/local/bin/python2.7
+#!/usr/local/bin/python3.4
 #+
 # Copyright 2014 iXsystems, Inc.
 # All rights reserved
@@ -41,7 +41,6 @@ import signal
 import time
 import uuid
 import errno
-import socket
 import setproctitle
 import traceback
 import tempfile
@@ -49,6 +48,7 @@ import struct
 import cgi
 import pwd
 import subprocess
+import websocket
 
 import gevent
 from gevent import monkey, Greenlet
@@ -67,7 +67,7 @@ from datastore.migrate import migrate_db, MigrationException
 from datastore.config import ConfigStore
 from freenas.dispatcher.jsonenc import loads, dumps
 from freenas.dispatcher.rpc import RpcContext, RpcStreamingResponse, RpcException, ServerLockProxy
-from freenas.dispatcher.fd import FileDescriptor
+from freenas.dispatcher.server import Server, ServerConnection
 from resources import ResourceGraph
 from services import (
     ManagementService, DebugService, EventService, TaskService,
@@ -807,183 +807,10 @@ class ServerRpcContext(RpcContext):
         return copy.deepcopy(self.dispatch_call(name, list(args), streaming=False, validation=False))
 
 
-class ServerResource(Resource):
-    def __init__(self, apps=None, dispatcher=None):
-        super(ServerResource, self).__init__(apps)
-        self.dispatcher = dispatcher
-
-    def __call__(self, environ, start_response):
-        environ = environ
-        current_app = self._app_by_path(environ['PATH_INFO'], 'wsgi.websocket' in environ)
-
-        if current_app is None:
-            raise Exception("No apps defined")
-
-        if 'wsgi.websocket' in environ:
-            ws = environ['wsgi.websocket']
-            current_app = current_app(ws, self.dispatcher)
-            current_app.ws = ws  # TODO: needed?
-            current_app.handle()
-
-            return None
-        else:
-            return current_app(environ, start_response)
-
-
-class Server(WebSocketServer):
-    def __init__(self, *args, **kwargs):
-        super(Server, self).__init__(*args, **kwargs)
-        self.connections = []
-
-    def broadcast_event(self, event, args):
-        for i in self.connections:
-            i.emit_event(event, args)
-
-
-class UnixSocketServer(object):
-    class UnixSocketHandler(object):
-        def __init__(self, server, dispatcher, connfd, address):
-            import types
-            self.dispatcher = dispatcher
-            self.connfd = connfd
-            self.address = address
-            self.server = server
-            self.handler = types.SimpleNamespace()
-            self.handler.client_address = ("unix", 0)
-            self.handler.server = server
-            self.conn = None
-            self.wlock = RLock()
-
-        def send(self, message, fds=None):
-            if fds is None:
-                fds = []
-
-            with self.wlock:
-                data = message.encode('utf-8')
-                header = struct.pack('II', 0xdeadbeef, len(data))
-                try:
-                    fd = self.connfd.fileno()
-                    ancdata = []
-                    if fd == -1:
-                        return
-
-                    if fds:
-                        ancdata.append((socket.SOL_SOCKET, socket.SCM_RIGHTS, array.array('i', [i.fd for i in fds])))
-
-                    wait_write(fd, 10)
-                    xsendmsg(self.connfd, header + data, ancdata)
-                    for i in fds:
-                        if i.close:
-                            try:
-                                os.close(i.fd)
-                            except OSError:
-                                pass
-
-                except (OSError, ValueError, socket.timeout) as err:
-                    self.server.logger.info('Send failed: {0}; closing connection'.format(str(err)))
-                    if err.errno != errno.EBADF:
-                        self.connfd.shutdown(socket.SHUT_RDWR)
-
-        def handle_connection(self):
-            self.conn = ServerConnection(self, self.dispatcher)
-            self.conn.on_open()
-
-            while True:
-                try:
-                    fds = array.array('i')
-                    header, ancdata = xrecvmsg(
-                        self.connfd, 8,
-                        socket.CMSG_SPACE(MAXFDS * fds.itemsize) + socket.CMSG_SPACE(CMSGCRED_SIZE)
-                    )
-
-                    if header == b'' or len(header) != 8:
-                        if len(header) > 0:
-                            self.server.logger.info('Short read (len {0})'.format(len(header)))
-                        break
-
-                    magic, length = struct.unpack('II', header)
-                    if magic != 0xdeadbeef:
-                        self.server.logger.info('Message with wrong magic dropped (magic {0:x})'.format(magic))
-                        break
-
-                    msg, _ = xrecvmsg(self.connfd, length)
-                    if msg == b'' or len(msg) != length:
-                        self.server.logger.info('Message with wrong length dropped; closing connection')
-                        break
-
-                    for cmsg_level, cmsg_type, cmsg_data in ancdata:
-                        if cmsg_level == socket.SOL_SOCKET and cmsg_type == socket.SCM_CREDS:
-                            pid, uid, euid, gid = struct.unpack('iiii', cmsg_data[:struct.calcsize('iiii')])
-                            self.handler.client_address = ('unix', pid)
-                            self.conn.credentials = {
-                                'pid': pid,
-                                'uid': uid,
-                                'euid': euid,
-                                'gid': gid
-                            }
-
-                        if cmsg_level == socket.SOL_SOCKET and cmsg_type == socket.SCM_RIGHTS:
-                            fds.fromstring(cmsg_data[:len(cmsg_data) - (len(cmsg_data) % fds.itemsize)])
-
-                except (OSError, ValueError) as err:
-                    self.server.logger.info('Receive failed: {0}; closing connection'.format(str(err)), exc_info=True)
-                    break
-
-                self.conn.on_message(msg, fds=fds)
-
-            self.close()
-
-        def close(self):
-            if self.conn:
-                self.conn.on_close('Bye bye')
-                self.conn = None
-                try:
-                    self.connfd.shutdown(socket.SHUT_RDWR)
-                    self.connfd.close()
-                except OSError:
-                    pass
-
-    def __init__(self, path, dispatcher):
-        self.path = path
-        self.dispatcher = dispatcher
-        self.sockfd = None
-        self.backlog = 50
-        self.logger = logging.getLogger('UnixSocketServer')
-        self.connections = []
-
-    def broadcast_event(self, event, args):
-        for i in self.connections:
-            i.emit_event(event, args)
-
-    def serve_forever(self):
-        try:
-            if os.path.exists(self.path):
-                os.unlink(self.path)
-
-            self.sockfd = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-            self.sockfd.bind(self.path)
-            os.chmod(self.path, 0o775)
-            self.sockfd.listen(self.backlog)
-        except OSError as err:
-            self.logger.error('Cannot start socket server: {0}'.format(str(err)))
-            return
-
-        while True:
-            try:
-                fd, addr = self.sockfd.accept()
-            except OSError as err:
-                self.logger.error('accept() failed: {0}'.format(str(err)))
-                continue
-
-            handler = self.UnixSocketHandler(self, self.dispatcher, fd, addr)
-            gevent.spawn(handler.handle_connection)
-
-
-class ServerConnection(WebSocketApplication, EventEmitter):
-    def __init__(self, ws, dispatcher):
-        super(ServerConnection, self).__init__(ws)
-        self.server = ws.handler.server
-        self.dispatcher = dispatcher
+class DispatcherConnection(ServerConnection):
+    def __init__(self, parent):
+        super(DispatcherConnection, self).__init__(parent)
+        self.dispatcher = parent.context
         self.credentials = None
         self.proxy_address = None
         self.server_pending_calls = {}
@@ -994,7 +821,6 @@ class ServerConnection(WebSocketApplication, EventEmitter):
         self.session_id = None
         self.token = None
         self.event_masks = set()
-        self.rlock = RLock()
         self.event_subscription_lock = RLock()
         self.has_external_transport = False
 
@@ -1003,7 +829,7 @@ class ServerConnection(WebSocketApplication, EventEmitter):
         if self.proxy_address:
             return self.proxy_address
 
-        return ','.join(str(i) for i in self.ws.handler.client_address[:2])
+        return ','.join(str(i) for i in self.transport.client_address[:2])
 
     def __getstate__(self):
         return {
@@ -1012,54 +838,17 @@ class ServerConnection(WebSocketApplication, EventEmitter):
             'address': self.client_address
         }
 
-    def __collect_fds(self, obj, start=0):
-        idx = start
-
-        if isinstance(obj, dict):
-            for k, v in list(obj.items()):
-                if isinstance(v, FileDescriptor):
-                    obj[k] = {'$fd': idx}
-                    idx += 1
-                    yield v
-                else:
-                    yield from self.__collect_fds(v, idx)
-
-        if isinstance(obj, (list, tuple)):
-            for i, o in enumerate(obj):
-                if isinstance(o, FileDescriptor):
-                    obj[i] = {'$fd': idx}
-                    idx += 1
-                    yield o
-                else:
-                    yield from self.__collect_fds(o, idx)
-
-    def __replace_fds(self, obj, fds):
-        if isinstance(obj, dict):
-            for k, v in list(obj.items()):
-                if isinstance(v, dict) and len(v) == 1 and '$fd' in v:
-                    obj[k] = FileDescriptor(fds[v['$fd']]) if v['$fd'] < len(fds) else None
-                else:
-                    self.__replace_fds(v, fds)
-
-        if isinstance(obj, list):
-            for i, o in enumerate(obj):
-                if isinstance(o, dict) and len(o) == 1 and '$fd' in o:
-                    obj[i] = FileDescriptor(fds[o['$fd']]) if o['$fd'] < len(fds) else None
-                else:
-                    self.__replace_fds(o, fds)
-
     def on_open(self):
+        super(DispatcherConnection, self).on_open()
         trace_log('Client {0} connected', self.client_address)
-        self.server.connections.append(self)
         self.dispatcher.dispatch_event('server.client_connected', {
             'address': self.client_address,
             'description': "Client {0} connected".format(self.client_address)
         })
 
     def on_close(self, reason):
+        super(DispatcherConnection, self).on_close(reason)
         trace_log('Client {0} disconnected', self.client_address)
-
-        self.server.connections.remove(self)
 
         if self.user:
             self.close_session()
@@ -1073,33 +862,6 @@ class ServerConnection(WebSocketApplication, EventEmitter):
             'address': self.client_address,
             'description': "Client {0} disconnected".format(self.client_address)
         })
-
-    def on_message(self, message, *args, **kwargs):
-        fds = kwargs.pop('fds', [])
-        trace_log('{0} -> {1}', self.client_address, str(message))
-
-        if not type(message) is bytes:
-            return
-
-        try:
-            message = loads(message.decode('utf-8'))
-        except ValueError:
-            self.emit_rpc_error(None, errno.EINVAL, 'Request is not valid JSON')
-            return
-
-        self.__replace_fds(message, fds)
-
-        if 'namespace' not in message:
-            self.emit_rpc_error(None, errno.EINVAL, 'Invalid request')
-            return
-
-        try:
-            method = getattr(self, "on_{}_{}".format(message["namespace"], message["name"]))
-        except AttributeError:
-            self.emit_rpc_error(None, errno.EINVAL, 'Invalid request')
-            return
-
-        method(message["id"], message["args"])
 
     def on_transport_setup(self, id, client_address):
         self.has_external_transport = True
@@ -1207,13 +969,7 @@ class ServerConnection(WebSocketApplication, EventEmitter):
         if client_addr not in ('127.0.0.1', '::1', 'unix') and not self.has_external_transport:
             return
 
-        self.send_json({
-            'namespace': 'rpc',
-            'name': 'response',
-            'id': id,
-            'args': []
-        })
-
+        self.send_response(id, [])
         self.user = self.dispatcher.auth.get_service(service_name)
         self.open_session()
         self.dispatcher.dispatch_event('server.service_login', {
@@ -1244,13 +1000,7 @@ class ServerConnection(WebSocketApplication, EventEmitter):
             )
         )
 
-        self.send_json({
-            'namespace': 'rpc',
-            'name': 'response',
-            'id': id,
-            'args': [self.token, lifetime, self.user.name]
-        })
-
+        self.send_response(id, [self.token, lifetime, self.user.name])
         self.dispatcher.dispatch_event('server.client_loggin', {
             'address': self.client_address,
             'resource': resource,
@@ -1303,13 +1053,7 @@ class ServerConnection(WebSocketApplication, EventEmitter):
             revocation_function=self.logout
         ))
 
-        self.send_json({
-            "namespace": "rpc",
-            "name": "response",
-            "id": id,
-            "args": [self.token, lifetime, self.user.name]
-        })
-
+        self.send_response(id, [self.token, lifetime, self.user.name])
         self.dispatcher.dispatch_event('server.client_login', {
             'address': self.client_address,
             'username': username,
@@ -1345,58 +1089,19 @@ class ServerConnection(WebSocketApplication, EventEmitter):
                 streaming = 'streaming_responses' in self.enabled_features
                 result = self.dispatcher.rpc.dispatch_call(method, args, sender=self, streaming=streaming)
             except RpcException as err:
-                self.send_json({
-                    "namespace": "rpc",
-                    "name": "error",
-                    "id": id,
-                    "timestamp": time.time(),
-                    "args": {
-                        "code": err.code,
-                        "message": err.message,
-                        "extra": err.extra
-                    }
-                })
+                self.send_error(id, err.code, err.message, err.extra)
             else:
                 if isinstance(result, RpcStreamingResponse):
                     try:
                         for i in result:
-                            self.send_json({
-                                "namespace": "rpc",
-                                "name": "response_fragment",
-                                "id": id,
-                                "timestamp": time.time(),
-                                "args": i
-                            })
+                            self.send('rpc', 'response_fragment', i, id=id)
                     except RpcException as err:
-                        self.send_json({
-                            "namespace": "rpc",
-                            "name": "error",
-                            "id": id,
-                            "timestamp": time.time(),
-                            "args": {
-                                "code": err.code,
-                                "message": err.message,
-                                "extra": err.extra
-                            }
-                        })
-
+                        self.send_error(id, err.code, err.message, err.extra)
                         return
 
-                    self.send_json({
-                        "namespace": "rpc",
-                        "name": "response_end",
-                        "id": id,
-                        "timestamp": time.time(),
-                        "args": None
-                    })
+                    self.send('rpc', 'response_end', None, id=id)
                 else:
-                    self.send_json({
-                        "namespace": "rpc",
-                        "name": "response",
-                        "id": id,
-                        "timestamp": time.time(),
-                        "args": result
-                    })
+                    self.send_response(id, result)
 
         if self.user is None:
             self.emit_rpc_error(id, errno.EACCES, 'Not logged in')
@@ -1481,13 +1186,7 @@ class ServerConnection(WebSocketApplication, EventEmitter):
             "reason": reason,
         }
         try:
-            self.send_json({
-                "namespace": "events",
-                "name": "logout",
-                "timestamp": time.time(),
-                "id": None,
-                "args": args
-            })
+            self.send('events', 'logout', args)
             # Delete the token at logout since otherwise
             # the reconnect will just log the session back in
             self.dispatcher.token_store.revoke_token(self.token)
@@ -1509,66 +1208,13 @@ class ServerConnection(WebSocketApplication, EventEmitter):
             if not fnmatch.fnmatch(event, i):
                 continue
 
-            self.send_json({
-                "namespace": "events",
-                "name": "event",
-                "id": None,
-                "args": {
-                    "name": event,
-                    "args": args
-                }
-            })
+            self.send_event(event, args)
 
     def emit_rpc_call(self, id, method, args):
-        args = list(copy.deepcopy(args))
-        fds = list(self.__collect_fds(args))
-        payload = {
-            "namespace": "rpc",
-            "name": "call",
-            "id": str(id),
-            "args": {
-                "method": method,
-                "args": args
-            }
-        }
-
-        return self.send_json(payload, fds)
+        return self.send_call(id, method, args)
 
     def emit_rpc_error(self, id, code, message, extra=None):
-        payload = {
-            "namespace": "rpc",
-            "name": "error",
-            "id": str(id),
-            "args": {
-                "code": code,
-                "message": message
-            }
-        }
-
-        if extra is not None:
-            payload['args'].update(extra)
-
-        return self.send_json(payload)
-
-    def send_json(self, obj, fds=None):
-        try:
-            data = dumps(obj)
-        except UnicodeDecodeError as e:
-            self.dispatcher.logger.error('Error encoding following payload to JSON:')
-            self.dispatcher.logger.error(repr(obj))
-            return
-
-        trace_log('{0} <- {1}', self.client_address, data)
-
-        with self.rlock:
-            try:
-                if fds:
-                    self.ws.send(data, fds=fds)
-                else:
-                    self.ws.send(data)
-            except WebSocketError as err:
-                self.dispatcher.logger.error(
-                    'Cannot send message to %s: %s', self.client_address, str(err))
+        return self.send_error(id, code, message, extra)
 
 
 class ShellConnection(WebSocketApplication, EventEmitter):
@@ -1796,7 +1442,6 @@ class DownloadRequestHandler(object):
 
 def run(d, args):
     setproctitle.setproctitle('dispatcher')
-    monkey.patch_all()
 
     # Signal handlers
     gevent.signal(signal.SIGQUIT, d.die)
@@ -1809,24 +1454,24 @@ def run(d, args):
     if d.use_tls:
         kwargs = {'certfile': d.certfile, 'keyfile': d.keyfile}
 
-    s4 = Server(('', args.p), ServerResource({
-        '/socket': ServerConnection,
-        '/shell': ShellConnection,
-        '/file': FileConnection,
-        '/filedownload': DownloadRequestHandler(d)
-    }, dispatcher=d), **kwargs)
+    ws_options = {
+        'kwargs': kwargs,
+        'apps': {
+            '/socket': websocket.ServerApplication,
+            '/shell': ShellConnection,
+            '/file': FileConnection,
+            '/filedownload': DownloadRequestHandler(d)
+        }
+    }
 
-    s6 = Server(('::', args.p), ServerResource({
-        '/socket': ServerConnection,
-        '/shell': ShellConnection,
-        '/file': FileConnection,
-        '/filedownload': DownloadRequestHandler(d)
-    }, dispatcher=d), **kwargs)
+    s4 = Server(d, connection_class=DispatcherConnection)
+    s4.start('ws://0.0.0.0:{0}'.format(args.p), transport_options=ws_options)
 
-    su = UnixSocketServer(
-        args.u,
-        dispatcher=d
-    )
+    s6 = Server(d, connection_class=DispatcherConnection)
+    s6.start('ws://[::]:{0}'.format(args.p), transport_options=ws_options)
+
+    su = Server(d, connection_class=DispatcherConnection)
+    su.start('unix://{0}'.format(args.u))
 
     d.ws_servers = [s4, s6, su]
     d.port = args.p
