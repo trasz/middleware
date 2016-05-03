@@ -26,6 +26,9 @@
 #
 #####################################################################
 
+import gevent.monkey
+gevent.monkey.patch_all()
+
 import copy
 import os
 import sys
@@ -50,9 +53,8 @@ import subprocess
 import websocket
 
 import gevent
-from gevent import monkey, Greenlet
+from gevent import Greenlet
 from pyee import EventEmitter
-from gevent.socket import wait_write
 from gevent.os import tp_read, tp_write, forkpty_and_watch
 from gevent.queue import Queue
 from gevent.lock import RLock
