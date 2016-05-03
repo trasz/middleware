@@ -70,6 +70,7 @@ class ServerApplication(WebSocketApplication):
 
     def on_open(self):
         self.conn = self.parent.on_connection(self)
+        self.conn.on_open()
 
     def on_message(self, message):
         self.conn.on_message(message)
