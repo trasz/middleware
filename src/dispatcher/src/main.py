@@ -30,7 +30,6 @@ import copy
 import os
 import sys
 import fnmatch
-import array
 import json
 import datetime
 import logging
