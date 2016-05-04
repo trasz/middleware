@@ -81,7 +81,7 @@ class ServerApplication(WebSocketApplication):
 
 @ServerTransport.register('ws')
 class ServerTransportWS(ServerTransport):
-    def __init__(self, scheme, parsed_uri, endpoint, apps=None, kwargs=None):
+    def __init__(self, scheme, parsed_uri, apps=None, kwargs=None):
         super(ServerTransportWS, self).__init__()
 
         assert scheme == 'ws'
@@ -89,7 +89,7 @@ class ServerTransportWS(ServerTransport):
         self.address = parsed_uri.hostname
         self.port = parsed_uri.port
         self.apps = apps or {}
-        self.apps[endpoint] = ServerApplication
+        self.apps[parsed_uri.path] = ServerApplication
         self.kwargs = kwargs or {}
 
     def serve_forever(self, server):

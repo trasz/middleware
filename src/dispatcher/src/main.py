@@ -1501,7 +1501,6 @@ def run(d, args):
 
     ws_options = {
         'kwargs': kwargs,
-        'endpoint': '/socket',
         'apps': {
             '/shell': ShellConnection,
             '/file': FileConnection,
@@ -1511,11 +1510,11 @@ def run(d, args):
 
     # IPv4 WebSocket server
     s4 = Server(d, connection_class=DispatcherConnection)
-    s4.start('ws://0.0.0.0:{0}'.format(args.p), transport_options=ws_options)
+    s4.start('ws://0.0.0.0:{0}/socket'.format(args.p), transport_options=ws_options)
 
     # IPv6 WebSocket server
     s6 = Server(d, connection_class=DispatcherConnection)
-    s6.start('ws://[::]:{0}'.format(args.p), transport_options=ws_options)
+    s6.start('ws://[::]:{0}/socket'.format(args.p), transport_options=ws_options)
 
     # Unix domain socket server
     su = Server(d, connection_class=DispatcherConnection)
