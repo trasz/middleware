@@ -41,10 +41,8 @@ import ipaddress
 import socket
 import setproctitle
 import netif
-from threading import RLock, Thread
+from threading import RLock, Thread, Timer
 from datetime import datetime, timedelta
-from itertools import chain
-from more_itertools import unique_everseen
 from datastore.config import ConfigStore
 from freenas.dispatcher.client import Client, ClientError
 from freenas.dispatcher.server import Server
@@ -186,6 +184,7 @@ class Directory(object):
         self.plugin_type = definition['plugin']
         self.parameters = definition['parameters']
         self.enabled = definition['enabled']
+        self.enumerate = definition['enumerate']
         self.max_uid = self.min_uid = None
         self.max_gid = self.min_gid = None
 
@@ -496,10 +495,11 @@ class Main(object):
         self.users_cache = TTLCacheStore()
         self.groups_cache = TTLCacheStore()
         self.hosts_cache = TTLCacheStore()
-        self.cache_ttl = 300
+        self.cache_ttl = 7200
         self.search_order = []
         self.cache_enumerations = True
         self.cache_lookups = True
+        self.cache_timer = None
         self.rpc.register_service_instance('dscached.account', AccountService(self))
         self.rpc.register_service_instance('dscached.group', GroupService(self))
         self.rpc.register_service_instance('dscached.host', HostService(self))
@@ -586,7 +586,12 @@ class Main(object):
             finally:
                 self.logger.info('Populated {0} groups from {1}'.format(counter, d.name))
 
-        self.logger.info('Populating caches finished')
+        # Schedule next cache refill
+        refill_in = int(self.cache_ttl / 2)
+        self.cache_timer = Timer(refill_in, self.populate_caches)
+        self.cache_timer.start()
+
+        self.logger.info('Populating caches finished, next cache refill in {0} seconds'.format(refill_in))
 
     def init_datastore(self):
         try:
