@@ -133,7 +133,11 @@ class ManagementService(RpcService):
         self.dispatcher.set_syslog_level(level)
 
     def get_logging_level(self):
-        return logging.getLogger().getEffectiveLevel()
+        level = logging.getLogger().getEffectiveLevel()
+        if level == (logging.DEBUG - 5):
+            return 'TRACE'
+        else:
+            return logging.getLevelName(level)
 
 
 class DebugService(RpcService):
