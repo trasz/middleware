@@ -692,9 +692,9 @@ class VolumeUpdateTask(Task):
         if not volume:
             raise TaskException(errno.ENOENT, 'Volume {0} not found'.format(id))
 
-        if 'name' in updated_params:
+        if 'id' in updated_params:
             # Renaming pool. Need to export and import again using different name
-            new_name = updated_params['name']
+            new_name = updated_params['id']
             self.dispatcher.run_hook('volume.pre_rename', {'name': id, 'new_name': new_name})
 
             # Rename mountpoint
