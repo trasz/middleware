@@ -2027,7 +2027,7 @@ def _init(dispatcher, plugin):
         ds = wrap(ds)
         perms = None
 
-        if pool == boot_pool['id']:
+        if ds['pool'] == boot_pool['id']:
             return None
 
         if ds['mountpoint']:
