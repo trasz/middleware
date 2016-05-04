@@ -834,6 +834,7 @@ class DispatcherConnection(ServerConnection):
         self.event_masks = set()
         self.event_subscription_lock = RLock()
         self.has_external_transport = False
+        self.logger = logging.getLogger(self.__class__.__name__)
 
     @property
     def client_address(self):
@@ -849,9 +850,15 @@ class DispatcherConnection(ServerConnection):
             'address': self.client_address
         }
 
+    def log(self, level, msg):
+        self.logger.log(level, '[{0}] {1}'.format(self.client_address, msg))
+
+    def trace(self, msg):
+        self.logger.log(TraceLogger.TRACE, '[{0}] {1}'.format(self.client_address, msg))
+
     def on_open(self):
         super(DispatcherConnection, self).on_open()
-        trace_log('Client {0} connected', self.client_address)
+        self.trace('Connected')
         self.dispatcher.dispatch_event('server.client_connected', {
             'address': self.client_address,
             'description': "Client {0} connected".format(self.client_address)
@@ -859,7 +866,7 @@ class DispatcherConnection(ServerConnection):
 
     def on_close(self, reason):
         super(DispatcherConnection, self).on_close(reason)
-        trace_log('Client {0} disconnected', self.client_address)
+        self.trace('Disconnected')
 
         if self.user:
             self.close_session()
@@ -878,7 +885,11 @@ class DispatcherConnection(ServerConnection):
         self.has_external_transport = True
         self.proxy_address = ','.join(str(i) for i in client_address)
 
-        trace_log('Client transport layer set up - client {0} proxied via {1}', self.client_address, self.proxy_address)
+        self.trace('Client transport layer set up - client {0} proxied via {1}'.format(
+            self.client_address,
+            self.proxy_address
+        ))
+
         self.dispatcher.dispatch_event('server.client_transport_connected', {
             'old_address': self.proxy_address,
             'new_address': self.client_address,
@@ -894,6 +905,8 @@ class DispatcherConnection(ServerConnection):
 
         if self.user is None:
             return
+
+        self.trace('Events subscribe: masks={0}'.format(event_masks))
 
         # Keep session alive
         if self.token:
@@ -920,6 +933,8 @@ class DispatcherConnection(ServerConnection):
         if self.user is None:
             return
 
+        self.trace('Events unsubscribe: masks={0}'.format(event_masks))
+
         # Keep session alive
         if self.token:
             try:
@@ -942,6 +957,8 @@ class DispatcherConnection(ServerConnection):
     def on_events_event(self, id, data):
         if self.user is None:
             return
+
+        self.trace('New event: name={0} args={1}'.format(data['name'], data['args']))
 
         # Keep session alive
         if self.token:
@@ -977,6 +994,8 @@ class DispatcherConnection(ServerConnection):
         client_addr, _ = self.client_address.split(',', 2)
         service_name = data['name']
 
+        self.trace('Service auth request: service={0}'.format(service_name))
+
         if client_addr not in ('127.0.0.1', '::1', 'unix') and not self.has_external_transport:
             return
 
@@ -993,8 +1012,10 @@ class DispatcherConnection(ServerConnection):
         token = data['token']
         resource = data.get('resource', None)
         lifetime = self.dispatcher.configstore.get("middleware.token_lifetime")
-        token = self.dispatcher.token_store.lookup_token(token)
 
+        self.trace('Token auth request: token={0}'.format(token))
+
+        token = self.dispatcher.token_store.lookup_token(token)
         if not token:
             self.emit_rpc_error(id, errno.EACCES, "Incorrect or expired token")
             return
@@ -1025,10 +1046,15 @@ class DispatcherConnection(ServerConnection):
         lifetime = self.dispatcher.configstore.get("middleware.token_lifetime")
         check_password = data.get('check_password', False)
         client_addr, client_port = self.client_address.split(',', 2)
-
         self.resource = data.get('resource', None)
-        user = self.dispatcher.auth.get_user(username)
 
+        self.trace('User auth request: username={0} password={1} resource={2}'.format(
+            username,
+            password,
+            self.resource
+        ))
+
+        user = self.dispatcher.auth.get_user(username)
         if user is None:
             self.emit_rpc_error(id, errno.EACCES, "Incorrect username or password")
             return
@@ -1072,6 +1098,7 @@ class DispatcherConnection(ServerConnection):
         })
 
     def on_rpc_response(self, id, data):
+        self.trace('RPC response: id={0} result={1}'.format(id, data))
         if id not in list(self.client_pending_calls.keys()):
             return
 
@@ -1130,6 +1157,8 @@ class DispatcherConnection(ServerConnection):
         method = data["method"]
         args = data["args"]
 
+        self.trace('RPC call: id={0} method={1} args={2}'.format(id, method, args))
+
         greenlet = Greenlet(dispatch_call_async, id, method, args)
         self.server_pending_calls[id] = {
             "method": method,
@@ -1176,6 +1205,8 @@ class DispatcherConnection(ServerConnection):
     def enable_feature(self, feature):
         if feature not in self.dispatcher.features:
             raise ValueError('Invalid feature')
+
+        self.log(TraceLogger.TRACE, 'Enabling feature {0}'.format(feature))
 
         if feature == 'strict_validation':
             self.dispatcher.rpc.strict_validation = True
