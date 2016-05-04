@@ -80,8 +80,6 @@ from auth import PasswordAuthenticator, TokenStore, Token, TokenException, User,
 from freenas.utils import FaultTolerantLogHandler, load_module_from_file, xrecvmsg, xsendmsg, TraceLogger
 
 
-MAXFDS = 128
-CMSGCRED_SIZE = struct.calcsize('iiiih16i')
 DEFAULT_CONFIGFILE = '/usr/local/etc/middleware.conf'
 LOGGING_FORMAT = '%(asctime)s %(levelname)s %(filename)s:%(lineno)d %(message)s'
 FEATURES = ['streaming_responses', 'strict_validation']
