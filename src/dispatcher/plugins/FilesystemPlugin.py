@@ -273,7 +273,7 @@ class SetPermissionsTask(Task):
             except OSError as err:
                 if err.errno == errno.EPERM:
                     if chmod_safe:
-                        self.add_warning(err.errno, 'chmod() failed: {0}'.format(err.strerror))
+                        self.add_warning(TaskWarning(err.errno, 'chmod() failed: {0}'.format(err.strerror)))
                 else:
                     raise TaskException(err.errno, 'chmod() failed: {0}'.format(err.strerror))
 

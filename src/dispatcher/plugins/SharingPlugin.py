@@ -29,7 +29,7 @@ import os
 import errno
 from freenas.dispatcher.rpc import description, accepts, returns, private
 from freenas.dispatcher.rpc import SchemaHelper as h, generator
-from task import Task, TaskException, VerifyException, Provider, RpcException, query
+from task import Task, TaskException, VerifyException, Provider, RpcException, query, TaskWarning
 from freenas.utils import normalize, in_directory
 from utils import split_dataset, save_config, load_config, delete_config
 
@@ -252,7 +252,7 @@ class CreateShareTask(Task):
                 new_share
             )
         except OSError as err:
-            self.add_warning(errno.ENXIO, 'Cannot save backup config file: {0}'.format(str(err)))
+            self.add_warning(TaskWarning(errno.ENXIO, 'Cannot save backup config file: {0}'.format(str(err))))
 
         return ids[0]
 
@@ -337,7 +337,7 @@ class UpdateShareTask(Task):
                 updated_share
             )
         except OSError as err:
-            self.add_warning(errno.ENXIO, 'Cannot save backup config file: {0}'.format(str(err)))
+            self.add_warning(TaskWarning(errno.ENXIO, 'Cannot save backup config file: {0}'.format(str(err))))
 
 
 @description("Imports existing share")

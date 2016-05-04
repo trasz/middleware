@@ -30,7 +30,7 @@ import io
 import tarfile
 from freenas.dispatcher.rpc import RpcException
 from lib.system import system, SubprocessException
-from task import ProgressTask, TaskException
+from task import ProgressTask, TaskWarning
 
 
 class CollectDebugTask(ProgressTask):
@@ -74,7 +74,9 @@ class CollectDebugTask(ProgressTask):
                     try:
                         hooks = self.dispatcher.call_sync('management.collect_debug', plugin)
                     except RpcException as err:
-                        self.add_warning(err.code, 'Cannot collect debug data for {0}: {1}'.format(plugin, err.message))
+                        self.add_warning(
+                            TaskWarning(err.code, 'Cannot collect debug data for {0}: {1}'.format(plugin, err.message))
+                        )
                         continue
 
                     for hook in hooks:
