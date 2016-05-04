@@ -637,9 +637,12 @@ class Dispatcher(object):
     def register_schema_definition(self, name, definition):
         self.rpc.register_schema_definition(name, definition)
         if self.ready:
-            self.dispatch_event('server.schema_document_changed', {
-                'hash': self.call_sync('discovery.get_schema_hash')
-            })
+            def emit_changed_event():
+                self.dispatch_event('server.schema_document_changed', {
+                    'hash': self.call_sync('discovery.get_schema_hash')
+                })
+
+            gevent.spawn(emit_changed_event)
 
     def unregister_schema_definition(self, name):
         self.rpc.unregister_schema_definition(name)
