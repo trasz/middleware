@@ -552,6 +552,10 @@ class Main(object):
         self.logger.info('Populating caches started')
         self.logger.info('Enabled directories: {0}'.format(', '.join(self.get_search_order())))
         for d in reversed(self.get_enabled_directories()):
+            if not d.enumerate:
+                self.logger.info('Skipping directory {0} (enumerate is set to false)'.format(d.name))
+                continue
+
             self.logger.info('Populating cache from directory {0}...'.format(d.name))
             try:
                 counter = 0

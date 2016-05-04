@@ -94,6 +94,7 @@ class DirectoryServiceCreateTask(Task):
 
         normalize(directory, {
             'enabled': False,
+            'enumerate': True,
             'immutable': False,
             'uid_range': None,
             'gid_range': None,
@@ -178,6 +179,7 @@ def _init(dispatcher, plugin):
             'priority': {'type': 'integer'},
             'plugin': {'type': 'string'},
             'enabled': {'type': 'boolean'},
+            'enumerate': {'type': 'boolean'},
             'uid_range': {
                 'type': ['array', 'null'],
                 'items': [
