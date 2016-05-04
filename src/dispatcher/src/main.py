@@ -1125,18 +1125,28 @@ class DispatcherConnection(ServerConnection):
                 streaming = 'streaming_responses' in self.enabled_features
                 result = self.dispatcher.rpc.dispatch_call(method, args, sender=self, streaming=streaming)
             except RpcException as err:
+                self.trace('RPC error: id={0} code={0} message={1} extra={2}'.format(
+                    id,
+                    err.code,
+                    err.message,
+                    err.extra
+                ))
+
                 self.send_error(id, err.code, err.message, err.extra)
             else:
                 if isinstance(result, RpcStreamingResponse):
                     try:
                         for i in result:
+                            self.trace('RPC response fragment: id={0} result={1}'.format(id, i))
                             self.send('rpc', 'response_fragment', i, id=id)
                     except RpcException as err:
                         self.send_error(id, err.code, err.message, err.extra)
                         return
 
+                    self.trace('RPC response end: id={0}'.format(id))
                     self.send('rpc', 'response_end', None, id=id)
                 else:
+                    self.trace('RPC response: id={0} result={1}'.format(id, result))
                     self.send_response(id, result)
 
         if self.user is None:
