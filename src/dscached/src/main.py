@@ -217,6 +217,7 @@ class Directory(object):
                 self.context.client.call_sync('etcd.generation.generate_group', 'kerberos')
         except BaseException as err:
             self.context.logger.error('Failed to configure {0}: {1}'.format(self.name, str(err)))
+            self.context.logger.error('Stack trace: ', exc_info=True)
 
 
 class ManagementService(RpcService):
@@ -506,7 +507,7 @@ class Main(object):
         self.rpc.register_service_instance('dscached.debug', DebugService())
 
     def get_enabled_directories(self):
-        return [self.get_directory_by_name(n) for n in self.get_search_order()]
+        return list(filter(None, (self.get_directory_by_name(n) for n in self.get_search_order())))
 
     def get_search_order(self):
         return ['local', 'system'] + self.search_order
@@ -549,7 +550,7 @@ class Main(object):
 
     def populate_caches(self):
         self.logger.info('Populating caches started')
-        self.logger.info('Enabled directories: {0}'.format(', '.join(d.name for d in self.get_enabled_directories())))
+        self.logger.info('Enabled directories: {0}'.format(', '.join(self.get_search_order())))
         for d in reversed(self.get_enabled_directories()):
             self.logger.info('Populating cache from directory {0}...'.format(d.name))
             try:
