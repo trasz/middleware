@@ -302,10 +302,7 @@ class ManagementService(RpcService):
         }
 
     def reload_config(self):
-        self.context.search_order = self.context.configstore.get('directory.search_order')
-        self.context.cache_ttl = self.context.configstore.get('directory.cache_ttl')
-        self.context.cache_enumerations = self.context.configstore.get('directory.cache_enumerations')
-        self.context.cache_lookups = self.context.configstore.get('directory.cache_lookups')
+        self.context.load_config()
 
 
 class AccountService(RpcService):
@@ -499,6 +496,9 @@ class Main(object):
         self.groups_cache = TTLCacheStore()
         self.hosts_cache = TTLCacheStore()
         self.cache_ttl = 300
+        self.search_order = []
+        self.cache_enumerations = True
+        self.cache_lookups = True
         self.rpc.register_service_instance('dscached.account', AccountService(self))
         self.rpc.register_service_instance('dscached.group', GroupService(self))
         self.rpc.register_service_instance('dscached.host', HostService(self))
@@ -506,14 +506,16 @@ class Main(object):
         self.rpc.register_service_instance('dscached.debug', DebugService())
 
     def get_enabled_directories(self):
-        return [d for d in self.directories if d.enabled]
+        return [self.get_directory_by_name(n) for n in self.get_search_order()]
 
     def get_search_order(self):
-        rest = [d.name for d in self.get_enabled_directories() if d.name not in self.search_order]
-        return ['local', 'system'] + self.search_order + rest
+        return ['local', 'system'] + self.search_order
 
     def get_directory_by_domain(self, domain_name):
         return first_or_default(lambda d: d.domain_name == domain_name, self.directories)
+
+    def get_directory_by_name(self, name):
+        return first_or_default(lambda d: d.name == name, self.directories)
 
     def get_directory_for_id(self, uid=None, gid=None):
         if uid is not None:
@@ -547,7 +549,8 @@ class Main(object):
 
     def populate_caches(self):
         self.logger.info('Populating caches started')
-        for d in self.get_enabled_directories():
+        self.logger.info('Enabled directories: {0}'.format(', '.join(d.name for d in self.get_enabled_directories())))
+        for d in reversed(self.get_enabled_directories()):
             self.logger.info('Populating cache from directory {0}...'.format(d.name))
             try:
                 counter = 0
@@ -600,8 +603,9 @@ class Main(object):
         self.connect()
 
     def init_server(self, address):
-        self.server = Server()
-        thread = Thread(target=self.server.start, args=(address, self.rpc))
+        self.server = Server(self.rpc)
+        self.server.start(address)
+        thread = Thread(target=self.server.serve_forever)
         thread.name = 'ServerThread'
         thread.daemon = True
         thread.start()
@@ -668,6 +672,12 @@ class Main(object):
             except BaseException as err:
                 continue
 
+    def load_config(self):
+        self.search_order = self.configstore.get('directory.search_order')
+        self.cache_ttl = self.configstore.get('directory.cache_ttl')
+        self.cache_enumerations = self.configstore.get('directory.cache_enumerations')
+        self.cache_lookups = self.configstore.get('directory.cache_lookups')
+
     def main(self):
         parser = argparse.ArgumentParser()
         parser.add_argument('-c', metavar='CONFIG', default=DEFAULT_CONFIGFILE, help='Middleware config file')
@@ -680,6 +690,7 @@ class Main(object):
         self.parse_config(self.config)
         self.init_datastore()
         self.init_dispatcher()
+        self.load_config()
         self.init_server(args.s)
         self.scan_plugins()
         self.init_directories()
