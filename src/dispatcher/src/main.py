@@ -1199,7 +1199,7 @@ class DispatcherConnection(ServerConnection):
             })
 
     def broadcast_event(self, event, args):
-        for i in self.server.connections:
+        for i in self.parent.connections:
             i.emit_event(event, args)
 
     def enable_feature(self, feature):
