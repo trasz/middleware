@@ -26,7 +26,7 @@
 #####################################################################
 
 from geventwebsocket import WebSocketApplication, WebSocketServer, Resource
-from freenas.dispatcher.transport import ServerTransport
+from freenas.dispatcher.transport import ServerTransport, server_transport
 
 
 class ServerResource(Resource):
@@ -79,7 +79,7 @@ class ServerApplication(WebSocketApplication):
         self.conn.on_close(reason)
 
 
-@ServerTransport.register('ws')
+@server_transport('ws')
 class ServerTransportWS(ServerTransport):
     def __init__(self, scheme, parsed_uri, apps=None, kwargs=None):
         super(ServerTransportWS, self).__init__()
