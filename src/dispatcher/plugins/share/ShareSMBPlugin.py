@@ -91,7 +91,7 @@ class CreateSMBShareTask(Task):
         try:
             smb_conf = smbconf.SambaConfig('registry')
             smb_share = smbconf.SambaShare()
-            convert_share(smb_share, path, share['properties'])
+            convert_share(smb_share, path, share['enabled'], share['properties'])
             smb_conf.shares[share['name']] = smb_share
             reload_samba()
         except smbconf.SambaConfigException:
@@ -124,7 +124,7 @@ class UpdateSMBShareTask(Task):
         try:
             smb_conf = smbconf.SambaConfig('registry')
             smb_share = smb_conf.shares[share['name']]
-            convert_share(smb_share, path, share['properties'])
+            convert_share(smb_share, path, share['enabled'], share['properties'])
             smb_share.save()
             reload_samba()
         except smbconf.SambaConfigException:
@@ -199,10 +199,11 @@ def drop_share_connections(share):
         logger.info('Cannot reload samba config: {0}'.format(str(err)))
 
 
-def convert_share(ret, path, share):
+def convert_share(ret, path, enabled, share):
     vfs_objects = []
     ret.clear()
     ret['path'] = path
+    ret['available'] = yesno(enabled)
     ret['guest ok'] = yesno(share.get('guest_ok', False))
     ret['guest only'] = yesno(share.get('guest_only', False))
     ret['read only'] = yesno(share.get('read_only', False))
@@ -293,5 +294,5 @@ def _init(dispatcher, plugin):
     for s in dispatcher.datastore.query('shares', ('type', '=', 'smb'), ('enabled', '=', True)):
         smb_share = smbconf.SambaShare()
         path = dispatcher.call_sync('share.translate_path', s['id'])
-        convert_share(smb_share, path, s.get('properties', {}))
+        convert_share(smb_share, path, s['enabled'], s.get('properties', {}))
         smb_conf.shares[s['name']] = smb_share
