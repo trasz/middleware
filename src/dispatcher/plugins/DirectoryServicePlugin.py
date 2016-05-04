@@ -27,8 +27,11 @@
 
 import errno
 import logging
+from datastore.config import ConfigNode
+from task import TaskException
 
 from freenas.dispatcher.rpc import (
+    RpcException,
     accepts,
     description,
     returns,
@@ -55,6 +58,20 @@ class DirectoryServicesProvider(Provider):
         return self.datastore.query('directories', *(filter or []), callback=extend, **(params or {}))
 
 
+class DirectoryServicesConfigureTask(Task):
+    def verify(self, updated_params):
+        return ['system']
+
+    def run(self, updated_params):
+        node = ConfigNode('network', self.configstore)
+        node.update(updated_params)
+
+        try:
+            self.dispatcher.call_sync('dscached.management.reload_config')
+        except RpcException as e:
+            raise TaskException(errno.ENXIO, 'Cannot reconfigure directory services: {0}'.format(str(e)))
+
+
 @accepts(
     h.ref('directory'),
     h.required('name', 'plugin'),
@@ -66,11 +83,14 @@ class DirectoryServiceCreateTask(Task):
         return ['system']
 
     def run(self, directory):
-        params = self.dispatcher.call_sync(
-            'dscached.management.normalize_parameters',
-            directory['plugin'],
-            directory.get('parameters', {})
-        )
+        try:
+            params = self.dispatcher.call_sync(
+                'dscached.management.normalize_parameters',
+                directory['plugin'],
+                directory.get('parameters', {})
+            )
+        except RpcException as err:
+            raise TaskException(err.code, err.message)
 
         normalize(directory, {
             'enabled': False,
@@ -80,14 +100,24 @@ class DirectoryServiceCreateTask(Task):
             'parameters': params
         })
 
-        id = self.datastore.insert('directories', directory)
-        self.dispatcher.call_sync('dscached.management.configure_directory', id)
+        if directory['plugin'] == 'winbind':
+            normalize(directory, {
+                'uid_range': [100000, 999999],
+                'gid_range': [100000, 999999]
+            })
+
+        self.id = self.datastore.insert('directories', directory)
+        self.dispatcher.call_sync('dscached.management.configure_directory', self.id)
         self.dispatcher.dispatch_event('directory.changed', {
             'operation': 'create',
-            'ids': [id]
+            'ids': [self.id]
         })
 
-        return id
+        return self.id
+
+    def rollback(self, directory):
+        if hasattr(self, 'id'):
+            self.datastore.remove('directories', self.id)
 
 
 @accepts(str, h.ref('directory'))
@@ -97,6 +127,9 @@ class DirectoryServiceUpdateTask(Task):
 
     def run(self, id, updated_params):
         directory = self.datastore.get_by_id('directories', id)
+        if directory['immutable']:
+            raise TaskException(errno.EPERM, 'Directory {0} is immutable'.format(directory['name']))
+
         directory.update(updated_params)
         self.datastore.update('directories', id, directory)
         self.dispatcher.call_sync('dscached.management.configure_directory', id)
@@ -112,6 +145,10 @@ class DirectoryServiceDeleteTask(Task):
         pass
 
     def run(self, id):
+        directory = self.datastore.get_by_id('directories', id)
+        if directory['immutable']:
+            raise TaskException(errno.EPERM, 'Directory {0} is immutable'.format(directory['name']))
+
         self.datastore.delete('directories', id)
         self.dispatcher.call_sync('dscached.management.configure_directory', id)
         self.dispatcher.dispatch_event('directory.changed', {
@@ -121,6 +158,19 @@ class DirectoryServiceDeleteTask(Task):
 
 
 def _init(dispatcher, plugin):
+    plugin.register_schema_definition('directoryservice-config', {
+        'type': 'object',
+        'properties': {
+            'search_order': {
+                'type': 'array',
+                'items': {'type': 'string'}
+            },
+            'cache_ttl': {'type': 'integer'},
+            'cache_enumerations': {'type': 'boolean'},
+            'cache_lookups': {'type': 'boolean'}
+        }
+    })
+
     plugin.register_schema_definition('directory',  {
         'type': 'object',
         'properties': {
