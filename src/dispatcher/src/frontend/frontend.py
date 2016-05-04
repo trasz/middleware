@@ -43,5 +43,5 @@ def index():
     return render_template('base.html')
 
 @app.route('/new')
-def new(arg):
-    pass
+def new():
+    return render_template('base.html')

@@ -311,7 +311,7 @@ class BackupRestoreTask(ProgressTask):
 
                 if local_dataset != dataset and local_dataset not in created_datasets:
                     self.join_subtasks(self.run_subtask(
-                        'zfs.create_dataset', local_dataset.split('/')[0], local_dataset, 'FILESYSTEM'
+                        'zfs.create_dataset', local_dataset, 'FILESYSTEM'
                     ))
 
                     created_datasets.append(local_dataset)

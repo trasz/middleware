@@ -77,14 +77,14 @@ from services import (
 from schemas import register_general_purpose_schemas
 from balancer import Balancer
 from auth import PasswordAuthenticator, TokenStore, Token, TokenException, User, Service
-from freenas.utils import FaultTolerantLogHandler, load_module_from_file, xrecvmsg, xsendmsg
+from freenas.utils import FaultTolerantLogHandler, load_module_from_file, xrecvmsg, xsendmsg, TraceLogger
 
 
 MAXFDS = 128
 CMSGCRED_SIZE = struct.calcsize('iiiih16i')
 DEFAULT_CONFIGFILE = '/usr/local/etc/middleware.conf'
 LOGGING_FORMAT = '%(asctime)s %(levelname)s %(filename)s:%(lineno)d %(message)s'
-FEATURES = ['streaming_responses']
+FEATURES = ['streaming_responses', 'strict_validation']
 trace_log_file = None
 
 
@@ -527,6 +527,16 @@ class Dispatcher(object):
         handler = logging.handlers.SysLogHandler('/var/run/log', facility='local3')
         logging.root.setLevel(logging.DEBUG)
         logging.root.addHandler(handler)
+
+    def set_syslog_level(self, level):
+        if level == 'TRACE':
+            log_level = logging.DEBUG - 5
+        else:
+            log_level = getattr(logging, level, None)
+
+        if not log_level:
+            raise RpcException(errno.EINVAL, 'Invalid logging level {0} selected'.format(level))
+        logging.root.setLevel(log_level)
 
     def dispatch_event(self, name, args):
         with self.event_delivery_lock:
@@ -1167,6 +1177,9 @@ class DispatcherConnection(ServerConnection):
         if feature not in self.dispatcher.features:
             raise ValueError('Invalid feature')
 
+        if feature == 'strict_validation':
+            self.dispatcher.rpc.strict_validation = True
+
         self.enabled_features.add(feature)
 
     def call_client(self, method, callback, *args):
@@ -1512,6 +1525,7 @@ def main():
     parser.add_argument('-c', type=str, metavar='CONFIG', default=DEFAULT_CONFIGFILE, help='Configuration file path')
     args = parser.parse_args()
 
+    logging.setLoggerClass(TraceLogger)
     logging.basicConfig(
         level=logging.getLevelName(args.log_level),
         format=LOGGING_FORMAT)

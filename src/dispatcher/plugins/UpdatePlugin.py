@@ -128,16 +128,36 @@ def check_updates(dispatcher, configstore, cache_dir=None, check_now=False):
     update_cache_invalidate_list = [
         'updateAvailable', 'updateNotes', 'updateNotice',
         'updateOperations', 'changelog', 'downloaded'
-        ]
-    dispatcher.call_sync('update.update_cache_invalidate', update_cache_invalidate_list)
-
-    conf = Configuration.Configuration()
+    ]
+    updateAvailable = False
     update_ops = None
-    handler = CheckUpdateHandler()
-    train = configstore.get('update.train')
     notes = None
     notice = None
     downloaded = False
+    changelog = ''
+
+    # If the current check is an online one (and not in the cache_dir)
+    # then store the current update info and use them to restore the update cache
+    # if the update check fails, this way a downloaded update is not lost from
+    # the cache if a live online one fails!
+    if check_now:
+        try:
+            current_update_info = dispatcher.call_sync('update.update_info')
+            if current_update_info is not None and current_update_info['downloaded']:
+                updateAvailable = True
+                downloaded = current_update_info['downloaded']
+                notes = current_update_info['notes']
+                notice = current_update_info['notice']
+                update_ops = current_update_info['operations']
+                changelog = current_update_info['changelog']
+        except RpcException:
+            pass
+
+    dispatcher.call_sync('update.update_cache_invalidate', update_cache_invalidate_list)
+
+    conf = Configuration.Configuration()
+    handler = CheckUpdateHandler()
+    train = configstore.get('update.train')
 
     try:
         update = CheckForUpdates(
@@ -147,11 +167,11 @@ def check_updates(dispatcher, configstore, cache_dir=None, check_now=False):
         )
     except Exception:
         update_cache_put_value_dict = {
-            'updateAvailable': False,
-            'updateNotes': None,
-            'updateNotice': None,
+            'updateAvailable': updateAvailable,
+            'updateNotes': notes,
+            'updateNotice': notice,
             'updateOperations': update_ops,
-            'changelog': '',
+            'changelog': changelog,
             'downloaded': downloaded,
         }
         dispatcher.call_sync('update.update_cache_putter', update_cache_put_value_dict)
@@ -166,8 +186,15 @@ def check_updates(dispatcher, configstore, cache_dir=None, check_now=False):
         else:
             sequence = ''
         try:
-            changelog = get_changelog(
-                train, cache_dir=cache_dir, start=sequence, end=update.Sequence())
+            if check_now:
+                changelog = get_changelog(
+                    train, cache_dir=cache_dir, start=sequence, end=update.Sequence()
+                )
+            else:
+                changelog_file = "{0}/ChangeLog.txt".format(cache_dir)
+                changelog = parse_changelog(
+                    changelog_file.read(), start=sequence, end=update.Sequence()
+                )
         except Exception:
             changelog = ''
         notes = update.Notes()
@@ -230,7 +257,7 @@ class UpdateHandler(object):
             display_rate = ' Rate: {0} B/s'.format(download_rate) if download_rate else ''
             self.details = 'Downloading: {0} Progress:{1}{2}{3}'.format(
                 self.pkgname, progress, display_size, display_rate
-                )
+            )
         self.emit_update_details()
 
     def install_handler(self, index, name, packages):
@@ -462,9 +489,7 @@ class UpdateConfigureTask(Task):
     "and if yes returns information on operations that will be "
     "performed during the update"
 ))
-@accepts(h.object(properties={
-            'check_now': bool,
-            }))
+@accepts(h.object(properties={'check_now': bool}))
 class CheckUpdateTask(Task):
     def describe(self):
         return "Checks for Updates and Reports Operations to be performed"
@@ -485,8 +510,7 @@ class CheckUpdateTask(Task):
         cache_dir = self.dispatcher.call_sync('update.update_cache_getter', 'cache_dir')
         try:
             check_updates(
-                self.dispatcher, self.configstore,
-                cache_dir=cache_dir, check_now=check_now,
+                self.dispatcher, self.configstore, cache_dir=cache_dir, check_now=check_now
             )
         except UpdateManifestNotFound:
             raise TaskException(errno.ENETUNREACH, 'Update server could not be reached')
@@ -536,8 +560,10 @@ class DownloadUpdateTask(ProgressTask):
                 cache_dir = '/var/tmp/update'
         try:
             download_successful = DownloadUpdate(
-                train, cache_dir, get_handler=handler.get_handler,
-                check_handler=handler.check_handler,
+                train,
+                cache_dir,
+                get_handler=handler.get_handler,
+                check_handler=handler.check_handler
             )
         except Exception as e:
             raise TaskException(
@@ -666,10 +692,12 @@ class UpdateApplyTask(ProgressTask):
         try:
             result = ApplyUpdate(
                 cache_dir, install_handler=handler.install_handler, force_reboot=True
-                )
+            )
         except ManifestInvalidSignature as e:
             logger.debug('UpdateApplyTask Error: Cached manifest has invalid signature: %s', e)
-            raise TaskException(errno.EINVAL, 'Cached manifest has invalid signature: {0}'.format(str(e)))
+            raise TaskException(
+                errno.EINVAL, 'Cached manifest has invalid signature: {0}'.format(str(e))
+            )
         except UpdateBootEnvironmentException as e:
             logger.debug('UpdateApplyTask Boot Environment Error: {0}'.format(str(e)))
             raise TaskException(errno.EAGAIN, str(e))

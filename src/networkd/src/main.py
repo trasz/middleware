@@ -585,7 +585,7 @@ class ConfigurationService(RpcService):
             lagg = entity.get('lagg')
             if lagg:
                 iface.protocol = getattr(netif.AggregationProtocol, lagg.get('protocol', 'FAILOVER'))
-                old_ports = set(iface.ports)
+                old_ports = set(p['name'] for p in iface.ports)
                 new_ports = set(lagg['ports'])
 
                 for port in old_ports - new_ports:
@@ -840,6 +840,14 @@ class Main:
         self.client.register_schema('network-aggregation-protocols', {
             'type': 'string',
             'enum': list(netif.AggregationProtocol.__members__.keys())
+        })
+
+        self.client.register_schema('network-lagg-port-flags', {
+            'type': 'array',
+            'items': {
+                'type': 'string',
+                'enum': list(netif.LaggPortFlags.__members__.keys())
+            }
         })
 
         self.client.register_schema('network-interface-flags', {

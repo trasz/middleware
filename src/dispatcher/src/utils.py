@@ -74,7 +74,12 @@ def get_replication_client(dispatcher, remote):
         with tempfile.NamedTemporaryFile('w') as host_key_file:
             host_key_file.write(known_host['hostkey'])
             host_key_file.flush()
-            client.connect('ws+ssh://replication@{0}'.format(remote), host_key_file=host_key_file.name, pkey=pkey)
+            client.connect(
+                'ws+ssh://replication@{0}'.format(remote),
+                port=known_host['port'],
+                host_key_file=host_key_file.name,
+                pkey=pkey
+            )
         client.login_service('replicator')
         return client
 

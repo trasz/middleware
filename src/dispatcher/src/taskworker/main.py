@@ -38,7 +38,7 @@ from threading import Event
 from freenas.dispatcher.client import Client
 from freenas.dispatcher.fd import FileDescriptor
 from freenas.dispatcher.rpc import RpcService, RpcException, RpcWarning
-from freenas.utils import load_module_from_file
+from freenas.utils import load_module_from_file, configure_logging
 from datastore import get_datastore
 from datastore.config import ConfigStore
 
@@ -204,7 +204,7 @@ class Context(object):
             sys.exit(errno.EINVAL)
 
         key = sys.argv[1]
-        logging.basicConfig(level=logging.DEBUG)
+        configure_logging(None, logging.DEBUG)
 
         self.datastore = get_datastore()
         self.configstore = ConfigStore(self.datastore)
@@ -219,6 +219,7 @@ class Context(object):
         while True:
             try:
                 task = self.task.get()
+                logging.root.setLevel(self.conn.call_sync('management.get_logging_level'))
                 setproctitle.setproctitle('task executor (tid {0})'.format(task['id']))
 
                 if task['debugger']:

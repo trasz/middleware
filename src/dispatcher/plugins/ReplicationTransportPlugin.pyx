@@ -32,11 +32,12 @@ import os
 import threading
 import time
 import base64
+from freenas.dispatcher import AsyncResult
 from freenas.utils import first_or_default
 from freenas.dispatcher.client import Client
 from freenas.dispatcher.fd import FileDescriptor
 from paramiko import AuthenticationException
-from freenas.dispatcher.rpc import RpcException, SchemaHelper as h, description, accepts, returns, private
+from freenas.dispatcher.rpc import RpcException, SchemaHelper as h, description, accepts, private
 from utils import get_replication_client
 from task import Task, ProgressTask, Provider, TaskException, TaskWarning, VerifyException, query
 from libc.stdlib cimport malloc, free
@@ -168,6 +169,9 @@ cipher_types = {
 }
 
 
+ssh_port = None
+
+
 cdef uint32_t read_fd(int fd, void *buf, uint32_t nbytes, uint32_t curr_pos) nogil:
     cdef int ret
     cdef uint32_t done = 0
@@ -253,10 +257,12 @@ class TransportProvider(Provider):
 class TransportSendTask(Task):
     def __init__(self, dispatcher, datastore):
         super(TransportSendTask, self).__init__(dispatcher, datastore)
-        self.finished = threading.Event()
+        self.finished = AsyncResult()
         self.addr = None
         self.aborted = False
         self.fds = []
+        self.sock = None
+        self.conn = None
 
     def verify(self, fd, transport):
         client_address = transport.get('client_address')
@@ -290,8 +296,6 @@ class TransportSendTask(Task):
         cdef int rd_fd = fd.fd
         cdef int wr_fd
 
-        sock = None
-        conn = None
         try:
             buffer_size = transport.get('buffer_size', 1024*1024)
 
@@ -303,26 +307,26 @@ class TransportSendTask(Task):
             for conn_option in socket.getaddrinfo(server_address, server_port, socket.AF_UNSPEC, socket.SOCK_STREAM):
                 af, sock_type, proto, canonname, addr = conn_option
                 try:
-                    sock = socket.socket(af, sock_type, proto)
+                    self.sock = socket.socket(af, sock_type, proto)
                 except OSError:
-                    sock = None
+                    self.sock = None
                     continue
                 try:
-                    sock.bind(addr)
-                    sock.settimeout(30)
-                    sock.listen(1)
+                    self.sock.bind(addr)
+                    self.sock.settimeout(30)
+                    self.sock.listen(1)
                 except socket.timeout:
                     raise TaskException(
                         ETIMEDOUT,
                         'Timeout while waiting for connection from {0}'.format(client_address)
                     )
                 except OSError:
-                    sock.close()
-                    sock = None
+                    self.sock.close()
+                    self.sock = None
                     continue
                 break
 
-            if sock is None:
+            if self.sock is None:
                 raise TaskException(EACCES, 'Could not open a socket at address {0}'.format(server_address))
             logger.debug('Created a TCP socket at {0}:{1}'.format(*addr))
 
@@ -342,7 +346,7 @@ class TransportSendTask(Task):
                 token = base64.b64encode(os.urandom(token_size)).decode('utf-8')
                 transport['auth_token'] = token
 
-            sock_addr = sock.getsockname()
+            sock_addr = self.sock.getsockname()
             transport['server_address'] = sock_addr[0]
             transport['server_port'] = sock_addr[1]
             transport['buffer_size'] = buffer_size
@@ -355,7 +359,7 @@ class TransportSendTask(Task):
                 timeout=604800
             )
 
-            conn, addr = sock.accept()
+            self.conn, addr = self.sock.accept()
             if addr[0] != client_address:
                 raise TaskException(
                     EINVAL,
@@ -366,9 +370,9 @@ class TransportSendTask(Task):
                 )
             logger.debug('New connection from {0}:{1} to {2}:{3}'.format(*(addr + sock_addr)))
 
-            conn.setsockopt(socket.SOL_SOCKET, socket.SO_SNDBUF, buffer_size)
+            self.conn.setsockopt(socket.SOL_SOCKET, socket.SO_SNDBUF, buffer_size)
 
-            conn_fd = os.dup(conn.fileno())
+            conn_fd = os.dup(self.conn.fileno())
             self.fds.append(conn_fd)
 
             token_buffer = <uint8_t *>malloc(token_size * sizeof(uint8_t))
@@ -470,9 +474,9 @@ class TransportSendTask(Task):
                     )
                 logger.debug('All data fetched for transfer to {0}:{1}. Waiting for plugins to close.'.format(*addr))
                 self.join_subtasks(*subtasks)
-                if conn:
-                    conn.shutdown(socket.SHUT_RDWR)
-                    conn.close()
+                if self.conn:
+                    self.conn.shutdown(socket.SHUT_RDWR)
+                    self.conn.close()
 
                 self.finished.wait()
 
@@ -481,30 +485,37 @@ class TransportSendTask(Task):
 
             free(buffer)
             free(token_buffer)
-            if sock:
-                sock.shutdown(socket.SHUT_RDWR)
-                sock.close()
+            if self.sock:
+                self.sock.shutdown(socket.SHUT_RDWR)
+                self.sock.close()
             close_fds(self.fds)
 
     def get_recv_status(self, status):
         if status.get('state') != 'FINISHED':
             error = status.get('error')
             close_fds(self.fds)
-            self.finished.set()
-            raise TaskException(
-                error['code'],
-                'Receive task connected to {1}:{2} finished unexpectedly with message: {0}'.format(
-                    error['message'],
-                    *self.addr
+            if self.conn:
+                self.conn.shutdown(socket.SHUT_RDWR)
+                self.conn.close()
+            if self.sock:
+                self.sock.shutdown(socket.SHUT_RDWR)
+                self.sock.close()
+            self.finished.set_exception(
+                TaskException(
+                    error['code'],
+                    'Receive task connected to {1}:{2} finished unexpectedly with message: {0}'.format(
+                        error['message'],
+                        *self.addr
+                    )
                 )
             )
         else:
             logger.debug('Receive task at {0}:{1} finished'.format(*self.addr))
-            self.finished.set()
+            self.finished.set(True)
 
     def abort(self):
         self.aborted = True
-        self.finished.set()
+        self.finished.set(True)
         close_fds(self.fds)
 
 
@@ -688,35 +699,36 @@ class TransportReceiveTask(ProgressTask):
                     logger.debug('Written {0} bytes of payload -> zfs.receive ({1}:{2})'.format(length, *self.addr))
 
         finally:
-            if not self.aborted:
-                if header_buffer[0] != transport_header_magic:
-                    raise TaskException(
-                        EINVAL,
-                        'Bad magic {0} received. Expected {1}'.format(header_buffer[0], transport_header_magic)
-                    )
-                if ret == -1:
-                    raise TaskException(
-                        errno,
-                        'Data read failed during transmission from {0}:{1}'.format(*self.addr)
-                    )
-                if ret_wr == -1:
-                    raise TaskException(
-                        errno,
-                        'Data write failed during transmission from {0}:{1}'.format(*self.addr)
-                    )
+            try:
+                if not self.aborted:
+                    if header_buffer[0] != transport_header_magic:
+                        raise TaskException(
+                            EINVAL,
+                            'Bad magic {0} received. Expected {1}'.format(header_buffer[0], transport_header_magic)
+                        )
+                    if ret == -1:
+                        raise TaskException(
+                            errno,
+                            'Data read failed during transmission from {0}:{1}'.format(*self.addr)
+                        )
+                    if ret_wr == -1:
+                        raise TaskException(
+                            errno,
+                            'Data write failed during transmission from {0}:{1}'.format(*self.addr)
+                        )
 
-                logger.debug('All data fetched for transfer from {0}:{1}. Waiting for plugins to close.'.format(*addr))
-                self.join_subtasks(*subtasks)
-
-            self.running = False
-            progress_t.join()
-            logger.debug('Receive from {0}:{1} finished. Closing connection'.format(*addr))
-            free(buffer)
-            free(header_buffer)
-            if sock:
-                sock.shutdown(socket.SHUT_RDWR)
-                sock.close()
-            close_fds(self.fds)
+                    logger.debug('All data fetched for transfer from {0}:{1}. Waiting for plugins to close.'.format(*addr))
+                    self.join_subtasks(*subtasks)
+            finally:
+                self.running = False
+                progress_t.join()
+                logger.debug('Receive from {0}:{1} finished. Closing connection'.format(*addr))
+                free(buffer)
+                free(header_buffer)
+                if sock:
+                    sock.shutdown(socket.SHUT_RDWR)
+                    sock.close()
+                close_fds(self.fds)
 
     def count_progress(self):
         last_done = 0
@@ -994,6 +1006,9 @@ class TransportEncryptTask(Task):
         cdef unsigned char *cipherbuffer
         cdef uint8_t *iv
         cdef uint8_t *key
+        cdef uint8_t *byte_buffer
+        cdef uint32_t key_size
+        cdef uint32_t iv_size
         cdef uint32_t buffer_size
         cdef uint32_t header_size = 2 * sizeof(uint32_t)
         cdef uint32_t ret = 1
@@ -1005,6 +1020,8 @@ class TransportEncryptTask(Task):
         cdef int rd_fd
         cdef int wr_fd
         cdef int cipher_ret
+        IF REPLICATION_TRANSPORT_DEBUG:
+            cdef uint8_t *log_buffer
 
         remote = plugin.get('remote')
         encryption_type = plugin.get('type', 'AES128')
@@ -1042,6 +1059,16 @@ class TransportEncryptTask(Task):
         )
         remote_client.disconnect()
 
+        IF REPLICATION_TRANSPORT_DEBUG:
+            logger.debug('Encryption data sent')
+            logger.debug('py_key: {0} - py_iv: {1}'.format(
+                base64.b64encode(py_key).decode('utf-8'),
+                base64.b64encode(py_iv).decode('utf-8'))
+            )
+
+            logger.debug('Key: {0}'.format(<bytes> key[:key_size]))
+            logger.debug('IV: {0}'.format(<bytes> iv[:iv_size]))
+
         try:
             rd_fd = plugin.get('read_fd').fd
             self.fds.append(rd_fd)
@@ -1052,6 +1079,7 @@ class TransportEncryptTask(Task):
             cipherbuffer = <unsigned char *>malloc((buffer_size + header_size) * sizeof(uint8_t))
             plainbuffer = <uint32_t *>malloc((buffer_size + header_size) * sizeof(uint8_t))
             plainbuffer[0] = encrypt_transfer_magic
+            byte_buffer = <uint8_t *> plainbuffer
 
             with nogil:
                 ERR_load_crypto_strings()
@@ -1066,22 +1094,38 @@ class TransportEncryptTask(Task):
             if ret != 1:
                 ERR_print_errors_fp(stderr)
                 return
+            logger.debug('Encryption context initialization completed')
 
             while True:
                 with nogil:
                     plain_ret = read_fd(rd_fd, plainbuffer, buffer_size, header_size)
-                    if plain_ret < 1:
+                    if plain_ret < 0:
                         break
                     plainbuffer[1] = plain_ret
+                IF REPLICATION_TRANSPORT_DEBUG:
+                    logger.debug('Got {0} bytes of plain text'.format(plain_ret))
+                    log_buffer = <uint8_t *> plainbuffer
+                    logger.debug('Message: {0}'.format(<bytes> log_buffer[:plain_ret]))
 
+                with nogil:
                     ret = EVP_EncryptUpdate(ctx, cipherbuffer, &cipher_ret, <unsigned char *> plainbuffer, plain_ret + header_size)
                     if ret != 1:
                         ERR_print_errors_fp(stderr)
                         break
 
+                IF REPLICATION_TRANSPORT_DEBUG:
+                    logger.debug('Cipher text size returned {0} bytes'.format(cipher_ret))
+                    log_buffer = <uint8_t *> cipherbuffer
+                    logger.debug('Message: {0}'.format(<bytes> log_buffer[:cipher_ret]))
+                with nogil:
                     ret_wr = write_fd(wr_fd, cipherbuffer, cipher_ret)
                     if ret_wr == -1:
                         break
+                IF REPLICATION_TRANSPORT_DEBUG:
+                    logger.debug('Wrote {0} bytes of cipher text'.format(ret_wr))
+
+                if plain_ret == 0:
+                    break
 
                 if renewal_interval:
                     renewal_interval -= 1
@@ -1094,14 +1138,28 @@ class TransportEncryptTask(Task):
                         key = py_key
                         iv = py_iv
 
-                        memcpy(&plainbuffer[2], key, key_size)
-                        memcpy(&plainbuffer[key_size + 2], iv, iv_size)
+                        IF REPLICATION_TRANSPORT_DEBUG:
+                            logger.debug('Rekey started')
+                            logger.debug('py_key: {0} - py_iv: {1}'.format(
+                                py_key,
+                                py_iv
+                            ))
+                            logger.debug('Key: {0}'.format(<bytes> key[:key_size]))
+                            logger.debug('IV: {0}'.format(<bytes> iv[:iv_size]))
+
+                        memcpy(&byte_buffer[header_size], key, key_size)
+                        memcpy(&byte_buffer[key_size + header_size], iv, iv_size)
 
                         with nogil:
-                            ret = EVP_EncryptUpdate(ctx, cipherbuffer, &cipher_ret, <unsigned char *> plainbuffer, plain_ret)
+                            ret = EVP_EncryptUpdate(ctx, cipherbuffer, &cipher_ret, <unsigned char *> plainbuffer, plainbuffer[1] + header_size)
                             if ret != 1:
                                 ERR_print_errors_fp(stderr)
                                 break
+
+                        IF REPLICATION_TRANSPORT_DEBUG:
+                            logger.debug('Cipher text size returned {0} bytes'.format(cipher_ret))
+                            log_buffer = <uint8_t *> cipherbuffer
+                            logger.debug('Message: {0}'.format(<bytes> log_buffer[:cipher_ret]))
 
                         plainbuffer[0] = encrypt_transfer_magic
 
@@ -1110,6 +1168,10 @@ class TransportEncryptTask(Task):
                             if ret_wr == -1:
                                 break
 
+                        IF REPLICATION_TRANSPORT_DEBUG:
+                            logger.debug('Wrote {0} bytes of cipher text'.format(ret_wr))
+
+                        with nogil:
                             ret = EVP_EncryptFinal_ex(ctx, cipherbuffer, &cipher_ret)
                             if ret != 1:
                                 ERR_print_errors_fp(stderr)
@@ -1119,6 +1181,10 @@ class TransportEncryptTask(Task):
                                 if ret_wr == -1:
                                     break
 
+                        IF REPLICATION_TRANSPORT_DEBUG:
+                            logger.debug('Encryption context finalized. Returned last {0} bytes of cipher text. Starting new context'.format(cipher_ret))
+
+                        with nogil:
                             EVP_CIPHER_CTX_free(ctx)
                             ctx = EVP_CIPHER_CTX_new()
                             if ctx == NULL:
@@ -1129,11 +1195,19 @@ class TransportEncryptTask(Task):
                             if ret != 1:
                                 ERR_print_errors_fp(stderr)
                                 break
-            with nogil:
-                if plain_ret == 0:
+
+            if plain_ret == 0:
+                with nogil:
                     ret = EVP_EncryptFinal_ex(ctx, cipherbuffer, &cipher_ret)
-                    if (cipher_ret > 0) and (ret == 1):
+                logger.debug('Encryption context finalized. Returned last {0} bytes of cipher text'.format(cipher_ret))
+
+                if (cipher_ret > 0) and (ret == 1):
+                    with nogil:
                         ret_wr = write_fd(wr_fd, cipherbuffer, cipher_ret)
+                    IF REPLICATION_TRANSPORT_DEBUG:
+                        logger.debug('Wrote {0} bytes of cipher text'.format(ret_wr))
+                        log_buffer = <uint8_t *> cipherbuffer
+                        logger.debug('Message: {0}'.format(<bytes> log_buffer[:cipher_ret]))
 
         finally:
             if not self.aborted:
@@ -1184,8 +1258,11 @@ class TransportDecryptTask(Task):
         cdef uint32_t *plainbuffer
         cdef uint32_t *header_buffer
         cdef unsigned char *cipherbuffer
+        cdef uint8_t *byte_buffer
         cdef uint8_t *iv
         cdef uint8_t *key
+        cdef uint8_t *py_iv_t
+        cdef uint8_t *py_key_t
         cdef uint32_t key_size
         cdef uint32_t iv_size
         cdef uint32_t buffer_size
@@ -1200,6 +1277,8 @@ class TransportDecryptTask(Task):
         cdef int rd_fd
         cdef int wr_fd
         cdef int plain_ret
+        IF REPLICATION_TRANSPORT_DEBUG:
+            cdef uint8_t *log_buffer
 
         try:
             encryption_type = plugin.get('type', 'AES128')
@@ -1215,19 +1294,32 @@ class TransportDecryptTask(Task):
             token = plugin.get('auth_token')
 
             initial_cipher = self.dispatcher.call_sync('replication.transport.get_encryption_data', token)
+
+            IF REPLICATION_TRANSPORT_DEBUG:
+                logger.debug('Decryption data fetched')
+                logger.debug('py_key: {0} - py_iv: {1}'.format(initial_cipher['key'], initial_cipher['iv']))
+
             py_key = base64.b64decode(initial_cipher['key'].encode('utf-8'))
             py_iv = base64.b64decode(initial_cipher['iv'].encode('utf-8'))
+            py_key_t = py_key
+            py_iv_t = py_iv
 
             with nogil:
                 cipherbuffer = <unsigned char *>malloc(buffer_size * sizeof(uint8_t))
                 plainbuffer = <uint32_t *>malloc(buffer_size * sizeof(uint8_t))
                 header_buffer = <uint32_t *>malloc(header_size * sizeof(uint8_t))
 
+                byte_buffer = <uint8_t *> plainbuffer
+
                 key = <uint8_t *>malloc(key_size * sizeof(uint8_t))
                 iv = <uint8_t *>malloc(iv_size * sizeof(uint8_t))
 
-            memcpy(key, <const void *> py_key, key_size)
-            memcpy(iv, <const void *> py_iv, iv_size)
+            memcpy(key, <const void *> py_key_t, key_size)
+            memcpy(iv, <const void *> py_iv_t, iv_size)
+
+            IF REPLICATION_TRANSPORT_DEBUG:
+                logger.debug('Key: {0}'.format(<bytes> key[:key_size]))
+                logger.debug('IV: {0}'.format(<bytes> iv[:iv_size]))
 
             with nogil:
                 ERR_load_crypto_strings()
@@ -1243,17 +1335,30 @@ class TransportDecryptTask(Task):
                 ERR_print_errors_fp(stderr)
                 return
 
+            logger.debug('Decryption context initialization completed')
+
             while True:
                 with nogil:
                     cipher_ret = read_fd(rd_fd, cipherbuffer, header_size, 0)
                     if cipher_ret == -1:
                         break
+                IF REPLICATION_TRANSPORT_DEBUG:
+                    logger.debug('Got {0} bytes of cipher text'.format(cipher_ret))
+                    log_buffer = <uint8_t *> cipherbuffer
+                    logger.debug('Message: {0}'.format(<bytes> log_buffer[:cipher_ret]))
 
+                with nogil:
                     ret = EVP_DecryptUpdate(ctx, <unsigned char *> header_buffer, &plain_ret, cipherbuffer, header_size)
                     if ret != 1:
                         ERR_print_errors_fp(stderr)
                         break
+                IF REPLICATION_TRANSPORT_DEBUG:
+                    logger.debug('Plain text size returned {0} bytes - header'.format(plain_ret))
+                    logger.debug('Message length: {0} bytes'.format(header_buffer[1]))
+                    log_buffer = <uint8_t *> header_buffer
+                    logger.debug('Message: {0}'.format(<bytes> log_buffer[:plain_ret]))
 
+                with nogil:
                     length = header_buffer[1]
                     if (header_buffer[0] != encrypt_transfer_magic) and (header_buffer[0] != encrypt_rekey_magic):
                         break
@@ -1270,8 +1375,16 @@ class TransportDecryptTask(Task):
                     if ret != 1:
                         ERR_print_errors_fp(stderr)
                         break
+                IF REPLICATION_TRANSPORT_DEBUG:
+                    logger.debug('Plain text size returned {0} bytes'.format(plain_ret))
+                    log_buffer = <uint8_t *> plainbuffer
+                    logger.debug('Message: {0}'.format(<bytes> log_buffer[:plain_ret]))
 
-                    if header_buffer[0] == encrypt_rekey_magic:
+
+                if header_buffer[0] == encrypt_rekey_magic:
+                    IF REPLICATION_TRANSPORT_DEBUG:
+                        logger.debug('Rekey magic received')
+                    with nogil:
                         ret = EVP_DecryptFinal_ex(ctx, <unsigned char *> plainbuffer, &plain_ret)
                         if ret != 1:
                             ERR_print_errors_fp(stderr)
@@ -1281,26 +1394,40 @@ class TransportDecryptTask(Task):
                             if ret_wr == -1:
                                 break
 
+                    IF REPLICATION_TRANSPORT_DEBUG:
+                        logger.debug('Decryption context finalized. Starting new context')
+
+                    with nogil:
                         EVP_CIPHER_CTX_free(ctx)
                         ctx = EVP_CIPHER_CTX_new()
                         if ctx == NULL:
                             ERR_print_errors_fp(stderr)
                             break
 
-                        memcpy(key, plainbuffer, key_size)
-                        memcpy(iv, &plainbuffer[key_size], iv_size)
+                        memcpy(key, byte_buffer, key_size)
+                        memcpy(iv, &byte_buffer[key_size], iv_size)
 
                         ret = EVP_DecryptInit_ex(ctx, cipher_function(), NULL, key, iv)
                         if ret != 1:
                             ERR_print_errors_fp(stderr)
                             break
-                    else:
+
+                    IF REPLICATION_TRANSPORT_DEBUG:
+                        logger.debug('Initialized new decryption context.')
+                        logger.debug('Key: {0}'.format(<bytes> key[:key_size]))
+                        logger.debug('IV: {0}'.format(<bytes> iv[:iv_size]))
+
+                else:
+                    with nogil:
                         if plain_ret > 0:
                             ret_wr = write_fd(wr_fd, plainbuffer, plain_ret)
                             if ret_wr == -1:
                                 break
-                        if length == 0:
-                            break
+                    if length == 0:
+                        logger.debug('Decryption context finalized')
+                        break
+                    IF REPLICATION_TRANSPORT_DEBUG:
+                        logger.debug('Wrote {0} bytes of plain text'.format(ret_wr))
 
         finally:
             if not self.aborted:
@@ -1436,9 +1563,9 @@ class TransportThrottleTask(Task):
 
 
 @description('Exchange keys with remote machine for replication purposes')
-@accepts(str, str, str)
+@accepts(str, str, str, int)
 class HostsPairCreateTask(Task):
-    def describe(self, username, remote, password):
+    def describe(self, username, remote, password, port=22):
         return 'Exchange keys with remote machine for replication purposes'
 
     def verify(self, username, remote, password):
@@ -1447,13 +1574,13 @@ class HostsPairCreateTask(Task):
 
         return ['system']
 
-    def run(self, username, remote, password):
+    def run(self, username, remote, password, port=22):
         remote_client = Client()
         try:
-            remote_client.connect('ws+ssh://{0}@{1}'.format(username, remote), password=password)
+            remote_client.connect('ws+ssh://{0}@{1}'.format(username, remote), port=port, password=password)
             remote_client.login_service('replicator')
         except (AuthenticationException, OSError, ConnectionRefusedError):
-            raise TaskException(ECONNABORTED, 'Cannot connect to {0}'.format(remote))
+            raise TaskException(ECONNABORTED, 'Cannot connect to {0}:{1}'.format(remote, port))
 
         local_keys = self.dispatcher.call_sync('replication.host.get_keys')
         remote_keys = remote_client.call_sync('replication.host.get_keys')
@@ -1462,13 +1589,16 @@ class HostsPairCreateTask(Task):
         remote_host_key = remote + ' ' + remote_keys[0].rsplit(' ', 1)[0]
         local_host_key = ip_at_remote_side + ' ' + local_keys[0].rsplit(' ', 1)[0]
 
+        local_ssh_config = self.dispatcher.call_sync('service.sshd.get_config')
+
         remote_client.call_task_sync(
             'replication.known_host.create',
             {
                 'name': ip_at_remote_side,
                 'id': ip_at_remote_side,
                 'pubkey': local_keys[1],
-                'hostkey': local_host_key
+                'hostkey': local_host_key,
+                'port': local_ssh_config['port']
             }
         )
 
@@ -1478,9 +1608,12 @@ class HostsPairCreateTask(Task):
                 'name': remote,
                 'id': remote,
                 'pubkey': remote_keys[1],
-                'hostkey': remote_host_key
+                'hostkey': remote_host_key,
+                'port': port
             }
         ))
+
+        remote_client.disconnect()
 
 
 @private
@@ -1538,6 +1671,8 @@ class HostsPairDeleteTask(Task):
             remote
         ))
 
+        remote_client.disconnect()
+
 
 @private
 @description('Remove known host entry from database')
@@ -1570,6 +1705,47 @@ class KnownHostDeleteTask(Task):
             'ids': [name]
         })
 
+
+@private
+@description('Update SSH port number in remote known host entry')
+@accepts(str, int)
+class HostsPairPortUpdateTask(Task):
+    def verify(self, name, port):
+        if not self.datastore.exists('replication.known_hosts', ('id', '=', name)):
+            raise VerifyException(ENOENT, 'Known hosts entry for {0} does not exist'.format(name))
+
+        return ['system']
+
+    def run(self, name, port):
+        remote_client = get_replication_client(self.dispatcher, name)
+        ip_at_remote_side = remote_client.call_sync('management.get_sender_address').split(',', 1)[0]
+
+        remote_client.call_task_sync('replication.known_host.update_port', ip_at_remote_side, port)
+        remote_client.disconnect()
+
+
+@private
+@description('Update SSH port number in known host entry')
+@accepts(str, int)
+class KnownHostPortUpdateTask(Task):
+    def verify(self, name, port):
+        if not self.datastore.exists('replication.known_hosts', ('id', '=', name)):
+            raise VerifyException(ENOENT, 'Known hosts entry for {0} does not exist'.format(name))
+
+        return ['system']
+
+    def run(self, name, port):
+        known_host = self.dispatcher.call_sync('replication.host.query', [('id', '=', name)], {'single': True})
+        known_host['port'] = port
+
+        self.datastore.update('replication.known_hosts', name, known_host)
+
+        self.dispatcher.dispatch_event('replication.host.changed', {
+            'operation': 'update',
+            'ids': [name]
+        })
+
+
 def close_fds(fds):
     if isinstance(fds, int):
         fds = [fds]
@@ -1579,7 +1755,12 @@ def close_fds(fds):
     except OSError:
         pass
 
+def _depends():
+    return ['SSHPlugin']
+
 def _init(dispatcher, plugin):
+    global ssh_port
+    ssh_port = dispatcher.call_sync('service.sshd.get_config')['port']
     # Register schemas
     plugin.register_schema_definition('replication-transport', {
         'type': 'object',
@@ -1670,7 +1851,8 @@ def _init(dispatcher, plugin):
             'name': {'type': 'string'},
             'id': {'type': 'string'},
             'pubkey': {'type': 'string'},
-            'hostkey': {'type': 'string'}
+            'hostkey': {'type': 'string'},
+            'port': {'type': 'number'}
         },
         'additionalProperties': False
     })
@@ -1699,9 +1881,24 @@ def _init(dispatcher, plugin):
     plugin.register_task_handler("replication.known_host.create", KnownHostCreateTask)
     plugin.register_task_handler("replication.hosts_pair.delete", HostsPairDeleteTask)
     plugin.register_task_handler("replication.known_host.delete", KnownHostDeleteTask)
+    plugin.register_task_handler("replication.hosts_pair.update_port", HostsPairPortUpdateTask)
+    plugin.register_task_handler("replication.known_host.update_port", KnownHostPortUpdateTask)
 
-    # Register event handlers
+    # Register event types
     plugin.register_event_type('replication.host.changed')
+
+    #Event handlers methods
+    def on_ssh_change(args):
+        global ssh_port
+        new_ssh_port = dispatcher.call_sync('service.sshd.get_config')['port']
+        if ssh_port != new_ssh_port:
+            ssh_port = new_ssh_port
+            hosts = dispatcher.call_sync('replication.host.query', [], {'select': 'name'})
+            for host in hosts:
+                dispatcher.call_task_sync('replication.hosts_pair.update_port', host, new_ssh_port)
+
+    #Register event handlers
+    plugin.register_event_handler('service.sshd.changed', on_ssh_change)
 
     #Create home directory and authorized keys file for replication user
     if not os.path.exists(REPL_HOME):

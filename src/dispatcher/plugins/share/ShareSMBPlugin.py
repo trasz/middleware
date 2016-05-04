@@ -28,11 +28,15 @@
 import errno
 import pwd
 import datetime
+import logging
 import smbconf
 from task import Task, TaskStatus, Provider, TaskException
 from freenas.dispatcher.rpc import RpcException, description, accepts, returns, private
 from freenas.dispatcher.rpc import SchemaHelper as h
 from freenas.utils import first_or_default, normalize
+
+
+logger = logging.getLogger(__name__)
 
 
 @description("Provides info about configured SMB shares")
@@ -89,6 +93,7 @@ class CreateSMBShareTask(Task):
             smb_share = smbconf.SambaShare()
             convert_share(smb_share, path, share['properties'])
             smb_conf.shares[share['name']] = smb_share
+            reload_samba()
         except smbconf.SambaConfigException:
             raise TaskException(errno.EFAULT, 'Cannot access samba registry')
 
@@ -121,6 +126,7 @@ class UpdateSMBShareTask(Task):
             smb_share = smb_conf.shares[share['name']]
             convert_share(smb_share, path, share['properties'])
             smb_share.save()
+            reload_samba()
         except smbconf.SambaConfigException:
             raise TaskException(errno.EFAULT, 'Cannot access samba registry')
 
@@ -147,6 +153,9 @@ class DeleteSMBShareTask(Task):
         try:
             smb_conf = smbconf.SambaConfig('registry')
             del smb_conf.shares[share['name']]
+
+            reload_samba()
+            drop_share_connections(share['name'])
         except smbconf.SambaConfigException:
             raise TaskException(errno.EFAULT, 'Cannot access samba registry')
 
@@ -172,6 +181,22 @@ class ImportSMBShareTask(CreateSMBShareTask):
 
 def yesno(val):
     return 'yes' if val else 'no'
+
+
+def reload_samba():
+    try:
+        rpc = smbconf.SambaMessagingContext()
+        rpc.reload_config()
+    except OSError as err:
+        logger.info('Cannot reload samba config: {0}'.format(str(err)))
+
+
+def drop_share_connections(share):
+    try:
+        rpc = smbconf.SambaMessagingContext()
+        rpc.kill_share_connections(share)
+    except OSError as err:
+        logger.info('Cannot reload samba config: {0}'.format(str(err)))
 
 
 def convert_share(ret, path, share):

@@ -641,7 +641,14 @@ def _init(dispatcher, plugin):
                     'protocol': {'$ref': 'network-aggregation-protocols'},
                     'ports': {
                         'type': 'array',
-                        'items': {'type': 'string'}
+                        'items': {
+                            'type': 'object',
+                            'additionalProperties': False,
+                            'properties': {
+                                'name': {'type': 'string'},
+                                'flags': {'$ref': 'network-lagg-port-flags'}
+                            }
+                        }
                     }
                 }
             },

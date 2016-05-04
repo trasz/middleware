@@ -142,7 +142,7 @@ class ZpoolProvider(Provider):
                 )
 
         except libzfs.ZFSException as err:
-            raise RpcException(errno.EFAULT, str(err))
+            raise RpcException(zfs_error_to_errno(err.code), str(err))
 
 
 class ZfsDatasetProvider(Provider):
@@ -167,7 +167,7 @@ class ZfsDatasetProvider(Provider):
             if err.code == libzfs.Error.NOENT:
                 raise RpcException(errno.ENOENT, str(err))
 
-            raise RpcException(errno.EFAULT, str(err))
+            raise RpcException(zfs_error_to_errno(err.code), str(err))
 
     @accepts(str)
     @returns(h.array(h.ref('zfs-snapshot')))
@@ -182,7 +182,7 @@ class ZfsDatasetProvider(Provider):
             if err.code == libzfs.Error.NOENT:
                 raise RpcException(errno.ENOENT, str(err))
 
-            raise RpcException(errno.EFAULT, str(err))
+            raise RpcException(zfs_error_to_errno(err.code), str(err))
 
     @returns(int)
     def estimate_send_size(self, dataset_name, snapshot_name, anchor_name=None):
@@ -194,7 +194,7 @@ class ZfsDatasetProvider(Provider):
 
             return ds.get_send_space()
         except libzfs.ZFSException as err:
-            raise RpcException(errno.EFAULT, str(err))
+            raise RpcException(zfs_error_to_errno(err.code), str(err))
 
 
 class ZfsSnapshotProvider(Provider):
@@ -250,7 +250,7 @@ class ZpoolScrubTask(Task):
             pool.start_scrub()
             self.started = True
         except libzfs.ZFSException as err:
-            raise TaskException(errno.EFAULT, str(err))
+            raise TaskException(zfs_error_to_errno(err.code), str(err))
 
         self.finish_event.wait()
         if self.abort_flag:
@@ -262,7 +262,7 @@ class ZpoolScrubTask(Task):
             pool = zfs.get(self.pool)
             pool.stop_scrub()
         except libzfs.ZFSException as err:
-            raise TaskException(errno.EFAULT, str(err))
+            raise TaskException(zfs_error_to_errno(err.code), str(err))
 
         self.abort_flag = True
         self.finish_event.set()
@@ -277,7 +277,7 @@ class ZpoolScrubTask(Task):
             pool = zfs.get(self.pool)
             scrub = pool.scrub
         except libzfs.ZFSException as err:
-            raise TaskException(errno.EFAULT, str(err))
+            raise TaskException(zfs_error_to_errno(err.code), str(err))
 
         if scrub.state == libzfs.ScanState.SCANNING:
             self.progress = scrub.percentage
@@ -354,7 +354,7 @@ class ZpoolCreateTask(Task):
         try:
             pool = zfs.create(name, nvroot, opts, fsopts)
         except libzfs.ZFSException as err:
-            raise TaskException(errno.EFAULT, str(err))
+            raise TaskException(zfs_error_to_errno(err.code), str(err))
 
 
 class ZpoolBaseTask(Task):
@@ -383,7 +383,7 @@ class ZpoolConfigureTask(ZpoolBaseTask):
                 prop = pool.properties[name]
                 prop.value = value
         except libzfs.ZFSException as err:
-            raise TaskException(errno.EFAULT, str(err))
+            raise TaskException(zfs_error_to_errno(err.code), str(err))
 
 
 @private
@@ -394,7 +394,7 @@ class ZpoolDestroyTask(ZpoolBaseTask):
             zfs = get_zfs()
             zfs.destroy(name)
         except libzfs.ZFSException as err:
-            raise TaskException(errno.EFAULT, str(err))
+            raise TaskException(zfs_error_to_errno(err.code), str(err))
 
 
 @private
@@ -446,7 +446,7 @@ class ZpoolExtendTask(ZpoolBaseTask):
                 )
 
         except libzfs.ZFSException as err:
-            raise TaskException(errno.EFAULT, str(err))
+            raise TaskException(zfs_error_to_errno(err.code), str(err))
 
     def get_status(self):
         if not self.started:
@@ -457,7 +457,7 @@ class ZpoolExtendTask(ZpoolBaseTask):
             pool = zfs.get(self.pool)
             scrub = pool.scrub
         except libzfs.ZFSException as err:
-            raise TaskException(errno.EFAULT, str(err))
+            raise TaskException(zfs_error_to_errno(err.code), str(err))
 
         if scrub.state == libzfs.ScanState.SCANNING:
             self.progress = scrub.percentage
@@ -480,7 +480,7 @@ class ZpoolDetachTask(ZpoolBaseTask):
 
             vdev.detach()
         except libzfs.ZFSException as err:
-            raise TaskException(errno.EFAULT, str(err))
+            raise TaskException(zfs_error_to_errno(err.code), str(err))
 
 
 @private
@@ -498,7 +498,7 @@ class ZpoolReplaceTask(ZpoolBaseTask):
             new_vdev.path = vdev['path']
             ovdev.replace(new_vdev)
         except libzfs.ZFSException as err:
-            raise TaskException(errno.EFAULT, str(err))
+            raise TaskException(zfs_error_to_errno(err.code), str(err))
 
 
 @private
@@ -514,7 +514,7 @@ class ZpoolOfflineDiskTask(ZpoolBaseTask):
 
             vdev.offline(temporary)
         except libzfs.ZFSException as err:
-            raise TaskException(errno.EFAULT, str(err))
+            raise TaskException(zfs_error_to_errno(err.code), str(err))
 
 
 @private
@@ -530,7 +530,7 @@ class ZpoolOnlineDiskTask(ZpoolBaseTask):
 
             vdev.online()
         except libzfs.ZFSException as err:
-            raise TaskException(errno.EFAULT, str(err))
+            raise TaskException(zfs_error_to_errno(err.code), str(err))
 
 
 @private
@@ -542,7 +542,7 @@ class ZpoolUpgradeTask(ZpoolBaseTask):
             pool = zfs.get(pool)
             pool.upgrade()
         except libzfs.ZFSException as err:
-            raise TaskException(errno.EFAULT, str(err))
+            raise TaskException(zfs_error_to_errno(err.code), str(err))
 
 
 @private
@@ -563,7 +563,7 @@ class ZpoolImportTask(Task):
             pool = first_or_default(lambda p: str(p.guid) == guid, zfs.find_import())
             zfs.import_pool(pool, name, opts)
         except libzfs.ZFSException as err:
-            raise TaskException(errno.EFAULT, str(err))
+            raise TaskException(zfs_error_to_errno(err.code), str(err))
 
 
 @private
@@ -578,7 +578,7 @@ class ZpoolExportTask(ZpoolBaseTask):
             pool = zfs.get(name)
             zfs.export_pool(pool)
         except libzfs.ZFSException as err:
-            raise TaskException(errno.EFAULT, str(err))
+            raise TaskException(zfs_error_to_errno(err.code), str(err))
 
 
 class ZfsBaseTask(Task):
@@ -609,7 +609,7 @@ class ZfsDatasetMountTask(ZfsBaseTask):
             else:
                 dataset.mount()
         except libzfs.ZFSException as err:
-            raise TaskException(errno.EFAULT, str(err))
+            raise TaskException(zfs_error_to_errno(err.code), str(err))
 
 
 @private
@@ -624,11 +624,11 @@ class ZfsDatasetUmountTask(ZfsBaseTask):
             else:
                 dataset.umount()
         except libzfs.ZFSException as err:
-            raise TaskException(errno.EFAULT, str(err))
+            raise TaskException(zfs_error_to_errno(err.code), str(err))
 
 
 @private
-@accepts(str, str, h.ref('dataset-type'), h.object())
+@accepts(str, h.ref('dataset-type'), h.object())
 class ZfsDatasetCreateTask(Task):
     def check_type(self, type):
         try:
@@ -636,14 +636,15 @@ class ZfsDatasetCreateTask(Task):
         except AttributeError:
             raise VerifyException(errno.EINVAL, 'Invalid dataset type: {0}'.format(type))
 
-    def verify(self, pool_name, path, type, params=None):
+    def verify(self, path, type, params=None):
+        pool_name = path.split('/')[0]
         if not pool_exists(pool_name):
             raise VerifyException('Pool {0} not found'.format(pool_name))
 
         self.check_type(type)
         return ['zpool:{0}'.format(pool_name)]
 
-    def run(self, pool_name, path, type, params=None):
+    def run(self, path, type, params=None):
         self.check_type(type)
         try:
             params = params or {}
@@ -654,16 +655,16 @@ class ZfsDatasetCreateTask(Task):
                 del params['sparse']
 
             zfs = get_zfs()
-            pool = zfs.get(pool_name)
+            pool = zfs.get(path.split('/')[0])
             pool.create(path, params, fstype=self.type, sparse_vol=sparse)
         except libzfs.ZFSException as err:
-            raise TaskException(errno.EFAULT, str(err))
+            raise TaskException(zfs_error_to_errno(err.code), str(err))
 
 
 @private
-@accepts(str, str, str, h.any_of(bool, None), h.any_of(h.object(), None))
+@accepts(str, str, h.any_of(bool, None), h.any_of(h.object(), None))
 class ZfsSnapshotCreateTask(ZfsBaseTask):
-    def run(self, pool_name, path, snapshot_name, recursive=False, params=None):
+    def run(self, path, snapshot_name, recursive=False, params=None):
         if params:
             params = {k: v['value'] for k, v in params.items()}
 
@@ -672,37 +673,42 @@ class ZfsSnapshotCreateTask(ZfsBaseTask):
             ds = zfs.get_dataset(path)
             ds.snapshot('{0}@{1}'.format(path, snapshot_name), recursive=recursive, fsopts=params)
         except libzfs.ZFSException as err:
-            raise TaskException(errno.EFAULT, str(err))
+            raise TaskException(zfs_error_to_errno(err.code), str(err))
 
 
 @private
-@accepts(str, str, str, h.any_of(bool, None))
+@accepts(str, str, h.any_of(bool, None))
 class ZfsSnapshotDeleteTask(ZfsBaseTask):
-    def run(self, pool_name, path, snapshot_name, recursive=False):
+    def run(self, path, snapshot_name, recursive=False):
         try:
             zfs = get_zfs()
             snap = zfs.get_snapshot('{0}@{1}'.format(path, snapshot_name))
             snap.delete(recursive)
         except libzfs.ZFSException as err:
-            raise TaskException(errno.EFAULT, str(err))
+            raise TaskException(zfs_error_to_errno(err.code), str(err))
 
 
 @private
-@accepts(str, str, h.array(str), h.any_of(bool, None))
+@accepts(str, h.array(str), h.any_of(bool, None))
 class ZfsSnapshotDeleteMultipleTask(ZfsBaseTask):
-    def run(self, pool_name, path, snapshot_names, recursive=False):
+    def run(self, path, snapshot_names=None, recursive=False):
         try:
             zfs = get_zfs()
+
+            if snapshot_names is None:
+                ds = zfs.get_dataset(path)
+                snapshot_names = (i.snapshot_name for i in list(ds.snapshots))
+
             for i in snapshot_names:
                 snap = zfs.get_snapshot('{0}@{1}'.format(path, i))
                 snap.delete(recursive)
         except libzfs.ZFSException as err:
-            raise TaskException(errno.EFAULT, str(err))
+            raise TaskException(zfs_error_to_errno(err.code), str(err))
 
 
 @private
 class ZfsConfigureTask(ZfsBaseTask):
-    def run(self, pool_name, name, properties):
+    def run(self, name, properties):
         try:
             zfs = get_zfs()
             dataset = zfs.get_object(name)
@@ -716,7 +722,7 @@ class ZfsConfigureTask(ZfsBaseTask):
                     prop = libzfs.ZFSUserProperty(v['value'])
                     dataset.properties[k] = prop
         except libzfs.ZFSException as err:
-            raise TaskException(errno.EFAULT, str(err))
+            raise TaskException(zfs_error_to_errno(err.code), str(err))
 
 
 @private
@@ -727,7 +733,7 @@ class ZfsDestroyTask(ZfsBaseTask):
             dataset = zfs.get_object(name)
             dataset.delete()
         except libzfs.ZFSException as err:
-            raise TaskException(errno.EFAULT, str(err))
+            raise TaskException(zfs_error_to_errno(err.code), str(err))
 
 
 @private
@@ -739,7 +745,7 @@ class ZfsRenameTask(ZfsBaseTask):
             dataset = zfs.get_object(name)
             dataset.rename(new_name)
         except libzfs.ZFSException as err:
-            raise TaskException(errno.EFAULT, str(err))
+            raise TaskException(zfs_error_to_errno(err.code), str(err))
 
 
 @private
@@ -751,7 +757,7 @@ class ZfsCloneTask(ZfsBaseTask):
             dataset = zfs.get_dataset(path)
             dataset.delete()
         except libzfs.ZFSException as err:
-            raise TaskException(errno.EFAULT, str(err))
+            raise TaskException(zfs_error_to_errno(err.code), str(err))
 
 
 @private
@@ -765,7 +771,7 @@ class ZfsSendTask(ZfsBaseTask):
                 libzfs.SendFlag.PROPS
             })
         except libzfs.ZFSException as err:
-            raise TaskException(errno.EFAULT, str(err))
+            raise TaskException(zfs_error_to_errno(err.code), str(err))
         finally:
             os.close(fd.fd)
 
@@ -778,7 +784,7 @@ class ZfsReceiveTask(ZfsBaseTask):
             obj = zfs.get_dataset(name)
             obj.receive(fd.fd, force, nomount, props, limitds)
         except libzfs.ZFSException as err:
-            raise TaskException(errno.EFAULT, str(err))
+            raise TaskException(zfs_error_to_errno(err.code), str(err))
         finally:
             os.close(fd.fd)
 
@@ -939,6 +945,22 @@ def zpool_try_clear(name, vdev):
         return
 
     logger.warning('Device {0} reattach to pool {1} failed'.format(vdev['path'], name))
+
+
+def zfs_error_to_errno(code):
+    mapping = {
+        libzfs.Error.NOMEM: errno.ENOMEM,
+        libzfs.Error.NOENT: errno.ENOENT,
+        libzfs.Error.BUSY: errno.EBUSY,
+        libzfs.Error.UMOUNTFAILED: errno.EBUSY,
+        libzfs.Error.EXISTS: errno.EEXIST,
+        libzfs.Error.PERM: errno.EPERM,
+        libzfs.Error.FAULT: errno.EFAULT,
+        libzfs.Error.IO: errno.EIO,
+        libzfs.Error.NOSPC: errno.ENOSPC
+    }
+
+    return mapping.get(code, errno.EFAULT)
 
 
 def get_zfs():

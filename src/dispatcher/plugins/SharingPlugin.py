@@ -30,7 +30,7 @@ import errno
 from freenas.dispatcher.rpc import description, accepts, returns, private
 from freenas.dispatcher.rpc import SchemaHelper as h, generator
 from task import Task, TaskException, VerifyException, Provider, RpcException, query
-from freenas.utils import normalize
+from freenas.utils import normalize, in_directory
 from utils import split_dataset, save_config, load_config, delete_config
 
 
@@ -91,7 +91,7 @@ class SharesProvider(Provider):
         for i in shares:
             target_path = self.translate_path(i['id'])
             if recursive:
-                if target_path.startswith(path):
+                if in_directory(target_path, path):
                     result.append(i)
             else:
                 if target_path == path:
@@ -245,11 +245,14 @@ class CreateShareTask(Task):
 
         new_share = self.datastore.get_by_id('shares', ids[0])
         path = self.dispatcher.call_sync('share.get_directory_path', new_share['id'])
-        save_config(
-            path,
-            '{0}-{1}'.format(new_share['type'], new_share['name']),
-            new_share
-        )
+        try:
+            save_config(
+                path,
+                '{0}-{1}'.format(new_share['type'], new_share['name']),
+                new_share
+            )
+        except OSError as err:
+            self.add_warning(errno.ENXIO, 'Cannot save backup config file: {0}'.format(str(err)))
 
         return ids[0]
 
@@ -278,12 +281,12 @@ class UpdateShareTask(Task):
         path_after_update = updated_fields.get('target_path', share['target_path'])
         type_after_update = updated_fields.get('target_type', share['target_type'])
         share_path = self.dispatcher.call_sync('share.expand_path', path_after_update, type_after_update)
-        if type_after_update != 'FILE':
-            share_path = os.path.dirname(share_path)
+
         if not os.path.exists(share_path):
-            raise VerifyException(errno.ENOENT, 'Selected share target {0} does not exist or cannot be created'.format(
-                path_after_update
-            ))
+            raise VerifyException(
+                errno.ENOENT,
+                'Selected share target {0} does not exist'.format(path_after_update)
+            )
 
         return ['system']
 
@@ -327,11 +330,14 @@ class UpdateShareTask(Task):
 
         updated_share = self.datastore.get_by_id('shares', id)
         path = self.dispatcher.call_sync('share.get_directory_path', updated_share['id'])
-        save_config(
-            path,
-            '{0}-{1}'.format(updated_share['type'], updated_share['name']),
-            updated_share
-        )
+        try:
+            save_config(
+                path,
+                '{0}-{1}'.format(updated_share['type'], updated_share['name']),
+                updated_share
+            )
+        except OSError as err:
+            self.add_warning(errno.ENXIO, 'Cannot save backup config file: {0}'.format(str(err)))
 
 
 @description("Imports existing share")

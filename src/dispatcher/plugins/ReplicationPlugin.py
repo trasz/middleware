@@ -32,78 +32,18 @@ import os
 import errno
 import re
 import logging
-import paramiko
 from resources import Resource
-from paramiko import RSAKey, AuthenticationException
+from paramiko import RSAKey
 from datetime import datetime
 from dateutil.parser import parse as parse_datetime
 from task import Provider, Task, ProgressTask, VerifyException, TaskException, TaskWarning, query
-from freenas.dispatcher.rpc import RpcException, SchemaHelper as h, description, accepts, returns, private
-from freenas.dispatcher.client import Client
+from freenas.dispatcher.rpc import RpcException, SchemaHelper as h, description, accepts, returns
 from freenas.dispatcher.fd import FileDescriptor
-from utils import get_replication_client
-from freenas.utils import to_timedelta, first_or_default, extend
+from utils import get_replication_client, load_config, split_dataset
+from freenas.utils import first_or_default
 from freenas.utils.query import wrap
-from utils import load_config
-from lib import sendzfs
-
-"""
-# Bandwidth Limit.
-if  bandlim != 0:
-    throttle = '/usr/local/bin/throttle -K %d | ' % bandlim
-else:
-    throttle = ''
-
-#
-# Build the SSH command
-#
-
-# Cipher
-if cipher == 'fast':
-    sshcmd = ('/usr/bin/ssh -c arcfour256,arcfour128,blowfish-cbc,'
-              'aes128-ctr,aes192-ctr,aes256-ctr -i /data/ssh/replication'
-              ' -o BatchMode=yes -o StrictHostKeyChecking=yes'
-              # There's nothing magical about ConnectTimeout, it's an average
-              # of wiliam and josh's thoughts on a Wednesday morning.
-              # It will prevent hunging in the status of "Sending".
-              ' -o ConnectTimeout=7'
-             )
-elif cipher == 'disabled':
-    sshcmd = ('/usr/bin/ssh -ononeenabled=yes -ononeswitch=yes -i /data/ssh/replication -o BatchMode=yes'
-              ' -o StrictHostKeyChecking=yes'
-              ' -o ConnectTimeout=7')
-else:
-    sshcmd = ('/usr/bin/ssh -i /data/ssh/replication -o BatchMode=yes'
-              ' -o StrictHostKeyChecking=yes'
-              ' -o ConnectTimeout=7')
-
-# Remote IP/hostname and port.  This concludes the preparation task to build SSH command
-sshcmd = '%s -p %d %s' % (sshcmd, remote_port, remote)
-"""
 
 logger = logging.getLogger(__name__)
-SYSTEM_RE = re.compile('^[^/]+/.system.*')
-AUTOSNAP_RE = re.compile(
-    '^(?P<prefix>\w+)-(?P<year>\d{4})(?P<month>\d{2})(?P<day>\d{2})'
-    '.(?P<hour>\d{2})(?P<minute>\d{2})-(?P<lifetime>\d+[hdwmy])(-(?P<sequence>\d+))?$'
-)
-SSH_OPTIONS = {
-    'NONE': [
-        '-ononeenabled=yes',
-        '-ononeswitch=yes',
-        '-o BatchMode=yes',
-        '-o ConnectTimeout=7'
-    ],
-    'FAST': [
-        '-c arcfour256,arcfour128,blowfish-cbc,aes128-ctr,aes192-ctr,aes256-ctr',
-        '-o BatchMode=yes',
-        '-o ConnectTimeout=7'
-    ],
-    'NORMAL': [
-        '-o BatchMode=yes',
-        '-o ConnectTimeout=7'
-    ]
-}
 
 
 class ReplicationActionType(enum.Enum):
@@ -128,12 +68,6 @@ class ReplicationAction(object):
 
 
 class ReplicationProvider(Provider):
-    def get_public_key(self):
-        return self.configstore.get('replication.key.public')
-
-    def scan_keys_on_host(self, hostname):
-        return self.dispatcher.call_task_sync('replication.scan_hostkey', hostname)
-
     def datasets_from_link(self, link):
         datasets = []
         for dataset in link['datasets']:
@@ -190,21 +124,6 @@ class ReplicationLinkProvider(Provider):
             return None
 
 
-@accepts(str)
-class ScanHostKeyTask(Task):
-    def verify(self, hostname):
-        return []
-
-    def run(self, hostname):
-        transport = paramiko.transport.Transport(hostname)
-        transport.start_client()
-        key = transport.get_remote_server_key()
-        return {
-            'name': key.get_name(),
-            'key': key.get_base64()
-        }
-
-
 class ReplicationBaseTask(Task):
     def get_replication_state(self, link):
         is_master = False
@@ -212,10 +131,10 @@ class ReplicationBaseTask(Task):
         ips = self.dispatcher.call_sync('network.config.get_my_ips')
         for ip in ips:
             for partner in link['partners']:
-                if partner.endswith(ip) and partner == link['master']:
+                if partner == ip and partner == link['master']:
                     is_master = True
         for partner in link['partners']:
-            if partner.split('@', 1)[1] not in ips:
+            if partner not in ips:
                 remote = partner
 
         return is_master, remote
@@ -225,13 +144,13 @@ class ReplicationBaseTask(Task):
             if client:
                 client.call_task_sync(
                     'zfs.update',
-                    dataset['name'], dataset['name'],
+                    dataset['name'],
                     {'readonly': {'value': 'on' if readonly else 'off'}}
                 )
             else:
                 self.join_subtasks(self.run_subtask(
                     'zfs.update',
-                    dataset['name'], dataset['name'],
+                    dataset['name'],
                     {'readonly': {'value': 'on' if readonly else 'off'}}
                 ))
 
@@ -259,12 +178,7 @@ class ReplicationCreateTask(ReplicationBaseTask):
         ips = self.dispatcher.call_sync('network.config.get_my_ips')
         for ip in ips:
             for partner in partners:
-                if '@' not in partner:
-                    raise VerifyException(
-                        errno.EINVAL,
-                        'Please provide replication link partners as username@host'
-                    )
-                if partner.endswith(ip):
+                if partner == ip:
                     ip_matches = True
 
         if not ip_matches:
@@ -279,19 +193,10 @@ class ReplicationCreateTask(ReplicationBaseTask):
                 'Replication link can only have 2 partners. Value {0} is not permitted.'.format(len(partners))
             )
 
-        usernames = [partners[0].split('@')[0], partners[1].split('@')[0]]
-        if self.dispatcher.call_sync('user.query', [('username', '=', usernames[0])], {'single': True}):
-            pass
-        elif not self.dispatcher.call_sync('user.query', [('username', '=', usernames[1])], {'single': True}):
-            raise VerifyException(
-                errno.ENOENT,
-                'At least one of provided user names is not valid: {0}, {1}'.format(usernames[0], usernames[1])
-            )
-
         if link['master'] not in partners:
             raise VerifyException(
                 errno.EINVAL,
-                'Replication master must be one of replication partners {0}, {1}'.format(partners[0], partners[1])
+                'Replication master must be one of replication partners {0}, {1}'.format(*partners)
             )
 
         if link['replicate_services'] and not link['bidirectional']:
@@ -308,7 +213,7 @@ class ReplicationCreateTask(ReplicationBaseTask):
             link['update_date'] = str(datetime.utcnow())
 
         is_master, remote = self.get_replication_state(link)
-        remote_client = get_remote_client(remote)
+        remote_client = get_replication_client(self.dispatcher, remote)
 
         remote_link = remote_client.call_sync('replication.link.get_one_local', link['name'])
         id = self.datastore.insert('replication.links', link)
@@ -357,7 +262,7 @@ class ReplicationPrepareSlaveTask(ReplicationBaseTask):
             return disk
 
         is_master, remote = self.get_replication_state(link)
-        remote_client = get_remote_client(remote)
+        remote_client = get_replication_client(self.dispatcher, remote)
 
         if is_master:
             with self.dispatcher.get_lock('volumes'):
@@ -391,11 +296,11 @@ class ReplicationPrepareSlaveTask(ReplicationBaseTask):
                                     'Container {0} already exists on {1}'.format(container['name'], remote.split('@', 1)[1])
                                 )
 
-                    split_dataset = dataset['name'].split('/', 1)
-                    volume_name = split_dataset[0]
+                    sp_dataset = dataset['name'].split('/', 1)
+                    volume_name = sp_dataset[0]
                     dataset_name = None
-                    if len(split_dataset) == 2:
-                        dataset_name = split_dataset[1]
+                    if len(sp_dataset) == 2:
+                        dataset_name = sp_dataset[1]
 
                     vol = self.datastore.get_one('volumes', ('id', '=', volume_name))
                     if vol.get('encrypted'):
@@ -533,7 +438,7 @@ class ReplicationDeleteTask(ReplicationBaseTask):
             'ids': [link['id']]
         })
 
-        remote_client = get_remote_client(remote)
+        remote_client = get_replication_client(self.dispatcher, remote)
 
         if not is_master:
             for service in ['shares', 'containers']:
@@ -575,7 +480,7 @@ class ReplicationUpdateTask(ReplicationBaseTask):
     def run(self, name, updated_fields):
         link = self.join_subtasks(self.run_subtask('replication.get_latest_link', name))[0]
         is_master, remote = self.get_replication_state(link)
-        remote_client = get_remote_client(remote)
+        remote_client = get_replication_client(self.dispatcher, remote)
         partners = link['partners']
         old_slave_datasets = []
 
@@ -585,7 +490,7 @@ class ReplicationUpdateTask(ReplicationBaseTask):
             if not updated_fields['master'] in partners:
                 raise TaskException(
                     errno.EINVAL,
-                    'Replication master must be one of replication partners {0}, {1}'.format(partners[0], partners[1])
+                    'Replication master must be one of replication partners {0}, {1}'.format(*partners)
                 )
 
         if 'datasets' in updated_fields:
@@ -657,14 +562,13 @@ class ReplicationSyncTask(ReplicationBaseTask):
     def run(self, name):
         link = self.join_subtasks(self.run_subtask('replication.get_latest_link', name))[0]
         is_master, remote = self.get_replication_state(link)
-        remote_client = get_remote_client(remote)
+        remote_client = get_replication_client(self.dispatcher, remote)
         if is_master:
             with self.dispatcher.get_lock('volumes'):
                 datasets_to_replicate = self.dispatcher.call_sync('replication.datasets_from_link', link)
                 for dataset in datasets_to_replicate:
                     self.join_subtasks(self.run_subtask(
                         'replication.replicate_dataset',
-                        dataset['name'],
                         dataset['name'],
                         {
                             'remote': remote,
@@ -747,7 +651,7 @@ class ReplicationReserveServicesTask(ReplicationBaseTask):
             else:
                 raise TaskException(errno.EINVAL, 'Selected link is not allowed to replicate services')
         else:
-            remote_client = get_remote_client(remote)
+            remote_client = get_replication_client(self.dispatcher, remote)
             remote_client.call_task_sync('replication.reserve_services', name)
             remote_client.disconnect()
 
@@ -755,13 +659,13 @@ class ReplicationReserveServicesTask(ReplicationBaseTask):
 @accepts(str, str, bool, int, str, bool)
 @returns(str)
 class SnapshotDatasetTask(Task):
-    def verify(self, pool, dataset, recursive, lifetime, prefix='auto', replicable=False):
+    def verify(self, dataset, recursive, lifetime, prefix='auto', replicable=False):
         if not self.dispatcher.call_sync('zfs.dataset.query', [('name', '=', dataset)], {'single': True}):
             raise VerifyException(errno.ENOENT, 'Dataset {0} not found'.format(dataset))
 
         return ['zfs:{0}'.format(dataset)]
 
-    def run(self, pool, dataset, recursive, lifetime, prefix='auto', replicable=False):
+    def run(self, dataset, recursive, lifetime, prefix='auto', replicable=False):
         snapname = '{0}-{1:%Y%m%d.%H%M}'.format(prefix, datetime.utcnow())
         params = {
             'org.freenas:uuid': {'value': str(uuid.uuid4())},
@@ -789,7 +693,6 @@ class SnapshotDatasetTask(Task):
 
         self.join_subtasks(self.run_subtask(
             'zfs.create_snapshot',
-            pool,
             dataset,
             snapname,
             recursive,
@@ -945,26 +848,11 @@ class CalculateReplicationDeltaTask(Task):
 
 
 @description("Runs a replication task with the specified arguments")
-#@accepts(h.all_of(
-#    h.ref('autorepl'),
-#    h.required(
-#        'remote',
-#        'remote_port',
-#        'dedicateduser',
-#        'cipher',
-#        'localfs',
-#        'remotefs',
-#        'compression',
-#        'bandlim',
-#        'followdelete',
-#        'recursive',
-#    ),
-#))
 class ReplicateDatasetTask(ProgressTask):
-    def verify(self, pool, localds, options, dry_run=False):
+    def verify(self, localds, options, dry_run=False):
         return ['zfs:{0}'.format(localds)]
 
-    def run(self, pool, localds, options, dry_run=False):
+    def run(self, localds, options, dry_run=False):
         remote = options['remote']
         remoteds = options['remote_dataset']
         followdelete = options.get('followdelete', False)
@@ -973,7 +861,6 @@ class ReplicateDatasetTask(ProgressTask):
 
         self.join_subtasks(self.run_subtask(
             'volume.snapshot_dataset',
-            pool,
             localds,
             True,
             lifetime,
@@ -1040,14 +927,13 @@ class ReplicateDatasetTask(ProgressTask):
         for idx, action in enumerate(actions):
             progress = float(idx) / len(actions) * 100
 
-            if action['type'] == ReplicationActionType.DELETE_SNAPSHOTS.name:
-                self.set_progress(progress, 'Removing snapshots on remote dataset {0}'.format(action.remotefs))
+            if action['type'] in (ReplicationActionType.DELETE_SNAPSHOTS.name, ReplicationActionType.CLEAR_SNAPSHOTS.name):
+                self.set_progress(progress, 'Removing snapshots on remote dataset {0}'.format(action['remotefs']))
                 # Remove snapshots on remote side
                 result = remote_client.call_task_sync(
                     'zfs.delete_multiple_snapshots',
-                    action['remotefs'].split('/')[0],
                     action['remotefs'],
-                    list(action['snapshots'])
+                    action.get('snapshots')
                 )
 
                 if result['state'] != 'FINISHED':
@@ -1062,29 +948,29 @@ class ReplicateDatasetTask(ProgressTask):
                     action['snapshot']
                 ))
 
-            rd_fd, wr_fd = os.pipe()
-            fromsnap = action['anchor'] if 'anchor' in action else None
+                rd_fd, wr_fd = os.pipe()
+                fromsnap = action['anchor'] if 'anchor' in action else None
 
-            self.join_subtasks(
-                self.run_subtask(
-                    'zfs.send',
-                    action['localfs'],
-                    fromsnap,
-                    action['snapshot'],
-                    FileDescriptor(wr_fd)
-                ),
-                self.run_subtask(
-                    'replication.transport.send',
-                    FileDescriptor(rd_fd),
-                    {
-                        'client_address': remote,
-                        'receive_properties': {
-                            'name': action['remotefs'],
-                            'force': True
+                self.join_subtasks(
+                    self.run_subtask(
+                        'zfs.send',
+                        action['localfs'],
+                        fromsnap,
+                        action['snapshot'],
+                        FileDescriptor(wr_fd)
+                    ),
+                    self.run_subtask(
+                        'replication.transport.send',
+                        FileDescriptor(rd_fd),
+                        {
+                            'client_address': remote,
+                            'receive_properties': {
+                                'name': action['remotefs'],
+                                'force': True
+                            }
                         }
-                    }
+                    )
                 )
-            )
 
             if action['type'] == ReplicationActionType.DELETE_DATASET.name:
                 self.set_progress(progress, 'Removing remote dataset {0}'.format(action['remotefs']))
@@ -1124,11 +1010,11 @@ class ReplicationGetLatestLinkTask(Task):
         latest_link = local_link
 
         for partner in local_link['partners']:
-            if partner.split('@', 1)[1] not in ips:
+            if partner not in ips:
                 remote = partner
 
         try:
-            client = get_remote_client(remote)
+            client = get_replication_client(self.dispatcher, remote)
             remote_link = client.call_sync('replication.link.get_one_local', name)
         except RpcException:
             pass
@@ -1163,10 +1049,9 @@ class ReplicationUpdateLinkTask(Task):
             if partner not in remote_link.get('partners', []):
                 raise TaskException(
                     errno.EINVAL,
-                    'One of remote link partners {0} do not match local link partners {2}, {3}'.format(
+                    'One of remote link partners {0} do not match local link partners {1}, {2}'.format(
                         partner,
-                        remote_link['partners'][0],
-                        remote_link['partners'][1]
+                        *remote_link['partners']
                     )
                 )
 
@@ -1290,30 +1175,6 @@ class ReplicationRoleUpdateTask(ReplicationBaseTask):
                             self.join_subtasks(self.run_subtask('container.export', container['name']))
 
 
-#
-# Attempt to send a snapshot or increamental stream to remote.
-#
-def send_dataset(remote, hostkey, fromsnap, tosnap, dataset, remotefs, compression, throttle):
-    zfs = sendzfs.SendZFS()
-    zfs.send(remote, hostkey, fromsnap, tosnap, dataset, remotefs, compression, throttle, 1024*1024, None)
-
-
-def get_remote_client(remote):
-    with open('/etc/replication/key') as f:
-        pkey = RSAKey.from_private_key(f)
-
-    try:
-        remote_client = Client()
-        remote_client.connect('ws+ssh://{0}'.format(remote), pkey=pkey)
-        remote_client.login_service('replicator')
-        return remote_client
-
-    except AuthenticationException:
-        raise RpcException(errno.EAUTH, 'Cannot connect to {0}'.format(remote))
-    except (OSError, ConnectionRefusedError):
-        raise RpcException(errno.ECONNREFUSED, 'Cannot connect to {0}'.format(remote))
-
-
 def _depends():
     return ['NetworkPlugin']
 
@@ -1392,7 +1253,6 @@ def _init(dispatcher, plugin):
     plugin.register_provider('replication', ReplicationProvider)
     plugin.register_provider('replication.link', ReplicationLinkProvider)
     plugin.register_task_handler('volume.snapshot_dataset', SnapshotDatasetTask)
-    plugin.register_task_handler('replication.scan_hostkey', ScanHostKeyTask)
     plugin.register_task_handler('replication.calculate_delta', CalculateReplicationDeltaTask)
     plugin.register_task_handler('replication.replicate_dataset', ReplicateDatasetTask)
     plugin.register_task_handler('replication.get_latest_link', ReplicationGetLatestLinkTask)

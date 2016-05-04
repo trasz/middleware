@@ -31,6 +31,7 @@ import traceback
 import errno
 import subprocess
 import gevent
+import logging
 from resources import Resource
 from gevent.event import Event
 from gevent.lock import Semaphore
@@ -127,6 +128,12 @@ class ManagementService(RpcService):
             result.extend(c.__getstate__() for c in hook(self.dispatcher))
 
         return result
+
+    def set_logging_level(self, level):
+        self.dispatcher.set_syslog_level(level)
+
+    def get_logging_level(self):
+        return logging.getLogger().getEffectiveLevel()
 
 
 class DebugService(RpcService):
