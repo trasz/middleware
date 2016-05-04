@@ -320,7 +320,11 @@
             "container.network.management": "169.254.16.1/20",
             "container.network.nat": "169.254.32.1/20",
             "storage.hotsparing.autoreplace": true,
-            "storage.hotsparing.strong_match": false
+            "storage.hotsparing.strong_match": false,
+            "directory.search_order": [],
+            "directory.cache_ttl": 300,
+            "directory.cache_enumerations": true,
+            "directory.cache_lookups": true
         },
         "metadata": {
             "attributes": {
@@ -521,8 +525,7 @@
             },
             "6C58080B-7EFB-11E5-BBEC-005056826348": {
                 "dependencies": [
-                    "file:krb5.conf",
-                    "file:krb5.keytab"
+                    "file:krb5.conf"
                 ],
                 "name": "kerberos"
             },
@@ -1421,7 +1424,7 @@
     {
         "metadata": {
             "name": "directories",
-            "migration": "replace",
+            "migration": "merge-preserve",
             "pkey-type": "uuid",
             "attributes": {
                 "type": "config"
@@ -1429,7 +1432,6 @@
         },
         "data": {
             "946331F6-475A-4F99-8482-0881EC0C616E": {
-                "priority": 999,
                 "name": "local",
                 "plugin": "local",
                 "enabled": true,
@@ -1439,7 +1441,6 @@
                 "parameters": {}
             },
             "0B078C8C-B132-471F-B671-DC20C1396912": {
-                "priority": 998,
                 "name": "system",
                 "plugin": "file",
                 "enabled": true,
