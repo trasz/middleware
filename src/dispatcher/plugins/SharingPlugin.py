@@ -302,7 +302,7 @@ class UpdateShareTask(Task):
         except OSError:
             pass
 
-        if 'type' in updated_fields:
+        if 'type' in updated_fields and updated_fields['type'] != share['type']::
             old_share_type = share['type']
             new_share_type = self.dispatcher.call_sync('share.supported_types').get(updated_fields['type'])
             if share['target_type'] == 'DATASET':
