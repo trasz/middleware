@@ -1436,6 +1436,7 @@
                 "plugin": "local",
                 "enabled": true,
                 "immutable": true,
+                "enumerate": true,
                 "uid_range": [1000, 99999],
                 "gid_range": [1000, 99999],
                 "parameters": {}
@@ -1445,6 +1446,7 @@
                 "plugin": "file",
                 "enabled": true,
                 "immutable": true,
+                "enumerate": true,
                 "uid_range": [0, 999],
                 "gid_range": [0, 999],
                 "parameters": {
