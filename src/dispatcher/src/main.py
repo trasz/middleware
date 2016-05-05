@@ -46,14 +46,12 @@ import errno
 import setproctitle
 import traceback
 import tempfile
-import struct
 import cgi
 import pwd
 import subprocess
-import websocket
+import websocket  # do not remove - we import it only for side effects
 
 import gevent
-from gevent import Greenlet
 from pyee import EventEmitter
 from gevent.os import tp_read, tp_write, forkpty_and_watch
 from gevent.queue import Queue
@@ -823,6 +821,7 @@ class DispatcherConnection(ServerConnection):
     def __init__(self, parent):
         super(DispatcherConnection, self).__init__(parent)
         self.dispatcher = parent.context
+        self.rpc = parent.context.rpc
         self.credentials = None
         self.proxy_address = None
         self.server_pending_calls = {}
@@ -1123,35 +1122,6 @@ class DispatcherConnection(ServerConnection):
         del self.client_pending_calls[id]
 
     def on_rpc_call(self, id, data):
-        def dispatch_call_async(id, method, args):
-            try:
-                streaming = 'streaming_responses' in self.enabled_features
-                result = self.dispatcher.rpc.dispatch_call(method, args, sender=self, streaming=streaming)
-            except RpcException as err:
-                self.trace('RPC error: id={0} code={0} message={1} extra={2}'.format(
-                    id,
-                    err.code,
-                    err.message,
-                    err.extra
-                ))
-
-                self.send_error(id, err.code, err.message, err.extra)
-            else:
-                if isinstance(result, RpcStreamingResponse):
-                    try:
-                        for i in result:
-                            self.trace('RPC response fragment: id={0} result={1}'.format(id, i))
-                            self.send('rpc', 'response_fragment', i, id=id)
-                    except RpcException as err:
-                        self.send_error(id, err.code, err.message, err.extra)
-                        return
-
-                    self.trace('RPC response end: id={0}'.format(id))
-                    self.send('rpc', 'response_end', None, id=id)
-                else:
-                    self.trace('RPC response: id={0} result={1}'.format(id, result))
-                    self.send_response(id, result)
-
         if self.user is None:
             self.emit_rpc_error(id, errno.EACCES, 'Not logged in')
             return
@@ -1165,19 +1135,7 @@ class DispatcherConnection(ServerConnection):
                 self.logout('Logged out due to inactivity period')
                 return
 
-        method = data["method"]
-        args = data["args"]
-
-        self.trace('RPC call: id={0} method={1} args={2}'.format(id, method, args))
-
-        greenlet = Greenlet(dispatch_call_async, id, method, args)
-        self.server_pending_calls[id] = {
-            "method": method,
-            "args": args,
-            "greenlet": greenlet
-        }
-
-        greenlet.start()
+        super(DispatcherConnection, self).on_rpc_call(id, data)
 
     def open_session(self):
         self.session_id = self.dispatcher.datastore.insert('sessions', {
@@ -1221,6 +1179,9 @@ class DispatcherConnection(ServerConnection):
 
         if feature == 'strict_validation':
             self.dispatcher.rpc.strict_validation = True
+
+        if feature == 'streaming_responses':
+            self.streaming = True
 
         self.enabled_features.add(feature)
 
