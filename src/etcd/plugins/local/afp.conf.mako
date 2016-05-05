@@ -6,10 +6,6 @@
         uam_list.append('uams_guest.so')
 
     def norm_users(users, groups):
-        if type(users) is str:
-            users = [users]
-        if type(groups) is str:
-            groups = [groups]
         if groups:
             groups = ['@' + group for group in groups]
         return users if users else [] + groups if groups else []
