@@ -76,6 +76,8 @@ class CreateAFPShareTask(Task):
             'rw_list': None,
             'users_allow': None,
             'users_deny': None,
+            'groups_allow': None,
+            'groups_deny': None,
             'hosts_allow': None,
             'hosts_deny': None
         })
@@ -188,6 +190,14 @@ def _init(dispatcher, plugin):
                 'items': {'type': 'string'}
             },
             'users_deny': {
+                'type': ['array', 'null'],
+                'items': {'type': 'string'}
+            },
+            'groups_allow': {
+                'type': ['array', 'null'],
+                'items': {'type': 'string'}
+            },
+            'groups_deny': {
                 'type': ['array', 'null'],
                 'items': {'type': 'string'}
             },

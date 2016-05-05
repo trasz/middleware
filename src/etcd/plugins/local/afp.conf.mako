@@ -49,8 +49,8 @@
 % for share in dispatcher.call_sync("share.query", [("type", "=", "afp"), ("enabled", "=", True)]):
 [${share["name"]}]
 ${opt("path", share["filesystem_path"])}\
-${opt("valid users", share["properties"].get("users_allow"))}\
-${opt("invalid users", share["properties"].get("users_deny"))}\
+${opt("valid users", share["properties"].get("users_allow") + ['@' + group for group in share["properties"].get("groups_allow")])}\
+${opt("invalid users", share["properties"].get("users_deny") + ['@' + group for group in share["properties"].get("groups_deny")])}\
 ${opt("hosts allow", share["properties"].get("hosts_allow"))}\
 ${opt("hosts deny", share["properties"].get("hosts_deny"))}\
 ${opt("rolist", share["properties"].get("ro_list"))}\
