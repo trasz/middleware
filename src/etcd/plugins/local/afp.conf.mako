@@ -5,6 +5,14 @@
     if afp['guest_enable']:
         uam_list.append('uams_guest.so')
 
+    def norm_users(users, groups):
+        if type(users) is str:
+            users = [users]
+        if type(groups) is str:
+            groups = [groups]
+        if groups:
+            groups = ['@' + group for group in groups]
+        return users if users else [] + groups if groups else []
 %>\
 <%def name="opt(name, val)">\
 % if val:
@@ -49,8 +57,8 @@
 % for share in dispatcher.call_sync("share.query", [("type", "=", "afp"), ("enabled", "=", True)]):
 [${share["name"]}]
 ${opt("path", share["filesystem_path"])}\
-${opt("valid users", share["properties"].get("users_allow") + ['@' + group for group in share["properties"].get("groups_allow")])}\
-${opt("invalid users", share["properties"].get("users_deny") + ['@' + group for group in share["properties"].get("groups_deny")])}\
+${opt("valid users", norm_users(share["properties"].get("users_allow"), share["properties"].get("groups_allow")))}\
+${opt("invalid users", norm_users(share["properties"].get("users_deny"), share["properties"].get("groups_deny")))}\
 ${opt("hosts allow", share["properties"].get("hosts_allow"))}\
 ${opt("hosts deny", share["properties"].get("hosts_deny"))}\
 ${opt("rolist", share["properties"].get("ro_list"))}\
