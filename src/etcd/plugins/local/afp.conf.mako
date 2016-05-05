@@ -8,7 +8,7 @@
     def norm_users(users, groups):
         if groups:
             groups = ['@' + group for group in groups]
-        return users if users else [] + groups if groups else []
+        return (users if users else []) + (groups if groups else [])
 %>\
 <%def name="opt(name, val)">\
 % if val:
