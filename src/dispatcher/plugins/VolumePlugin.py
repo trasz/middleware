@@ -731,12 +731,26 @@ class VolumeUpdateTask(Task):
                 {'single': True, 'select': 'topology'}
             )
 
-            new_topology = []
-            for vdev in old_topology['data']:
-                if vdev['type'] == 'disk':
-                    new_topology.append({'type': vdev['type'], 'path': vdev['path'], 'guid': vdev['guid']})
-                else:
-                    new_topology.append({'type': vdev['type'], 'children': vdev['children'], 'guid': vdev['guid']})
+            new_topology = {
+                'data': [],
+                'log': [],
+                'cache': [],
+                'spare': []
+            }
+            for vdev_type in new_topology:
+                for vdev in old_topology[vdev_type]:
+                    if vdev['type'] == 'disk':
+                        new_topology[vdev_type].append({
+                                'type': vdev['type'],
+                                'path': vdev['path'],
+                                'guid': vdev['guid']
+                        })
+                    else:
+                        new_topology[vdev_type].append({
+                            'type': vdev['type'],
+                            'children': vdev['children'],
+                            'guid': vdev['guid']
+                        })
 
             for group, vdevs in list(updated_params['topology'].items()):
                 for vdev in vdevs:
@@ -797,17 +811,22 @@ class VolumeUpdateTask(Task):
                         'vdev': vdev['children'][-1]
                     })
 
-                    for idx, entry in enumerate(new_topology):
-                        if entry['guid'] is old_vdev['guid']:
-                            del new_topology[idx]
-                            if vdev['type'] == 'disk':
-                                new_topology.append({'type': vdev['type'], 'path': vdev['path'], 'guid': vdev['guid']})
-                            else:
-                                new_topology.append({
-                                    'type': vdev['type'],
-                                    'children': vdev['children'],
-                                    'guid': vdev['guid']
-                                })
+                    for vdev_type in new_topology:
+                        for idx, entry in enumerate(new_topology[vdev_type]):
+                            if entry['guid'] is old_vdev['guid']:
+                                del new_topology[vdev_type][idx]
+                                if vdev['type'] == 'disk':
+                                    new_topology[vdev_type].append({
+                                        'type': vdev['type'],
+                                        'path': vdev['path'],
+                                        'guid': vdev['guid']
+                                    })
+                                else:
+                                    new_topology[vdev_type].append({
+                                        'type': vdev['type'],
+                                        'children': vdev['children'],
+                                        'guid': vdev['guid']
+                                    })
 
             for vdev, group in iterate_vdevs(new_vdevs):
                 if vdev['type'] == 'disk':
@@ -896,16 +915,17 @@ class VolumeUpdateTask(Task):
                 updated_vdevs)
             )
 
-            for vdev in new_topology:
-                vdev.pop('guid', None)
+            for vdev_type in new_topology:
+                for vdev in new_topology[vdev_type]:
+                    vdev.pop('guid', None)
 
             for vdev, group in iterate_vdevs(new_vdevs):
                 if vdev['type'] == 'disk':
-                    new_topology.append({'type': vdev['type'], 'path': vdev['path']})
+                    new_topology[group].append({'type': vdev['type'], 'path': vdev['path']})
                 else:
-                    new_topology.append({'type': vdev['type'], 'children': vdev['children']})
+                    new_topology[group].append({'type': vdev['type'], 'children': vdev['children']})
 
-            volume['topology'] = {'data': new_topology}
+            volume['topology'] = new_topology
             self.datastore.update('volumes', volume['id'], volume)
 
             self.dispatcher.dispatch_event('volume.changed', {
