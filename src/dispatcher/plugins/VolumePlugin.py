@@ -2186,10 +2186,14 @@ def _init(dispatcher, plugin):
         'additionalProperties': False,
         'properties': {
             'value': {'type': 'string'},
-            'rawvalue': {'type': 'string'},
+            'rawvalue': {
+                'type': 'string',
+                'readOnly': True
+            },
             'source': {
                 'type': 'string',
-                'enum': ['NONE', 'DEFAULT', 'LOCAL', 'INHERITED']
+                'enum': ['NONE', 'DEFAULT', 'LOCAL', 'INHERITED'],
+                'readOnly': True
             }
         }
     })
