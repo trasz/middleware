@@ -50,7 +50,7 @@ from freenas.dispatcher.rpc import (
 )
 from utils import first_or_default, load_config
 from datastore import DuplicateKeyException
-from freenas.utils import include, exclude, normalize, chunks, yesno_to_bool
+from freenas.utils import include, exclude, normalize, chunks, yesno_to_bool, remove_unchanged
 from freenas.utils.query import wrap
 from freenas.utils.copytree import count_files, copytree
 from cryptography.fernet import Fernet, InvalidToken
@@ -687,7 +687,9 @@ class VolumeUpdateTask(Task):
         if password is None:
             password = ''
 
-        volume = self.datastore.get_by_id('volumes', id)
+        volume = self.dispatcher.call_sync('volume.query', [('id', '=', id)], {'single': True})
+        remove_unchanged(updated_params, volume)
+
         encryption = volume.get('encryption')
         if not volume:
             raise TaskException(errno.ENOENT, 'Volume {0} not found'.format(id))
