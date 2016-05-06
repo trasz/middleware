@@ -208,34 +208,34 @@ class UserCreateTask(Task):
         else:
             uid = user.pop('uid')
 
+        normalize(user, {
+            'builtin': False,
+            'unixhash': '*',
+            'full_name': 'User &',
+            'shell': '/bin/sh',
+            'home': '/nonexistent',
+            'groups': [],
+            'uid': uid,
+            'attributes': {}
+        })
+
+        password = user.pop('password', None)
+        if password:
+            user['unixhash'] = crypted_password(password)
+
+        if user.get('group') is None:
+            try:
+                result = self.join_subtasks(self.run_subtask('group.create', {
+                    'gid': uid,
+                    'name': user['username']
+                }))
+            except RpcException as err:
+                raise err
+
+            user['group'] = result[0]
+            self.created_group = result[0]
+
         try:
-            normalize(user, {
-                'builtin': False,
-                'unixhash': '*',
-                'full_name': 'User &',
-                'shell': '/bin/sh',
-                'home': '/nonexistent',
-                'groups': [],
-                'uid': uid,
-                'attributes': {}
-            })
-
-            password = user.pop('password', None)
-            if password:
-                user['unixhash'] = crypted_password(password)
-
-            if user.get('group') is None:
-                try:
-                    result = self.join_subtasks(self.run_subtask('group.create', {
-                        'gid': uid,
-                        'name': user['username']
-                    }))
-                except RpcException as err:
-                    raise err
-
-                user['group'] = result[0]
-                self.created_group = result[0]
-
             id = self.datastore.insert('users', user)
             self.id = id
             self.dispatcher.call_sync('etcd.generation.generate_group', 'accounts')
@@ -289,10 +289,6 @@ class UserCreateTask(Task):
         return uid
 
     def rollback(self, user):
-        if user['home'] not in (None, '/nonexistent'):
-            if os.path.isdir(user['home']):
-                os.rmdir(user['home'])
-
         if self.datastore.exists('users', ('id', '=', self.id)):
             self.datastore.delete('users', self.id)
             self.dispatcher.call_sync('etcd.generation.generate_group', 'accounts')
