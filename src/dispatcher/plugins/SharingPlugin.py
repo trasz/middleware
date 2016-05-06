@@ -30,7 +30,7 @@ import errno
 from freenas.dispatcher.rpc import description, accepts, returns, private
 from freenas.dispatcher.rpc import SchemaHelper as h, generator
 from task import Task, TaskException, VerifyException, Provider, RpcException, query, TaskWarning
-from freenas.utils import normalize, in_directory
+from freenas.utils import normalize, in_directory, remove_unchanged
 from utils import split_dataset, save_config, load_config, delete_config
 
 
@@ -286,6 +286,7 @@ class UpdateShareTask(Task):
 
     def run(self, id, updated_fields):
         share = self.datastore.get_by_id('shares', id)
+        remove_unchanged(updated_fields, share)
 
         path = self.dispatcher.call_sync('share.get_directory_path', share['id'])
         try:
@@ -296,7 +297,7 @@ class UpdateShareTask(Task):
         except OSError:
             pass
 
-        if 'type' in updated_fields and updated_fields['type'] != share['type']:
+        if 'type' in updated_fields:
             old_share_type = share['type']
             new_share_type = self.dispatcher.call_sync('share.supported_types').get(updated_fields['type'])
             if share['target_type'] == 'DATASET':
@@ -528,7 +529,10 @@ def _init(dispatcher, plugin):
                 'enum': ['DATASET', 'ZVOL', 'DIRECTORY', 'FILE']
             },
             'target_path': {'type': 'string'},
-            'filesystem_path': {'type': 'string'},
+            'filesystem_path': {
+                'type': 'string',
+                'readOnly': True
+            },
             'permissions': {
                 'oneOf': [
                     {'$ref': 'permissions'},
