@@ -378,11 +378,11 @@ class UserUpdateTask(Task):
                     (1, 'locked'), "Cannot change builtin user's locked flag", code=errno.EPERM
                 )
 
+        if updated_fields.get('full_name') and ':' in updated_fields['full_name']:
+            errors.add((1, 'full_name'), 'The character ":" is not allowed')
+
         if 'groups' in updated_fields and len(updated_fields['groups']) > 64:
             errors.add((1, 'groups'), 'User cannot belong to more than 64 auxiliary groups')
-
-        if 'full_name' in updated_fields and ':' in updated_fields['full_name']:
-            errors.add((1, 'full_name'), 'The character ":" is not allowed')
 
         if 'username' in updated_fields:
             if self.datastore.exists('users', ('username', '=', updated_fields['username']), ('id', '!=', id)):
