@@ -82,12 +82,11 @@ class PasswordAuthenticator(object):
         user.name = entity['username']
         user.pwhash = entity['unixhash']
 
-        #for gid in entity['groups']:
-        #    grp = self.datastore.get_by_id('groups', gid)
-        #   if grp is None:
-        #        continue
-
-        #    user.groups.append(grp['name'])
+        for id in entity['groups'] + [entity['group']]:
+            grp = self.datastore.get_by_id('groups', id)
+            if not grp:
+                continue
+            user.groups.append(grp['name'])
 
         self.users[user.name] = user
         return user

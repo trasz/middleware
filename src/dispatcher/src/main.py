@@ -1304,6 +1304,10 @@ class ServerConnection(WebSocketApplication, EventEmitter):
                 self.emit_rpc_error(id, errno.EACCES, "Incorrect username or password")
                 return
 
+        if not user.has_role('wheel'):
+            self.emit_rpc_error(id, errno.EACCES, "Not authorized")
+            return
+
         if client_addr == 'unix':
             lifetime = None
 
