@@ -358,6 +358,7 @@ class UserUpdateTask(Task):
                 (1, 'id'), "User with id: {0} does not exist".format(id), code=errno.ENOENT
             )
             raise errors
+
         if user.get('builtin'):
             if 'home' in updated_fields:
                 errors.add(
