@@ -72,8 +72,10 @@ class CreateAFPShareTask(Task):
             'zero_dev_numbers': False,
             'no_stat': False,
             'afp3_privileges': False,
-            'ro_list': None,
-            'rw_list': None,
+            'ro_users': None,
+            'ro_groups': None,
+            'rw_users': None,
+            'rw_groups': None,
             'users_allow': None,
             'users_deny': None,
             'groups_allow': None,
@@ -177,11 +179,19 @@ def _init(dispatcher, plugin):
             'default_file_perms': {'$ref': 'unix-permissions'},
             'default_directory_perms': {'$ref': 'unix-permissions'},
             'default_umask': {'$ref': 'unix-permissions'},
-            'ro_list': {
+            'ro_users': {
                 'type': ['array', 'null'],
                 'items': {'type': 'string'}
             },
-            'rw_list': {
+            'ro_groups': {
+                'type': ['array', 'null'],
+                'items': {'type': 'string'}
+            },
+            'rw_users': {
+                'type': ['array', 'null'],
+                'items': {'type': 'string'}
+            },
+            'rw_groups': {
                 'type': ['array', 'null'],
                 'items': {'type': 'string'}
             },

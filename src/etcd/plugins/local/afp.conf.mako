@@ -57,8 +57,8 @@ ${opt("valid users", norm_users(share["properties"].get("users_allow"), share["p
 ${opt("invalid users", norm_users(share["properties"].get("users_deny"), share["properties"].get("groups_deny")))}\
 ${opt("hosts allow", share["properties"].get("hosts_allow"))}\
 ${opt("hosts deny", share["properties"].get("hosts_deny"))}\
-${opt("rolist", share["properties"].get("ro_list"))}\
-${opt("rwlist", share["properties"].get("rw_list"))}\
+${opt("rolist", norm_users(share["properties"].get("ro_users"), share["properties"].get("ro_groups")))}\
+${opt("rwlist", norm_users(share["properties"].get("rw_users"), share["properties"].get("rw_groups")))}\
 ${opt("time machine", "yes" if share["properties"].get("time_machine") else "no")}\
 ${opt("read only", "yes" if share["properties"].get("read_only") else "no")}\
 ${opt("cnid dev", "no" if share["properties"].get("zero_dev_numbers") else "yes")}\
