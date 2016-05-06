@@ -158,7 +158,7 @@ class ContainerBaseTask(Task):
         except RpcException:
             raise TaskException(
                 errno.EACCES,
-                'Dataset of the same name as {0} already exists. Maybe you meant to import an VM?'.format(container_ds)
+                'Dataset of the same name as {0} already exists. Maybe you meant to import an VM?'.format(self.container_ds)
             )
 
     def init_files(self, container):
