@@ -874,6 +874,14 @@ class Main:
             }
         })
 
+        self.client.register_schema('network-interface-nd6-flag', {
+            'type': 'array',
+            'items': {
+                'type': 'string',
+                'enum': list(netif.NeighborDiscoveryFlags.__members__.keys())
+            }
+        })
+
         self.client.register_schema('network-interface-type', {
             'type': 'string',
             'enum': [
@@ -898,12 +906,43 @@ class Main:
                 'media_type': {'type': 'string'},
                 'media_subtype': {'type': 'string'},
                 'media_options': {'$ref': 'network-interface-mediaopts'},
+                'cloned': {'type': 'boolean'},
                 'capabilities': {'$ref': 'network-interface-capabilities'},
                 'flags': {'$ref': 'network-interface-flags'},
                 'aliases': {
                     'type': 'array',
                     'items': {'$ref': 'network-interface-alias'}
-                }
+                },
+                'nd6_flags': {
+                    'type': 'array',
+                    'items': {'$ref': 'network-interface-nd6-flag'}
+                },
+                'ports': {
+                    'oneOf': [
+                        {'type': 'null'},
+                        {
+                            'type': 'array',
+                            'members': {
+                                'type': 'object',
+                                'properties': {
+                                    'name': {'type': 'string'},
+                                    'flags': {'$ref': 'network-lagg-port-flags'}
+                                }
+                            }
+                        }
+                    ]
+                },
+                'members': {
+                    'oneOf': [
+                        {'type': 'null'},
+                        {
+                            'type': 'array',
+                            'members': {'type': 'string'}
+                        }
+                    ]
+                },
+                'parent': {'type': ['string', 'null']},
+                'tag': {'type': ['string', 'null']}
             }
         })
 

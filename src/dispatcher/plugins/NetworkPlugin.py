@@ -603,6 +603,8 @@ def _init(dispatcher, plugin):
             'type': {'$ref': 'network-interface-type'},
             'id': {'type': 'string'},
             'name': {'type': ['string', 'null']},
+            'created_at': {'type': 'datetime'},
+            'updated_at': {'type': 'datetime'},
             'enabled': {'type': 'boolean'},
             'dhcp': {'type': 'boolean'},
             'rtadv': {'type': 'boolean'},
