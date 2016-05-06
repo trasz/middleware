@@ -161,16 +161,6 @@ class CreateShareTask(Task):
                 share['type']
             ))
 
-        if self.datastore.exists('replication.reserved_shares', ('type', '=', share['type']), ('name', '=', share['name'])):
-            reserved_item = self.datastore.get_by_id('replication.reserved_shares', share['name'])
-            raise VerifyException(
-                errno.EEXIST,
-                'Share {0} name is reserved by {1} replication task'.format(
-                    share['name'],
-                    reserved_item['link_name']
-                )
-            )
-
         share_path = self.dispatcher.call_sync('share.expand_path', share['target_path'], share['target_type'])
         if share['target_type'] != 'FILE':
             share_path = os.path.dirname(share_path)
@@ -190,6 +180,7 @@ class CreateShareTask(Task):
 
         normalize(share, {
             'enabled': True,
+            'immutable': False,
             'description': ''
         })
 
@@ -264,6 +255,9 @@ class UpdateShareTask(Task):
         share = self.datastore.get_by_id('shares', id)
         if not share:
             raise VerifyException(errno.ENOENT, 'Share not found')
+
+        if share['immutable']:
+            raise VerifyException(errno.EACCES, 'Cannot modify immutable share {0}.'.format(id))
 
         if 'name' in updated_fields or 'type' in updated_fields:
             share.update(updated_fields)
@@ -382,16 +376,6 @@ class ImportShareTask(Task):
 
         share = load_config(config_path, '{0}-{1}'.format(type, name))
 
-        if self.datastore.exists('replication.reserved_shares', ('type', '=', share['type']), ('name', '=', share['name'])):
-            reserved_item = self.datastore.get_by_id('replication.reserved_shares', share['name'])
-            raise TaskException(
-                errno.EEXIST,
-                'Share {0} name is reserved by {1} replication task'.format(
-                    share['name'],
-                    reserved_item['link_name']
-                )
-            )
-
         ids = self.join_subtasks(self.run_subtask('share.{0}.import'.format(share['type']), share))
 
         self.dispatcher.dispatch_event('share.changed', {
@@ -400,6 +384,51 @@ class ImportShareTask(Task):
         })
 
         return ids[0]
+
+
+@description("Sets share immutable")
+@accepts(str)
+class ShareSetImmutableTask(Task):
+    def verify(self, id):
+        if not self.datastore.exists('shares', id):
+            raise VerifyException(errno.ENOENT, 'Share {0} does not exist'.format(id))
+
+        return ['system']
+
+    def run(self, id):
+        self.join_subtasks(self.run_subtask(
+            'share.update',
+            id,
+            {
+                'enabled': False,
+                'immutable': True
+            }
+        ))
+
+
+@description("Sets share mutable")
+@accepts(str)
+class ShareResetImmutableTask(Task):
+    def verify(self, id):
+        if not self.datastore.exists('shares', id):
+            raise VerifyException(errno.ENOENT, 'Share {0} does not exist'.format(id))
+
+        return ['system']
+
+    def run(self, id):
+
+        share = self.datastore.get_by_id('shares', id)
+        share['enabled'] = True
+        share['immutable'] = False
+        self.join_subtasks(self.run_subtask(
+            'share.export',
+            id
+        ))
+
+        self.join_subtasks(self.run_subtask(
+            'share.{0}.import'.format(share['type']),
+            share
+        ))
 
 
 @description("Deletes share")
@@ -492,6 +521,7 @@ def _init(dispatcher, plugin):
             'name': {'type': 'string'},
             'description': {'type': 'string'},
             'enabled': {'type': 'boolean'},
+            'immutable': {'type': 'boolean'},
             'type': {'type': 'string'},
             'target_type': {
                 'type': 'string',
@@ -592,6 +622,8 @@ def _init(dispatcher, plugin):
     plugin.register_task_handler('share.delete', DeleteShareTask)
     plugin.register_task_handler('share.export', ExportShareTask)
     plugin.register_task_handler('share.import', ImportShareTask)
+    plugin.register_task_handler('share.immutable.set', ShareSetImmutableTask)
+    plugin.register_task_handler('share.immutable.reset', ShareResetImmutableTask)
     plugin.register_task_handler('share.delete_dependent', DeleteDependentShares)
     plugin.register_task_handler('share.update_related', UpdateRelatedShares)
 

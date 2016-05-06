@@ -98,13 +98,53 @@ class ReplicationProvider(Provider):
 
         return sorted(datasets, key=lambda d: d['name'])
 
-    @returns(h.array(h.ref('reserved-service')))
     def get_reserved_shares(self, link_name):
-        return self.datastore.query('replication.reserved_shares', ('link_name', '=', link_name))
+        shares = []
+        link = self.dispatcher.call_task_sync('replication.get_latest_link', link_name)
+        datasets = self.dispatcher.call_sync('replication.datasets_from_link', link)
+        for dataset in datasets:
+            dataset_path = self.dispatcher.call_sync('volume.get_dataset_path', dataset['name'])
+            shares.append(
+                wrap(
+                    self.dispatcher.call_sync('share.get_dependencies', dataset_path, False, False)
+                ).query([('immutable', '=', True)], {})
+            )
 
-    @returns(h.array(h.ref('reserved-service')))
+        return shares
+
     def get_reserved_containers(self, link_name):
-        return self.datastore.query('replication.reserved_containers', ('link_name', '=', link_name))
+        containers = []
+        link = self.dispatcher.call_task_sync('replication.get_latest_link', link_name)
+        datasets = self.dispatcher.call_sync('replication.datasets_from_link', link)
+        for dataset in datasets:
+            containers.append(
+                wrap(
+                    self.dispatcher.call_sync('share.get_dependencies', dataset['name'], False)
+                ).query([('immutable', '=', True)], {})
+            )
+
+        return containers
+
+    def get_related_shares(self, link_name):
+        shares = []
+        link = self.dispatcher.call_task_sync('replication.get_latest_link', link_name)
+        datasets = self.dispatcher.call_sync('replication.datasets_from_link', link)
+        for dataset in datasets:
+            dataset_path = self.dispatcher.call_sync('volume.get_dataset_path', dataset['name'])
+            shares.append(self.dispatcher.call_sync('share.get_dependencies', dataset_path, False, False))
+
+        return shares
+
+    def get_related_containers(self, link_name):
+        containers = []
+        link = self.dispatcher.call_task_sync('replication.get_latest_link', link_name)
+        datasets = self.dispatcher.call_sync('replication.datasets_from_link', link)
+        for dataset in datasets:
+            container = self.dispatcher.call_sync('container.get_dependent', dataset['name'], False)
+            if container:
+                containers.append(container)
+
+        return containers
 
 
 class ReplicationLinkProvider(Provider):
@@ -465,7 +505,10 @@ class ReplicationDeleteTask(ReplicationBaseTask):
         if not is_master:
             for service in ['shares', 'containers']:
                 for reserved_item in self.dispatcher.call_sync('replication.get_reserved_{0}'.format(service), name):
-                    self.datastore.delete('replication.reserved_{0}'.format(service), reserved_item['id'])
+                    self.join_subtasks(self.run_subtask(
+                        '{0}.export'.format(service),
+                        reserved_item['id']
+                    ))
 
             if scrub:
                 with self.dispatcher.get_lock('volumes'):
@@ -536,7 +579,10 @@ class ReplicationUpdateTask(ReplicationBaseTask):
         if not link['replicate_services']:
             for service in ['shares', 'containers']:
                 for reserved_item in self.dispatcher.call_sync('replication.get_reserved_{0}'.format(service), name):
-                    self.datastore.delete('replication.reserved_{0}'.format(service), reserved_item['id'])
+                    self.join_subtasks(self.run_subtask(
+                        '{0}.export'.format(service),
+                        reserved_item['id']
+                    ))
 
         if 'datasets' in updated_fields:
             self.set_datasets_readonly(
@@ -659,54 +705,37 @@ class ReplicationReserveServicesTask(ReplicationBaseTask):
         service_types = ['shares', 'containers']
         link = self.join_subtasks(self.run_subtask('replication.get_latest_link', name))[0]
         is_master, remote = self.get_replication_state(link)
-        if not is_master:
+        remote_client = get_replication_client(self.dispatcher, remote)
+
+        if is_master:
+            remote_client.call_task_sync('replication.reserve_services', name)
+        else:
             if link['replicate_services']:
-                datasets = self.dispatcher.call_sync('replication.datasets_from_link', link)
-                configs = []
-                for dataset in datasets:
-                    dataset_path = self.dispatcher.call_sync('volume.get_dataset_path', dataset['name'])
-                    files = [f for f in os.listdir(dataset_path) if os.path.isfile(os.path.join(dataset_path, f))]
+                for type in service_types:
+                    services = remote_client.call_sync('replication.get_related_{0}'.format(type), name)
+                    for service in services:
+                        service['immutable'] = True
+                        service['enabled'] = False
+                        id = service['id']
+                        if self.datastore.exists(type, ('id', '=', id)):
+                            old_service = self.datastore.get_by_id(type, id)
+                            if old_service != service:
+                                self.datastore.update(type, id, service)
+                                self.dispatcher.dispatch_event('{0}.changed'.format(type[:-1]), {
+                                    'operation': 'update',
+                                    'ids': [id]
+                                })
+                        else:
+                            self.datastore.insert(type, service)
+                            self.dispatcher.dispatch_event('{0}.changed'.format(type[:-1]), {
+                                'operation': 'create',
+                                'ids': [id]
+                            })
 
-                    for file in files:
-                        config_name = re.match('(\.config-)(.*)(\.json)', file)
-                        if config_name:
-                            configs.append(load_config(dataset_path, config_name.group(2)))
-
-                for service in service_types:
-                    for reserved_item in self.dispatcher.call_sync('replication.get_reserved_{0}'.format(service), name):
-                        if not wrap(configs).query([('type', '=', reserved_item['type']), ('name', '=', reserved_item['name'])]):
-                            self.datastore.delete('replication.reserved_{0}'.format(service), reserved_item['id'])
-
-                for config in configs:
-                    item_type = config.get('type', '')
-                    for service in service_types:
-                        if item_type in self.dispatcher.call_sync('{0}.supported_types'.format(service[:-1])):
-                            if self.datastore.exists('{0}'.format(service), ('type', '=', config['type']), ('name', '=', config['name'])):
-                                raise TaskException(
-                                    errno.EEXIST,
-                                    'Cannot create name reservation for {0} {1} of type {2}. {0} already exists.'.format(
-                                        service[:-1],
-                                        config['name'],
-                                        config['type']
-                                    )
-                                )
-
-                            if not self.datastore.exists('replication.reserved_{0}'.format(service), ('id', '=', config['name'])):
-                                self.datastore.insert(
-                                    'replication.reserved_{0}'.format(service),
-                                    {
-                                        'id': config['name'],
-                                        'name': config['name'],
-                                        'type': config['type'],
-                                        'link_name': name
-                                    }
-                                )
             else:
                 raise TaskException(errno.EINVAL, 'Selected link is not allowed to replicate services')
-        else:
-            remote_client = get_replication_client(self.dispatcher, remote)
-            remote_client.call_task_sync('replication.reserve_services', name)
-            remote_client.disconnect()
+
+        remote_client.disconnect()
 
 
 @accepts(str, str, bool, int, str, bool)
@@ -1128,6 +1157,27 @@ class ReplicationRoleUpdateTask(ReplicationBaseTask):
         return ['replication:{0}'.format(name)]
 
     def run(self, name):
+        def update_role(currently_master):
+            self.set_datasets_readonly(datasets, currently_master)
+            if currently_master:
+                mount = 'umount'
+                relation_type = 'related'
+                action_type = 'set'
+            else:
+                mount = 'mount'
+                relation_type = 'reserved'
+                action_type = 'reset'
+
+            for dataset in datasets:
+                self.join_subtasks(self.run_subtask('zfs.{0}'.format(mount), dataset['name']))
+
+            for service in ['shares', 'containers']:
+                for reserved_item in self.dispatcher.call_sync('replication.get_{0}_{1}'.format(relation_type, service), name):
+                    self.join_subtasks(self.run_subtask(
+                        '{0}.immutable.{1}'.format(service[:-1], action_type),
+                        reserved_item['id']
+                    ))
+
         link = self.join_subtasks(self.run_subtask('replication.get_latest_link', name))[0]
         if not link['bidirectional']:
             return
@@ -1142,92 +1192,10 @@ class ReplicationRoleUpdateTask(ReplicationBaseTask):
 
         if is_master:
             if current_readonly:
-                self.set_datasets_readonly(datasets, False)
-                if link['recursive']:
-                    for dataset in sorted(link['datasets']):
-                        self.join_subtasks(self.run_subtask('zfs.mount', dataset, True))
-                else:
-                    for dataset in datasets:
-                        self.join_subtasks(self.run_subtask('zfs.mount', dataset['name']))
-
-                for service in ['shares', 'containers']:
-                    for reserved_item in self.dispatcher.call_sync('replication.get_reserved_{0}'.format(service), name):
-                        self.datastore.delete('replication.reserved_{0}'.format(service), reserved_item['id'])
-
-                if link['replicate_services']:
-                    share_types = self.dispatcher.call_sync('share.supported_types')
-                    container_types = self.dispatcher.call_sync('container.supported_types')
-                    for dataset in datasets:
-                        dataset_path = self.dispatcher.call_sync('volume.get_dataset_path', dataset['name'])
-                        for item in os.listdir(dataset_path):
-                            if os.path.isfile(item):
-                                config_name = re.match('(\.config-)(.*)(\.json)', item)
-                                config_path = os.path.join(dataset_path, item)
-                                if config_name:
-                                    try:
-                                        config = load_config(dataset_path, config_name.group(2))
-                                    except ValueError:
-                                        raise TaskException(
-                                            errno.EINVAL,
-                                            'Cannot read {0}. This file is not a valid JSON file'.format(config_path)
-                                        )
-
-                                    item_type = config.get('type', '')
-                                    if item_type in share_types:
-                                        self.join_subtasks(self.run_subtask(
-                                            'share.import',
-                                            dataset_path,
-                                            config.get('name', ''),
-                                            item_type
-                                        ))
-                                    elif item_type in container_types:
-                                        self.join_subtasks(self.run_subtask(
-                                            'container.import',
-                                            config.get('name', ''),
-                                            dataset['name'].split('/', 1)[0]
-                                        ))
-                                    else:
-                                        raise TaskException(
-                                            errno.EINVAL,
-                                            'Unknown importable item type {0}.'.format(item_type)
-                                        )
+                update_role(False)
         else:
             if not current_readonly:
-                if link['recursive']:
-                    for dataset in sorted(link['datasets']):
-                        self.join_subtasks(self.run_subtask('zfs.umount', dataset, True))
-                else:
-                    for dataset in datasets:
-                        self.join_subtasks(self.run_subtask('zfs.umount', dataset['name']))
-                self.set_datasets_readonly(datasets, True)
-
-                if link['replicate_services']:
-                    for dataset in datasets:
-                        dataset_path = self.dispatcher.call_sync('volume.get_dataset_path', dataset['name'])
-                        for share in self.dispatcher.call_sync('share.get_dependencies', dataset_path, False, False):
-                            self.datastore.insert(
-                                'replication.reserved_shares',
-                                {
-                                    'id': share['name'],
-                                    'name': share['name'],
-                                    'type': share['type'],
-                                    'link_name': name
-                                }
-                            )
-                            self.join_subtasks(self.run_subtask('share.export', share['name']))
-
-                        for container in self.dispatcher.call_sync('container.get_dependent', dataset['name']):
-                            self.datastore.insert(
-                                'replication.reserved_shares',
-                                {
-                                    'id': container['name'],
-                                    'name': container['name'],
-                                    'type': container['type'],
-                                    'link_name': name
-                                }
-                            )
-
-                            self.join_subtasks(self.run_subtask('container.export', container['name']))
+                update_role(True)
 
 
 def _depends():
@@ -1278,17 +1246,6 @@ def _init(dispatcher, plugin):
             'message': {'type': 'string'},
             'size': {'type': 'number'},
             'speed': {'type': 'number'}
-        },
-        'additionalProperties': False,
-    })
-
-    plugin.register_schema_definition('reserved-service', {
-        'type': 'object',
-        'properties': {
-            'id': {'type': 'string'},
-            'name': {'type': 'string'},
-            'type': {'type': 'string'},
-            'link_name': {'type': 'string'}
         },
         'additionalProperties': False,
     })

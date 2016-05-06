@@ -95,18 +95,22 @@ class ContainerProvider(Provider):
         return vol['properties']['destination']
 
     @description('Returns container if provided dataset is its root')
-    def get_dependent(self, dataset):
+    def get_dependent(self, dataset, extend=True):
         path_parts = dataset.split('/')
         if len(path_parts) != 3:
             return None
         if path_parts[1] != 'vm':
             return None
 
-        return self.dispatcher.call_sync(
-            'container.query',
+        arguments = (
             [('name', '=', path_parts[2]), ('target', '=', path_parts[0])],
             {'single': True}
         )
+
+        if extend:
+            return self.dispatcher.call_sync('container.query', *arguments)
+        else:
+            return self.datastore.query('containers', *arguments)
 
     def generate_mac(self):
         return VM_OUI + ':' + ':'.join('{0:02x}'.format(random.randint(0, 255)) for _ in range(0, 3))
@@ -257,16 +261,6 @@ class ContainerCreateTask(ContainerBaseTask):
         if not self.dispatcher.call_sync('volume.query', [('id', '=', container['target'])], {'single': True}):
             raise VerifyException(errno.ENXIO, 'Volume {0} doesn\'t exist'.format(container['target']))
 
-        if self.datastore.exists('replication.reserved_containers', ('type', '=', container['type']), ('name', '=', container['name'])):
-            reserved_item = self.datastore.get_by_id('replication.reserved_containers', container['name'])
-            raise VerifyException(
-                errno.EEXIST,
-                'Container {0} name is reserved by {1} replication task'.format(
-                    container['name'],
-                    reserved_item['link_name']
-                )
-            )
-
         return ['zpool:{0}'.format(container['target'])]
 
     def run(self, container):
@@ -289,7 +283,8 @@ class ContainerCreateTask(ContainerBaseTask):
             })
 
         normalize(container, {
-            'enabled': True
+            'enabled': True,
+            'immutable': False
         })
 
         normalize(container['config'], {
@@ -331,16 +326,6 @@ class ContainerImportTask(ContainerBaseTask):
         if self.datastore.exists('containers', ('name', '=', name)):
             raise VerifyException(errno.EEXIST, 'Container {0} already exists'.format(name))
 
-        if self.datastore.exists('replication.reserved_containers', ('name', '=', name)):
-            reserved_item = self.datastore.get_by_id('replication.reserved_containers', name)
-            raise VerifyException(
-                errno.EEXIST,
-                'Container {0} name is reserved by {1} replication task'.format(
-                    name,
-                    reserved_item['link_name']
-                )
-            )
-
         return ['zpool:{0}'.format(volume)]
 
     def run(self, name, volume):
@@ -370,6 +355,44 @@ class ContainerImportTask(ContainerBaseTask):
         return id
 
 
+@accepts(str)
+class ContainerSetImmutableTask(ContainerBaseTask):
+    def verify(self, id):
+        if not self.datastore.exists('containers', ('id', '=', id)):
+            raise VerifyException(errno.ENOENT, 'Container {0} does not exist'.format(id))
+
+        return ['system']
+
+    def run(self, id):
+        container = self.datastore.get_by_id('containers', id)
+        container['enabled'] = False
+        container['immutable'] = True
+        self.datastore.update('containers', id, container)
+        self.dispatcher.dispatch_event('container.changed', {
+            'operation': 'update',
+            'ids': [id]
+        })
+
+
+@accepts(str)
+class ContainerResetImmutableTask(ContainerBaseTask):
+    def verify(self, id):
+        if not self.datastore.exists('containers', ('id', '=', id)):
+            raise VerifyException(errno.ENOENT, 'Container {0} does not exist'.format(id))
+
+        return ['system']
+
+    def run(self, id):
+        container = self.datastore.get_by_id('containers', id)
+        container['enabled'] = True
+        container['immutable'] = False
+        self.datastore.update('containers', id, container)
+        self.dispatcher.dispatch_event('container.changed', {
+            'operation': 'update',
+            'ids': [id]
+        })
+
+
 @accepts(str, h.ref('container'))
 class ContainerUpdateTask(ContainerBaseTask):
     def verify(self, id, updated_params):
@@ -380,6 +403,8 @@ class ContainerUpdateTask(ContainerBaseTask):
 
     def run(self, id, updated_params):
         container = self.datastore.get_by_id('containers', id)
+        if container['immutable']:
+            raise TaskException(errno.EACCES, 'Cannot modify immutable container {0}.'.format(id))
         try:
             delete_config(
                 self.dispatcher.call_sync(
@@ -613,6 +638,7 @@ def _init(dispatcher, plugin):
             'name': {'type': 'string'},
             'description': {'type': 'string'},
             'enabled': {'type': 'boolean'},
+            'immutable': {'type': 'boolean'},
             'target': {'type': 'string'},
             'template': {
                 'type': ['object', 'null'],
@@ -724,6 +750,8 @@ def _init(dispatcher, plugin):
     plugin.register_task_handler('container.export', ContainerExportTask)
     plugin.register_task_handler('container.start', ContainerStartTask)
     plugin.register_task_handler('container.stop', ContainerStopTask)
+    plugin.register_task_handler('container.immutable.set', ContainerSetImmutableTask)
+    plugin.register_task_handler('container.immutable.reset', ContainerResetImmutableTask)
     plugin.register_task_handler('container.download_image', DownloadImageTask)
 
     plugin.register_provider('vm_template', VMTemplateProvider)
