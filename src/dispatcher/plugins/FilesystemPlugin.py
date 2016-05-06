@@ -39,7 +39,7 @@ from freenas.dispatcher.rpc import (
 from freenas.dispatcher.rpc import SchemaHelper as h
 from task import Provider, Task, TaskStatus, TaskWarning, VerifyException, TaskException
 from auth import FileToken
-from freenas.utils.query import wrap
+from freenas.utils.permissions import modes_to_oct, get_type
 
 
 @description("Provides informations filesystem structure")
@@ -302,51 +302,6 @@ class SetPermissionsTask(Task):
             'recursive': recursive,
             'permissions': permissions
         })
-
-
-def modes_to_oct(modes):
-    modes = wrap(modes)
-    result = 0
-
-    if modes['user.read']:
-        result &= stat.S_IRUSR
-
-    if modes['user.write']:
-        result &= stat.S_IWUSR
-
-    if modes['user.execute']:
-        result &= stat.S_IXUSR
-
-    if modes['group.read']:
-        result &= stat.S_IRGRP
-
-    if modes['group.write']:
-        result &= stat.S_IWGRP
-
-    if modes['group.execute']:
-        result &= stat.S_IXGRP
-
-    if modes['others.read']:
-        result &= stat.S_IROTH
-
-    if modes['others.write']:
-        result &= stat.S_IWOTH
-
-    if modes['others.execute']:
-        result &= stat.S_IXOTH
-
-    return result
-
-
-def get_type(st):
-    if stat.S_ISDIR(st.st_mode):
-        return 'DIRECTORY'
-
-    elif stat.S_ISLNK(st.st_mode):
-        return 'LINK'
-
-    else:
-        return 'FILE'
 
 
 def _init(dispatcher, plugin):
