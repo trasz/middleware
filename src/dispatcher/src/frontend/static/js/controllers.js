@@ -312,9 +312,9 @@ function StatsController($scope, $location, $routeParams, $route) {
     function load_chart(name){
         $("#title").text(name);
         sock.subscribe("statd." + name + ".pulse");
-        sock.call("statd.output.query", [name, {
-            start: moment().subtract($("#timespan").val(), "minutes").format(),
-            end: moment().format(),
+        sock.call("stat.get_stats", [name, {
+            start: {"$date": moment().subtract($("#timespan").val(), "minutes").format()},
+            end: {"$date": moment().format()},
             frequency: $("#frequency").val()
         }], function (response) {
             render_chart(response.data);

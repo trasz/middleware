@@ -27,8 +27,7 @@
 
 import re
 import errno
-from freenas.dispatcher.rpc import accepts
-from freenas.dispatcher.rpc import SchemaHelper as h
+from freenas.dispatcher.rpc import accepts, returns, SchemaHelper as h
 from task import Provider, Task, VerifyException, query
 from freenas.utils.query import wrap
 
@@ -77,6 +76,18 @@ class StatProvider(Provider):
     def query(self, filter=None, params=None):
         stats = self.dispatcher.call_sync('statd.output.get_current_state')
         return wrap(stats).query(*(filter or []), **(params or {}))
+
+    @returns(h.array(str))
+    def get_data_sources(self):
+        return self.dispatcher.call_sync('statd.output.get_data_sources')
+
+    def get_data_sources_tree(self):
+        return self.dispatcher.call_sync('statd.output.get_data_sources_tree')
+
+    @accepts(h.one_of(str, h.array(str)), h.ref('get-stats-params'))
+    @returns(h.ref('get-stats-result'))
+    def get_stats(self, data_source, params):
+        return self.dispatcher.call_sync('statd.output.get_stats', data_source, params)
 
     def normalize(self, name, value):
         return normalize(name, value)

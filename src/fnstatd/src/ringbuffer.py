@@ -123,7 +123,10 @@ class PersistentRingBuffer(object):
         if self.empty:
             return None
 
-        return pd.DataFrame(index=pd.to_datetime(self.data['timestamp'], unit='s'), data=self.data['value'])
+        return pd.DataFrame(
+            index=pd.to_datetime(self.data['timestamp'], unit='s', utc=True),
+            data=self.data['value']
+        )
 
     def fill_initial(self):
         self.table.truncate(self.size)
