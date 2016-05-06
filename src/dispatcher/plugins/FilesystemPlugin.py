@@ -130,7 +130,7 @@ class FilesystemProvider(Provider):
         try:
             f = open(path, 'rb')
         except OSError as e:
-            raise RpcException(e.errno, e.message)
+            raise RpcException(e.errno, e)
 
         token = self.dispatcher.token_store.issue_token(FileToken(
             user=sender.user,
@@ -149,7 +149,7 @@ class FilesystemProvider(Provider):
         try:
             f = open(dest_path, 'wb')
         except OSError as e:
-            raise RpcException(e.errno, e.message)
+            raise RpcException(e.errno, e)
 
         token = self.dispatcher.token_store.issue_token(FileToken(
             user=sender.user,
