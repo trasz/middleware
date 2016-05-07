@@ -1,6 +1,7 @@
 <%
     import socket
     import os
+    from freenas.utils.permissions import perm_to_oct_string
 
     config = dispatcher.call_sync('service.ftp.get_config')
 
@@ -74,7 +75,7 @@ UseIPv6 on
 Port ${config['port']}
 User nobody
 Group nogroup
-Umask ${config['filemask']} ${config['dirmask']}
+Umask ${perm_to_oct_string(config['filemask'])} ${perm_to_oct_string(config['dirmask'])}
 SyslogFacility ftp
 MultilineRFC2228 off
 DisplayLogin /var/run/proftpd/proftpd.motd

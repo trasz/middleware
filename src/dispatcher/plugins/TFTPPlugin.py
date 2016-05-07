@@ -30,6 +30,7 @@ import logging
 from datastore.config import ConfigNode
 from freenas.dispatcher.rpc import RpcException, SchemaHelper as h, description, accepts, returns, private
 from task import Task, Provider, TaskException, ValidationException
+from freenas.utils.permissions import get_unix_permissions, get_integer
 
 logger = logging.getLogger('TFTPPlugin')
 
@@ -40,7 +41,9 @@ class TFTPProvider(Provider):
     @accepts()
     @returns(h.ref('service-tftpd'))
     def get_config(self):
-        return ConfigNode('service.tftpd', self.configstore).__getstate__()
+        config = ConfigNode('service.tftpd', self.configstore).__getstate__()
+        config['umask'] = get_unix_permissions(config['umask'])
+        return config
 
 
 @private
@@ -61,6 +64,7 @@ class TFTPConfigureTask(Task):
     def run(self, tftp):
         try:
             node = ConfigNode('service.tftp', self.configstore)
+            tftp['umask'] = get_integer(tftp['umask'])
             node.update(tftp)
             self.dispatcher.call_sync('etcd.generation.generate_group', 'services')
             self.dispatcher.dispatch_event('service.tftpd.changed', {
@@ -91,7 +95,7 @@ def _init(dispatcher, plugin):
             'path': {'type': 'string'},
             'allow_new_files': {'type': 'boolean'},
             'username': {'type': 'string'},
-            'umask': {'type': 'string'},
+            'umask': {'$ref': 'unix-permissions'},
             'auxiliary': {'type': 'string'},
         },
         'additionalProperties': False,
