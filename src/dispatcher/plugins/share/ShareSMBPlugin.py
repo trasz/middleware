@@ -179,6 +179,18 @@ class ImportSMBShareTask(CreateSMBShareTask):
         return super(ImportSMBShareTask, self).run(share)
 
 
+class TerminateSMBConnectionTask(Task):
+    def verify(self, address):
+        return ['system']
+
+    def run(self, address):
+        try:
+            rpc = smbconf.SambaMessagingContext()
+            rpc.kill_user_connection(address)
+        except OSError as err:
+            raise TaskException(err.errno, 'Cannot terminate connections: {0}'.format(str(err)))
+
+
 def yesno(val):
     return 'yes' if val else 'no'
 
@@ -284,6 +296,7 @@ def _init(dispatcher, plugin):
     plugin.register_task_handler("share.smb.update", UpdateSMBShareTask)
     plugin.register_task_handler("share.smb.delete", DeleteSMBShareTask)
     plugin.register_task_handler("share.smb.import", ImportSMBShareTask)
+    plugin.register_task_handler("share.smb.terminate_connection", TerminateSMBConnectionTask)
     plugin.register_provider("share.smb", SMBSharesProvider)
     plugin.register_event_type('share.smb.changed')
 
