@@ -1295,6 +1295,7 @@
                 ],
                 "builtin": false,
                 "task": "service.smb.update",
+                "get_config_rpc": "service.smb.get_config",
                 "name": "smb"
             },
             "FFD1EA3F-36E3-4CFA-8A1E-9BADA0DEFB76": {
