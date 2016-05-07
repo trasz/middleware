@@ -25,11 +25,12 @@
 #
 #####################################################################
 
-import errno
+import os
 import bsd
 import pwd
-from task import Task, TaskStatus, Provider, TaskException
-from freenas.dispatcher.rpc import RpcException, description, accepts, returns, private
+import signal
+from task import Task, TaskWarning, TaskStatus, Provider, TaskException
+from freenas.dispatcher.rpc import description, accepts, private
 from freenas.dispatcher.rpc import SchemaHelper as h
 from freenas.utils import first_or_default, normalize
 
@@ -175,11 +176,17 @@ class ImportAFPShareTask(CreateAFPShareTask):
 
 
 class TerminateAFPConnectionTask(Task):
-    def verify(self, id):
+    def verify(self, address):
         return ['system']
 
-    def run(self, id):
-        pass
+    def run(self, address):
+        for c in self.dispatcher.call_sync('share.afp.get_connected_clients'):
+            if c['host'] == address:
+                pid = c['extra']['pid']
+                try:
+                    os.kill(pid, signal.SIGTERM)
+                except OSError as err:
+                    self.add_warning(TaskWarning(err.errno, 'Cannot kill PID {0}: {1}'.format(pid, str(err))))
 
 
 def _depends():
