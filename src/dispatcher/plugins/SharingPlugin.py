@@ -510,6 +510,17 @@ class UpdateRelatedShares(Task):
         self.join_subtasks(*subtasks)
 
 
+@description("Kills client connections from specified IP address")
+@accepts(str, str)
+class ShareTerminateConnectionTask(Task):
+    def verify(self, share_type, address):
+        return ['system']
+
+    def run(self, share_type, address):
+        self.join_subtasks(self.run_subtask('share.{0}.terminate_connection'.format(share_type), address))
+
+
+
 def _depends():
     return ['VolumePlugin']
 
@@ -630,6 +641,7 @@ def _init(dispatcher, plugin):
     plugin.register_task_handler('share.immutable.reset', ShareResetImmutableTask)
     plugin.register_task_handler('share.delete_dependent', DeleteDependentShares)
     plugin.register_task_handler('share.update_related', UpdateRelatedShares)
+    plugin.register_task_handler('share.terminate_connection', ShareTerminateConnectionTask)
 
     # Register Event Types
     plugin.register_event_type(
