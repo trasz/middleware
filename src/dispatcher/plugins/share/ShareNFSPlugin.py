@@ -159,6 +159,15 @@ class ImportNFSShareTask(CreateNFSShareTask):
         return super(ImportNFSShareTask, self).run(share)
 
 
+@private
+class TerminateNFSConnectionTask(Task):
+    def verify(self, address):
+        return []
+
+    def run(self, address):
+        raise TaskException(errno.ENXIO, 'Not supported')
+
+
 def _metadata():
     return {
         'type': 'sharing',
@@ -202,5 +211,6 @@ def _init(dispatcher, plugin):
     plugin.register_task_handler("share.nfs.update", UpdateNFSShareTask)
     plugin.register_task_handler("share.nfs.delete", DeleteNFSShareTask)
     plugin.register_task_handler("share.nfs.import", ImportNFSShareTask)
+    plugin.register_task_handler("share.nfs.terminate_connection", TerminateNFSConnectionTask)
     plugin.register_provider("share.nfs", NFSSharesProvider)
     plugin.register_event_type('share.nfs.changed')
