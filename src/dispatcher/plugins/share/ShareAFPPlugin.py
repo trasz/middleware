@@ -26,7 +26,8 @@
 #####################################################################
 
 import errno
-import psutil
+import bsd
+import pwd
 from task import Task, TaskStatus, Provider, TaskException
 from freenas.dispatcher.rpc import RpcException, description, accepts, returns, private
 from freenas.dispatcher.rpc import SchemaHelper as h
@@ -36,23 +37,45 @@ from freenas.utils import first_or_default, normalize
 @description("Provides info about configured AFP shares")
 class AFPSharesProvider(Provider):
     @private
-    def get_connected_clients(self, share_id=None):
+    def get_connected_clients(self, blah=None):
         result = []
-        for i in psutil.process_iter():
-            if i.name() != 'afpd':
+        shares = self.dispatcher.call_sync('share.query', [('type', '=', 'afp')])
+        for proc in bsd.getprocs(bsd.ProcessLookupPredicate.PROC):
+            if proc.command != 'afpd':
                 continue
 
-            conns = [c for c in psutil.net_connections('inet') if c.pid == i.pid]
-            conn = first_or_default(lambda c: c.laddr[1] == 548, conns)
+            def test_descriptor(d):
+                if d.type != bsd.DescriptorType.SOCKET:
+                    return False
 
-            if not conn:
+                if not d.local_address:
+                    return False
+
+                return d.local_address[1] == 548
+
+            path = proc.cwd
+            share = first_or_default(lambda s: s['filesystem_path'] == path, shares)
+            sock = first_or_default(test_descriptor, proc.files)
+            if not share or not sock:
                 continue
+
+            try:
+                u = pwd.getpwuid(proc.uid)
+                user = u.pw_name
+            except KeyError:
+                user = str(proc.uid)
 
             result.append({
-                'host': conn.laddr[0],
-                'share': None,
-                'user': i.username()
+                'host': str(sock.peer_address[0]),
+                'share': share['name'],
+                'user': user,
+                'connected_at': proc.started_at,
+                'extra': {
+                    'pid': proc.pid
+                }
             })
+
+        return result
 
 
 @private
@@ -151,6 +174,14 @@ class ImportAFPShareTask(CreateAFPShareTask):
         return super(ImportAFPShareTask, self).run(share)
 
 
+class TerminateAFPConnectionTask(Task):
+    def verify(self, id):
+        return ['system']
+
+    def run(self, id):
+        pass
+
+
 def _depends():
     return ['AFPPlugin', 'SharingPlugin']
 
@@ -226,5 +257,6 @@ def _init(dispatcher, plugin):
     plugin.register_task_handler("share.afp.update", UpdateAFPShareTask)
     plugin.register_task_handler("share.afp.delete", DeleteAFPShareTask)
     plugin.register_task_handler("share.afp.import", ImportAFPShareTask)
+    plugin.register_task_handler("share.afp.terminate_connection", TerminateAFPConnectionTask)
     plugin.register_provider("share.afp", AFPSharesProvider)
     plugin.register_event_type('share.afp.changed')
