@@ -238,6 +238,7 @@ class Context(object):
                 try:
                     self.instance = getattr(module, task['class'])(DispatcherWrapper(self.conn), self.datastore)
                     self.instance.configstore = self.configstore
+                    self.instance.user = task['user']
                     self.instance.environment = task['environment']
                     self.running.set()
                     result = self.instance.run(*task['args'])
