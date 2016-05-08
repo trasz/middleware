@@ -1112,7 +1112,8 @@
             },
             "11BB3D33-A56B-4B2A-AE2D-76B77E5A9895": {
                 "dependencies": [
-                    "file:hosts"
+                    "file:hosts",
+                    "file:dhclient.conf"
                 ],
                 "name": "network"
             },
