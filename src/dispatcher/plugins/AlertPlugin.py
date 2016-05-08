@@ -257,7 +257,7 @@ def _init(dispatcher, plugin):
             'target': {'type': 'string'},
             'title': {'type': 'string'},
             'description': {'type': 'string'},
-            'source': {'type': 'string'},
+            'user': {'type': 'string'},
             'happened_at': {'type': 'string'},
             'cancelled_at': {'type': ['string', 'null']},
             'dismissed_at': {'type': ['string', 'null']},
