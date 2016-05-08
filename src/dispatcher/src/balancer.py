@@ -191,6 +191,7 @@ class TaskExecutor(object):
 
         self.conn.call_client_sync('taskproxy.run', {
             'id': task.id,
+            'user': task.user,
             'class': task.clazz.__name__,
             'filename': filename,
             'args': task.args,
