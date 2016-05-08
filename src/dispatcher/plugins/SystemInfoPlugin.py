@@ -487,7 +487,14 @@ class SystemRebootTask(Task):
 
         self.dispatcher.dispatch_event('power.changed', {
             'operation': 'REBOOT',
-            })
+        })
+
+        self.dispatcher.call_sync('alert.emit', {
+            'class': 'SystemReboot',
+            'user': self.user,
+            'description': 'System has been rebooted by {0}'.format(self.user)
+        })
+
         t = Thread(target=self.reboot_now, daemon=True)
         t.start()
 
@@ -514,6 +521,13 @@ class SystemHaltTask(Task):
         self.dispatcher.dispatch_event('power.changed', {
             'operation': 'SHUTDOWN',
         })
+
+        self.dispatcher.call_sync('alert.emit', {
+            'class': 'SystemShutdown',
+            'user': self.user,
+            'description': 'System has been shut down by {0}'.format(self.user)
+        })
+
         t = Thread(target=self.shutdown_now, daemon=True)
         t.start()
 
