@@ -50,4 +50,11 @@ do-install:
 	${MAKE} -C ${WRKSRC} install STAGEDIR=${STAGEDIR} PREFIX=${PREFIX} PYTHON=${PYTHON_CMD}
 	${MKDIR} -p ${STAGEDIR}/data/freenas.db
 
+post-install:
+	${PYTHON_CMD} -m compileall ${STAGEDIR}${PREFIX}/share/datastore/migrations
+	(cd ${STAGEDIR}${PREFIX}/share/datastore/migrations; ${FIND} -E . -type f -regex ".*.pyc?" \
+		| ${SED} -e 's,^\./,,g' \
+		| ${AWK} '{print length, $$0}' | ${SORT} -rn \
+		| ${AWK} '{print "share/datastore/migrations/"$$2 }' >> ${TMPPLIST})
+
 .include <bsd.port.mk>
