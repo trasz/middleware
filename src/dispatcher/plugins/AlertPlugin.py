@@ -241,6 +241,22 @@ class AlertFilterUpdateTask(Task):
         })
 
 
+class SendAlertTask(Task):
+    def verify(self, message, priority=None):
+        return []
+
+    def run(self, message, priority=None):
+        if not priority:
+            priority = 'WARNING'
+
+        self.dispatcher.call_sync('alert.emit', {
+            'class': 'UserMessage',
+            'severity': priority,
+            'title': 'Message from user {0}'.format(self.user),
+            'description': message
+        })
+
+
 def _init(dispatcher, plugin):
     plugin.register_schema_definition('alert-severity', {
         'type': 'string',
@@ -337,6 +353,7 @@ def _init(dispatcher, plugin):
     plugin.register_provider('alert.filter', AlertsFiltersProvider)
 
     # Register task handlers
+    plugin.register_task_handler('alert.send', SendAlertTask)
     plugin.register_task_handler('alert.filter.create', AlertFilterCreateTask)
     plugin.register_task_handler('alert.filter.delete', AlertFilterDeleteTask)
     plugin.register_task_handler('alert.filter.update', AlertFilterUpdateTask)
