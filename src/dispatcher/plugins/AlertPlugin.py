@@ -254,7 +254,8 @@ class SendAlertTask(Task):
             'class': 'UserMessage',
             'severity': priority,
             'title': 'Message from user {0}'.format(self.user),
-            'description': message
+            'description': message,
+            'one_shot': True
         })
 
 
