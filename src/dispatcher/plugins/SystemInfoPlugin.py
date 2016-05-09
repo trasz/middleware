@@ -637,6 +637,9 @@ def _init(dispatcher, plugin):
     plugin.register_event_handler('system.hostname.change', on_hostname_change)
 
     # Register Event Types
+    plugin.register_event_type('system.general.changed')
+    plugin.register_event_type('system.advanced.changed')
+    plugin.register_event_type('system.ui.changed')
     plugin.register_event_type('power.changed', schema=h.ref('power_changed'))
 
     # Register providers
