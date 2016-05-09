@@ -789,6 +789,7 @@ def _init(dispatcher, plugin):
 
     plugin.register_event_handler('network.dns.configured', on_resolv_conf_change)
     plugin.register_event_type('network.changed')
+    plugin.register_event_type('network.config.changed')
     plugin.register_event_type('network.interface.changed')
     plugin.register_event_type('network.host.changed')
     plugin.register_event_type('network.route.changed')
