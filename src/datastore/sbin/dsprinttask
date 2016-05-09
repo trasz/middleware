@@ -92,20 +92,24 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('-c', metavar='CONFIG', default=DEFAULT_CONFIGFILE, help='Config file name')
     parser.add_argument('tasks', metavar='TASKS', nargs='*', default='all', help='Task ids or "all"')
+    parser.add_argument('--last', metavar='NUMBER', nargs='?', type=int, help='Number of tasks')
 
     args = parser.parse_args()
     init_datastore(args.c)
 
-    if 'all' in args.tasks:
-        tasks = ds.query('tasks')
+    if args.last:
+        tasks = ds.query('tasks', sort='id', dir='asc')[-args.last:]
     else:
-        tasks = []
-        for arg in args.tasks:
-            if '-' in arg:
-                low, high = arg.split('-')
-                tasks += ds.query('tasks', ('id', '>=', int(low)), ('id', '<=', int(high)))
-            else:
-                tasks += ds.query('tasks', ('id', '=', int(arg)))
+        if 'all' in args.tasks:
+            tasks = ds.query('tasks')
+        else:
+            tasks = []
+            for arg in args.tasks:
+                if '-' in arg:
+                    low, high = arg.split('-')
+                    tasks += ds.query('tasks', ('id', '>=', int(low)), ('id', '<=', int(high)))
+                else:
+                    tasks += ds.query('tasks', ('id', '=', int(arg)))
 
     for i in tasks:
         dump_task(ds, i)
