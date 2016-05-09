@@ -241,6 +241,7 @@ class AlertFilterUpdateTask(Task):
         })
 
 
+@accepts(str, h.ref('alert-severity'))
 class SendAlertTask(Task):
     def verify(self, message, priority=None):
         return []
@@ -270,6 +271,7 @@ def _init(dispatcher, plugin):
             'class': {'type': 'string'},
             'type': {'type': 'string'},
             'subtype': {'type': 'string'},
+            'severity': {'$ref': 'alert-severity'},
             'target': {'type': 'string'},
             'title': {'type': 'string'},
             'description': {'type': 'string'},
