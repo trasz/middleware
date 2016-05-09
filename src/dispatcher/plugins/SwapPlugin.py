@@ -32,8 +32,8 @@ import bsd.kld
 from task import Provider
 from lib.system import system, SubprocessException
 from lib.geom import confxml
-from freenas.dispatcher.rpc import accepts, returns, description
-from freenas.dispatcher.rpc import SchemaHelper as h
+from freenas.dispatcher.rpc import accepts, returns, description, SchemaHelper as h
+from freenas.utils.decorators import delay
 
 
 logger = logging.getLogger('SwapPlugin')
@@ -169,6 +169,7 @@ def _init(dispatcher, plugin):
         remove_swap(dispatcher, disks)
         return True
 
+    @delay(minutes=1)
     def on_volumes_change(args):
         with dispatcher.get_lock('swap'):
             rearrange_swap(dispatcher)
