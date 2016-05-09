@@ -57,7 +57,7 @@ class EntitySubscriberEventSource(EventSource):
             self.services.remove(service)
 
     def changed(self, service, event):
-        ids = event['ids']
+        ids = event.get('ids', None)
         operation = event['operation']
 
         if operation in ('delete', 'rename'):
@@ -67,7 +67,7 @@ class EntitySubscriberEventSource(EventSource):
                 'ids': ids
             })
         else:
-            gevent.spawn(self.fetch, service, operation, ids)
+            gevent.spawn(self.fetch if ids is not None else self.fetch_one, service, operation, ids)
 
     def fetch(self, service, operation, ids):
         try:
@@ -82,6 +82,17 @@ class EntitySubscriberEventSource(EventSource):
             'operation': operation,
             'ids': ids,
             'entities': entities,
+            'nolog': True
+        })
+
+    def fetch_one(self, service, operation):
+        assert operation == 'update'
+
+        entity = self.dispatcher.call_sync('{0}.get_config', service)
+        self.dispatcher.dispatch_event('entity-subscriber.{0}.changed'.format(service), {
+            'service': service,
+            'operation': operation,
+            'data': entity,
             'nolog': True
         })
 
