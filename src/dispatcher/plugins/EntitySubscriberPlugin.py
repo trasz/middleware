@@ -89,10 +89,11 @@ class EntitySubscriberEventSource(EventSource):
             'nolog': True
         })
 
-    def fetch_one(self, service, operation):
+    def fetch_one(self, service, operation, ids):
         assert operation == 'update'
+        assert ids is None
 
-        entity = self.dispatcher.call_sync('{0}.get_config', service)
+        entity = self.dispatcher.call_sync('{0}.get_config'.format(service))
         self.dispatcher.dispatch_event('entity-subscriber.{0}.changed'.format(service), {
             'service': service,
             'operation': operation,
