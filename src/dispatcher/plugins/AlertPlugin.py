@@ -100,13 +100,13 @@ class AlertsProvider(Provider):
             'when': datetime.utcnow(),
             'dismissed': False,
             'active': True,
-            'one_shot': False
+            'one_shot': False,
+            'severity': cls['severity']
         })
 
         alert.update({
             'type': cls['type'],
             'subtype': cls['subtype'],
-            'severity': cls['severity'],
             'send_count': 0
         })
 
