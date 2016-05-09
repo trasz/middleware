@@ -1317,6 +1317,11 @@
                 "type": "DISK",
                 "subtype": "MPS",
                 "severity": "WARNING"
+            },
+            "UserMessage": {
+                "type": "SYSTEM",
+                "subtype": "USER",
+                "severity": "INFO"
             }
         }
     },
