@@ -14,38 +14,76 @@ function NavController($scope) {
     }
 }
 
-function RpcController($scope, $location, $routeParams, $route) {
+function LoginController($scope, $location, $routeParams, $route, $rootScope) {
+    var sock = new middleware.DispatcherClient(document.domain);
+    $scope.login = function() {
+        var username = $scope.username;
+        var password = $scope.password;
+        //try onConnect
+        sock.onConnect = function() {
+            sock.login(
+                $scope.username,
+                $scope.password,
+                function(result){
+                    console.log(result);
+                }
+            );
+        };
+        sock.onLogin = function(){
+            sock.call("discovery.get_services", null, function (services) {
+                console.log(services);
+                if (services.hasOwnProperty('code') && services['code'] == 13) {
+                    $scope.login_status = false;
+                    console.log("login failed");
+                }else {
+                    $rootScope.username = username;
+                    sessionStorage.setItem("freenas:username", username);
+                    sessionStorage.setItem("freenas:password", password);
+                    $location.path('/rpc');
+                    $route.reload();
+                }
+            });
+        }
+        sock.onError = function(err){
+            console.log(err);
+        }
+        sock.connect();
+    }
+}
+
+function RpcController($scope, $location, $routeParams, $route,$rootScope, ModalService) {
     document.title = "RPC Page";
+    if (!sessionStorage.getItem("freenas:username")){
+        $location.path('/login');
+    }
     var sock = new middleware.DispatcherClient(document.domain);
     sock.connect();
-    $scope.showModal = false;
-    $scope.toggleModal = function(){
-        $scope.showModal = !$scope.showModal;
-    };
     $("#result").hide();
     $scope.init = function () {
         sock.onError = function(err) {
             try {
-                $route.reload();
+                $location.path("login");
             } catch (e) {
                 console.log(e);
-                $("#socket_status ").attr("src", "/static/images/service_issue_diamond.png");
+                $("#socket_status").attr("src", "/static/images/service_issue_diamond.png");
                 $("#refresh_page_glyph").show();
             }
         };
         sock.onConnect = function() {
             if (!sessionStorage.getItem("freenas:username")) {
-                var username = prompt("Username:");
-                var password = prompt("Password:");
-                sessionStorage.setItem("freenas:username", username);
-                sessionStorage.setItem("freenas:password", password);
+                $location.path("login");
             }
 
             sock.login(
                 sessionStorage.getItem("freenas:username"),
-                sessionStorage.getItem("freenas:password")
+                sessionStorage.getItem("freenas:password"),
+                function(result){
+                    console.log(result);
+                }
             );
-            $("#login_username").html(username);
+            if ($rootScope.username) {
+                $("#login_username").html($rootScope.username);
+            }
         };
 
         sock.onLogin = function() {
@@ -106,7 +144,7 @@ function RpcController($scope, $location, $routeParams, $route) {
     }
 }
 
-function TermController($scope, synchronousService, $location, $routeParams, $route) {
+function TermController($scope, synchronousService, $location, $routeParams, $route, $rootScope) {
     document.title = "System Events";
     var sock = new middleware.DispatcherClient(document.domain);
     sock.connect();
@@ -150,17 +188,14 @@ function TermController($scope, synchronousService, $location, $routeParams, $ro
 
     sock.onConnect = function() {
         if (!sessionStorage.getItem("freenas:username")) {
-            var username = prompt("Username:");
-            var password = prompt("Password:");
-            sessionStorage.setItem("freenas:username", username);
-            sessionStorage.setItem("freenas:password", password);
+            $location.path("login");
         }
 
         sock.login(
             sessionStorage.getItem("freenas:username"),
             sessionStorage.getItem("freenas:password")
         );
-        $("#login_username").html(username);
+        $("#login_username").html($rootScope.username);
     };
     sock.onLogin = function() {
         sock.call("shell.get_shells", null, function(response) {
@@ -182,10 +217,14 @@ function TermController($scope, synchronousService, $location, $routeParams, $ro
 
 }
 
-function EventsController($scope, $location, $routeParams, $route) {
+function EventsController($scope, $location, $routeParams, $route, $rootScope) {
     document.title = "System Events";
     var sock = new middleware.DispatcherClient(document.domain);
     sock.connect();
+    $scope.showLoginForm = function() {
+        //show ModalService
+        console.log("service here");
+    }
     $scope.init = function () {
         sock.onError = function(err) {
             try {
@@ -198,17 +237,13 @@ function EventsController($scope, $location, $routeParams, $route) {
         };
         sock.onConnect = function() {
             if (!sessionStorage.getItem("freenas:username")) {
-                var username = prompt("Username:");
-                var password = prompt("Password:");
-                sessionStorage.setItem("freenas:username", username);
-                sessionStorage.setItem("freenas:password", password);
+                $location.path("login");
             }
 
             sock.login(
                 sessionStorage.getItem("freenas:username"),
                 sessionStorage.getItem("freenas:password")
             );
-            $("#login_username").html(username);
         };
         sock.onLogin = function() {
             sock.subscribe("*");
@@ -227,7 +262,7 @@ function EventsController($scope, $location, $routeParams, $route) {
         };
     }
 }
-function SyslogController($scope, $location, $routeParams, $route) {
+function SyslogController($scope, $location, $routeParams, $route, $rootScope) {
     document.title = "System Logs";
     var sock = new middleware.DispatcherClient(document.domain);
     sock.connect();
@@ -243,17 +278,14 @@ function SyslogController($scope, $location, $routeParams, $route) {
         };
         sock.onConnect = function() {
             if (!sessionStorage.getItem("freenas:username")) {
-                var username = prompt("Username:");
-                var password = prompt("Password:");
-                sessionStorage.setItem("freenas:username", username);
-                sessionStorage.setItem("freenas:password", password);
+                $location.path("login");
             }
 
             sock.login(
                 sessionStorage.getItem("freenas:username"),
                 sessionStorage.getItem("freenas:password")
             );
-            $("#login_username").html(username);
+            $("#login_username").html($rootScope.username);
         };
         sock.onLogin = function(result) {
             var syslog_list = [];
@@ -275,7 +307,7 @@ function SyslogController($scope, $location, $routeParams, $route) {
     }
 }
 
-function StatsController($scope, $location, $routeParams, $route) {
+function StatsController($scope, $location, $routeParams, $route, $rootScope) {
     document.title = "Stats Charts";
     var sock = new middleware.DispatcherClient(document.domain);
     var chart;
@@ -331,18 +363,15 @@ function StatsController($scope, $location, $routeParams, $route) {
             }
         };
         sock.onConnect = function() {
-            if (!sessionStorage.getItem("freenas:username")) {
-                var username = prompt("Username:");
-                var password = prompt("Password:");
-                sessionStorage.setItem("freenas:username", username);
-                sessionStorage.setItem("freenas:password", password);
+            if (!sessionStorage.getItem("freenas:username")){
+                $location.path('/login');
             }
 
             sock.login(
                 sessionStorage.getItem("freenas:username"),
                 sessionStorage.getItem("freenas:password")
             );
-            $("#login_username").html(username);
+            $("#login_username").html($rootScope.username);
         };
         //onLogin function do everyting you need to render a chart
         sock.onLogin = function() {
@@ -371,7 +400,7 @@ function StatsController($scope, $location, $routeParams, $route) {
     }
 }
 
-function FileBrowserController($scope, $location, $routeParams, $route) {
+function FileBrowserController($scope, $location, $routeParams, $route, $rootScope) {
     document.title = "File Browser";
     var BUFSIZE = 1024;
     var sock = new middleware.DispatcherClient( document.domain );
@@ -388,19 +417,16 @@ function FileBrowserController($scope, $location, $routeParams, $route) {
         };
 
         sock.onConnect = function ( ) {
-          if ( !sessionStorage.getItem( "freenas:username" ) ) {
-            var username = prompt( "Username:" );
-            var password = prompt( "Password:" );
-            sessionStorage.setItem( "freenas:username", username );
-            sessionStorage.setItem( "freenas:password", password );
-          }
+            if (!sessionStorage.getItem("freenas:username")){
+                $location.path('/login');
+            }
 
           sock.login
           ( sessionStorage.getItem( "freenas:username" )
           , sessionStorage.getItem( "freenas:password" )
           );
 
-          $("#login_username").html(username);
+          $("#login_username").html($rootScope.username);
         };
 
         sock.onLogin = function ( ) {
@@ -592,7 +618,7 @@ function FileBrowserController($scope, $location, $routeParams, $route) {
     };
 }
 
-function TasksController($scope, $interval, $location, $routeParams, $route) {
+function TasksController($scope, $interval, $location, $routeParams, $route, $rootScope) {
     document.title = "System Tasks";
     var sock = new middleware.DispatcherClient(document.domain);
     sock.connect();
@@ -639,17 +665,16 @@ function TasksController($scope, $interval, $location, $routeParams, $route) {
         };
         sock.onConnect = function() {
             if (!sessionStorage.getItem("freenas:username")) {
-                var username = prompt("Username:");
-                var password = prompt("Password:");
-                sessionStorage.setItem("freenas:username", username);
-                sessionStorage.setItem("freenas:password", password);
+                $location.path("login");
             }
 
             sock.login(
                 sessionStorage.getItem("freenas:username"),
                 sessionStorage.getItem("freenas:password")
             );
-            $("#login_username").html(username);
+            if ($rootScope.username) {
+                $("#login_username").html($rootScope.username);
+            }
         };
         sock.onLogin = function() {
             sock.subscribe("task.*");
@@ -693,7 +718,7 @@ function TasksController($scope, $interval, $location, $routeParams, $route) {
     }
 }
 
-function VMController($scope, $location, $routeParams, $route) {
+function VMController($scope, $location, $routeParams, $route, $rootScope) {
     var sock = new middleware.DispatcherClient(document.domain);
     var term;
     var conn;
@@ -734,11 +759,8 @@ function VMController($scope, $location, $routeParams, $route) {
             }
         };
         sock.onConnect = function() {
-            if (!sessionStorage.getItem("freenas:username")) {
-                var username = prompt("Username:");
-                var password = prompt("Password:");
-                sessionStorage.setItem("freenas:username", username);
-                sessionStorage.setItem("freenas:password", password);
+            if (!sessionStorage.getItem("freenas:username")){
+                $location.path('/login');
             }
 
             sock.login(
@@ -781,7 +803,7 @@ function HTTPStatusController($scope, $http, $routeParams, $location) {
     $scope.status_code = $routeParams.status_code;
 }
 
-function RPCdocController($scope, $location, $routeParams, $route) {
+function RPCdocController($scope, $location, $routeParams, $route, $rootScope) {
     document.title = "RPC API Page";
     var sock = new middleware.DispatcherClient(document.domain);
     sock.connect();
@@ -800,18 +822,15 @@ function RPCdocController($scope, $location, $routeParams, $route) {
             }
         };
         sock.onConnect = function() {
-            if (!sessionStorage.getItem("freenas:username")) {
-                var username = prompt("Username:");
-                var password = prompt("Password:");
-                sessionStorage.setItem("freenas:username", username);
-                sessionStorage.setItem("freenas:password", password);
+            if (!sessionStorage.getItem("freenas:username")){
+                $location.path('/login');
             }
 
             sock.login(
                 sessionStorage.getItem("freenas:username"),
                 sessionStorage.getItem("freenas:password")
             );
-            $("#login_username").html(username);
+            $("#login_username").html($rootScope.username);
         };
         sock.onLogin = function() {
             sock.call("discovery.get_services", null, function (services) {
@@ -840,7 +859,7 @@ function RPCdocController($scope, $location, $routeParams, $route) {
     }
 }
 
-function TaskDocController($scope, $location, $routeParams, $route){
+function TaskDocController($scope, $location, $routeParams, $route, $rootScope){
     document.title = "Task API Page";
     var sock = new middleware.DispatcherClient(document.domain);
     sock.connect();
@@ -855,18 +874,14 @@ function TaskDocController($scope, $location, $routeParams, $route){
             }
         };
         sock.onConnect = function() {
-            if (!sessionStorage.getItem("freenas:username")) {
-                var username = prompt("Username:");
-                var password = prompt("Password:");
-                sessionStorage.setItem("freenas:username", username);
-                sessionStorage.setItem("freenas:password", password);
+            if (!sessionStorage.getItem("freenas:username")){
+                $location.path('/login');
             }
-
             sock.login(
                 sessionStorage.getItem("freenas:username"),
                 sessionStorage.getItem("freenas:password")
             );
-            $("#login_username").html(username);
+            $("#login_username").html($rootScope.username);
         };
         sock.onLogin = function() {
             sock.call("discovery.get_tasks", null, function (tasks) {
@@ -890,7 +905,7 @@ function TaskDocController($scope, $location, $routeParams, $route){
     }
 }
 
-function EventsDocController($scope, $location, $routeParams, $route){
+function EventsDocController($scope, $location, $routeParams, $route, $rootScope){
     document.title = "Events API Page";
     var sock = new middleware.DispatcherClient(document.domain);
     sock.connect();
@@ -905,18 +920,15 @@ function EventsDocController($scope, $location, $routeParams, $route){
             }
         };
         sock.onConnect = function() {
-            if (!sessionStorage.getItem("freenas:username")) {
-                var username = prompt("Username:");
-                var password = prompt("Password:");
-                sessionStorage.setItem("freenas:username", username);
-                sessionStorage.setItem("freenas:password", password);
+            if (!sessionStorage.getItem("freenas:username")){
+                $location.path('/login');
             }
 
             sock.login(
                 sessionStorage.getItem("freenas:username"),
                 sessionStorage.getItem("freenas:password")
             );
-            $("#login_username").html(username);
+            $("#login_username").html($rootScope.username);
         };
         sock.onLogin = function() {
             sock.call("discovery.get_event_types", null, function (events) {
@@ -941,7 +953,7 @@ function EventsDocController($scope, $location, $routeParams, $route){
     }
 }
 
-function SchemaController($scope, $location, $routeParams, $route){
+function SchemaController($scope, $location, $routeParams, $route, $rootScope){
     document.title = "Schema API Page";
     var sock = new middleware.DispatcherClient(document.domain);
     sock.connect();
@@ -956,18 +968,14 @@ function SchemaController($scope, $location, $routeParams, $route){
             }
         };
         sock.onConnect = function() {
-            if (!sessionStorage.getItem("freenas:username")) {
-                var username = prompt("Username:");
-                var password = prompt("Password:");
-                sessionStorage.setItem("freenas:username", username);
-                sessionStorage.setItem("freenas:password", password);
+            if (!sessionStorage.getItem("freenas:username")){
+                $location.path('/login');
             }
-
             sock.login(
                 sessionStorage.getItem("freenas:username"),
                 sessionStorage.getItem("freenas:password")
             );
-            $("#login_username").html(username);
+            $("#login_username").html($rootScope.username);
         };
         sock.onLogin = function() {
             sock.call("discovery.get_schema", null, function (tasks) {
