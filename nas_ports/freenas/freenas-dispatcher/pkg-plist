@@ -10,6 +10,7 @@ lib/dispatcher/src/frontend/templates/syslog.html
 lib/dispatcher/src/frontend/templates/vm.html
 lib/dispatcher/src/frontend/templates/filebrowser.html
 lib/dispatcher/src/frontend/templates/base.html
+lib/dispatcher/src/frontend/templates/dashboard.html
 lib/dispatcher/src/frontend/templates/apidoc/index.html
 lib/dispatcher/src/frontend/templates/apidoc/nav.html
 lib/dispatcher/src/frontend/templates/apidoc/rpc.html
@@ -38,6 +39,9 @@ lib/dispatcher/src/frontend/static/js/directives.js
 lib/dispatcher/src/frontend/static/js/myServices.js
 lib/dispatcher/src/frontend/static/js/messenger-theme-future.js
 lib/dispatcher/src/frontend/static/js/messenger.min.js
+lib/dispatcher/src/frontend/static/js/angular-modal-service.js
+lib/dispatcher/src/frontend/static/js/angular-modal-service.min.js
+lib/dispatcher/src/frontend/static/js/angular-modal-service.min.js.map
 lib/dispatcher/src/frontend/static/lib/WebsocketClient.js
 lib/dispatcher/src/frontend/static/partials/apidoc_rpc.html
 lib/dispatcher/src/frontend/static/partials/apidoc_events.html
@@ -53,6 +57,7 @@ lib/dispatcher/src/frontend/static/partials/stats.html
 lib/dispatcher/src/frontend/static/partials/term.html
 lib/dispatcher/src/frontend/static/partials/tasks.html
 lib/dispatcher/src/frontend/static/partials/filebrowser.html
+lib/dispatcher/src/frontend/static/partials/login.html
 lib/dispatcher/src/frontend/static/partials/vm.html
 lib/dispatcher/src/frontend/static/partials/404.html
 lib/dispatcher/src/frontend/static/partials/500.html
