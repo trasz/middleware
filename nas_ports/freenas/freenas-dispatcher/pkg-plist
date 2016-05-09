@@ -1,6 +1,7 @@
 lib/dispatcher/src/frontend/__init__.py
 lib/dispatcher/src/frontend/frontend.py
 lib/dispatcher/src/frontend/templates/nav.html
+lib/dispatcher/src/frontend/templates/fixed.html
 lib/dispatcher/src/frontend/templates/tasks.html
 lib/dispatcher/src/frontend/templates/events.html
 lib/dispatcher/src/frontend/templates/rpc.html
