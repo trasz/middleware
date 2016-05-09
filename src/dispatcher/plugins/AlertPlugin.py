@@ -265,12 +265,20 @@ def _init(dispatcher, plugin):
         'enum': ['CRITICAL', 'WARNING', 'INFO'],
     })
 
+    plugin.register_schema_definition('alert-class-id', {
+        'type': 'string',
+        'enum': dispatcher.datastore.query('alert.classes', select='id')
+    })
+
     plugin.register_schema_definition('alert', {
         'type': 'object',
         'properties': {
             'id': {'type': 'integer'},
-            'class': {'type': 'string'},
-            'type': {'type': 'string'},
+            'class': {'$ref': 'alert-class-id'},
+            'type': {
+                'type': 'string',
+                'enum': ['SYSTEM', 'VOLUME', 'DISK']
+            },
             'subtype': {'type': 'string'},
             'severity': {'$ref': 'alert-severity'},
             'target': {'type': 'string'},
@@ -342,7 +350,7 @@ def _init(dispatcher, plugin):
         'additionalProperties': {
             'type': 'object',
             'properties': {
-                'id': {'type': 'string'},
+                'id': {'$ref': 'alert-class-id'},
                 'type': {'type': 'string'},
                 'subtype': {'type': 'string'},
                 'severity': {'$ref': 'alert-severity'}
