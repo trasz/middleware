@@ -1647,6 +1647,7 @@ class HostsPairDeleteTask(Task):
         return ['system']
 
     def run(self, remote):
+        remote_client = None
         try:
             remote_client = get_replication_client(self.dispatcher, remote)
 
@@ -1671,7 +1672,8 @@ class HostsPairDeleteTask(Task):
             remote
         ))
 
-        remote_client.disconnect()
+        if remote_client:
+            remote_client.disconnect()
 
 
 @private
