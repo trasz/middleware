@@ -483,7 +483,7 @@
                 "unixhash": "*",
                 "sudo": false,
                 "smbhash": "*",
-                "groups": ["36DD1308-699E-45B9-BA9E-D3253A14E1D5"],
+                "groups": ["36DD1308-699E-45B9-BA9E-D3253A14E1D5", "0562D3BE-679B-45E3-A220-F9D9A2E938A9"],
                 "attributes": {},
                 "builtin": true
             }
