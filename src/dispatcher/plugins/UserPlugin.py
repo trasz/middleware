@@ -325,6 +325,12 @@ class UserDeleteTask(Task):
                     'Group {0} ({1}) left behind, you need to delete it separately'.format(group['name'], group['gid']))
                 )
 
+            if user.get('smbhash'):
+                try:
+                    system('/usr/local/bin/pdbedit', '-x', user['username'])
+                except SubprocessException as e:
+                    pass
+
             self.datastore.delete('users', id)
             self.dispatcher.call_sync('etcd.generation.generate_group', 'accounts')
         except DatastoreException as e:
