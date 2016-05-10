@@ -220,12 +220,6 @@ class ReplicationBaseTask(Task):
 
         return out_link
 
-    def check_datasets_valid(self, link):
-        datasets = self.dispatcher.call_sync('replication.datasets_from_link', link)
-        links = self.dispatcher.call_sync('replication.link.query')
-        for dataset in datasets:
-
-
 
 @description("Sets up a replication link")
 @accepts(h.all_of(
