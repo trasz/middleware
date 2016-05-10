@@ -30,7 +30,6 @@ import uuid
 import io
 import os
 import errno
-import re
 import time
 import logging
 from cache import CacheStore
@@ -41,7 +40,7 @@ from dateutil.parser import parse as parse_datetime
 from task import Provider, Task, ProgressTask, VerifyException, TaskException, TaskWarning, query
 from freenas.dispatcher.rpc import RpcException, SchemaHelper as h, description, accepts, returns, private
 from freenas.dispatcher.fd import FileDescriptor
-from utils import get_replication_client, load_config
+from utils import get_replication_client
 from freenas.utils import first_or_default
 from freenas.utils.query import wrap
 
@@ -220,6 +219,12 @@ class ReplicationBaseTask(Task):
                 out_link[key] = link[key]
 
         return out_link
+
+    def check_datasets_valid(self, link):
+        datasets = self.dispatcher.call_sync('replication.datasets_from_link', link)
+        links = self.dispatcher.call_sync('replication.link.query')
+        for dataset in datasets:
+
 
 
 @description("Sets up a replication link")
