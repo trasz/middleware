@@ -196,9 +196,10 @@ class DataSource(object):
                 df = pd.concat((df, new))
 
         df = df.reset_index().drop_duplicates(subset='index').set_index('index')
-        df = df.sort()[0]
-        df = df[start:end]
-        df = df.resample(frequency, how='mean').interpolate()
+        if len(buckets):
+            df = df.sort()[0]
+            df = df[start:end]
+            df = df.resample(frequency, how='mean').interpolate()
         return df
 
     def check_alerts(self):
