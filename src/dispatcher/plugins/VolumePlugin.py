@@ -1844,6 +1844,8 @@ class DatasetConfigureTask(Task):
 ))
 class SnapshotCreateTask(Task):
     def verify(self, snapshot):
+        if not self.dispatcher.call_sync('zfs.dataset.query', [('name', '=', snapshot['dataset'])], {'single': True}):
+            raise VerifyException(errno.ENOENT, 'Dataset {0} does not exist.'.format(snapshot['dataset']))
         return ['zfs:{0}'.format(snapshot['dataset'])]
 
     def run(self, snapshot, recursive=False):
