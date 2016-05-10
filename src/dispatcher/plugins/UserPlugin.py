@@ -126,8 +126,8 @@ class GroupProvider(Provider):
             group['members'] = [x['id'] for x in self.datastore.query(
                 'users',
                 ('or', (
-                    ('groups', 'in', group['gid']),
-                    ('group', '=', group['gid'])
+                    ('groups', 'in', group['id']),
+                    ('group', '=', group['id'])
                 ))
             )]
             return group
