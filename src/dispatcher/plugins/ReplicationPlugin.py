@@ -1247,6 +1247,19 @@ class ReplicationRoleUpdateTask(ReplicationBaseTask):
                 update_role(True)
 
 
+@description("Checks if provided replication link would not conflict with other links")
+@accepts(h.ref('replication-link'))
+class ReplicationCheckDatasetsTask(ReplicationBaseTask):
+    def verify(self, link):
+        if not self.datastore.exists('replication.links', ('name', '=', link['name'])):
+            raise VerifyException(errno.ENOENT, 'Replication link {0} do not exist.'.format(link['name']))
+
+        return ['replication:{0}'.format(link['name'])]
+
+    def run(self, link):
+        self.check_datasets_valid(link)
+
+
 def _depends():
     return ['NetworkPlugin']
 
@@ -1328,6 +1341,7 @@ def _init(dispatcher, plugin):
     plugin.register_task_handler('replication.role_update', ReplicationRoleUpdateTask)
     plugin.register_task_handler('replication.reserve_services', ReplicationReserveServicesTask)
     plugin.register_task_handler('replication.delete', ReplicationDeleteTask)
+    plugin.register_task_handler('replication.check_datasets', ReplicationCheckDatasetsTask)
 
     plugin.register_event_type('replication.link.changed')
 
