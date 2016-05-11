@@ -122,6 +122,7 @@ class DevdEventSource(EventSource):
 
     def __init__(self, dispatcher):
         super(DevdEventSource, self).__init__(dispatcher)
+        self.socket = None
         self.register_event_type("system.device.attached")
         self.register_event_type("system.device.detached")
         self.register_event_type("system.device.changed")
@@ -216,10 +217,10 @@ class DevdEventSource(EventSource):
             "misc.fs.zfs.dataset_delete": ("fs.zfs.dataset.deleted", "Dataset on pool {0} deleted"),
             "misc.fs.zfs.dataset_rename": ("fs.zfs.dataset.renamed", "Dataset on pool {0} renamed"),
             "misc.fs.zfs.dataset_setprop": ("fs.zfs.dataset.setprop", "Property of dataset on pool {0} changed"),
-            "misc.fs.zfs.vdev.add": ("fs.zfs.vdev.created", "Vdev on pool {0} created"),
-            "misc.fs.zfs.vdev.attach": ("fs.zfs.vdev.attached", "Vdev on pool {0} attached"),
-            "misc.fs.zfs.vdev_statechange": ("fs.zfs.vdev.state_changed", "Vdev on pool {0} status changed"),
-            "resource.fs.zfs.removed": ("fs.zfs.vdev.removed", "Vdev on pool {0} removed"),
+            "misc.fs.zfs.vdev_add": ("fs.zfs.vdev.created", "Vdev on pool {0} created"),
+            "misc.fs.zfs.vdev_attach": ("fs.zfs.vdev.attached", "Vdev on pool {0} attached"),
+            "misc.fs.zfs.vdev_remove": ("fs.zfs.vdev.removed", "Vdev on pool {0} removed"),
+            "misc.fs.zfs.vdev_statechange": ("fs.zfs.vdev.state_changed", "Vdev on pool {0} status changed")
         }
 
         if args["type"] not in event_mapping:
