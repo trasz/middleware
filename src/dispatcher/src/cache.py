@@ -104,6 +104,15 @@ class CacheStore(object):
             if value.valid.is_set():
                 yield value.data
 
+    def remove_predicate(self, predicate):
+        result = []
+        for k, v in self.itervalid():
+            if predicate(v):
+                self.remove(k)
+                result.append(k)
+
+        return result
+
     def query(self, *filter, **params):
         return wrap(list(self.validvalues())).query(*filter, **params)
 
@@ -134,15 +143,6 @@ class EventCacheStore(CacheStore):
             })
 
         return ret
-
-    def remove_predicate(self, predicate):
-        result = []
-        for k, v in self.itervalid():
-            if predicate(v):
-                self.remove(k)
-                result.append(k)
-
-        return result
 
     def rename(self, oldkey, newkey):
         with self.lock:
