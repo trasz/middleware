@@ -714,16 +714,17 @@ class ReplicationSyncTask(ReplicationBaseTask):
         return ['replication:{0}'.format(name)]
 
     def run(self, name, transport_plugins):
-        link = self.join_subtasks(self.run_subtask('replication.get_latest_link', name))[0]
-        is_master, remote = self.get_replication_state(link)
-        remote_client = get_replication_client(self.dispatcher, remote)
-        if is_master:
-            start_time = time.time()
-            total_size = 0
-            status = 'SUCCESS'
-            message = ''
-            speed = 0
-            try:
+        start_time = time.time()
+        total_size = 0
+        status = 'SUCCESS'
+        message = ''
+        speed = 0
+        remote_client = None
+        try:
+            link = self.join_subtasks(self.run_subtask('replication.get_latest_link', name))[0]
+            is_master, remote = self.get_replication_state(link)
+            remote_client = get_replication_client(self.dispatcher, remote)
+            if is_master:
                 with self.dispatcher.get_lock('volumes'):
                     datasets_to_replicate = self.dispatcher.call_sync('replication.datasets_from_link', link)
                     for dataset in datasets_to_replicate:
@@ -742,36 +743,36 @@ class ReplicationSyncTask(ReplicationBaseTask):
 
                     if link['replicate_services']:
                         remote_client.call_task_sync('replication.reserve_services', name)
-            except TaskException as e:
-                status = 'FAILED'
-                message = e.message
-                raise
-            finally:
-                end_time = time.time()
-                if start_time != end_time:
-                    speed = int(float(total_size) / float(end_time - start_time))
+            else:
+                remote_client.call_task_sync(
+                    'replication.sync',
+                    link['name'],
+                    transport_plugins
+                )
 
-                status_dict = {
-                    'status': status,
-                    'message': message,
-                    'size': total_size,
-                    'speed': speed
-                }
-                self.dispatcher.call_sync('replication.link.put_status', name, status_dict)
+            self.dispatcher.dispatch_event('replication.link.changed', {
+                'operation': 'update',
+                'ids': [link['id']]
+            })
+        except TaskException as e:
+            status = 'FAILED'
+            message = e.message
+            raise
+        finally:
+            end_time = time.time()
+            if start_time != end_time:
+                speed = int(float(total_size) / float(end_time - start_time))
+
+            status_dict = {
+                'status': status,
+                'message': message,
+                'size': total_size,
+                'speed': speed
+            }
+            self.dispatcher.call_sync('replication.link.put_status', name, status_dict)
+            if remote_client:
                 remote_client.call_sync('replication.link.put_status', name, status_dict)
-
-        else:
-            remote_client.call_task_sync(
-                'replication.sync',
-                link['name'],
-                transport_plugins
-            )
-
-        remote_client.disconnect()
-        self.dispatcher.dispatch_event('replication.link.changed', {
-            'operation': 'update',
-            'ids': [link['id']]
-        })
+                remote_client.disconnect()
 
 
 @description("Creates name reservation for services subject to replication")
