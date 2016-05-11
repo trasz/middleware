@@ -319,6 +319,8 @@ class ReplicationCreateTask(ReplicationBaseTask):
         if 'update_date' not in link:
             link['update_date'] = str(datetime.utcnow())
 
+        self.check_datasets_valid(link)
+
         is_master, remote = self.get_replication_state(link)
         remote_client = get_replication_client(self.dispatcher, remote)
 
