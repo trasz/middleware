@@ -227,6 +227,41 @@ class ReplicationBaseTask(Task):
 
         return out_link
 
+    def check_datasets_valid(self, link):
+        datasets = wrap(
+            self.dispatcher.call_sync('replication.datasets_from_link', link)
+        ).query(*[], **{'select': 'name'})
+        is_master, remote = self.get_replication_state(link)
+
+        links = self.dispatcher.call_sync('replication.link.query', [('name', '!=', link['name'])])
+        for dataset in datasets:
+            for l in links:
+                l_datasets = wrap(
+                    self.dispatcher.call_sync('replication.datasets_from_link', l)
+                ).query(*[], **{'select': 'name'})
+                l_is_master, remote = self.get_replication_state(l)
+
+                if dataset in l_datasets:
+                    if l['bidirectional'] or link['bidirectional']:
+                        raise TaskException(
+                            errno.EACCES,
+                            'Bi-directional replication cannot share dataset {0} with other replication: {1}.'.format(
+                                dataset,
+                                l['name'] if link['bidirectional'] else link['name']
+                            )
+                        )
+
+                    if is_master != l_is_master:
+                        raise TaskException(
+                            errno.EACCES,
+                            'Usage of dataset {0} conflicts with {1} replication. \
+                            Datasets cannot be a source and a target of replication at the same time'.format(
+                                dataset,
+                                l['name']
+                            )
+                        )
+        return True
+
 
 @description("Sets up a replication link")
 @accepts(h.all_of(
