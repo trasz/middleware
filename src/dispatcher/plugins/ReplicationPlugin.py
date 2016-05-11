@@ -48,6 +48,7 @@ logger = logging.getLogger(__name__)
 
 
 status_cache = CacheStore()
+link_cache = CacheStore()
 
 
 class ReplicationActionType(enum.Enum):
@@ -154,12 +155,24 @@ class ReplicationLinkProvider(Provider):
                 obj['status'] = status_cache.get(obj['name'])
             return obj
 
+        links = link_cache.query(*[], **{})
+
+        links = list(map(extend, links))
+        return wrap(links).query(*(filter or []), **(params or {}))
+
+    @query('replication-link')
+    def sync_query(self, filter=None, params=None):
+        def extend(obj):
+            if status_cache.is_valid(obj['name']):
+                obj['status'] = status_cache.get(obj['name'])
+            return obj
+
         links = self.datastore.query('replication.links')
         latest_links = []
         for link in links:
             latest_links.append(self.dispatcher.call_task_sync('replication.get_latest_link', link['name']))
 
-            latest_links = list(map(extend, latest_links))
+        latest_links = list(map(extend, latest_links))
         return wrap(latest_links).query(*(filter or []), **(params or {}))
 
     def local_query(self, filter=None, params=None):
@@ -233,7 +246,7 @@ class ReplicationBaseTask(Task):
         ).query(*[], **{'select': 'name'})
         is_master, remote = self.get_replication_state(link)
 
-        links = self.dispatcher.call_sync('replication.link.query', [('name', '!=', link['name'])])
+        links = self.dispatcher.call_sync('replication.link.sync_query', [('name', '!=', link['name'])])
         for dataset in datasets:
             for l in links:
                 l_datasets = wrap(
@@ -326,6 +339,7 @@ class ReplicationCreateTask(ReplicationBaseTask):
 
         remote_link = remote_client.call_sync('replication.link.get_one_local', link['name'])
         id = self.datastore.insert('replication.links', link)
+        link_cache.put(link['name'], link)
         if is_master:
             self.join_subtasks(self.run_subtask('replication.prepare_slave', link))
         if not remote_link:
@@ -540,6 +554,7 @@ class ReplicationDeleteTask(ReplicationBaseTask):
         is_master, remote = self.get_replication_state(link)
 
         self.datastore.delete('replication.links', link['id'])
+        link_cache.remove(link['name'])
         self.dispatcher.unregister_resource('replication:{0}'.format(link['name']))
 
         self.dispatcher.dispatch_event('replication.link.changed', {
@@ -691,6 +706,7 @@ class ReplicationUpdateTask(ReplicationBaseTask):
                 ))
 
         self.datastore.update('replication.links', link['id'], link)
+        link_cache.put(link['name'], link)
 
         self.dispatcher.dispatch_event('replication.link.changed', {
             'operation': 'update',
@@ -1228,6 +1244,7 @@ class ReplicationUpdateLinkTask(Task):
 
         if parse_datetime(local_link['update_date']) < parse_datetime(remote_link['update_date']):
             self.datastore.update('replication.links', remote_link['id'], remote_link)
+            link_cache.put(remote_link['name'], remote_link)
             self.dispatcher.dispatch_event('replication.link.changed', {
                 'operation': 'update',
                 'ids': [remote_link['id']]
@@ -1403,7 +1420,7 @@ def _init(dispatcher, plugin):
 
     def update_link_cache(args):
         # Query, if possible, performs sync of replication links cache at both ends of each link
-        links = dispatcher.call_sync('replication.link.query')
+        links = dispatcher.call_sync('replication.link.sync_query')
         # And retry failed ones over encrypted link
         for link in links:
             status = link.get('status')
@@ -1427,3 +1444,4 @@ def _init(dispatcher, plugin):
     links = dispatcher.call_sync('replication.link.local_query')
     for link in links:
         dispatcher.register_resource(Resource('replication:{0}'.format(link['name'])), parents=['replication'])
+        link_cache.put(link['name'], link)
