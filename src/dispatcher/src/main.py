@@ -76,8 +76,8 @@ from services import (
 from schemas import register_general_purpose_schemas
 from balancer import Balancer
 from auth import PasswordAuthenticator, TokenStore, Token, TokenException, User, Service
-from freenas.utils import FaultTolerantLogHandler, load_module_from_file, xrecvmsg, xsendmsg, TraceLogger
-
+from freenas.utils import FaultTolerantLogHandler, load_module_from_file, xrecvmsg, xsendmsg
+from freenas.utils.trace_logger import TraceLogger, TRACE
 
 MAXFDS = 128
 CMSGCRED_SIZE = struct.calcsize('iiiih16i')
@@ -529,7 +529,7 @@ class Dispatcher(object):
 
     def set_syslog_level(self, level):
         if level == 'TRACE':
-            log_level = logging.DEBUG - 5
+            log_level = TRACE
         else:
             log_level = getattr(logging, level, None)
 
