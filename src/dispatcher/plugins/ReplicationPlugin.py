@@ -578,15 +578,6 @@ class ReplicationUpdateTask(ReplicationBaseTask):
         if not self.datastore.exists('replication.links', ('name', '=', name)):
             raise VerifyException(errno.ENOENT, 'Replication link {0} do not exist.'.format(name))
 
-        if 'partners' in updated_fields:
-            raise VerifyException(errno.EINVAL, 'Partners of replication link cannot be updated')
-
-        if 'name' in updated_fields:
-            raise VerifyException(errno.EINVAL, 'Name of replication link cannot be updated')
-
-        if 'id' in updated_fields:
-            raise VerifyException(errno.EINVAL, 'Id of replication link cannot be updated')
-
         if 'datasets' in updated_fields:
             if not len(updated_fields['datasets']):
                 raise VerifyException(errno.ENOENT, 'At least one dataset have to be specified')
@@ -599,13 +590,36 @@ class ReplicationUpdateTask(ReplicationBaseTask):
 
     def run(self, name, updated_fields):
         link = self.join_subtasks(self.run_subtask('replication.get_latest_link', name))[0]
+        old_name = link['name']
         is_master, remote = self.get_replication_state(link)
-        remote_client = get_replication_client(self.dispatcher, remote)
-        partners = link['partners']
-        old_slave_datasets = []
+        remote_available = True
+        remote_client = None
+        try:
+            remote_client = get_replication_client(self.dispatcher, remote)
+        except TaskException as e:
+            remote_available = False
+            self.add_warning(TaskWarning(
+                e.code,
+                'Remote {0} is unreachable. Update is being performed only locally.'.format(remote)
+            ))
 
+        old_slave_datasets = []
         updated_fields['update_date'] = str(datetime.utcnow())
 
+        if 'datasets' in updated_fields:
+            if not remote_available:
+                raise TaskException(
+                    errno.EACCES,
+                    'Cannot modify datasets, because remote {0} is unreachable'.format(remote)
+                )
+            client = self.dispatcher
+            if is_master:
+                client = remote_client
+            old_slave_datasets = client.call_sync('replication.datasets_from_link', link)
+
+        link.update(updated_fields)
+
+        partners = link['partners']
         if 'master' in updated_fields:
             if not updated_fields['master'] in partners:
                 raise TaskException(
@@ -613,13 +627,28 @@ class ReplicationUpdateTask(ReplicationBaseTask):
                     'Replication master must be one of replication partners {0}, {1}'.format(*partners)
                 )
 
-        if 'datasets' in updated_fields:
-            client = self.dispatcher
-            if is_master:
-                client = remote_client
-            old_slave_datasets = client.call_sync('replication.datasets_from_link', link)
+        if any(key in updated_fields for key in ['id', 'name', 'partners']):
+            new_is_master, new_remote = self.get_replication_state(link)
+            try:
+                new_remote_client = get_replication_client(self.dispatcher, new_remote)
+            except TaskException as e:
+                raise TaskException(
+                    e.code,
+                    'New remote {0} is unreachable.'.format(new_remote)
+                )
+            if remote_available:
+                self.join_subtasks(self.run_subtask('replication.delete', old_name))
+                self.join_subtasks(self.run_subtask('replication.create', link))
+            else:
+                raise TaskException(errno.EACCES, 'Remote {0} is unreachable.'.format(remote))
 
-        link.update(updated_fields)
+            new_remote_client.disconnect()
+
+        if any(key in updated_fields for key in ['recursive', 'datasets', 'bidirectional']):
+            if not remote_available:
+                raise TaskException(errno.EACCES, 'Remote {0} is unreachable.'.format(remote))
+            self.check_datasets_valid(link)
+            remote_client.call_task_sync('replication.check_datasets', link)
 
         if link['replicate_services'] and not link['bidirectional']:
             raise TaskException(
@@ -652,13 +681,14 @@ class ReplicationUpdateTask(ReplicationBaseTask):
                 )
                 raise
 
-        try:
-            remote_client.call_task_sync('replication.update_link', link)
-        except RpcException as e:
-            self.add_warning(TaskWarning(
-                e.code,
-                'Link update at remote side failed because of: {0}'.format(e.message)
-            ))
+        if remote_available:
+            try:
+                remote_client.call_task_sync('replication.update_link', link)
+            except RpcException as e:
+                self.add_warning(TaskWarning(
+                    e.code,
+                    'Link update at remote side failed because of: {0}'.format(e.message)
+                ))
 
         self.datastore.update('replication.links', link['id'], link)
 
@@ -666,11 +696,12 @@ class ReplicationUpdateTask(ReplicationBaseTask):
             'operation': 'update',
             'ids': [link['id']]
         })
-        remote_client.emit_event('replication.link.changed', {
-            'operation': 'update',
-            'ids': [link['id']]
-        })
-        remote_client.disconnect()
+        if remote_available:
+            remote_client.emit_event('replication.link.changed', {
+                'operation': 'update',
+                'ids': [link['id']]
+            })
+            remote_client.disconnect()
 
 
 @description("Runs replication process based on saved link")
