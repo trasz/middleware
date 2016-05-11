@@ -54,11 +54,17 @@ class AFPSharesProvider(Provider):
 
                 return d.local_address[1] == 548
 
+            cnid_pid = None
             path = proc.cwd
             share = first_or_default(lambda s: s['filesystem_path'] == path, shares)
             sock = first_or_default(test_descriptor, proc.files)
             if not share or not sock:
                 continue
+
+            # Look up the cnid_dbd process too
+            for p in bsd.getprocs(bsd.ProcessLookupPredicate.PROC):
+                if p.command == 'cnid_dbd' and p.cwd == os.path.join(path, '.AppleDB'):
+                    cnid_pid = p.pid
 
             try:
                 u = pwd.getpwuid(proc.uid)
@@ -72,7 +78,8 @@ class AFPSharesProvider(Provider):
                 'user': user,
                 'connected_at': proc.started_at,
                 'extra': {
-                    'pid': proc.pid
+                    'pid': proc.pid,
+                    'cnid_dbd_pid': cnid_pid
                 }
             })
 
@@ -152,6 +159,11 @@ class DeleteAFPShareTask(Task):
         return ['service:afp']
 
     def run(self, id):
+        share = self.datastore.get_by_id('shares', id)
+
+        for w in kill_connections(self.dispatcher, lambda c: c['share'] == share['name']):
+            self.add_warning(w)
+
         self.datastore.delete('shares', id)
         self.dispatcher.call_sync('etcd.generation.generate_group', 'afp')
         self.dispatcher.call_sync('service.reload', 'afp')
@@ -180,13 +192,21 @@ class TerminateAFPConnectionTask(Task):
         return ['system']
 
     def run(self, address):
-        for c in self.dispatcher.call_sync('share.afp.get_connected_clients'):
-            if c['host'] == address:
-                pid = c['extra']['pid']
-                try:
-                    os.kill(pid, signal.SIGTERM)
-                except OSError as err:
-                    self.add_warning(TaskWarning(err.errno, 'Cannot kill PID {0}: {1}'.format(pid, str(err))))
+        for w in kill_connections(self.dispatcher, lambda c: c['host'] == address):
+            self.add_warning(w)
+
+
+def kill_connections(dispatcher, predicate):
+    for c in dispatcher.call_sync('share.afp.get_connected_clients'):
+        if predicate(c):
+            pid = c['extra']['pid']
+            cnid_dbd_pid = c['extra']['cnid_dbd_pid']
+            try:
+                os.kill(pid, signal.SIGTERM)
+                if cnid_dbd_pid:
+                    os.kill(cnid_dbd_pid, signal.SIGTERM)
+            except OSError as err:
+                yield TaskWarning(err.errno, 'Cannot kill PID {0}: {1}'.format(pid, str(err)))
 
 
 def _depends():
