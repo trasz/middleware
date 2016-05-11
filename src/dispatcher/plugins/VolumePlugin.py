@@ -79,7 +79,6 @@ DISKS_PER_VDEV = {
     'raidz3': 5
 }
 
-SNAPSHOT_SCRUB_INTERVAL = 300
 VOLUMES_ROOT = '/mnt'
 DEFAULT_ACLS = [
     {'text': 'owner@:rwxpDdaARWcCos:fd:allow'},
@@ -2156,8 +2155,9 @@ def _init(dispatcher, plugin):
         })
 
     def scrub_snapshots():
+        interval = dispatcher.configstore.get('middleware.snapshot_scrub_interval')
         while True:
-            gevent.sleep(SNAPSHOT_SCRUB_INTERVAL)
+            gevent.sleep(interval)
             ts = int(time.time())
             for snap in dispatcher.call_sync('volume.snapshot.query'):
                 snap = wrap(snap)

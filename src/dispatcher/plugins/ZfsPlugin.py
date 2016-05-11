@@ -29,6 +29,7 @@ import os
 import errno
 import logging
 import json
+import gevent
 import libzfs
 from datetime import datetime
 from threading import Event
@@ -44,6 +45,11 @@ from freenas.utils import first_or_default
 from freenas.utils.query import wrap
 
 
+VOLATILE_ZFS_PROPERTIES = [
+    'used', 'available', 'referenced', 'compressratio', 'usedbysnapshots',
+    'usedbydataset', 'usedbychildren', 'usedbyrefreservation', 'refcompressratio',
+    'written', 'logicalused', 'logicalreferenced'
+]
 logger = logging.getLogger('ZfsPlugin')
 pools = None
 datasets = None
@@ -1117,6 +1123,30 @@ def _init(dispatcher, plugin):
                     # Try to clear errors
                     zpool_try_clear(p['name'], vd)
 
+    def sync_sizes():
+        zfs = get_zfs()
+        interval = dispatcher.configstore.get('middleware.zfs_refresh_interval')
+        while True:
+            gevent.sleep(interval)
+            with dispatcher.get_lock('zfs-cache'):
+                for key, i in pools.itervalid():
+                    zfspool = wrap(zfs.get(key).__getstate__(False))
+                    if zfspool != i:
+                        pools.put(key, zfspool)
+
+                for key, i in datasets.itervalid():
+                    props = i['properties']
+                    ds = zfs.get_dataset(i['id'])
+                    changed = False
+
+                    for prop in VOLATILE_ZFS_PROPERTIES:
+                        if props[prop]['rawvalue'] != ds.properties[prop].rawvalue:
+                            props[prop] = wrap(ds.properties[prop].__getstate__())
+                            changed = True
+
+                    if changed:
+                        datasets.put(key, i)
+
     plugin.register_schema_definition('zfs-vdev', {
         'type': 'object',
         'additionalProperties': False,
@@ -1533,3 +1563,5 @@ def _init(dispatcher, plugin):
     except libzfs.ZFSException as err:
         # Log what happened
         logger.error('ZfsPlugin init error: {0}'.format(str(err)))
+
+    gevent.spawn(sync_sizes)
