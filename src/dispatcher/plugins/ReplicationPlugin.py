@@ -1151,6 +1151,9 @@ class ReplicationGetLatestLinkTask(Task):
         try:
             client = get_replication_client(self.dispatcher, remote)
             remote_link = client.call_sync('replication.link.get_one_local', name)
+            status = client.call_sync('replication.link.get_status', name)
+            if status:
+                self.dispatcher.call_sync('replication.link.put_status', name, status)
         except RpcException:
             pass
 
