@@ -151,16 +151,6 @@ class CreateShareTask(Task):
         if not self.dispatcher.call_sync('share.supported_types').get(share['type']):
             raise VerifyException(errno.ENXIO, 'Unknown sharing type {0}'.format(share['type']))
 
-        if self.datastore.exists(
-            'shares',
-            ('type', '=', share['type']),
-            ('name', '=', share['name'])
-        ):
-            raise VerifyException(errno.EEXIST, 'Share {0} of type {1} already exists'.format(
-                share['name'],
-                share['type']
-            ))
-
         share_path = self.dispatcher.call_sync('share.expand_path', share['target_path'], share['target_type'])
         if share['target_type'] != 'FILE':
             share_path = os.path.dirname(share_path)
@@ -177,6 +167,16 @@ class CreateShareTask(Task):
 
         assert share_type['subtype'] in ('FILE', 'BLOCK'),\
             "Unsupported Share subtype: {0}".format(share_type['subtype'])
+
+        if self.datastore.exists(
+            'shares',
+            ('type', '=', share['type']),
+            ('name', '=', share['name'])
+        ):
+            raise TaskException(errno.EEXIST, 'Share {0} of type {1} already exists'.format(
+                share['name'],
+                share['type']
+            ))
 
         normalize(share, {
             'enabled': True,
