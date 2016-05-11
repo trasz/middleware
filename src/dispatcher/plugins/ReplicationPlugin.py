@@ -1401,7 +1401,23 @@ def _init(dispatcher, plugin):
 
     def update_link_cache(args):
         # Query, if possible, performs sync of replication links cache at both ends of each link
-        dispatcher.call_sync('replication.link.query')
+        links = dispatcher.call_sync('replication.link.query')
+        # And retry failed ones over encrypted link
+        for link in links:
+            status = link.get('status')
+            if status:
+                if status['status'] == 'FAILED':
+                    try:
+                        dispatcher.call_task_sync(
+                            'replication.sync',
+                            link['name'],
+                            [{
+                                'name': 'encrypt',
+                                'type': 'AES128'
+                            }]
+                        )
+                    except TaskException:
+                        pass
 
     plugin.register_event_handler('plugin.service_resume', on_etcd_resume)
     plugin.register_event_handler('replication.link.changed', on_replication_change)
