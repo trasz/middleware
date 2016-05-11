@@ -484,7 +484,10 @@ class ZpoolDetachTask(ZpoolBaseTask):
             if not vdev:
                 raise TaskException(errno.ENOENT, 'Vdev with GUID {0} not found'.format(guid))
 
-            vdev.detach()
+            if vdev.parent:
+                vdev.detach()
+            else:
+                vdev.remove()
         except libzfs.ZFSException as err:
             raise TaskException(zfs_error_to_errno(err.code), str(err))
 
@@ -1416,6 +1419,7 @@ def _init(dispatcher, plugin):
     plugin.register_event_handler('fs.zfs.pool.reguid', on_pool_reguid)
     plugin.register_event_handler('fs.zfs.pool.config_sync', on_pool_changed)
     plugin.register_event_handler('fs.zfs.vdev.state_changed', on_pool_changed)
+    plugin.register_event_handler('fs.zfs.vdev.removed', on_pool_changed)
     plugin.register_event_handler('fs.zfs.dataset.created', on_dataset_create)
     plugin.register_event_handler('fs.zfs.dataset.deleted', on_dataset_delete)
     plugin.register_event_handler('fs.zfs.dataset.renamed', on_dataset_rename)
