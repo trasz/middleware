@@ -181,6 +181,13 @@ class ReplicationLinkProvider(Provider):
             'ids': [name]
         })
 
+    @private
+    def get_status(self, name):
+        if status_cache.is_valid(name):
+            return status_cache.get(name)
+        else:
+            return None
+
 
 class ReplicationBaseTask(Task):
     def get_replication_state(self, link):
