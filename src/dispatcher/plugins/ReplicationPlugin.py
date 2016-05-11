@@ -254,6 +254,10 @@ class ReplicationCreateTask(ReplicationBaseTask):
         if not len(link['datasets']):
             raise VerifyException(errno.ENOENT, 'At least one dataset have to be specified')
 
+        for dataset in link['datasets']:
+            if not self.dispatcher.call_sync('zfs.dataset.query', [('name', '=', dataset)], {'single': True}):
+                raise VerifyException(errno.ENOENT, 'Dataset {0} does not exist'.format(dataset))
+
         if link['master'] not in partners:
             raise VerifyException(
                 errno.EINVAL,
@@ -542,6 +546,10 @@ class ReplicationUpdateTask(ReplicationBaseTask):
         if 'datasets' in updated_fields:
             if not len(updated_fields['datasets']):
                 raise VerifyException(errno.ENOENT, 'At least one dataset have to be specified')
+
+            for dataset in updated_fields['datasets']:
+                if not self.dispatcher.call_sync('zfs.dataset.query', [('name', '=', dataset)], {'single': True}):
+                    raise VerifyException(errno.ENOENT, 'Dataset {0} does not exist'.format(dataset))
 
         return ['replication:{0}'.format(name)]
 
