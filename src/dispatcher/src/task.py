@@ -64,6 +64,9 @@ class Task(object):
             'metadata': getattr(cls, 'metadata', None)
         }
 
+    def describe(self, *args, **kwargs):
+        return
+
     def get_status(self):
         return TaskStatus(50, 'Executing...')
 
