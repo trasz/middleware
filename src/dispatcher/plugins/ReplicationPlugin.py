@@ -40,7 +40,7 @@ from dateutil.parser import parse as parse_datetime
 from task import Provider, Task, ProgressTask, VerifyException, TaskException, TaskWarning, query
 from freenas.dispatcher.rpc import RpcException, SchemaHelper as h, description, accepts, returns, private
 from freenas.dispatcher.fd import FileDescriptor
-from utils import get_replication_client
+from utils import get_replication_client, call_task_and_check_state
 from freenas.utils import first_or_default
 from freenas.utils.query import wrap
 
@@ -227,7 +227,8 @@ class ReplicationBaseTask(Task):
     def set_datasets_readonly(self, datasets, readonly, client=None):
         for dataset in datasets:
             if client:
-                client.call_task_sync(
+                call_task_and_check_state(
+                    client,
                     'zfs.update',
                     dataset['name'],
                     {'readonly': {'value': 'on' if readonly else 'off'}}
@@ -350,7 +351,7 @@ class ReplicationCreateTask(ReplicationBaseTask):
         if is_master:
             self.join_subtasks(self.run_subtask('replication.prepare_slave', link))
         if not remote_link:
-            remote_client.call_task_sync('replication.create', link)
+            call_task_and_check_state(remote_client, 'replication.create', link)
         else:
             if self.remove_datastore_timestamps(remote_link) != self.remove_datastore_timestamps(link):
                 raise TaskException(
@@ -477,7 +478,8 @@ class ReplicationPrepareSlaveTask(ReplicationBaseTask):
                                             vdev['path'] = match_disk(empty_disks, vdev['path'])['path']
 
                             try:
-                                remote_client.call_task_sync(
+                                call_task_and_check_state(
+                                    remote_client,
                                     'volume.create',
                                     {
                                         'id': vol['id'],
@@ -519,7 +521,8 @@ class ReplicationPrepareSlaveTask(ReplicationBaseTask):
                                         if local_sub_dataset['mountpoint']:
                                             dataset_properties['mountpoint'] = local_sub_dataset['mountpoint']
                                         dataset_properties['mounted'] = False
-                                        remote_client.call_task_sync(
+                                        call_task_and_check_state(
+                                            remote_client,
                                             'volume.dataset.create',
                                             dataset_properties
                                         )
@@ -535,14 +538,14 @@ class ReplicationPrepareSlaveTask(ReplicationBaseTask):
                                         )
                 if link['recursive']:
                     for dataset in sorted(link['datasets']):
-                        remote_client.call_task_sync('zfs.umount', dataset, True)
+                        call_task_and_check_state(remote_client, 'zfs.umount', dataset, True)
                 else:
                     for dataset in datasets_to_replicate:
-                        remote_client.call_task_sync('zfs.umount', dataset['name'])
+                        call_task_and_check_state(remote_client, 'zfs.umount', dataset['name'])
                 self.set_datasets_readonly(datasets_to_replicate, True, remote_client)
 
         else:
-            remote_client.call_task_sync('replication.prepare_slave', link)
+            call_task_and_check_state(remote_client, 'replication.prepare_slave', link)
 
         remote_client.disconnect()
 
@@ -589,7 +592,7 @@ class ReplicationDeleteTask(ReplicationBaseTask):
                             self.join_subtasks(self.run_subtask('volume.dataset.delete', dataset['name']))
 
         if remote_client.call_sync('replication.link.get_one_local', name):
-            remote_client.call_task_sync('replication.delete', name)
+            call_task_and_check_state(remote_client, 'replication.delete', name)
         remote_client.disconnect()
 
 
@@ -670,7 +673,7 @@ class ReplicationUpdateTask(ReplicationBaseTask):
             if not remote_available:
                 raise TaskException(errno.EACCES, 'Remote {0} is unreachable.'.format(remote))
             self.check_datasets_valid(link)
-            remote_client.call_task_sync('replication.check_datasets', link)
+            call_task_and_check_state(remote_client, 'replication.check_datasets', link)
 
         if link['replicate_services'] and not link['bidirectional']:
             raise TaskException(
@@ -705,7 +708,7 @@ class ReplicationUpdateTask(ReplicationBaseTask):
 
         if remote_available:
             try:
-                remote_client.call_task_sync('replication.update_link', link)
+                call_task_and_check_state(remote_client, 'replication.update_link', link)
             except RpcException as e:
                 self.add_warning(TaskWarning(
                     e.code,
@@ -765,9 +768,10 @@ class ReplicationSyncTask(ReplicationBaseTask):
                         total_size += result[0][1]
 
                     if link['replicate_services']:
-                        remote_client.call_task_sync('replication.reserve_services', name)
+                        call_task_and_check_state(remote_client, 'replication.reserve_services', name)
             else:
-                remote_client.call_task_sync(
+                call_task_and_check_state(
+                    remote_client,
                     'replication.sync',
                     link['name'],
                     transport_plugins
@@ -814,7 +818,7 @@ class ReplicationReserveServicesTask(ReplicationBaseTask):
         remote_client = get_replication_client(self.dispatcher, remote)
 
         if is_master:
-            remote_client.call_task_sync('replication.reserve_services', name)
+            call_task_and_check_state(remote_client, 'replication.reserve_services', name)
         else:
             if link['replicate_services']:
                 for type in service_types:
@@ -1218,7 +1222,7 @@ class ReplicationGetLatestLinkTask(Task):
             remote_update_date = parse_datetime(remote_link['update_date'])
 
             if local_update_date > remote_update_date:
-                client.call_task_sync('replication.update_link', local_link)
+                call_task_and_check_state(client, 'replication.update_link', local_link)
             elif local_update_date < remote_update_date:
                 self.join_subtasks(self.run_subtask('replication.update_link', remote_link))
                 latest_link = remote_link

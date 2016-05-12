@@ -38,7 +38,7 @@ from freenas.dispatcher.client import Client
 from freenas.dispatcher.fd import FileDescriptor
 from paramiko import AuthenticationException
 from freenas.dispatcher.rpc import RpcException, SchemaHelper as h, description, accepts, private
-from utils import get_replication_client
+from utils import get_replication_client, call_task_and_check_state
 from task import Task, ProgressTask, Provider, TaskException, TaskWarning, VerifyException, query
 from libc.stdlib cimport malloc, free
 from posix.unistd cimport read, write
@@ -1591,7 +1591,8 @@ class HostsPairCreateTask(Task):
 
         local_ssh_config = self.dispatcher.call_sync('service.sshd.get_config')
 
-        remote_client.call_task_sync(
+        call_task_and_check_state(
+            remote_client,
             'replication.known_host.create',
             {
                 'name': ip_at_remote_side,
@@ -1652,7 +1653,8 @@ class HostsPairDeleteTask(Task):
             remote_client = get_replication_client(self.dispatcher, remote)
 
             ip_at_remote_side = remote_client.call_sync('management.get_sender_address').split(',', 1)[0]
-            remote_client.call_task_sync(
+            call_task_and_check_state(
+                remote_client,
                 'replication.known_host.delete',
                 ip_at_remote_side
             )
@@ -1722,7 +1724,7 @@ class HostsPairPortUpdateTask(Task):
         remote_client = get_replication_client(self.dispatcher, name)
         ip_at_remote_side = remote_client.call_sync('management.get_sender_address').split(',', 1)[0]
 
-        remote_client.call_task_sync('replication.known_host.update_port', ip_at_remote_side, port)
+        call_task_and_check_state(remote_client, 'replication.known_host.update_port', ip_at_remote_side, port)
         remote_client.disconnect()
 
 
