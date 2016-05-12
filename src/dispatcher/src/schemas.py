@@ -131,7 +131,7 @@ def register_general_purpose_schemas(dispatcher):
                         'args': {'type': 'object'}
                     }
                 }
-            }
+            },
             'debugger': {
                 'oneOf': [
                     {
