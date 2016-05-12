@@ -66,17 +66,13 @@ class ServiceInfoProvider(Provider):
 
         # Running extend sequentially might take too long due to the number of services
         # and `service ${name} onestatus`. To workaround that run it in parallel using gevent
-        result = self.datastore.query('service_definitions', *(filter or []), **(params or {}))
+        result = self.datastore.query('service_definitions')
         if result is None:
             return result
-        single = (params or {}).get('single')
-        if single is True:
-            jobs = {gevent.spawn(extend, result): result}
-        else:
-            jobs = {
-                gevent.spawn(extend, entry): entry
-                for entry in result
-            }
+        jobs = {
+            gevent.spawn(extend, entry): entry
+            for entry in result
+        }
         gevent.joinall(list(jobs.keys()), timeout=15)
         group = gevent.pool.Group()
 
@@ -93,7 +89,7 @@ class ServiceInfoProvider(Provider):
 
         result = group.map(result, jobs)
         result = list(map(lambda s: extend_dict(s, {'config': wrap(self.get_service_config(s['id']))}), result))
-        return result[0] if single is True else result
+        return wrap(result).query(*(filter or []), **(params or {}))
 
     @accepts(str)
     @returns(h.object())
