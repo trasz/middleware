@@ -28,7 +28,7 @@ import errno
 import logging
 import re
 from datastore import DatastoreException
-from task import Task, Provider, TaskException, ValidationException, VerifyException, query
+from task import Task, Provider, TaskException, ValidationException, VerifyException, query, TaskDescription
 from freenas.dispatcher.rpc import RpcException, accepts, description
 from freenas.dispatcher.rpc import SchemaHelper as h
 from lib.system import SubprocessException, system
@@ -78,7 +78,7 @@ class TunablesProvider(Provider):
 ))
 class TunableCreateTask(Task):
     def describe(self, tunable):
-        return "Creating Tunable {0}".format(tunable['var'])
+        return TaskDescription("Deleting Tunable {name}", name=tunable['var'])
 
     def verify(self, tunable):
 
@@ -136,6 +136,9 @@ class TunableCreateTask(Task):
 @description("Updates Tunable")
 @accepts(str, h.ref('tunable'))
 class TunableUpdateTask(Task):
+    def describe(self, id, updated_fields):
+        return TaskDescription("Updating Tunable {name}", name=id)
+
     def verify(self, id, updated_fields):
 
         tunable = self.datastore.get_by_id('tunables', id)
@@ -198,6 +201,9 @@ class TunableUpdateTask(Task):
 @description("Deletes Tunable")
 @accepts(str)
 class TunableDeleteTask(Task):
+    def describe(self, id):
+        return TaskDescription("Deleting Tunable {name}", name=id)
+
     def verify(self, id):
 
         tunable = self.datastore.get_by_id('tunables', id)
