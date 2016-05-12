@@ -121,6 +121,17 @@ def register_general_purpose_schemas(dispatcher):
             'args': {'type': 'object'},
             'id': {'type': 'integer'},
             'parent': {'type': ['integer', 'null']},
+            'description': {
+                'type': 'object',
+                'properties': {
+                    'message': {'type': 'string'},
+                    'name': {'type': ['string', 'null']},
+                    'format': {
+                        'string': {'type': 'string'},
+                        'args': {'type': 'object'}
+                    }
+                }
+            }
             'debugger': {
                 'oneOf': [
                     {
