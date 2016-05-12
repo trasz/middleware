@@ -31,7 +31,7 @@ import re
 from datastore import DatastoreException
 from freenas.dispatcher.rpc import RpcException, description, accepts
 from freenas.dispatcher.rpc import SchemaHelper as h
-from task import Provider, Task, TaskException, ValidationException, VerifyException, query
+from task import Provider, Task, TaskException, ValidationException, VerifyException, query, TaskDescription
 
 from OpenSSL import crypto
 
@@ -161,6 +161,9 @@ class CertificateProvider(Provider):
     h.required('type', 'name', 'country', 'state', 'city', 'organization', 'email', 'common'),
 ))
 class CertificateCreateTask(Task):
+    def describe(self, certificate):
+        return TaskDescription("Creating certificate {name}", name=certificate['name'])
+
     def verify(self, certificate):
 
         errors = ValidationException()
@@ -302,6 +305,9 @@ class CertificateCreateTask(Task):
     h.required('name', 'type', 'certificate'),
 ))
 class CertificateImportTask(Task):
+    def describe(self, certificate):
+        return TaskDescription("Importing certificate {name}", name=certificate['name'])
+
     def verify(self, certificate):
 
         if self.datastore.exists('crypto.certificates', ('name', '=', certificate['name'])):
@@ -361,6 +367,9 @@ class CertificateImportTask(Task):
     h.ref('crypto-certificate'),
 ))
 class CertificateUpdateTask(Task):
+    def describe(self, id, updated_fields):
+        return TaskDescription("Updating certificate {name}", name=id)
+
     def verify(self, id, updated_fields):
 
         certificate = self.datastore.get_by_id('crypto.certificates', id)
@@ -417,6 +426,9 @@ class CertificateUpdateTask(Task):
 
 @accepts(str)
 class CertificateDeleteTask(Task):
+    def describe(self, id):
+        return TaskDescription("Deleting certificate {name}", name=id)
+
     def verify(self, id):
         certificate = self.datastore.get_by_id('crypto.certificates', id)
         if certificate is None:
