@@ -31,7 +31,7 @@ import gevent
 import gevent.pool
 import logging
 
-from task import Task, Provider, TaskException, VerifyException, ValidationException, query
+from task import Task, Provider, TaskException, TaskDescription, VerifyException, ValidationException, query
 from debug import AttachFile, AttachCommandOutput
 from resources import Resource
 from freenas.dispatcher.rpc import RpcException, description, accepts, private, returns
@@ -251,7 +251,8 @@ class ServiceInfoProvider(Provider):
 )
 class ServiceManageTask(Task):
     def describe(self, id, action):
-        return "{0}ing service {1}".format(action.title(), id)
+        svc = self.datastore.get_by_id('service_definitions', id)
+        return TaskDescription("{action}ing service {name}", action=action.title(), name=svc['name'])
 
     def verify(self, id, action):
         if not self.datastore.exists('service_definitions', ('id', '=', id)):
@@ -301,14 +302,16 @@ class ServiceManageTask(Task):
 ))
 class UpdateServiceConfigTask(Task):
     def describe(self, id, updated_fields):
-        return "Updating configuration for service {0}".format(id)
+        svc = self.datastore.get_by_id('service_definitions', id)
+        return TaskDescription("Updating configuration of service {name}", name=svc['name'])
 
     def verify(self, id, updated_fields):
         svc = self.datastore.get_by_id('service_definitions', id)
         if not svc:
             raise VerifyException(
                 errno.ENOENT,
-                'Service {0} not found'.format(id))
+                'Service {0} not found'.format(id)
+            )
 
         if 'config' in updated_fields:
             for x in updated_fields['config']:
