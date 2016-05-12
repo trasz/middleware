@@ -27,7 +27,7 @@
 
 import os
 import errno
-from task import Task, Provider, VerifyException
+from task import Task, Provider, VerifyException, TaskDescription
 from freenas.dispatcher.rpc import description, accepts
 from freenas.dispatcher.rpc import SchemaHelper as h
 from freenas.utils import normalize
@@ -46,6 +46,9 @@ class FakeDisksProvider(Provider):
     )
 )
 class CreateFakeDisk(Task):
+    def describe(self, disk):
+        return TaskDescription("Creating simulated disk {name}", name=disk['id'])
+
     def verify(self, disk):
         return ['system']
 
@@ -81,6 +84,9 @@ class CreateFakeDisk(Task):
     )
 )
 class ConfigureFakeDisk(Task):
+    def describe(self, id, updated_params):
+        return TaskDescription("Updating simulated disk {name}", name=id)
+
     def verify(self, id, updated_params):
         if not self.datastore.exists('simulator.disks', ('id', '=', id)):
             raise VerifyException(errno.ENOENT, 'Disk {0} not found'.format(id))
@@ -98,6 +104,9 @@ class ConfigureFakeDisk(Task):
 @description("Deletes the Simulated Fake Disk identified with the ID provided")
 @accepts(str)
 class DeleteFakeDisk(Task):
+    def describe(self, id):
+        return TaskDescription("Deleting simulated disk {name}", name=id)
+
     def verify(self, id):
         if not self.datastore.exists('simulator.disks', ('id', '=', id)):
             raise VerifyException(errno.ENOENT, 'Disk {0} not found'.format(id))
