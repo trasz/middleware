@@ -32,7 +32,7 @@ import os
 import random
 import string
 import re
-from task import Provider, Task, TaskException, TaskWarning, ValidationException, VerifyException, query
+from task import Provider, Task, TaskException, TaskDescription, TaskWarning, ValidationException, VerifyException, query
 from debug import AttachFile
 from freenas.dispatcher.rpc import RpcException, description, accepts, returns, SchemaHelper as h, generator
 from datastore import DuplicateKeyException, DatastoreException
@@ -169,7 +169,7 @@ class UserCreateTask(Task):
         self.created_group = False
 
     def describe(self, user):
-        return "Adding user {0}".format(user['username'])
+        return TaskDescription("Adding user {name}", name=user['username'])
 
     def verify(self, user):
         errors = ValidationException()
@@ -302,7 +302,7 @@ class UserCreateTask(Task):
 class UserDeleteTask(Task):
     def describe(self, id):
         user = self.datastore.get_by_id('users', id)
-        return "Deleting user {0}".format(user['username'] if user else id)
+        return TaskDescription("Deleting user {name}", name=user['username'] if user else id)
 
     def verify(self, id):
         user = self.datastore.get_by_id('users', id)
@@ -354,6 +354,10 @@ class UserUpdateTask(Task):
     def __init__(self, dispatcher, datastore):
         super(UserUpdateTask, self).__init__(dispatcher, datastore)
         self.original_user = None
+
+    def describe(self, id, updated_fields):
+        user = self.datastore.get_by_id('users', id)
+        return TaskDescription("Updating user {name}", name=user['username'] if user else id)
 
     def verify(self, id, updated_fields):
         user = self.datastore.get_by_id('users', id)
@@ -489,7 +493,7 @@ class UserUpdateTask(Task):
 ))
 class GroupCreateTask(Task):
     def describe(self, group):
-        return "Adding group {0}".format(group['name'])
+        return TaskDescription("Adding group {name}", name=group['name'])
 
     def verify(self, group):
         errors = ValidationException()
@@ -552,7 +556,8 @@ class GroupCreateTask(Task):
 )
 class GroupUpdateTask(Task):
     def describe(self, id, updated_fields):
-        return "Deleting group {0}".format(id)
+        group = self.datastore.get_by_id('groups', id)
+        return TaskDescription("Updating group {name}", name=group['name'] if group else id)
 
     def verify(self, id, updated_fields):
         errors = ValidationException()
@@ -597,8 +602,9 @@ class GroupUpdateTask(Task):
 @description("Deletes a group")
 @accepts(str)
 class GroupDeleteTask(Task):
-    def describe(self, gid):
-        return "Deleting group {0}".format(gid)
+    def describe(self, id):
+        group = self.datastore.get_by_id('groups', id)
+        return TaskDescription("Deleting group {name}", name=group['name'] if group else id)
 
     def verify(self, id):
         # Check if group exists

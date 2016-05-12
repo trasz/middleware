@@ -29,7 +29,7 @@ import os
 import errno
 from freenas.dispatcher.rpc import description, accepts, returns, private
 from freenas.dispatcher.rpc import SchemaHelper as h, generator
-from task import Task, TaskException, VerifyException, Provider, RpcException, query, TaskWarning
+from task import Task, TaskException, TaskDescription, VerifyException, Provider, RpcException, query, TaskWarning
 from freenas.utils import normalize, in_directory, remove_unchanged
 from utils import split_dataset, save_config, load_config, delete_config
 
@@ -147,6 +147,9 @@ class SharesProvider(Provider):
     h.required('name', 'type', 'target_type', 'target_path', 'properties')
 ))
 class CreateShareTask(Task):
+    def describe(self, share):
+        return TaskDescription("Creating share {name}", name=share['name'])
+
     def verify(self, share):
         if not self.dispatcher.call_sync('share.supported_types').get(share['type']):
             raise VerifyException(errno.ENXIO, 'Unknown sharing type {0}'.format(share['type']))
@@ -251,6 +254,10 @@ class CreateShareTask(Task):
 @description("Updates existing share")
 @accepts(str, h.ref('share'))
 class UpdateShareTask(Task):
+    def describe(self, id, updated_fields):
+        share = self.datastore.get_by_id('shares', id)
+        return TaskDescription("Creating share {name}", name=share['name'] if share else id)
+
     def verify(self, id, updated_fields):
         share = self.datastore.get_by_id('shares', id)
         if not share:
@@ -338,6 +345,9 @@ class UpdateShareTask(Task):
 @description("Imports existing share")
 @accepts(str, str, str)
 class ImportShareTask(Task):
+    def describe(self, config_path, name, type):
+        return TaskDescription("Importing share {name} from {config_path}", name=name, config_path=config_path)
+
     def verify(self, config_path, name, type):
         try:
             share = load_config(config_path, '{0}-{1}'.format(type, name))
@@ -410,17 +420,21 @@ class ShareSetImmutableTask(Task):
 @description("Deletes share")
 @accepts(str)
 class DeleteShareTask(Task):
-    def verify(self, name):
-        share = self.datastore.get_by_id('shares', name)
+    def describe(self, id):
+        share = self.datastore.get_by_id('shares', id)
+        return TaskDescription("Deleting share {name}", name=share['name'] if share else id)
+
+    def verify(self, id):
+        share = self.datastore.get_by_id('shares', id)
         if not share:
             raise VerifyException(errno.ENOENT, 'Share not found')
 
         return ['system']
 
-    def run(self, name):
-        share = self.datastore.get_by_id('shares', name)
-
+    def run(self, id):
+        share = self.datastore.get_by_id('shares', id)
         path = self.dispatcher.call_sync('share.get_directory_path', share['id'])
+
         try:
             delete_config(
                 path,
@@ -429,30 +443,34 @@ class DeleteShareTask(Task):
         except OSError:
             pass
 
-        self.join_subtasks(self.run_subtask('share.{0}.delete'.format(share['type']), name))
+        self.join_subtasks(self.run_subtask('share.{0}.delete'.format(share['type']), id))
         self.dispatcher.dispatch_event('share.changed', {
             'operation': 'delete',
-            'ids': [name]
+            'ids': [id]
         })
 
 
 @description("Export share")
 @accepts(str)
 class ExportShareTask(Task):
-    def verify(self, name):
-        share = self.datastore.get_by_id('shares', name)
+    def describe(self, id):
+        share = self.datastore.get_by_id('shares', id)
+        return TaskDescription("Exporting share {name}", name=share['name'] if share else id)
+
+    def verify(self, id):
+        share = self.datastore.get_by_id('shares', id)
         if not share:
             raise VerifyException(errno.ENOENT, 'Share not found')
 
         return ['system']
 
-    def run(self, name):
-        share = self.datastore.get_by_id('shares', name)
+    def run(self, id):
+        share = self.datastore.get_by_id('shares', id)
 
-        self.join_subtasks(self.run_subtask('share.{0}.delete'.format(share['type']), name))
+        self.join_subtasks(self.run_subtask('share.{0}.delete'.format(share['type']), id))
         self.dispatcher.dispatch_event('share.changed', {
             'operation': 'delete',
-            'ids': [name]
+            'ids': [id]
         })
 
 
