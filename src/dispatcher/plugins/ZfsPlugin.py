@@ -484,7 +484,7 @@ class ZpoolDetachTask(ZpoolBaseTask):
             if not vdev:
                 raise TaskException(errno.ENOENT, 'Vdev with GUID {0} not found'.format(guid))
 
-            if vdev.parent:
+            if vdev.group == 'data':
                 vdev.detach()
             else:
                 vdev.remove()

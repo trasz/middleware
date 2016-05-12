@@ -721,35 +721,26 @@ class VolumeUpdateTask(Task):
 
         if 'topology' in updated_params:
             new_vdevs = {}
+            removed_vdevs = []
             updated_vdevs = []
             params = {}
             subtasks = []
+            new_topology = updated_params['topology']
             old_topology = self.dispatcher.call_sync(
                 'volume.query',
                 [('id', '=', id)],
                 {'single': True, 'select': 'topology'}
             )
 
-            new_topology = {
-                'data': [],
-                'log': [],
-                'cache': [],
-                'spare': []
-            }
-            for vdev_type in new_topology:
-                for vdev in old_topology[vdev_type]:
-                    if vdev['type'] == 'disk':
-                        new_topology[vdev_type].append({
-                                'type': vdev['type'],
-                                'path': vdev['path'],
-                                'guid': vdev['guid']
-                        })
-                    else:
-                        new_topology[vdev_type].append({
-                            'type': vdev['type'],
-                            'children': vdev['children'],
-                            'guid': vdev['guid']
-                        })
+            for group, vdevs in old_topology.items():
+                for vdev in vdevs:
+                    new_vdev = first_or_default(lambda v: v.get('guid') == vdev['guid'], new_topology.get(group, []))
+                    if not new_vdev:
+                        # Vdev is missing - it's either remove vdev request or bogus topology
+                        if group == 'data':
+                            raise TaskException(errno.EBUSY, 'Cannot remove data vdev {0}'.format(vdev['guid']))
+
+                        removed_vdevs.append(vdev['guid'])
 
             for group, vdevs in list(updated_params['topology'].items()):
                 for vdev in vdevs:
@@ -810,22 +801,8 @@ class VolumeUpdateTask(Task):
                         'vdev': vdev['children'][-1]
                     })
 
-                    for vdev_type in new_topology:
-                        for idx, entry in enumerate(new_topology[vdev_type]):
-                            if entry['guid'] is old_vdev['guid']:
-                                del new_topology[vdev_type][idx]
-                                if vdev['type'] == 'disk':
-                                    new_topology[vdev_type].append({
-                                        'type': vdev['type'],
-                                        'path': vdev['path'],
-                                        'guid': vdev['guid']
-                                    })
-                                else:
-                                    new_topology[vdev_type].append({
-                                        'type': vdev['type'],
-                                        'children': vdev['children'],
-                                        'guid': vdev['guid']
-                                    })
+            for vdev in removed_vdevs:
+                self.join_subtasks(self.run_subtask('zfs.pool.detach', id, vdev))
 
             for vdev, group in iterate_vdevs(new_vdevs):
                 if vdev['type'] == 'disk':
@@ -914,19 +891,8 @@ class VolumeUpdateTask(Task):
                 updated_vdevs)
             )
 
-            for vdev_type in new_topology:
-                for vdev in new_topology[vdev_type]:
-                    vdev.pop('guid', None)
-
-            for vdev, group in iterate_vdevs(new_vdevs):
-                if vdev['type'] == 'disk':
-                    new_topology[group].append({'type': vdev['type'], 'path': vdev['path']})
-                else:
-                    new_topology[group].append({'type': vdev['type'], 'children': vdev['children']})
-
             volume['topology'] = new_topology
             self.datastore.update('volumes', volume['id'], volume)
-
             self.dispatcher.dispatch_event('volume.changed', {
                 'operation': 'update',
                 'ids': [volume['id']]
