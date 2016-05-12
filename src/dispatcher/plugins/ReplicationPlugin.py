@@ -160,7 +160,6 @@ class ReplicationLinkProvider(Provider):
         links = list(map(extend, links))
         return wrap(links).query(*(filter or []), **(params or {}))
 
-    @query('replication-link')
     def sync_query(self, filter=None, params=None):
         def extend(obj):
             if status_cache.is_valid(obj['name']):
@@ -200,6 +199,14 @@ class ReplicationLinkProvider(Provider):
             return status_cache.get(name)
         else:
             return None
+
+    @private
+    def link_cache_put(self, link):
+        link_cache.put(link['name'], link)
+
+    @private
+    def link_cache_remove(self, name):
+        link_cache.remove(name)
 
 
 class ReplicationBaseTask(Task):
@@ -339,7 +346,7 @@ class ReplicationCreateTask(ReplicationBaseTask):
 
         remote_link = remote_client.call_sync('replication.link.get_one_local', link['name'])
         id = self.datastore.insert('replication.links', link)
-        link_cache.put(link['name'], link)
+        self.dispatcher.call_sync('replication.link.link_cache_put', link)
         if is_master:
             self.join_subtasks(self.run_subtask('replication.prepare_slave', link))
         if not remote_link:
@@ -554,7 +561,7 @@ class ReplicationDeleteTask(ReplicationBaseTask):
         is_master, remote = self.get_replication_state(link)
 
         self.datastore.delete('replication.links', link['id'])
-        link_cache.remove(link['name'])
+        self.dispatcher.call_sync('replication.link.link_cache_remove', link['name'])
         self.dispatcher.unregister_resource('replication:{0}'.format(link['name']))
 
         self.dispatcher.dispatch_event('replication.link.changed', {
@@ -706,7 +713,7 @@ class ReplicationUpdateTask(ReplicationBaseTask):
                 ))
 
         self.datastore.update('replication.links', link['id'], link)
-        link_cache.put(link['name'], link)
+        self.dispatcher.call_sync('replication.link.link_cache_put', link)
 
         self.dispatcher.dispatch_event('replication.link.changed', {
             'operation': 'update',
@@ -1244,7 +1251,7 @@ class ReplicationUpdateLinkTask(Task):
 
         if parse_datetime(local_link['update_date']) < parse_datetime(remote_link['update_date']):
             self.datastore.update('replication.links', remote_link['id'], remote_link)
-            link_cache.put(remote_link['name'], remote_link)
+            self.dispatcher.call_sync('replication.link.link_cache_put', remote_link)
             self.dispatcher.dispatch_event('replication.link.changed', {
                 'operation': 'update',
                 'ids': [remote_link['id']]
@@ -1444,4 +1451,4 @@ def _init(dispatcher, plugin):
     links = dispatcher.call_sync('replication.link.local_query')
     for link in links:
         dispatcher.register_resource(Resource('replication:{0}'.format(link['name'])), parents=['replication'])
-        link_cache.put(link['name'], link)
+        dispatcher.call_sync('replication.link.link_cache_put', link)
