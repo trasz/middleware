@@ -23,13 +23,11 @@ function LoginController($scope, $location, $routeParams, $route, $rootScope) {
         sock.onConnect = function() {
             sock.login(
                 $scope.username,
-                $scope.password,
-                function(result){
-                    console.log(result);
-                }
+                $scope.password
             );
         };
         sock.onLogin = function(){
+            console.log("xin this is the token: ", sock.token);
             sock.call("discovery.get_services", null, function (services) {
                 console.log(services);
                 if (services.hasOwnProperty('code') && services['code'] == 13) {
