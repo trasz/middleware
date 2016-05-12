@@ -44,7 +44,10 @@ import uuid
 from cache import EventCacheStore
 from lib.system import system, SubprocessException
 from lib.freebsd import fstyp
-from task import Provider, Task, ProgressTask, MasterProgressTask, TaskException, TaskWarning, VerifyException, query
+from task import (
+    Provider, Task, ProgressTask, MasterProgressTask, TaskException, TaskWarning, VerifyException, query,
+    TaskDescription
+)
 from freenas.dispatcher.rpc import (
     RpcException, description, accepts, returns, private, SchemaHelper as h, generator
 )
@@ -425,6 +428,9 @@ class SnapshotProvider(Provider):
     h.one_of(str, None)
 )
 class VolumeCreateTask(ProgressTask):
+    def describe(self, volume, password=None):
+        return TaskDescription("Creating the volume {name}", name=volume['id'])
+
     def verify(self, volume, password=None):
         if self.datastore.exists('volumes', ('id', '=', volume['id'])):
             raise VerifyException(errno.EEXIST, 'Volume with same name already exists')
@@ -545,6 +551,9 @@ class VolumeCreateTask(ProgressTask):
 @description("Creates new volume and automatically guesses disks layout")
 @accepts(str, str, str, h.array(str), h.array(str), h.array(str), h.one_of(bool, None), h.one_of(str, None))
 class VolumeAutoCreateTask(Task):
+    def describe(self, name, type, layout, disks, cache_disks=None, log_disks=None, encryption=False, password=None):
+        return TaskDescription("Creating the volume {name}", name=name)
+
     def verify(self, name, type, layout, disks, cache_disks=None, log_disks=None, encryption=False, password=None):
         if self.datastore.exists('volumes', ('id', '=', name)):
             raise VerifyException(
@@ -607,6 +616,9 @@ class VolumeAutoCreateTask(Task):
 @description("Destroys active volume")
 @accepts(str)
 class VolumeDestroyTask(Task):
+    def describe(self, id):
+        return TaskDescription("Deleting the volume {name}", name=id)
+
     def verify(self, id):
         vol = self.datastore.get_by_id('volumes', id)
         if not vol:
@@ -670,6 +682,9 @@ class VolumeDestroyTask(Task):
 @description("Updates configuration of existing volume")
 @accepts(str, h.ref('volume'), h.one_of(str, None))
 class VolumeUpdateTask(Task):
+    def describe(self, id, updated_params, password=None):
+        return TaskDescription("Updating the volume {name}", name=id)
+
     def verify(self, id, updated_params, password=None):
         vol = self.datastore.get_by_id('volumes', id)
         if not vol:
@@ -936,6 +951,9 @@ class VolumeUpdateTask(Task):
 @description("Imports previously exported volume")
 @accepts(str, str, h.object(), h.ref('volume-import-params'), h.one_of(str, None))
 class VolumeImportTask(Task):
+    def describe(self, id, new_name, params=None, enc_params=None, password=None):
+        return TaskDescription("Importing the volume {name}", name=id)
+
     def verify(self, id, new_name, params=None, enc_params=None, password=None):
         if enc_params is None:
             enc_params = {}
@@ -1019,9 +1037,12 @@ class VolumeImportTask(Task):
         self.dispatcher.run_hook('volume.post_attach', {'name': new_name})
 
 
-@description("Imports non-ZFS disk contents info existing volume")
+@description("Imports non-ZFS disk contents into existing volume")
 @accepts(str, str, str)
 class VolumeDiskImportTask(ProgressTask):
+    def describe(self, src, dest_path, fstype=None):
+        return TaskDescription("Importing disk {src} into {dst} path", src=src, dst=dest_path)
+
     def verify(self, src, dest_path, fstype=None):
         disk = self.dispatcher.call_sync('disk.partition_to_disk', src)
         if not disk:
@@ -1075,6 +1096,9 @@ class VolumeDiskImportTask(ProgressTask):
 @description("Exports active volume")
 @accepts(str)
 class VolumeDetachTask(Task):
+    def describe(self, id):
+        return TaskDescription("Detaching the volume {name}", name=id)
+
     def verify(self, id):
         vol = self.datastore.get_by_id('volumes', id)
         if not vol:
@@ -1113,6 +1137,9 @@ class VolumeDetachTask(Task):
 @description("Upgrades volume to newest ZFS version")
 @accepts(str)
 class VolumeUpgradeTask(Task):
+    def describe(self, id):
+        return TaskDescription("Upgrading the volume {name}", name=id)
+
     def verify(self, id):
         vol = self.datastore.get_by_id('volumes', id)
         if not vol:
@@ -1134,6 +1161,9 @@ class VolumeUpgradeTask(Task):
 
 @accepts(str, h.ref('zfs-vdev'), h.one_of(str, None))
 class VolumeAutoReplaceTask(Task):
+    def describe(self, id, failed_vdev, password=None):
+        return TaskDescription("Replacing the failed disk {vdev} in the volume {name}", name=id, vdev=failed_vdev)
+
     def verify(self, id, failed_vdev, password=None):
         vol = self.datastore.get_by_id('volumes', id)
         if not vol:
@@ -1192,6 +1222,9 @@ class VolumeAutoReplaceTask(Task):
 @description("Locks encrypted ZFS volume")
 @accepts(str)
 class VolumeLockTask(Task):
+    def describe(self, id):
+        return TaskDescription("Locking the encrypted volume {name}", name=id)
+
     def verify(self, id):
         vol = self.dispatcher.call_sync('volume.query', [('id', '=', id)], {'single': True})
         if not vol:
@@ -1246,6 +1279,9 @@ class VolumeLockTask(Task):
     h.enum(str, ['all', 'containers', 'shares', 'system'])
 )
 class VolumeAutoImportTask(Task):
+    def describe(self, volume, scope):
+        return TaskDescription("Importing {scope} services from the volume {name}", name=volume, scope=scope)
+
     def verify(self, volume, scope):
         if not self.datastore.exists('volumes', ('id', '=', volume)):
             raise VerifyException(errno.ENOENT, 'Volume {0} not found'.format(volume))
@@ -1385,6 +1421,9 @@ class VolumeAutoImportTask(Task):
 @description("Unlocks encrypted ZFS volume")
 @accepts(str, h.one_of(str, None), h.object())
 class VolumeUnlockTask(Task):
+    def describe(self, id, password=None, params=None):
+        return TaskDescription("Unlocking the encrypted volume {name}", name=id)
+
     def verify(self, id, password=None, params=None):
         if not self.datastore.exists('volumes', ('id', '=', id)):
             raise VerifyException(errno.ENOENT, 'Volume {0} not found'.format(id))
@@ -1457,6 +1496,9 @@ class VolumeUnlockTask(Task):
 @description("Generates and sets new key for encrypted ZFS volume")
 @accepts(str, h.one_of(str, None))
 class VolumeRekeyTask(Task):
+    def describe(self, id, password=None):
+        return TaskDescription("Regenerating the keys for the encrypted volume {name}", name=id)
+
     def verify(self, id, password=None):
         if not self.datastore.exists('volumes', ('id', '=', id)):
             raise VerifyException(errno.ENOENT, 'Volume {0} not found'.format(id))
@@ -1524,6 +1566,9 @@ class VolumeRekeyTask(Task):
 @description("Creates a backup file of Master Keys of encrypted volume")
 @accepts(str, str)
 class VolumeBackupKeysTask(Task):
+    def describe(self, id, out_path=None):
+        return TaskDescription("Creating a backup of the keys of the encrypted volume {name}", name=id)
+
     def verify(self, id, out_path=None):
         if not self.datastore.exists('volumes', ('id', '=', id)):
             raise VerifyException(errno.ENOENT, 'Volume {0} not found'.format(id))
@@ -1569,6 +1614,9 @@ class VolumeBackupKeysTask(Task):
 @description("Loads a backup file of Master Keys of encrypted volume")
 @accepts(str, h.one_of(str, None), str)
 class VolumeRestoreKeysTask(Task):
+    def describe(self, id, password=None, in_path=None):
+        return TaskDescription("Uploading the keys from backup to the encrypted volume {name}", name=id)
+
     def verify(self, id, password=None, in_path=None):
         if not self.datastore.exists('volumes', ('id', '=', id)):
             raise VerifyException(errno.ENOENT, 'Volume {0} not found'.format(id))
@@ -1620,6 +1668,9 @@ class VolumeRestoreKeysTask(Task):
 @description("Scrubs the volume")
 @accepts(str)
 class VolumeScrubTask(MasterProgressTask):
+    def describe(self, id):
+        return TaskDescription("Performing a scrub of the volume {name}", name=id)
+
     def verify(self, id):
         vol = self.dispatcher.call_sync('volume.query', [('id', '=', id)], {'single': True})
         if not vol:
@@ -1645,6 +1696,18 @@ class VolumeScrubTask(MasterProgressTask):
 @description("Makes vdev in a volume offline")
 @accepts(str, str)
 class VolumeOfflineVdevTask(Task):
+    def describe(self, id, vdev_guid):
+        try:
+            config = self.dispatcher.call_sync('disk.get_disk_config_by_id', vdev_guid)
+        except RpcException:
+            config = None
+
+        return TaskDescription(
+            "Turning offline the {disk} disk of the volume {name}",
+            name=id,
+            disk=config['path'] if config else vdev_guid
+        )
+
     def verify(self, id, vdev_guid):
         vol = self.dispatcher.call_sync('volume.query', [('id', '=', id)], {'single': True})
         if not vol:
@@ -1663,6 +1726,18 @@ class VolumeOfflineVdevTask(Task):
 @description("Makes vdev in a volume online")
 @accepts(str, str)
 class VolumeOnlineVdevTask(Task):
+    def describe(self, id, vdev_guid):
+        try:
+            config = self.dispatcher.call_sync('disk.get_disk_config_by_id', vdev_guid)
+        except RpcException:
+            config = None
+
+        return TaskDescription(
+            "Turning online the {disk} disk of the volume {name}",
+            name=id,
+            disk=config['path'] if config else vdev_guid
+        )
+
     def verify(self, id, vdev_guid):
         vol = self.dispatcher.call_sync('volume.query', [('id', '=', id)], {'single': True})
         if not vol:
@@ -1684,6 +1759,9 @@ class VolumeOnlineVdevTask(Task):
     h.required('id', 'volume')
 ))
 class DatasetCreateTask(Task):
+    def describe(self, dataset):
+        return TaskDescription("Creating the dataset {name}", name=dataset['id'])
+
     def verify(self, dataset):
         if not self.datastore.exists('volumes', ('id', '=', dataset['volume'])):
             raise VerifyException(errno.ENOENT, 'Volume {0} not found'.format(dataset['volume']))
@@ -1727,6 +1805,9 @@ class DatasetCreateTask(Task):
 @description("Deletes an existing Dataset from a Volume")
 @accepts(str)
 class DatasetDeleteTask(Task):
+    def describe(self, id):
+        return TaskDescription("Deleting the dataset {name}", name=id)
+
     def verify(self, id):
         pool_name, _, ds = id.partition('/')
         if not self.datastore.exists('volumes', ('id', '=', pool_name)):
@@ -1772,6 +1853,9 @@ class DatasetDeleteTask(Task):
 @description("Configures/Updates an existing Dataset's properties")
 @accepts(str, h.ref('volume-dataset'))
 class DatasetConfigureTask(Task):
+    def describe(self, id, updated_params):
+        return TaskDescription("Configuring the dataset {name}", name=id)
+
     def verify(self, id, updated_params):
         pool_name, _, ds = id.partition('/')
         if not self.datastore.exists('volumes', ('id', '=', pool_name)):
@@ -1842,6 +1926,9 @@ class DatasetConfigureTask(Task):
     h.forbidden('id')
 ))
 class SnapshotCreateTask(Task):
+    def describe(self, snapshot):
+        return TaskDescription("Creating the snapshot {name}", name=snapshot['name'])
+
     def verify(self, snapshot):
         if not self.dispatcher.call_sync('zfs.dataset.query', [('name', '=', snapshot['dataset'])], {'single': True}):
             raise VerifyException(errno.ENOENT, 'Dataset {0} does not exist.'.format(snapshot['dataset']))
@@ -1869,6 +1956,9 @@ class SnapshotCreateTask(Task):
 @description("Deletes the specified snapshot")
 @accepts(str)
 class SnapshotDeleteTask(Task):
+    def describe(self, id):
+        return TaskDescription("Deleting the snapshot {name}", name=id)
+
     def verify(self, id):
         pool, ds, snap = split_snapshot_name(id)
         return ['zfs:{0}'.format(ds)]
@@ -1887,6 +1977,9 @@ class SnapshotDeleteTask(Task):
     h.ref('volume-snapshot')
 ))
 class SnapshotConfigureTask(Task):
+    def describe(self, id, updated_params):
+        return TaskDescription("Configuring the snapshot {name}", name=id)
+
     def verify(self, id, updated_params):
         pool, ds, snap = split_snapshot_name(id)
         return ['zfs:{0}'.format(ds)]
