@@ -89,3 +89,12 @@ def get_replication_client(dispatcher, remote):
         raise TaskException(errno.ECONNREFUSED, 'Cannot connect to {0}'.format(remote))
     except IOError:
         raise TaskException(errno.EINVAL, 'Provided host key is not valid')
+
+
+def call_task_and_check_state(client, name, *args):
+    result = client.call_task_sync(name, args)
+    if result['state'] != 'FINISHED':
+        raise TaskException(errno.EFAULT, 'Task failed: {0}'.format(
+            result['error']['message']
+        ))
+    return result
