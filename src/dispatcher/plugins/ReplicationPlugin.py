@@ -1327,7 +1327,7 @@ class ReplicationCheckDatasetsTask(ReplicationBaseTask):
 
 
 def _depends():
-    return ['NetworkPlugin']
+    return ['NetworkPlugin', 'ServiceManagePlugin']
 
 
 def _init(dispatcher, plugin):
@@ -1430,6 +1430,17 @@ def _init(dispatcher, plugin):
             dispatcher.call_task_sync('replication.role_update', i)
 
     def update_link_cache(args):
+        sshd_service = dispatcher.call_sync('service.query', [('name', '=', 'sshd')], {'single': True})
+        dispatcher.test_or_wait_for_event(
+            'service.changed',
+            lambda ar:
+            ar['id'] == sshd_service['id'] and
+            dispatcher.call_sync('service.query', [('name', '=', 'sshd')], {'single': True})['state'] == 'RUNNING',
+            lambda:
+            sshd_service['state'] == 'RUNNING',
+            timeout=30
+        )
+
         # Query, if possible, performs sync of replication links cache at both ends of each link
         links = dispatcher.call_sync('replication.link.sync_query')
         # And retry failed ones over encrypted link
