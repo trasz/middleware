@@ -741,6 +741,40 @@ class VolumeUpdateTask(Task):
                             raise TaskException(errno.EBUSY, 'Cannot remove data vdev {0}'.format(vdev['guid']))
 
                         removed_vdevs.append(vdev['guid'])
+                        continue
+
+                    if compare_vdevs(new_vdev, vdev):
+                        continue
+
+                    if new_vdev['type'] not in ('disk', 'mirror'):
+                        raise TaskException(
+                            errno.EINVAL,
+                            'Cannot detach vdev {0}, {1} is not mirror or disk'.format(
+                                vdev['guid'],
+                                vdev['type']
+                            )
+                        )
+
+                    if vdev['type'] not in ('disk', 'mirror'):
+                        raise TaskException(
+                            errno.EINVAL,
+                            'Cannot change vdev {0} type ({1}) to {2}'.format(
+                                vdev['guid'],
+                                vdev['type'],
+                                new_vdev['type']
+                            )
+                        )
+
+                    if vdev['type'] == 'mirror' and new_vdev['type'] == 'mirror' and len(new_vdev['children']) < 2:
+                        raise TaskException(
+                            errno.EINVAL,
+                            'Cannot mirror vdev {0} must have at least two members'.format(vdev['guid'])
+                        )
+
+                    if new_vdev['type'] == 'mirror':
+                        for i in vdev['children']:
+                            if not first_or_default(lambda v: v['guid'] == i['guid'], new_vdev['children']):
+                                removed_vdevs.append(i['guid'])
 
             for group, vdevs in list(updated_params['topology'].items()):
                 for vdev in vdevs:
