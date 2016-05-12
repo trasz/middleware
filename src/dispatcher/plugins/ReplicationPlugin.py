@@ -104,7 +104,7 @@ class ReplicationProvider(Provider):
         datasets = self.dispatcher.call_sync('replication.datasets_from_link', link)
         for dataset in datasets:
             dataset_path = self.dispatcher.call_sync('volume.get_dataset_path', dataset['name'])
-            shares.append(
+            shares.extend(
                 wrap(
                     self.dispatcher.call_sync('share.get_dependencies', dataset_path, False, False)
                 ).query([('immutable', '=', True)], {})
@@ -117,7 +117,7 @@ class ReplicationProvider(Provider):
         link = self.dispatcher.call_task_sync('replication.get_latest_link', link_name)
         datasets = self.dispatcher.call_sync('replication.datasets_from_link', link)
         for dataset in datasets:
-            containers.append(
+            containers.extend(
                 wrap(
                     self.dispatcher.call_sync('share.get_dependencies', dataset['name'], False)
                 ).query([('immutable', '=', True)], {})
@@ -131,7 +131,7 @@ class ReplicationProvider(Provider):
         datasets = self.dispatcher.call_sync('replication.datasets_from_link', link)
         for dataset in datasets:
             dataset_path = self.dispatcher.call_sync('volume.get_dataset_path', dataset['name'])
-            shares.append(self.dispatcher.call_sync('share.get_dependencies', dataset_path, False, False))
+            shares.extend(self.dispatcher.call_sync('share.get_dependencies', dataset_path, False, False))
 
         return shares
 
