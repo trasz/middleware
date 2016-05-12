@@ -712,7 +712,11 @@ class ReplicationUpdateTask(ReplicationBaseTask):
 
         if remote_available:
             try:
-                call_task_and_check_state(remote_client, 'replication.update_link', link)
+                call_task_and_check_state(
+                    remote_client,
+                    'replication.update_link',
+                    self.remove_datastore_timestamps(link)
+                )
             except RpcException as e:
                 self.add_warning(TaskWarning(
                     e.code,
@@ -1192,7 +1196,7 @@ class ReplicateDatasetTask(ProgressTask):
 @description("Returns latest replication link of given name")
 @accepts(str)
 @returns(h.ref('replication-link'))
-class ReplicationGetLatestLinkTask(Task):
+class ReplicationGetLatestLinkTask(ReplicationBaseTask):
     def verify(self, name):
         if not self.datastore.exists('replication.links', ('name', '=', name)):
             raise VerifyException(errno.ENOENT, 'Replication link {0} do not exist.'.format(name))
@@ -1226,7 +1230,7 @@ class ReplicationGetLatestLinkTask(Task):
             remote_update_date = parse_datetime(remote_link['update_date'])
 
             if local_update_date > remote_update_date:
-                call_task_and_check_state(client, 'replication.update_link', local_link)
+                call_task_and_check_state(client, 'replication.update_link', self.remove_datastore_timestamps(local_link))
             elif local_update_date < remote_update_date:
                 self.join_subtasks(self.run_subtask('replication.update_link', remote_link))
                 latest_link = remote_link
