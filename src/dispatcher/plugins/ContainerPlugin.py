@@ -40,7 +40,7 @@ import urllib.error
 import shutil
 from task import Provider, Task, ProgressTask, VerifyException, TaskException, query, TaskWarning
 from freenas.dispatcher.rpc import RpcException
-from freenas.dispatcher.rpc import SchemaHelper as h, description, accepts, returns, private
+from freenas.dispatcher.rpc import SchemaHelper as h, description, accepts
 from freenas.utils import first_or_default, normalize, deep_update, process_template
 from utils import save_config, load_config, delete_config
 from freenas.utils.query import wrap
