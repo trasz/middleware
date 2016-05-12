@@ -245,6 +245,25 @@ class TaskStatus(object):
         self.extra = obj['extra']
 
 
+class TaskDescription(object):
+    def __init__(self, fmt, **kwargs):
+        self.kwargs = kwargs
+        self.fmt = fmt
+
+    def __str__(self):
+        return self.fmt.format(**self.kwargs)
+
+    def __getstate__(self):
+        return {
+            'message': str(self),
+            'name': self.kwargs.get('name'),
+            'format': {
+                'string': self.fmt,
+                'args': self.kwargs
+            }
+        }
+
+
 class Provider(RpcService):
     def initialize(self, context):
         self.dispatcher = context.dispatcher

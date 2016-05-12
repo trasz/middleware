@@ -49,7 +49,7 @@ from freenas.utils import first_or_default
 from resources import Resource
 from task import (
     TaskException, TaskAbortException, VerifyException, ValidationException,
-    TaskStatus, TaskState, MasterProgressTask
+    TaskStatus, TaskState, TaskDescription, MasterProgressTask
 )
 import collections
 
@@ -305,6 +305,7 @@ class Task(object):
         self.session_id = None
         self.error = None
         self.state = TaskState.CREATED
+        self.description = None
         self.progress = None
         self.resources = []
         self.warnings = []
@@ -328,6 +329,7 @@ class Task(object):
             "finished_at": self.finished_at,
             "user": self.user,
             "resources": self.resources,
+            "description": self.get_description(),
             "session": self.session_id,
             "name": self.name,
             "parent": self.parent.id if self.parent else None,
@@ -415,6 +417,15 @@ class Task(object):
             'operation': 'update',
             'ids': [self.id]
         })
+
+    def get_description(self):
+        if not self.description:
+            return None
+
+        if isinstance(self.description, TaskDescription):
+            return self.description.__getstate__()
+
+        return TaskDescription(str(self.description)).__getstate__()
 
     def progress_watcher(self):
         while True:
@@ -554,6 +565,7 @@ class Balancer(object):
         task.args = args
         task.instance = task.clazz(self.dispatcher, self.dispatcher.datastore)
         task.instance.verify(*task.args)
+        task.description = task.instance.describe(*task.args)
         task.id = self.dispatcher.datastore.insert("tasks", task)
         task.parent = parent
 
@@ -636,6 +648,7 @@ class Balancer(object):
 
                 task.instance = task.clazz(self.dispatcher, self.dispatcher.datastore)
                 task.resources = task.instance.verify(*task.args)
+                task.description = task.instance.describe(*task.args)
 
                 if type(task.resources) is not list:
                     raise ValueError("verify() returned something else than resource list")
