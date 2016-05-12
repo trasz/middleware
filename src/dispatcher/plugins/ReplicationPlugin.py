@@ -673,7 +673,11 @@ class ReplicationUpdateTask(ReplicationBaseTask):
             if not remote_available:
                 raise TaskException(errno.EACCES, 'Remote {0} is unreachable.'.format(remote))
             self.check_datasets_valid(link)
-            call_task_and_check_state(remote_client, 'replication.check_datasets', link)
+            call_task_and_check_state(
+                remote_client,
+                'replication.check_datasets',
+                self.remove_datastore_timestamps(link)
+            )
 
         if link['replicate_services'] and not link['bidirectional']:
             raise TaskException(
