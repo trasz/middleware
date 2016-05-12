@@ -37,7 +37,7 @@ from resources import Resource
 from paramiko import RSAKey
 from datetime import datetime
 from dateutil.parser import parse as parse_datetime
-from task import Provider, Task, ProgressTask, VerifyException, TaskException, TaskWarning, query
+from task import Provider, Task, ProgressTask, VerifyException, TaskException, TaskWarning, query, TaskDescription
 from freenas.dispatcher.rpc import RpcException, SchemaHelper as h, description, accepts, returns, private
 from freenas.dispatcher.fd import FileDescriptor
 from utils import get_replication_client, call_task_and_check_state
@@ -291,6 +291,9 @@ class ReplicationBaseTask(Task):
     )
 )
 class ReplicationCreateTask(ReplicationBaseTask):
+    def describe(self, link):
+        return TaskDescription("Creating the replication link {name}", name=link['name'])
+
     def verify(self, link):
         partners = link['partners']
         name = link['name']
@@ -371,6 +374,9 @@ class ReplicationCreateTask(ReplicationBaseTask):
 @description("Ensures slave datasets have been created. Checks if services names are available on slave.")
 @accepts(h.ref('replication-link'))
 class ReplicationPrepareSlaveTask(ReplicationBaseTask):
+    def describe(self, link):
+        return TaskDescription("Preparing a slave for the link {name}", name=link['name'])
+
     def verify(self, link):
         return []
 
@@ -553,6 +559,9 @@ class ReplicationPrepareSlaveTask(ReplicationBaseTask):
 @description("Deletes replication link")
 @accepts(str, bool)
 class ReplicationDeleteTask(ReplicationBaseTask):
+    def describe(self, name, scrub=False):
+        return TaskDescription("Deleting the replication link {name}", name=name)
+
     def verify(self, name, scrub=False):
         if not self.datastore.exists('replication.links', ('name', '=', name)):
             raise VerifyException(errno.ENOENT, 'Replication link {0} do not exist.'.format(name))
@@ -599,6 +608,9 @@ class ReplicationDeleteTask(ReplicationBaseTask):
 @description("Update a replication link")
 @accepts(str, h.ref('replication-link'))
 class ReplicationUpdateTask(ReplicationBaseTask):
+    def describe(self, link, updated_fields):
+        return TaskDescription("Updating the replication link {name}", name=link['name'])
+
     def verify(self, name, updated_fields):
         if not self.datastore.exists('replication.links', ('name', '=', name)):
             raise VerifyException(errno.ENOENT, 'Replication link {0} do not exist.'.format(name))
@@ -741,6 +753,9 @@ class ReplicationUpdateTask(ReplicationBaseTask):
 @description("Runs replication process based on saved link")
 @accepts(str, h.array(h.ref('replication-transport-plugin')))
 class ReplicationSyncTask(ReplicationBaseTask):
+    def describe(self, name, transport_plugins):
+        return TaskDescription("Synchronizing the replication link {name}", name=name)
+
     def verify(self, name, transport_plugins):
         if not self.datastore.exists('replication.links', ('name', '=', name)):
             raise VerifyException(errno.ENOENT, 'Replication link {0} do not exist.'.format(name))
@@ -813,6 +828,9 @@ class ReplicationSyncTask(ReplicationBaseTask):
 @description("Creates name reservation for services subject to replication")
 @accepts(str)
 class ReplicationReserveServicesTask(ReplicationBaseTask):
+    def describe(self, name):
+        return TaskDescription("Reserving services for the replication link {name}", name=name)
+
     def verify(self, name):
         if not self.datastore.exists('replication.links', ('name', '=', name)):
             raise VerifyException(errno.ENOENT, 'Replication link {0} do not exist.'.format(name))
@@ -859,6 +877,9 @@ class ReplicationReserveServicesTask(ReplicationBaseTask):
 @accepts(str, str, bool, int, str, bool)
 @returns(str)
 class SnapshotDatasetTask(Task):
+    def describe(self, dataset, recursive, lifetime, prefix='auto', replicable=False):
+        return TaskDescription("Creating a snapshot of {name}", name=dataset)
+
     def verify(self, dataset, recursive, lifetime, prefix='auto', replicable=False):
         if not self.dispatcher.call_sync('zfs.dataset.query', [('name', '=', dataset)], {'single': True}):
             raise VerifyException(errno.ENOENT, 'Dataset {0} not found'.format(dataset))
@@ -901,6 +922,13 @@ class SnapshotDatasetTask(Task):
 
 
 class CalculateReplicationDeltaTask(Task):
+    def describe(self, localds, remoteds, snapshots, recursive=False, followdelete=False):
+        return TaskDescription(
+            "Calculating replication delta between the {name} and the {remoteds}",
+            name=localds,
+            remoteds=remoteds
+        )
+
     def verify(self, localds, remoteds, snapshots, recursive=False, followdelete=False):
         return ['zfs:{0}'.format(localds)]
 
@@ -1049,6 +1077,9 @@ class CalculateReplicationDeltaTask(Task):
 
 @description("Runs a replication task with the specified arguments")
 class ReplicateDatasetTask(ProgressTask):
+    def describe(self, localds, options, transport_plugins=None, dry_run=False):
+        return TaskDescription("Replicating the dataset {name}", name=localds)
+
     def verify(self, localds, options, transport_plugins=None, dry_run=False):
         return ['zfs:{0}'.format(localds)]
 
@@ -1197,6 +1228,9 @@ class ReplicateDatasetTask(ProgressTask):
 @accepts(str)
 @returns(h.ref('replication-link'))
 class ReplicationGetLatestLinkTask(ReplicationBaseTask):
+    def describe(self, name):
+        return TaskDescription("Fetching the latest link {name}", name=name)
+
     def verify(self, name):
         if not self.datastore.exists('replication.links', ('name', '=', name)):
             raise VerifyException(errno.ENOENT, 'Replication link {0} do not exist.'.format(name))
@@ -1243,6 +1277,9 @@ class ReplicationGetLatestLinkTask(ReplicationBaseTask):
 @description("Updates local replication link entry if provided remote entry is newer")
 @accepts(h.ref('replication-link'))
 class ReplicationUpdateLinkTask(Task):
+    def describe(self, remote_link):
+        return TaskDescription("Updating the replication link {name}", name=remote_link['name'])
+
     def verify(self, remote_link):
         if not self.datastore.exists('replication.links', ('name', '=', remote_link['name'])):
             raise VerifyException(errno.ENOENT, 'Replication link {0} do not exist.'.format(remote_link['name']))
@@ -1273,6 +1310,9 @@ class ReplicationUpdateLinkTask(Task):
 @description("Performs synchronization of actual role (master/slave) with replication link state")
 @accepts(str)
 class ReplicationRoleUpdateTask(ReplicationBaseTask):
+    def describe(self, name):
+        return TaskDescription("Synchronizing the replication {name} role with it's desired state", name=name)
+
     def verify(self, name):
         if not self.datastore.exists('replication.links', ('name', '=', name)):
             raise VerifyException(errno.ENOENT, 'Replication link {0} do not exist.'.format(name))
@@ -1325,6 +1365,9 @@ class ReplicationRoleUpdateTask(ReplicationBaseTask):
 @description("Checks if provided replication link would not conflict with other links")
 @accepts(h.ref('replication-link'))
 class ReplicationCheckDatasetsTask(ReplicationBaseTask):
+    def describe(self, link):
+        return TaskDescription("Checking for conflicts with the replication link {name}", name=link['name'])
+
     def verify(self, link):
         if not self.datastore.exists('replication.links', ('name', '=', link['name'])):
             raise VerifyException(errno.ENOENT, 'Replication link {0} do not exist.'.format(link['name']))
