@@ -517,6 +517,12 @@ class TransportSendTask(Task):
         self.aborted = True
         self.finished.set(True)
         close_fds(self.fds)
+        if self.conn:
+            self.conn.shutdown(socket.SHUT_RDWR)
+            self.conn.close()
+        if self.sock:
+            self.sock.shutdown(socket.SHUT_RDWR)
+            self.sock.close()
 
 
 @private
@@ -531,6 +537,7 @@ class TransportReceiveTask(ProgressTask):
         self.addr = None
         self.aborted = False
         self.fds = []
+        self.sock = None
 
     def verify(self, transport):
         if 'auth_token' not in transport:
@@ -569,7 +576,6 @@ class TransportReceiveTask(ProgressTask):
         cdef int header_rd
         cdef int header_wr
 
-        sock = None
         progress_t = None
         try:
             buffer_size = transport.get('buffer_size', 1024*1024)
@@ -590,26 +596,26 @@ class TransportReceiveTask(ProgressTask):
             for conn_option in socket.getaddrinfo(server_address, server_port, socket.AF_UNSPEC, socket.SOCK_STREAM):
                 af, sock_type, proto, canonname, addr = conn_option
                 try:
-                    sock = socket.socket(af, sock_type, proto)
+                    self.sock = socket.socket(af, sock_type, proto)
                 except OSError:
-                    sock = None
+                    self.sock = None
                     continue
                 try:
-                    sock.connect(addr)
+                    self.sock.connect(addr)
                 except OSError:
-                    sock.close()
-                    sock = None
+                    self.sock.close()
+                    self.sock = None
                     continue
                 break
 
-            if sock is None:
+            if self.sock is None:
                 raise TaskException(EACCES, 'Could not connect to a socket at address {0}'.format(server_address))
             self.addr = addr
             logger.debug('Connected to a TCP socket at {0}:{1}'.format(*addr))
 
-            sock.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, buffer_size)
+            self.sock.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, buffer_size)
 
-            conn_fd = os.dup(sock.fileno())
+            conn_fd = os.dup(self.sock.fileno())
             self.fds.append(conn_fd)
 
             plugins = transport.get('transport_plugins', [])
@@ -635,7 +641,7 @@ class TransportReceiveTask(ProgressTask):
                         'Registered {0} transport layer plugin for {1}:{2} connection'.format(plugin['name'], *addr)
                     )
 
-            ret = write_fd(sock.fileno(), token_buf, token_size)
+            ret = write_fd(self.sock.fileno(), token_buf, token_size)
             if ret == -1:
                 raise TaskException(ECONNABORTED, 'Transport connection closed unexpectedly')
             elif ret != token_size:
@@ -727,9 +733,9 @@ class TransportReceiveTask(ProgressTask):
                 logger.debug('Receive from {0}:{1} finished. Closing connection'.format(*addr))
                 free(buffer)
                 free(header_buffer)
-                if sock:
-                    sock.shutdown(socket.SHUT_RDWR)
-                    sock.close()
+                if self.sock:
+                    self.sock.shutdown(socket.SHUT_RDWR)
+                    self.sock.close()
                 close_fds(self.fds)
 
     def count_progress(self):
@@ -755,6 +761,9 @@ class TransportReceiveTask(ProgressTask):
     def abort(self):
         self.aborted = True
         close_fds(self.fds)
+        if self.sock:
+            self.sock.shutdown(socket.SHUT_RDWR)
+            self.sock.close()
 
 
 @private
