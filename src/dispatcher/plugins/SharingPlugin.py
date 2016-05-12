@@ -388,47 +388,22 @@ class ImportShareTask(Task):
 
 
 @description("Sets share immutable")
-@accepts(str)
+@accepts(str, bool)
 class ShareSetImmutableTask(Task):
-    def verify(self, id):
+    def verify(self, id, immutable):
         if not self.datastore.exists('shares', id):
             raise VerifyException(errno.ENOENT, 'Share {0} does not exist'.format(id))
 
         return ['system']
 
-    def run(self, id):
+    def run(self, id, immutable):
         self.join_subtasks(self.run_subtask(
             'share.update',
             id,
             {
-                'enabled': False,
-                'immutable': True
+                'enabled': not immutable,
+                'immutable': immutable
             }
-        ))
-
-
-@description("Sets share mutable")
-@accepts(str)
-class ShareResetImmutableTask(Task):
-    def verify(self, id):
-        if not self.datastore.exists('shares', id):
-            raise VerifyException(errno.ENOENT, 'Share {0} does not exist'.format(id))
-
-        return ['system']
-
-    def run(self, id):
-
-        share = self.datastore.get_by_id('shares', id)
-        share['enabled'] = True
-        share['immutable'] = False
-        self.join_subtasks(self.run_subtask(
-            'share.export',
-            id
-        ))
-
-        self.join_subtasks(self.run_subtask(
-            'share.{0}.import'.format(share['type']),
-            share
         ))
 
 
@@ -518,7 +493,6 @@ class ShareTerminateConnectionTask(Task):
 
     def run(self, share_type, address):
         self.join_subtasks(self.run_subtask('share.{0}.terminate_connection'.format(share_type), address))
-
 
 
 def _depends():
@@ -638,7 +612,6 @@ def _init(dispatcher, plugin):
     plugin.register_task_handler('share.export', ExportShareTask)
     plugin.register_task_handler('share.import', ImportShareTask)
     plugin.register_task_handler('share.immutable.set', ShareSetImmutableTask)
-    plugin.register_task_handler('share.immutable.reset', ShareResetImmutableTask)
     plugin.register_task_handler('share.delete_dependent', DeleteDependentShares)
     plugin.register_task_handler('share.update_related', UpdateRelatedShares)
     plugin.register_task_handler('share.terminate_connection', ShareTerminateConnectionTask)

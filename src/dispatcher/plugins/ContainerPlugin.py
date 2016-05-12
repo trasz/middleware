@@ -355,37 +355,18 @@ class ContainerImportTask(ContainerBaseTask):
         return id
 
 
-@accepts(str)
+@accepts(str, bool)
 class ContainerSetImmutableTask(ContainerBaseTask):
-    def verify(self, id):
+    def verify(self, id, immutable):
         if not self.datastore.exists('containers', ('id', '=', id)):
             raise VerifyException(errno.ENOENT, 'Container {0} does not exist'.format(id))
 
         return ['system']
 
-    def run(self, id):
+    def run(self, id, immutable):
         container = self.datastore.get_by_id('containers', id)
-        container['enabled'] = False
-        container['immutable'] = True
-        self.datastore.update('containers', id, container)
-        self.dispatcher.dispatch_event('container.changed', {
-            'operation': 'update',
-            'ids': [id]
-        })
-
-
-@accepts(str)
-class ContainerResetImmutableTask(ContainerBaseTask):
-    def verify(self, id):
-        if not self.datastore.exists('containers', ('id', '=', id)):
-            raise VerifyException(errno.ENOENT, 'Container {0} does not exist'.format(id))
-
-        return ['system']
-
-    def run(self, id):
-        container = self.datastore.get_by_id('containers', id)
-        container['enabled'] = True
-        container['immutable'] = False
+        container['enabled'] = not immutable
+        container['immutable'] = immutable
         self.datastore.update('containers', id, container)
         self.dispatcher.dispatch_event('container.changed', {
             'operation': 'update',
@@ -751,7 +732,6 @@ def _init(dispatcher, plugin):
     plugin.register_task_handler('container.start', ContainerStartTask)
     plugin.register_task_handler('container.stop', ContainerStopTask)
     plugin.register_task_handler('container.immutable.set', ContainerSetImmutableTask)
-    plugin.register_task_handler('container.immutable.reset', ContainerResetImmutableTask)
     plugin.register_task_handler('container.download_image', DownloadImageTask)
 
     plugin.register_provider('vm_template', VMTemplateProvider)

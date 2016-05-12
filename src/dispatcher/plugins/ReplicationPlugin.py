@@ -1285,11 +1285,11 @@ class ReplicationRoleUpdateTask(ReplicationBaseTask):
             if currently_master:
                 mount = 'umount'
                 relation_type = 'related'
-                action_type = 'set'
+                action_type = True
             else:
                 mount = 'mount'
                 relation_type = 'reserved'
-                action_type = 'reset'
+                action_type = False
 
             for dataset in datasets:
                 self.join_subtasks(self.run_subtask('zfs.{0}'.format(mount), dataset['name']))
@@ -1297,8 +1297,9 @@ class ReplicationRoleUpdateTask(ReplicationBaseTask):
             for service in ['shares', 'containers']:
                 for reserved_item in self.dispatcher.call_sync('replication.get_{0}_{1}'.format(relation_type, service), name):
                     self.join_subtasks(self.run_subtask(
-                        '{0}.immutable.{1}'.format(service[:-1], action_type),
-                        reserved_item['id']
+                        '{0}.immutable.set'.format(service[:-1]),
+                        reserved_item['id'],
+                        action_type
                     ))
 
         link = self.join_subtasks(self.run_subtask('replication.get_latest_link', name))[0]
