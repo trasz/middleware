@@ -92,7 +92,7 @@ def get_replication_client(dispatcher, remote):
 
 
 def call_task_and_check_state(client, name, *args):
-    result = client.call_task_sync(name, args)
+    result = client.call_task_sync(name, *args)
     if result['state'] != 'FINISHED':
         raise TaskException(errno.EFAULT, 'Task failed: {0}'.format(
             result['error']['message']
