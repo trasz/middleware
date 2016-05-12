@@ -48,7 +48,7 @@ from lib.geom import confxml
 from lib.system import system, SubprocessException
 from task import (
     Provider, Task, ProgressTask, TaskStatus, TaskException, VerifyException,
-    query
+    query, TaskDescription
 )
 from debug import AttachData, AttachCommandOutput
 from freenas.dispatcher.rpc import RpcException, accepts, returns, description, private
@@ -168,7 +168,7 @@ class DiskProvider(Provider):
 class DiskGPTFormatTask(Task):
     def describe(self, id, fstype, params=None):
         disk = disk_by_id(self.dispatcher, id)
-        return "Formatting disk {0}".format(os.path.basename(disk['path']))
+        return TaskDescription("Formatting disk {name}", name=os.path.basename(disk['path']))
 
     def verify(self, id, fstype, params=None):
         disk = disk_by_id(self.dispatcher, id)
@@ -233,7 +233,7 @@ class DiskGPTFormatTask(Task):
 class DiskBootFormatTask(Task):
     def describe(self, id):
         disk = disk_by_id(self.dispatcher, id)
-        return "Formatting bootable disk {0}".format(disk['path'])
+        return TaskDescription("Formatting bootable disk {name}", name=disk['path'])
 
     def verify(self, id):
         disk = disk_by_id(self.dispatcher, id)
@@ -264,7 +264,7 @@ class DiskBootFormatTask(Task):
 class DiskInstallBootloaderTask(Task):
     def describe(self, id):
         disk = disk_by_id(self.dispatcher, id)
-        return "Installing bootloader on disk {0}".format(disk['path'])
+        return TaskDescription("Installing bootloader on disk {name}", name=disk['path'])
 
     def verify(self, id):
         disk = disk_by_id(self.dispatcher, id)
@@ -289,6 +289,14 @@ class DiskEraseTask(Task):
         self.started = False
         self.mediasize = 0
         self.remaining = 0
+
+    def describe(self, id, erase_method=None):
+        disk = disk_by_id(self.dispatcher, id)
+        return TaskDescription(
+            "Erasing disk {name} with method {method}",
+            name=disk['path'],
+            method=erase_method if erase_method else 'QUICK'
+        )
 
     def verify(self, id, erase_method=None):
         disk = disk_by_id(self.dispatcher, id)
@@ -359,6 +367,10 @@ class DiskEraseTask(Task):
     )
 )
 class DiskConfigureTask(Task):
+    def describe(self, id, updated_fields):
+        disk = disk_by_id(self.dispatcher, id)
+        return TaskDescription("Configuring disk {name}", name=disk['path'])
+
     def verify(self, id, updated_fields):
         disk = disk_by_id(self.dispatcher, id)
 
@@ -416,6 +428,10 @@ class DiskConfigureTask(Task):
 @description("Deletes offline disk configuration from database")
 @accepts(str)
 class DiskDeleteTask(Task):
+    def describe(self, id):
+        disk = disk_by_id(self.dispatcher, id)
+        return TaskDescription("Deleting offline disk {name} configuration", name=disk['path'])
+
     def verify(self, id):
         disk = self.datastore.get_by_id('disks', id)
 
@@ -435,7 +451,7 @@ class DiskDeleteTask(Task):
 class DiskGELIInitTask(Task):
     def describe(self, id, params=None):
         disk = disk_by_id(self.dispatcher, id)
-        return "Creating encrypted partition for {0}".format(os.path.basename(disk['path']))
+        return TaskDescription("Creating encrypted partition for {name}", name=os.path.basename(disk['path']))
 
     def verify(self, id, params=None):
         disk = disk_by_id(self.dispatcher, id)
@@ -490,7 +506,7 @@ class DiskGELIInitTask(Task):
 class DiskGELISetUserKeyTask(Task):
     def describe(self, id, params=None):
         disk = disk_by_id(self.dispatcher, id)
-        return "Set new key for encrypted partition on {0}".format(os.path.basename(disk['path']))
+        return TaskDescription("Setting new key for encrypted partition on {name}", name=os.path.basename(disk['path']))
 
     def verify(self, id, params=None):
         disk = disk_by_id(self.dispatcher, id)
@@ -540,7 +556,7 @@ class DiskGELISetUserKeyTask(Task):
 class DiskGELIDelUserKeyTask(Task):
     def describe(self, id, slot):
         disk = disk_by_id(self.dispatcher, id)
-        return "Delete key of encrypted partition on {0}".format(os.path.basename(disk['path']))
+        return TaskDescription("Deleting key of encrypted partition on {name}", name=os.path.basename(disk['path']))
 
     def verify(self, id, slot):
         disk = disk_by_id(self.dispatcher, id)
@@ -571,7 +587,10 @@ class DiskGELIDelUserKeyTask(Task):
 class DiskGELIBackupMetadataTask(Task):
     def describe(self, id):
         disk = disk_by_id(self.dispatcher, id)
-        return "Backup metadata of encrypted partition on {0}".format(os.path.basename(disk['path']))
+        return TaskDescription(
+            "Backing up metadata of encrypted partition on {name}",
+            name=os.path.basename(disk['path'])
+        )
 
     def verify(self, id):
         disk = disk_by_id(self.dispatcher, id)
@@ -601,7 +620,10 @@ class DiskGELIBackupMetadataTask(Task):
 @accepts(str, h.ref('disk-metadata'))
 class DiskGELIRestoreMetadataTask(Task):
     def describe(self, id, metadata):
-        return "Restore metadata of encrypted partition on {0}".format(os.path.basename(metadata.get('disk')))
+        return TaskDescription(
+            "Restoring metadata of encrypted partition on {name}",
+            name=os.path.basename(metadata.get('disk'))
+        )
 
     def verify(self, id, metadata):
         disk = disk_by_id(self.dispatcher, id)
@@ -633,7 +655,7 @@ class DiskGELIRestoreMetadataTask(Task):
 class DiskGELIAttachTask(Task):
     def describe(self, id, params=None):
         disk = disk_by_id(self.dispatcher, id)
-        return "Attach encrypted partition of {0}".format(os.path.basename(disk['path']))
+        return TaskDescription("Attaching encrypted partition of {name}", name=os.path.basename(disk['path']))
 
     def verify(self, id, params=None):
         if params is None:
@@ -680,7 +702,7 @@ class DiskGELIAttachTask(Task):
 class DiskGELIDetachTask(Task):
     def describe(self, id):
         disk = disk_by_id(self.dispatcher, id)
-        return "Detach encrypted partition of {0}".format(os.path.basename(disk['path']))
+        return TaskDescription("Detaching encrypted partition of {name}", name=os.path.basename(disk['path']))
 
     def verify(self, id):
         disk = disk_by_id(self.dispatcher, id)
@@ -709,7 +731,7 @@ class DiskGELIDetachTask(Task):
 class DiskGELIKillTask(Task):
     def describe(self, id):
         disk = disk_by_id(self.dispatcher, id)
-        return "Kill encrypted partition of {0}".format(os.path.basename(disk['path']))
+        return TaskDescription("Killing encrypted partition of {0}", name=os.path.basename(disk['path']))
 
     def verify(self, id):
         disk = disk_by_id(self.dispatcher, id)
@@ -737,6 +759,10 @@ class DiskGELIKillTask(Task):
 @description("Performs SMART test on disk")
 @accepts(str, h.ref('disk-selftest-type'))
 class DiskTestTask(ProgressTask):
+    def describe(self, id, test_type):
+        disk = disk_by_id(self.dispatcher, id)
+        return TaskDescription("Performing SMART test on disk {name}", name=disk['path'])
+
     def verify(self, id, test_type):
         disk = diskinfo_cache.get(id)
         if not disk:
@@ -764,6 +790,9 @@ class DiskTestTask(ProgressTask):
 @description("Performs the given SMART test on the disk IDs specified (in parallel)")
 @accepts(h.array(str), h.ref('disk-selftest-type'))
 class DiskParallelTestTask(ProgressTask):
+    def describe(self, ids, test_type):
+        return TaskDescription("Performing parallel SMART test")
+
     def verify(self, ids, test_type):
         res = []
         for i in ids:
