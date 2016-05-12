@@ -1434,10 +1434,13 @@ def _init(dispatcher, plugin):
         dispatcher.test_or_wait_for_event(
             'service.changed',
             lambda ar:
-            ar['id'] == sshd_service['id'] and
-            dispatcher.call_sync('service.query', [('name', '=', 'sshd')], {'single': True})['state'] == 'RUNNING',
-            lambda:
-            sshd_service['state'] == 'RUNNING',
+                ar['id'] == sshd_service['id'] and
+                dispatcher.call_sync(
+                    'service.query',
+                    [('name', '=', 'sshd')],
+                    {'select': 'state', 'single': True}
+                ) == 'RUNNING',
+            lambda: sshd_service['state'] == 'RUNNING',
             timeout=30
         )
 
