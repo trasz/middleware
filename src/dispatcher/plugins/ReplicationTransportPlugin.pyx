@@ -570,6 +570,7 @@ class TransportReceiveTask(ProgressTask):
         cdef int header_wr
 
         sock = None
+        progress_t = None
         try:
             buffer_size = transport.get('buffer_size', 1024*1024)
 
@@ -721,7 +722,8 @@ class TransportReceiveTask(ProgressTask):
                     self.join_subtasks(*subtasks)
             finally:
                 self.running = False
-                progress_t.join()
+                if progress_t:
+                    progress_t.join()
                 logger.debug('Receive from {0}:{1} finished. Closing connection'.format(*addr))
                 free(buffer)
                 free(header_buffer)
