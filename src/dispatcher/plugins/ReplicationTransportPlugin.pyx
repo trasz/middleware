@@ -39,7 +39,7 @@ from freenas.dispatcher.fd import FileDescriptor
 from paramiko import AuthenticationException
 from freenas.dispatcher.rpc import RpcException, SchemaHelper as h, description, accepts, private
 from utils import get_replication_client, call_task_and_check_state
-from task import Task, ProgressTask, Provider, TaskException, TaskWarning, VerifyException, query
+from task import Task, ProgressTask, Provider, TaskException, TaskWarning, VerifyException, query, TaskDescription
 from libc.stdlib cimport malloc, free
 from posix.unistd cimport read, write
 from libc.stdint cimport *

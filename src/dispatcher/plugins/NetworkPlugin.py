@@ -31,7 +31,7 @@ import logging
 import os
 from freenas.dispatcher.rpc import RpcException, description, accepts, returns
 from freenas.dispatcher.rpc import SchemaHelper as h
-from freenas.utils import normalize, first_or_default
+from freenas.utils import normalize
 from datastore.config import ConfigNode
 from gevent import hub
 from task import Provider, Task, TaskException, VerifyException, query, TaskWarning

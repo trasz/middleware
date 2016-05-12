@@ -29,7 +29,6 @@
 import re
 import gevent
 from event import EventSource
-from freenas.dispatcher.rpc import RpcException
 
 
 class EntitySubscriberEventSource(EventSource):

@@ -25,7 +25,7 @@
 #
 #####################################################################
 
-from task import Provider, Task, VerifyException, TaskException
+from task import Provider, Task
 from freenas.dispatcher.rpc import description, accepts, returns, private, SchemaHelper as h
 
 

@@ -39,7 +39,7 @@ from datastore.config import ConfigNode
 from freenas.dispatcher.rpc import (
     RpcException, SchemaHelper as h, accepts, description, returns
 )
-from task import Provider, Task, TaskException, ValidationException
+from task import Provider, Task, ValidationException
 
 logger = logging.getLogger('MailPlugin')
 

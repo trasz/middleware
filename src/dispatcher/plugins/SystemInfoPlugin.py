@@ -51,7 +51,7 @@ from freenas.dispatcher.rpc import (
 from lib.system import SubprocessException, system
 from lib.freebsd import get_sysctl
 from task import Provider, Task, TaskException, TaskAbortException, ValidationException
-from debug import AttachFile, AttachCommandOutput
+from debug import AttachCommandOutput
 
 if '/usr/local/lib' not in sys.path:
     sys.path.append('/usr/local/lib')

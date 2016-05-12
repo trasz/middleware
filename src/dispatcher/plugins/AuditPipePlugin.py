@@ -25,8 +25,8 @@
 #
 #####################################################################
 
-import fcntl
 from event import EventSource
+
 
 class AuditPipeEventSource(EventSource):
     def __init__(self, dispatcher):
@@ -34,15 +34,15 @@ class AuditPipeEventSource(EventSource):
         self.register_event_type("system.process.start")
         self.register_event_type("system.process.exit")
 
-
     def run(self):
-        self.fd = open("/dev/auditpipe")
+        fd = open("/dev/auditpipe")
 
         while True:
-            line = f.readline()
+            line = fd.readline()
             if line is None:
                 # Connection closed - we need to reconnect
                 pass
+
 
 def _init(dispatcher, plugin):
     pass

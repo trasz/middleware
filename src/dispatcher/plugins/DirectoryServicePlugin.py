@@ -31,7 +31,6 @@ import logging
 from freenas.dispatcher.rpc import (
     accepts,
     description,
-    returns,
     SchemaHelper as h
 )
 

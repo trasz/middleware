@@ -28,7 +28,7 @@
 import errno
 from freenas.dispatcher.rpc import RpcException, description, accepts, returns
 from freenas.dispatcher.rpc import SchemaHelper as h
-from task import Provider, Task, VerifyException, TaskException, query
+from task import Provider, Task, TaskException, query
 from lib.system import system, SubprocessException
 
 

@@ -29,10 +29,9 @@ import json
 import logging
 import requests
 import simplejson
-from task import Task, Provider, TaskException, ValidationException, VerifyException
+from task import Task, Provider, TaskException
 from freenas.dispatcher.rpc import RpcException, accepts, description, returns
 from freenas.dispatcher.rpc import SchemaHelper as h
-#from lib.system import SubprocessException, system
 
 logger = logging.getLogger('SupportPlugin')
 ADDRESS = 'support-proxy.ixsystems.com'
