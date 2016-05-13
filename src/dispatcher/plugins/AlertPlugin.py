@@ -219,7 +219,7 @@ class AlertFilterDeleteTask(Task):
 class AlertFilterUpdateTask(Task):
     def describe(self, id, updated_fields):
         alertfilter = self.datastore.get_by_id('alert.filters', id)
-        return TaskDescription('Updating alert filter {name}', name=alertfilter['id'] if alertfilter else None))
+        return TaskDescription('Updating alert filter {name}', name=alertfilter['id'] if alertfilter else None)
 
     def verify(self, id, updated_fields):
         return []
