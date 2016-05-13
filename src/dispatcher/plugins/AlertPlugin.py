@@ -38,7 +38,7 @@ from freenas.dispatcher.rpc import (
     returns,
     private
 )
-from task import Provider, Task, TaskException, VerifyException, query
+from task import Provider, Task, TaskException, TaskDescription, VerifyException, query
 from freenas.utils import normalize
 
 logger = logging.getLogger('AlertPlugin')
@@ -167,7 +167,7 @@ class AlertsFiltersProvider(Provider):
 ))
 class AlertFilterCreateTask(Task):
     def describe(self, alertfilter):
-        return 'Creating alert filter {0}'.format(alertfilter['name'])
+        return TaskDescription('Creating alert filter {name}', name=alertfilter['name'])
 
     def verify(self, alertfilter):
         return []
@@ -186,7 +186,7 @@ class AlertFilterCreateTask(Task):
 class AlertFilterDeleteTask(Task):
     def describe(self, id):
         alertfilter = self.datastore.get_by_id('alert.filters', id)
-        return 'Deleting alert filter {0}'.format(alertfilter['name'])
+        return TaskDescription('Deleting alert filter {name}', name=alertfilter['name'] if alertfilter else id)
 
     def verify(self, id):
 
@@ -219,7 +219,7 @@ class AlertFilterDeleteTask(Task):
 class AlertFilterUpdateTask(Task):
     def describe(self, id, updated_fields):
         alertfilter = self.datastore.get_by_id('alert.filters', id)
-        return 'Updating alert filter {0}'.format(alertfilter['id'])
+        return TaskDescription('Updating alert filter {name}', name=alertfilter['id'] if alertfilter else None))
 
     def verify(self, id, updated_fields):
         return []
