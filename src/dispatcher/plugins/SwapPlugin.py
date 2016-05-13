@@ -34,6 +34,7 @@ from lib.system import system, SubprocessException
 from lib.geom import confxml
 from freenas.dispatcher.rpc import accepts, returns, description, SchemaHelper as h
 from freenas.utils.decorators import delay
+from freenas.utils.trace_logger import TRACE
 
 
 logger = logging.getLogger('SwapPlugin')
@@ -119,9 +120,11 @@ def clear_swap(dispatcher):
 
 def remove_swap(dispatcher, disks):
     disks = set(disks)
+    logger.log(TRACE, 'Remove swap request: disks={0}'.format(','.join(disks)))
     for swap in list(get_swap_info(dispatcher).values()):
         if disks & set(swap['disks']):
             try:
+                logger.log(TRACE, 'Removing swap mirror {0}'.format(swap['name']))
                 system('/sbin/swapoff', os.path.join('/dev/mirror', swap['name']))
                 system('/sbin/gmirror', 'destroy', swap['name'])
             except SubprocessException as err:
@@ -131,6 +134,7 @@ def remove_swap(dispatcher, disks):
     # Try to create new swap partitions, as at this stage we
     # might have two unused data disks
     if len(disks) > 0:
+        logger.log(TRACE, 'Following disks left: {0}, rearranging swap mirrors'.format(','.join(disks)))
         rearrange_swap(dispatcher)
 
 
