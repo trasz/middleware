@@ -28,7 +28,7 @@
 import errno
 from freenas.dispatcher.rpc import RpcException, description, accepts, returns
 from freenas.dispatcher.rpc import SchemaHelper as h
-from task import Provider, Task, TaskException, query
+from task import Provider, Task, TaskException, query, TaskDescription
 from lib.system import system, SubprocessException
 
 
@@ -46,6 +46,9 @@ class CalendarTasksProvider(Provider):
 )
 @returns(str)
 class CreateCalendarTask(Task):
+    def describe(self, task):
+        return TaskDescription("Creating calendar task {name}", name=task['name'])
+
     def verify(self, task):
         return ['system']
 
@@ -69,6 +72,9 @@ class CreateCalendarTask(Task):
     )
 )
 class UpdateCalendarTask(Task):
+    def describe(self, id, updated_params):
+        return TaskDescription("Updating calendar task {name}", name=id)
+
     def verify(self, id, updated_params):
         return ['system']
 
@@ -86,6 +92,9 @@ class UpdateCalendarTask(Task):
 
 @accepts(str)
 class DeleteCalendarTask(Task):
+    def describe(self, id):
+        return TaskDescription("Updating calendar task {name}", name=id)
+
     def verify(self, id):
         return ['system']
 
@@ -104,6 +113,9 @@ class DeleteCalendarTask(Task):
 @accepts(str)
 @description("Runs the calendar task specified by the given id")
 class RunCalendarTask(Task):
+    def describe(self, id):
+        return TaskDescription("Starting calendar task {name}", name=id)
+
     def verify(self, id):
         return ['system']
 
@@ -116,6 +128,9 @@ class RunCalendarTask(Task):
 
 @accepts(str, str)
 class CommandTask(Task):
+    def describe(self, user, command):
+        return TaskDescription("Starting command {name} as {user}", name=command, user=user)
+
     def verify(self, user, command):
         return ['system']
 
