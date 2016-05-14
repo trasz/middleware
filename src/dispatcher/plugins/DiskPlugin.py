@@ -1122,8 +1122,8 @@ def update_disk_cache(dispatcher, path):
         diskinfo_cache.put(identifier, disk)
         dispatcher.datastore.delete('disks', old_id)
         dispatcher.dispatch_event('disk.changed', {
-            'operation': 'rename',
-            'ids': [[old_id, identifier]]
+            'operation': 'delete',
+            'ids': [old_id]
         })
 
     persist_disk(dispatcher, disk)
