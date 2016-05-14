@@ -370,6 +370,10 @@ class ReplicationCreateTask(ReplicationBaseTask):
         self.dispatcher.register_resource(Resource('replication:{0}'.format(link['name'])), parents=['replication'])
         remote_client.disconnect()
 
+    def rollback(self, link):
+        if self.datastore.exists('replication.links', ('name', '=', link['name'])):
+            self.datastore.delete('replication.links', link['name'])
+
 
 @description("Ensures slave datasets have been created. Checks if services names are available on slave.")
 @accepts(h.ref('replication-link'))
