@@ -1077,6 +1077,12 @@ class CalculateReplicationDeltaTask(Task):
 
 @description("Runs a replication task with the specified arguments")
 class ReplicateDatasetTask(ProgressTask):
+    def __init__(self, dispatcher, datastore):
+        super(ReplicateDatasetTask, self).__init__(dispatcher, datastore)
+        self.rd_fd = None
+        self.wr_fd = None
+        self.aborted = False
+
     def describe(self, localds, options, transport_plugins=None, dry_run=False):
         return TaskDescription("Replicating the dataset {name}", name=localds)
 
@@ -1156,6 +1162,9 @@ class ReplicateDatasetTask(ProgressTask):
 
         # 2nd pass - actual send
         for idx, action in enumerate(actions):
+            if self.aborted:
+                break
+
             progress = float(idx) / len(actions) * 100
 
             if action['type'] in (ReplicationActionType.DELETE_SNAPSHOTS.name, ReplicationActionType.CLEAR_SNAPSHOTS.name):
@@ -1179,7 +1188,7 @@ class ReplicateDatasetTask(ProgressTask):
                     action['snapshot']
                 ))
 
-                rd_fd, wr_fd = os.pipe()
+                self.rd_fd, self.wr_fd = os.pipe()
                 fromsnap = action['anchor'] if 'anchor' in action else None
 
                 self.join_subtasks(
@@ -1188,11 +1197,11 @@ class ReplicateDatasetTask(ProgressTask):
                         action['localfs'],
                         fromsnap,
                         action['snapshot'],
-                        FileDescriptor(wr_fd)
+                        FileDescriptor(self.wr_fd)
                     ),
                     self.run_subtask(
                         'replication.transport.send',
-                        FileDescriptor(rd_fd),
+                        FileDescriptor(self.rd_fd),
                         {
                             'client_address': remote,
                             'transport_plugins': transport_plugins,
@@ -1222,6 +1231,11 @@ class ReplicateDatasetTask(ProgressTask):
         remote_client.disconnect()
 
         return actions, send_size
+
+    def abort(self):
+        self.aborted = True
+        self.rd_fd.close()
+        self.wr_fd.close()
 
 
 @description("Returns latest replication link of given name")
