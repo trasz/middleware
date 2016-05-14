@@ -2278,6 +2278,7 @@ def _init(dispatcher, plugin):
                 'enum': ['zfs']
             },
             'topology': {'$ref': 'zfs-topology'},
+            'scan': {'$ref': 'zfs-scan'},
             'encrypted': {'type': 'boolean'},
             'encryption': {'$ref': 'encryption'},
             'providers_presence': {
