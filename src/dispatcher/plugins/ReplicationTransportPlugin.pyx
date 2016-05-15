@@ -289,10 +289,10 @@ class TransportSendTask(Task):
         return []
 
     def run(self, fd, transport):
-        cdef uint8_t *token_buffer
+        cdef uint8_t *token_buffer = NULL
         cdef int ret
         cdef uint32_t token_size
-        cdef uint32_t *buffer
+        cdef uint32_t *buffer = NULL
         cdef int ret_wr
         cdef uint32_t buffer_size
         cdef uint32_t header_size = 2 * sizeof(uint32_t)
@@ -573,8 +573,8 @@ class TransportReceiveTask(ProgressTask):
     def run(self, transport):
         cdef uint8_t *token_buf
         cdef int ret
-        cdef uint32_t *buffer
-        cdef uint32_t *header_buffer
+        cdef uint32_t *buffer = NULL
+        cdef uint32_t *header_buffer = NULL
         cdef uint32_t length
         cdef uint32_t buffer_size
         cdef uint32_t header_size = 2 * sizeof(uint32_t)
@@ -805,8 +805,8 @@ class TransportCompressTask(Task):
         cdef int wr_fd = plugin['write_fd'].fd
         cdef uint32_t have
         cdef z_stream strm
-        cdef unsigned char *in_buffer
-        cdef unsigned char *out_buffer
+        cdef unsigned char *in_buffer = NULL
+        cdef unsigned char *out_buffer = NULL
         cdef uint8_t err = 0
         cdef uint32_t buffer_size = plugin.get('buffer_size', 1024*1024)
 
@@ -920,8 +920,8 @@ class TransportDecompressTask(Task):
         cdef int wr_fd = plugin['write_fd'].fd
         cdef uint32_t have
         cdef z_stream strm
-        cdef unsigned char *in_buffer
-        cdef unsigned char *out_buffer
+        cdef unsigned char *in_buffer = NULL
+        cdef unsigned char *out_buffer = NULL
         cdef uint32_t buffer_size = plugin.get('buffer_size', 1024*1024)
 
         self.fds.append(rd_fd)
@@ -1034,8 +1034,8 @@ class TransportEncryptTask(Task):
         return []
 
     def run(self, plugin):
-        cdef uint32_t *plainbuffer
-        cdef unsigned char *cipherbuffer
+        cdef uint32_t *plainbuffer = NULL
+        cdef unsigned char *cipherbuffer = NULL
         cdef uint8_t *iv
         cdef uint8_t *key
         cdef uint8_t *byte_buffer
@@ -1293,12 +1293,12 @@ class TransportDecryptTask(Task):
         return []
 
     def run(self, plugin):
-        cdef uint32_t *plainbuffer
-        cdef uint32_t *header_buffer
-        cdef unsigned char *cipherbuffer
+        cdef uint32_t *plainbuffer = NULL
+        cdef uint32_t *header_buffer = NULL
+        cdef unsigned char *cipherbuffer = NULL
         cdef uint8_t *byte_buffer
-        cdef uint8_t *iv
-        cdef uint8_t *key
+        cdef uint8_t *iv = NULL
+        cdef uint8_t *key = NULL
         cdef uint8_t *py_iv_t
         cdef uint8_t *py_key_t
         cdef uint32_t key_size
@@ -1525,7 +1525,7 @@ class TransportThrottleTask(Task):
         return []
 
     def run(self, plugin):
-        cdef uint8_t *buffer
+        cdef uint8_t *buffer = NULL
         cdef uint32_t buffer_size
         cdef int ret
         cdef int ret_wr
