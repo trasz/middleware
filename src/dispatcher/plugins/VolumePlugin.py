@@ -2316,6 +2316,30 @@ def _init(dispatcher, plugin):
         }
     })
 
+    plugin.register_schema_definition('volume-dataset-compression-property', {
+        'type': 'object',
+        'additionalProperties': False,
+        'properties': {
+            'value': {"pattern": "(on|off|lzjb|zle|lz4|gzip($|-[1-9]))"}
+        }
+    })
+
+    plugin.register_schema_definition('volume-dataset-dedup-property', {
+        'type': 'object',
+        'additionalProperties': False,
+        'properties': {
+            "value": {"pattern": "^on$|^off$|^verify$|^sha(256|512)(,verify)?$|^skein(,verify)?$|^edonr,verify$"}
+        }
+    })
+
+    plugin.register_schema_definition('volume-dataset-casesensitivity-property', {
+        'type': 'object',
+        'additionalProperties': False,
+        'properties': {
+            "value": {"enum": ["sensitive", "insensitive", "mixed"]}
+        }
+    })
+
     plugin.register_schema_definition('volume-properties', {
         'type': 'object',
         'additionalProperties': False,
@@ -2377,14 +2401,14 @@ def _init(dispatcher, plugin):
         'properties': {
             'used': {'$ref': 'volume-property'},
             'available': {'$ref': 'volume-property'},
-            'compression': {'$ref': 'volume-property'},
+            'compression': {'$ref': 'volume-dataset-compression-property'},
             'atime': {'$ref': 'volume-property'},
-            'dedup': {'$ref': 'volume-property'},
+            'dedup': {'$ref': 'volume-dataset-dedup-property'},
             'quota': {'$ref': 'volume-property'},
             'refquota': {'$ref': 'volume-property'},
             'reservation': {'$ref': 'volume-property'},
             'refreservation': {'$ref': 'volume-property'},
-            'casesensitivity': {'$ref': 'volume-property'},
+            'casesensitivity': {'$ref': 'volume-dataset-casesensitivity-property'},
             'volsize': {'$ref': 'volume-property'},
             'volblocksize': {'$ref': 'volume-property'},
             'refcompressratio': {'$ref': 'volume-property'},
