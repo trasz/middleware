@@ -480,6 +480,7 @@ class TransportSendTask(Task):
                 if self.conn:
                     self.conn.shutdown(socket.SHUT_RDWR)
                     self.conn.close()
+                    self.conn = None
 
                 self.finished.wait()
 
@@ -491,6 +492,7 @@ class TransportSendTask(Task):
             if self.sock:
                 self.sock.shutdown(socket.SHUT_RDWR)
                 self.sock.close()
+                self.sock = None
             close_fds(self.fds)
 
     def get_recv_status(self, status):
@@ -500,9 +502,11 @@ class TransportSendTask(Task):
             if self.conn:
                 self.conn.shutdown(socket.SHUT_RDWR)
                 self.conn.close()
+                self.conn = None
             if self.sock:
                 self.sock.shutdown(socket.SHUT_RDWR)
                 self.sock.close()
+                self.sock = None
             self.finished.set_exception(
                 TaskException(
                     error['code'],
@@ -523,9 +527,11 @@ class TransportSendTask(Task):
         if self.conn:
             self.conn.shutdown(socket.SHUT_RDWR)
             self.conn.close()
+            self.conn = None
         if self.sock:
             self.sock.shutdown(socket.SHUT_RDWR)
             self.sock.close()
+            self.sock = None
 
 
 @private
@@ -743,6 +749,7 @@ class TransportReceiveTask(ProgressTask):
                 if self.sock:
                     self.sock.shutdown(socket.SHUT_RDWR)
                     self.sock.close()
+                    self.sock = None
                 close_fds(self.fds)
 
     def count_progress(self):
@@ -771,6 +778,7 @@ class TransportReceiveTask(ProgressTask):
         if self.sock:
             self.sock.shutdown(socket.SHUT_RDWR)
             self.sock.close()
+            self.sock = None
 
 
 @private
