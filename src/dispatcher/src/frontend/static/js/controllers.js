@@ -990,9 +990,10 @@ function SchemaController($scope, $location, $routeParams, $route, $rootScope){
     }
     $scope.getTaskList = function (task_name) {
         $scope.current_service = task_name;
-        $scope.current_methods = $scope.task_dict[task_name]['properties'];
-        if ($scope.task_dict[task_name]['properties'] != undefined) {
-            $("#schema_pretty").html(JSON.stringify($scope.task_dict[task_name]['properties'],null,4));
+        console.log($scope.task_dict[task_name]);
+        $scope.current_methods = $scope.task_dict[task_name];
+        if ($scope.task_dict[task_name] != undefined) {
+            $("#schema_pretty").html(JSON.stringify($scope.task_dict[task_name],null,4));
         } else {
             $("#schema_pretty").html('No doc found');
         }
