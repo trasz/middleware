@@ -612,8 +612,8 @@ class ReplicationDeleteTask(ReplicationBaseTask):
 @description("Update a replication link")
 @accepts(str, h.ref('replication-link'))
 class ReplicationUpdateTask(ReplicationBaseTask):
-    def describe(self, link, updated_fields):
-        return TaskDescription("Updating the replication link {name}", name=link['name'])
+    def describe(self, name, updated_fields):
+        return TaskDescription("Updating the replication link {name}", name=name)
 
     def verify(self, name, updated_fields):
         if not self.datastore.exists('replication.links', ('name', '=', name)):
