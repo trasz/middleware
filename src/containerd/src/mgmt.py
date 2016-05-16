@@ -31,7 +31,8 @@ import errno
 import weakref
 import gevent
 import netif
-from dhcp.server import Server, Lease
+from dhcp.server import Server
+from dhcp.lease import Lease
 
 
 class AddressAllocation(object):
