@@ -714,11 +714,12 @@ class TransportReceiveTask(ProgressTask):
         finally:
             try:
                 if not self.aborted:
-                    if header_buffer[0] != transport_header_magic:
-                        raise TaskException(
-                            EINVAL,
-                            'Bad magic {0} received. Expected {1}'.format(header_buffer[0], transport_header_magic)
-                        )
+                    if header_buffer:
+                        if header_buffer[0] != transport_header_magic:
+                            raise TaskException(
+                                EINVAL,
+                                'Bad magic {0} received. Expected {1}'.format(header_buffer[0], transport_header_magic)
+                            )
                     if ret == -1:
                         raise TaskException(
                             errno,
@@ -1481,10 +1482,11 @@ class TransportDecryptTask(Task):
                 if not ctx:
                     raise TaskException(errno, 'Cryptographic context creation failed')
 
-                magic = header_buffer[0]
-                if magic:
-                    if magic not in (encrypt_rekey_magic, encrypt_transfer_magic):
-                        raise TaskException(EINVAL, 'Invalid magic received {0}'.format(magic))
+                if header_buffer:
+                    magic = header_buffer[0]
+                    if magic:
+                        if magic not in (encrypt_rekey_magic, encrypt_transfer_magic):
+                            raise TaskException(EINVAL, 'Invalid magic received {0}'.format(magic))
 
             with nogil:
                 EVP_CIPHER_CTX_free(ctx)
