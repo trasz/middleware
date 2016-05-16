@@ -15,6 +15,7 @@ function NavController($scope) {
 }
 
 function LoginController($scope, $location, $routeParams, $route, $rootScope) {
+    console.log($scope);
     var sock = new middleware.DispatcherClient(document.domain);
     $scope.login = function() {
         var username = $scope.username;
@@ -26,13 +27,13 @@ function LoginController($scope, $location, $routeParams, $route, $rootScope) {
                 $scope.password
             );
         };
+        console.log($scope.loginForm);
         sock.onLogin = function(){
-            console.log("xin this is the token: ", sock.token);
             sock.call("discovery.get_services", null, function (services) {
-                console.log(services);
                 if (services.hasOwnProperty('code') && services['code'] == 13) {
                     $scope.login_status = false;
                     console.log("login failed");
+                    $("#err_msg").html("Username or password is incorrect");
                 }else {
                     $rootScope.username = username;
                     sessionStorage.setItem("freenas:username", username);
