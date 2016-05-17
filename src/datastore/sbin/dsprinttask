@@ -62,7 +62,7 @@ def dump_task(ds, task):
     print("Task ID: {0}".format(task['id']))
     print("Task state: {0}".format(task['state']))
     print("Task name: {0}".format(task['name']))
-    print("Description: {0}".format(task['description']['message']))
+    print("Description: {0}".format(task['description']['message'] if task['description'] else ''))
     print("Started at: {0}".format(task['started_at']))
     print("Started by: {0}".format(task['user']))
     print("Resources assigned: {0}".format(', '.join(task['resources'])))
