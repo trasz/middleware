@@ -492,6 +492,7 @@ class SystemRebootTask(Task):
         self.dispatcher.call_sync('alert.emit', {
             'class': 'SystemReboot',
             'user': self.user,
+            'title': 'System reboot',
             'description': 'System has been rebooted by {0}'.format(self.user)
         })
 
@@ -525,6 +526,7 @@ class SystemHaltTask(Task):
         self.dispatcher.call_sync('alert.emit', {
             'class': 'SystemShutdown',
             'user': self.user,
+            'title': 'System shutdown',
             'description': 'System has been shut down by {0}'.format(self.user)
         })
 
