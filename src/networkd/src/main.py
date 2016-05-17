@@ -751,8 +751,14 @@ class Main(object):
 
         def bind(lease):
             self.logger.info('Assigning IP address {0} to interface {1}'.format(lease.client_ip, interface))
+            alias = lease.client_interface
             iface = netif.get_interface(interface)
-            iface.add_address(netif.InterfaceAddress(netif.AddressFamily.INET, lease.client_interface))
+            iface.add_address(netif.InterfaceAddress(netif.AddressFamily.INET, alias))
+
+            if lease.router:
+                self.logger.info('Adding default route via {0}'.format(lease.router))
+                rtable = netif.RoutingTable()
+                rtable.add(default_route(lease.router))
 
         client = dhcp.client.Client(interface, socket.gethostname())
         client.on_bind = bind
