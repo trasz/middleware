@@ -2328,7 +2328,7 @@ def _init(dispatcher, plugin):
         'type': 'object',
         'additionalProperties': True,
         'properties': {
-            'value': {"pattern": "^on$|^off$|^lzjb$|^zle$|^lz4$|^gzip($|-[1-9]$)"}
+            'value': {'pattern': '^on$|^off$|^lzjb$|^zle$|^lz4$|^gzip($|-[1-9]$)'}
         }
     })
 
@@ -2336,7 +2336,7 @@ def _init(dispatcher, plugin):
         'type': 'object',
         'additionalProperties': True,
         'properties': {
-            "value": {"pattern": "^on$|^off$|^verify$|^sha(256|512)(,verify)?$|^skein(,verify)?$|^edonr,verify$"}
+            'value': {'pattern': '^on$|^off$|^verify$|^sha(256|512)(,verify)?$|^skein(,verify)?$|^edonr,verify$'}
         }
     })
 
@@ -2344,7 +2344,7 @@ def _init(dispatcher, plugin):
         'type': 'object',
         'additionalProperties': True,
         'properties': {
-            "value": {"enum": ["^sensitive$", "^insensitive$", "^mixed$"]}
+            'value': {'enum': ['sensitive', 'insensitive', 'mixed']}
         }
     })
 
