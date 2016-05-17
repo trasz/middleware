@@ -1770,6 +1770,7 @@ class DatasetCreateTask(Task):
 
     def run(self, dataset):
         props = {}
+        params = {}
         normalize(dataset, {
             'type': 'FILESYSTEM',
             'permissions_type': 'CHMOD',
@@ -1787,6 +1788,13 @@ class DatasetCreateTask(Task):
             props['volsize'] = str(dataset['volsize'])
 
         props['org.freenas:uuid'] = uuid.uuid4()
+        params = exclude(
+                dataset['properties'],
+                'used', 'usedbydataset', 'usedbysnapshots', 'usedbychildren', 'logicalused', 'logicalreferenced',
+                'written', 'usedbyrefreservation', 'referenced', 'available', 'compressratio', 'refcompressratio')
+        for k, v in list(params.items()):
+            params[k] = v['value']
+        props.update(params)
         self.join_subtasks(self.run_subtask(
             'zfs.create_dataset',
             dataset['id'],
