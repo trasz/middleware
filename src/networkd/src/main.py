@@ -40,6 +40,8 @@ import netif
 import time
 import ipaddress
 import io
+import dhcp.client
+import socket
 from datastore import get_datastore, DatastoreException
 from datastore.config import ConfigStore
 from freenas.dispatcher.client import Client, ClientError
@@ -608,7 +610,7 @@ class ConfigurationService(RpcService):
                     iface.add_member(port)
 
         if entity.get('dhcp'):
-            if self.context.dhclient_running(name):
+            if name in self.context.dhcp_clients:
                 self.logger.info('Interface {0} already configured using DHCP'.format(name))
             else:
                 # Remove all existing aliases
@@ -708,13 +710,14 @@ class ConfigurationService(RpcService):
         return self.configure_interface(name)
 
 
-class Main:
+class Main(object):
     def __init__(self):
         self.config = None
         self.client = None
         self.datastore = None
         self.configstore = None
         self.rtsock_thread = None
+        self.dhcp_clients = {}
         self.logger = logging.getLogger('networkd')
 
     def dhclient_pid(self, interface):
@@ -742,15 +745,19 @@ class Main:
 
     def configure_dhcp(self, interface):
         # Check if dhclient is running
-        if self.dhclient_running(interface):
+        if interface in self.dhcp_clients:
             self.logger.info('Interface {0} already configured by DHCP'.format(interface))
             return True
 
-        def unblock_signals():
-            signal.pthread_sigmask(signal.SIG_UNBLOCK, [signal.SIGTERM, signal.SIGINT])
+        def bind(lease):
+            self.logger.info('Assigning IP address {0} to interface {1}'.format(lease.client_ip, interface))
+            iface = netif.get_interface(interface)
+            iface.add_address(netif.InterfaceAddress(netif.AddressFamily.INET, lease.client_interface))
 
-        ret = subprocess.call(['/sbin/dhclient', interface], close_fds=True, preexec_fn=unblock_signals)
-        return ret == 0
+        client = dhcp.client.Client(interface, socket.gethostname())
+        client.on_bind = bind
+        client.start()
+        self.dhcp_clients[interface] = client
 
     def interface_detached(self, name):
         self.logger.warn('Interface {0} detached from the system'.format(name))
@@ -761,7 +768,7 @@ class Main:
     def using_dhcp_for_gateway(self):
         for i in self.datastore.query('network.interfaces'):
             if i.get('dhcp') and self.configstore.get('network.dhcp.assign_gateway'):
-                    return True
+                return True
 
         return False
 
