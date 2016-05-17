@@ -224,7 +224,7 @@ class DeleteInterfaceTask(Task):
     h.forbidden('id', 'type', 'status')
 ))
 class ConfigureInterfaceTask(Task):
-    def describe(self, id):
+    def describe(self, id, updated_fields):
         return TaskDescription("Updating configuration of network interface {name}", name=id)
 
     def verify(self, id, updated_fields):
