@@ -96,7 +96,7 @@ class ReplicationProvider(Provider):
                 else:
                     raise RpcException(errno.ENOENT, 'Dataset {0} not found'.format(dataset))
 
-        return sorted(datasets, key=lambda d: d['name'])
+        return datasets
 
     def get_reserved_shares(self, link_name):
         shares = []
@@ -779,14 +779,24 @@ class ReplicationSyncTask(ReplicationBaseTask):
             remote_client = get_replication_client(self.dispatcher, remote)
             if is_master:
                 with self.dispatcher.get_lock('volumes'):
-                    datasets_to_replicate = self.dispatcher.call_sync('replication.datasets_from_link', link)
-                    for dataset in datasets_to_replicate:
+                    datasets_to_replicate = wrap(
+                        self.dispatcher.call_sync('replication.datasets_from_link', link)
+                    ).query(*[], **{'select': 'name'})
+                    len_sorted_datasets = sorted(datasets_to_replicate, key=lambda item: (len(item), item))
+                    parent_datasets = []
+                    for parent_dataset in len_sorted_datasets:
+                        parent_datasets.append(parent_dataset)
+                        for dataset in datasets_to_replicate:
+                            if dataset.startswith(parent_dataset + '/'):
+                                len_sorted_datasets.remove(dataset)
+
+                    for dataset in parent_datasets:
                         result = self.join_subtasks(self.run_subtask(
                             'replication.replicate_dataset',
-                            dataset['name'],
+                            dataset,
                             {
                                 'remote': remote,
-                                'remote_dataset': dataset['name'],
+                                'remote_dataset': dataset,
                                 'recursive': link['recursive']
                             },
                             transport_plugins
