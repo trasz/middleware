@@ -1488,9 +1488,10 @@ def _init(dispatcher, plugin):
 
         zfs = get_zfs()
         logger.info("Syncing ZFS pools...")
-        pools = EventCacheStore(dispatcher, 'zfs.pool')
-        datasets = EventCacheStore(dispatcher, 'zfs.dataset')
-        snapshots = EventCacheStore(dispatcher, 'zfs.snapshot')
+        sort_funct = lambda d: (os.path.dirname(d), os.path.basename(d))
+        pools = EventCacheStore(dispatcher, 'zfs.pool', sort_funct)
+        datasets = EventCacheStore(dispatcher, 'zfs.dataset', sort_funct)
+        snapshots = EventCacheStore(dispatcher, 'zfs.snapshot', sort_funct)
         
         for i in zfs.pools:
             sync_zpool_cache(dispatcher, i.name)
