@@ -64,12 +64,16 @@ class NetworkProvider(Provider):
         ifaces = self.dispatcher.call_sync('networkd.configuration.query_interfaces')
         ifaces.pop('mgmt0', None)
         for i, v in ifaces.items():
-            if 'LOOPBACK' in v['flags']:
+            if (
+                'LOOPBACK' in v['flags'] or
+                v['link_state'] != 'LINK_STATE_UP' or
+                'UP' not in v['flags']
+            ):
                 continue
             for aliases in v['aliases']:
                 if aliases['address'] and aliases['type'] != 'LINK':
                     ips.append(aliases['address'])
-        return ips
+        return list(set(ips))
 
 
 @description("Provides access to network interface settings")
