@@ -786,12 +786,20 @@ class ZfsSendTask(ZfsBaseTask):
 
 
 @private
-class ZfsReceiveTask(ZfsBaseTask):
+class ZfsReceiveTask(Task):
+    def verify(self, name, fd, force=False, nomount=False, props=None, limitds=None):
+        try:
+            zfs = get_zfs()
+            dataset = zfs.get_object(name.split('/')[0])
+        except libzfs.ZFSException as err:
+            raise TaskException(errno.ENOENT, str(err))
+
+        return ['zpool:{0}'.format(dataset.pool.name)]
+
     def run(self, name, fd, force=False, nomount=False, props=None, limitds=None):
         try:
             zfs = get_zfs()
-            obj = zfs.get_dataset(name)
-            obj.receive(fd.fd, force, nomount, props, limitds)
+            zfs.receive(name, fd.fd, force, nomount, props, limitds)
         except libzfs.ZFSException as err:
             raise TaskException(zfs_error_to_errno(err.code), str(err))
         finally:
