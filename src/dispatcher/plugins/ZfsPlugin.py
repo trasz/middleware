@@ -1220,15 +1220,16 @@ def _init(dispatcher, plugin):
     # TODO: Add ENUM to the 'state' property below
     plugin.register_schema_definition('zfs-scan', {
         'type': 'object',
+        'readOnly': True,
         'properties': {
-            'errors': {'type': 'integer'},
-            'start_time': {'type': 'string'},
-            'bytes_to_process': {'type': 'integer'},
-            'state': {'type': 'string'},
-            'end_time': {'type': 'string'},
-            'func': {'type': 'integer'},
-            'bytes_processed': {'type': 'integer'},
-            'percentage': {'type': 'number'},
+            'errors': {'type': ['integer', 'null']},
+            'start_time': {'type': ['string', 'null']},
+            'bytes_to_process': {'type': ['integer', 'null']},
+            'state': {'type': ['string', 'null']},
+            'end_time': {'type': ['string', 'null']},
+            'func': {'type': ['integer', 'null']},
+            'bytes_processed': {'type': ['integer', 'null']},
+            'percentage': {'type': ['number', 'null']},
         }
     })
 
