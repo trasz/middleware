@@ -36,7 +36,7 @@ import base64
 import gevent
 import gevent.monkey
 from xml.etree import ElementTree
-from bsd import geom
+from bsd import geom, getswapinfo
 from gevent.lock import RLock
 from resources import Resource
 from datetime import datetime, timedelta
@@ -912,6 +912,22 @@ def clean_multipaths(dispatcher):
     multipaths = -1
 
 
+def clean_mirrors(dispatcher):
+    geom.scan()
+    cls = geom.class_by_name('MIRROR')
+    if cls:
+        for i in cls.geoms:
+            if i.name.endswith('.sync'):
+                continue
+
+            logger.info('Destroying mirror device %s', i.name)
+            dispatcher.exec_and_wait_for_event(
+                'system.device.detached',
+                lambda args: args['path'] == '/dev/mirror/{0}'.format(i.name),
+                lambda: system('/sbin/gmirror', 'destroy', i.name)
+            )
+
+
 def get_multipath_name():
     global multipaths
 
@@ -1467,6 +1483,12 @@ def _init(dispatcher, plugin):
             i['delete_at'] = datetime.utcnow() + EXPIRE_TIMEOUT
 
         dispatcher.datastore.update('disks', i['id'], i)
+
+    # Destroy all swap devices and mirrors
+    for dev in getswapinfo():
+        system('/sbin/swapoff', os.path.join('/dev', dev.devname))
+
+    clean_mirrors(dispatcher)
 
     # Destroy all existing multipaths
     clean_multipaths(dispatcher)
