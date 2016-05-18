@@ -390,7 +390,16 @@ class ConfigurationService(RpcService):
         return None
 
     def query_interfaces(self):
-        return netif.list_interfaces()
+        def extend(name, iface):
+            iface = iface.__getstate__()
+            dhcp = self.context.dhcp_clients.get(name)
+
+            if dhcp:
+                iface['dhcp'] = dhcp.__getstate__()
+
+            return iface
+
+        return {name: extend(name, i) for name, i in netif.list_interfaces().items()}
 
     def query_routes(self):
         rtable = netif.RoutingTable()
