@@ -29,7 +29,7 @@ import os
 import sys
 import errno
 from freenas.utils.query import wrap
-from task import Provider, Task, ProgressTask, VerifyException, TaskException, query
+from task import Provider, Task, ProgressTask, VerifyException, TaskException, query, TaskDescription
 from freenas.dispatcher.rpc import accepts, returns, description, SchemaHelper as h
 
 sys.path.append('/usr/local/lib')
@@ -67,6 +67,13 @@ class BootEnvironmentsProvider(Provider):
  )
 @accepts(str, h.any_of(str, None))
 class BootEnvironmentCreate(Task):
+    def describe(self, newname, source=None):
+        return TaskDescription(
+            "Cloning Boot Environment {source} - new name {name}",
+            name=newname,
+            source=source if source else ''
+        )
+
     def verify(self, newname, source=None):
         return ['system']
 
@@ -78,6 +85,9 @@ class BootEnvironmentCreate(Task):
 @description("Activates the specified Boot Environment to be selected on reboot")
 @accepts(str)
 class BootEnvironmentActivate(Task):
+    def describe(self, name):
+        return TaskDescription("Activating the Boot Environment {name}", name=name)
+
     def verify(self, name):
         be = FindClone(name)
         if not be:
@@ -93,6 +103,9 @@ class BootEnvironmentActivate(Task):
 @description("Renames the given Boot Environment with the alternate name provieded")
 @accepts(str, h.ref('boot-environment'))
 class BootEnvironmentUpdate(Task):
+    def describe(self, id, be):
+        return TaskDescription("Updating the Boot Environment {name}", name=id)
+
     def verify(self, id, be):
         be = FindClone(id)
         if not be:
@@ -113,6 +126,9 @@ class BootEnvironmentUpdate(Task):
 @description("Deletes the given Boot Environments. Note: It cannot delete an activated BE")
 @accepts(str)
 class BootEnvironmentsDelete(Task):
+    def describe(self, id):
+        return TaskDescription("Deleting the Boot Environment {name}", name=id)
+
     def verify(self, id):
         be = FindClone(id)
         if not be:
@@ -128,6 +144,9 @@ class BootEnvironmentsDelete(Task):
 @description("Attaches the given Disk to the Boot Pool")
 @accepts(str, str)
 class BootAttachDisk(ProgressTask):
+    def describe(self, guid, disk):
+        return TaskDescription("Attaching the {name} disk to the Boot Pool", name=guid)
+
     def verify(self, guid, disk):
         boot_pool_name = self.configstore.get('system.boot_pool_name')
         return ['zpool:{0}'.format(boot_pool_name), 'disk:{0}'.format(disk)]
@@ -156,9 +175,12 @@ class BootAttachDisk(ProgressTask):
         self.set_progress(100)
 
 
-@description("Detaches the specified Disk fron the Boot Pool (not functional yet)")
+@description("Detaches the specified Disk from the Boot Pool (not functional yet)")
 @accepts(str)
 class BootDetachDisk(Task):
+    def describe(self, disk):
+        return TaskDescription("Detaching the {name} disk from the Boot Pool", name=disk['name'])
+
     def verify(self, disk):
         pass
 

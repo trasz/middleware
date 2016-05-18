@@ -820,6 +820,8 @@ class CheckFetchUpdateTask(MasterProgressTask):
 @description("Checks for new updates, fetches if available, installs new/or downloaded updates")
 @accepts(bool)
 class UpdateNowTask(MasterProgressTask):
+    def describe(self, mail=False):
+        return TaskDescription("Checking for updates and updating")
 
     def verify(self, reboot_post_install=False):
         return ['root']
