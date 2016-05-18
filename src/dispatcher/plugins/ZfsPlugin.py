@@ -1223,10 +1223,10 @@ def _init(dispatcher, plugin):
         'readOnly': True,
         'properties': {
             'errors': {'type': ['integer', 'null']},
-            'start_time': {'type': ['string', 'null']},
+            'start_time': {'type': ['datetime', 'null']},
             'bytes_to_process': {'type': ['integer', 'null']},
             'state': {'type': ['string', 'null']},
-            'end_time': {'type': ['string', 'null']},
+            'end_time': {'type': ['datetime', 'null']},
             'func': {'type': ['integer', 'null']},
             'bytes_processed': {'type': ['integer', 'null']},
             'percentage': {'type': ['number', 'null']},
