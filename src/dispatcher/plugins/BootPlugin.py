@@ -47,7 +47,6 @@ class BootPoolProvider(Provider):
 
 @description("Provides information on Boot Environments")
 class BootEnvironmentsProvider(Provider):
-
     @query('boot-environment')
     def query(self, filter=None, params=None):
         def extend(obj):
@@ -81,6 +80,11 @@ class BootEnvironmentCreate(Task):
         if not CreateClone(newname, bename=source):
             raise TaskException(errno.EIO, 'Cannot create the {0} boot environment'.format(newname))
 
+        self.dispatcher.dispatch_event('boot.environment.changed', {
+            'operation': 'create',
+            'ids': [newname]
+        })
+
 
 @description("Activates the specified Boot Environment to be selected on reboot")
 @accepts(str)
@@ -98,6 +102,11 @@ class BootEnvironmentActivate(Task):
     def run(self, name):
         if not ActivateClone(name):
             raise TaskException(errno.EIO, 'Cannot activate the {0} boot environment'.format(name))
+
+        self.dispatcher.dispatch_event('boot.environment.changed', {
+            'operation': 'update',
+            'ids': [name]
+        })
 
 
 @description("Renames the given Boot Environment with the alternate name provieded")
@@ -122,6 +131,11 @@ class BootEnvironmentUpdate(Task):
             if not ActivateClone(id):
                 raise TaskException(errno.EIO, 'Cannot activate the {0} boot environment'.format(id))
 
+        self.dispatcher.dispatch_event('boot.environment.changed', {
+            'operation': 'update',
+            'ids': [id]
+        })
+
 
 @description("Deletes the given Boot Environments. Note: It cannot delete an activated BE")
 @accepts(str)
@@ -139,6 +153,11 @@ class BootEnvironmentsDelete(Task):
     def run(self, id):
         if not DeleteClone(id):
             raise TaskException(errno.EIO, 'Cannot delete the {0} boot environment'.format(id))
+
+        self.dispatcher.dispatch_event('boot.environment.changed', {
+            'operation': 'delete',
+            'ids': [id]
+        })
 
 
 @description("Attaches the given Disk to the Boot Pool")
@@ -208,6 +227,9 @@ def _init(dispatcher, plugin):
 
     plugin.register_provider('boot.pool', BootPoolProvider)
     plugin.register_provider('boot.environment', BootEnvironmentsProvider)
+
+    plugin.register_event_type('boot.environment.changed')
+
     plugin.register_task_handler('boot.environment.clone', BootEnvironmentCreate)
     plugin.register_task_handler('boot.environment.activate', BootEnvironmentActivate)
     plugin.register_task_handler('boot.environment.update', BootEnvironmentUpdate)
