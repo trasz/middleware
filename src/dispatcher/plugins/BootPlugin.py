@@ -175,12 +175,12 @@ def _init(dispatcher, plugin):
         'type': 'object',
         'properties': {
             'id': {'type': 'string'},
-            'realname': {'type': 'string'},
+            'realname': {'type': 'string', 'readOnly': True},
             'active': {'type': 'boolean'},
-            'on_reboot': {'type': 'boolean'},
-            'mountpoint': {'type': 'string'},
-            'space': {'type': 'integer'},
-            'created': {'type': 'datetime'}
+            'on_reboot': {'type': 'boolean', 'readOnly': True},
+            'mountpoint': {'type': 'string', 'readOnly': True},
+            'space': {'type': 'integer', 'readOnly': True},
+            'created': {'type': 'datetime', 'readOnly': True}
         }
     })
 
