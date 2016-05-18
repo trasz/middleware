@@ -54,6 +54,7 @@ class BootEnvironmentsProvider(Provider):
             nr = obj['active']
             obj['active'] = 'N' in nr
             obj['on_reboot'] = 'R' in nr
+            obj['space'] = obj.pop('rawspace')
             obj['id'] = obj.pop('name')
             return obj
 
