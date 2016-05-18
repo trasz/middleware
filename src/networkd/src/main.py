@@ -922,6 +922,16 @@ class Main(object):
                 'cloned': {'type': 'boolean'},
                 'capabilities': {'$ref': 'network-interface-capabilities'},
                 'flags': {'$ref': 'network-interface-flags'},
+                'dhcp': {
+                    'type': 'object',
+                    'properties': {
+                        'state': {'$ref': 'network-interface-dhcp-state'},
+                        'server_address': {'type': 'string'},
+                        'server_name': {'type': 'string'},
+                        'lease_starts_at': {'type': 'datetime'},
+                        'lease_ends_at': {'type': 'datetime'}
+                    }
+                },
                 'aliases': {
                     'type': 'array',
                     'items': {'$ref': 'network-interface-alias'}
