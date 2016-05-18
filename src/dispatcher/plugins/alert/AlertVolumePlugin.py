@@ -43,7 +43,7 @@ def _init(dispatcher, plugin):
 
         if volume['status'] != 'ONLINE' and volume['id'] and not aid:
             dispatcher.rpc.call_sync('alert.emit', {
-                'name': 'VolumeDegraded',
+                'class': 'VolumeDegraded',
                 'target': volume['id'],
                 'description': 'The volume {0} state is {1}'.format(
                     volume['id'],
