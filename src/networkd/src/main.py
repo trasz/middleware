@@ -179,9 +179,9 @@ class RoutingSocketEventSource(threading.Thread):
             except OSError as err:
                 # Apparently interface doesn't exist anymore
                 if err.errno == errno.ENXIO:
-                    del self.mtu_cache[i.name]
-                    del self.flags_cache[i.name]
-                    del self.link_state_cache[i.name]
+                    self.mtu_cache.pop(i.name, None)
+                    self.flags_cache.pop(i.name, None)
+                    self.link_state_cache.pop(i.name, None)
                 else:
                     self.context.logger.warn('Building interface cache for {0} failed: {1}'.format(i.name, str(err)))
 
