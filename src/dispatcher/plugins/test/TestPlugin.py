@@ -29,7 +29,8 @@ import os
 import threading
 import uuid
 import errno
-from task import Task, TaskWarning
+from task import Task, TaskDescription, TaskWarning
+from freenas.dispatcher.rpc import description
 from freenas.dispatcher.fd import FileDescriptor
 
 

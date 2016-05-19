@@ -35,7 +35,7 @@ from datetime import datetime
 from threading import Event
 from cache import EventCacheStore
 from task import (Provider, Task, TaskStatus, TaskException,
-                  VerifyException, TaskAbortException, query)
+                  VerifyException, TaskAbortException, query, TaskDescription)
 from freenas.dispatcher.rpc import RpcException, accepts, returns, description, private
 from freenas.dispatcher.rpc import SchemaHelper as h
 from balancer import TaskState

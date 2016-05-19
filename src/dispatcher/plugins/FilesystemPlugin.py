@@ -37,7 +37,7 @@ from freenas.dispatcher.rpc import (
     RpcException, description, accepts, returns, pass_sender, private
 )
 from freenas.dispatcher.rpc import SchemaHelper as h
-from task import Provider, Task, TaskStatus, TaskWarning, VerifyException, TaskException
+from task import Provider, Task, TaskStatus, TaskWarning, VerifyException, TaskException, TaskDescription
 from auth import FileToken
 from freenas.utils.permissions import modes_to_oct, get_type
 

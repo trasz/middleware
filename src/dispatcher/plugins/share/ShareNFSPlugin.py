@@ -27,11 +27,10 @@
 
 import errno
 import logging
-from task import Task, TaskStatus, Provider, TaskException, VerifyException
-from freenas.dispatcher.rpc import RpcException, description, accepts, returns, private
+from task import Task, Provider, TaskException, VerifyException, TaskDescription
+from freenas.dispatcher.rpc import description, accepts, private
 from freenas.dispatcher.rpc import SchemaHelper as h
 from freenas.utils import normalize
-from utils import split_dataset
 
 
 logger = logging.getLogger(__name__)

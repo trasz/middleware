@@ -27,8 +27,8 @@
 
 import re
 import errno
-from freenas.dispatcher.rpc import accepts, returns, SchemaHelper as h
-from task import Provider, Task, VerifyException, query
+from freenas.dispatcher.rpc import accepts, description, returns, SchemaHelper as h
+from task import Provider, Task, VerifyException, query, TaskDescription
 from freenas.utils.query import wrap
 
 

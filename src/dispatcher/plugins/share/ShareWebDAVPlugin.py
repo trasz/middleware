@@ -23,12 +23,11 @@
 # POSSIBILITY OF SUCH DAMAGE.
 #
 #####################################################################
-import errno
 import logging
 import requests
 from io import StringIO
-from task import Task, Provider
-from freenas.dispatcher.rpc import RpcException, SchemaHelper as h, description, accepts, private
+from task import Task, Provider, TaskDescription
+from freenas.dispatcher.rpc import SchemaHelper as h, description, accepts, private
 from freenas.utils import normalize
 from lxml import etree
 

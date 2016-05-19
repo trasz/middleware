@@ -29,7 +29,8 @@ import os
 import errno
 import requests
 import boto3
-from task import Provider, Task, ProgressTask, TaskException
+from task import Task, ProgressTask, TaskException, TaskDescription
+from freenas.dispatcher.rpc import description
 
 
 CHUNK_SIZE = 5 * 1024 * 1024

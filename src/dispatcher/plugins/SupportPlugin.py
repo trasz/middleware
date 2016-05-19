@@ -29,7 +29,7 @@ import json
 import logging
 import requests
 import simplejson
-from task import Task, Provider, TaskException
+from task import Task, Provider, TaskException, TaskDescription
 from freenas.dispatcher.rpc import RpcException, accepts, description, returns
 from freenas.dispatcher.rpc import SchemaHelper as h
 

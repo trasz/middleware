@@ -31,7 +31,7 @@ import ipfsApi
 from requests.exceptions import ConnectionError
 from datastore.config import ConfigNode
 from freenas.dispatcher.rpc import RpcException, SchemaHelper as h, description, accepts, returns, private
-from task import Task, Provider, TaskException, ValidationException
+from task import Task, Provider, TaskException, ValidationException, TaskDescription
 
 logger = logging.getLogger('IPFSPlugin')
 

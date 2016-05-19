@@ -30,10 +30,10 @@ import pwd
 import datetime
 import logging
 import smbconf
-from task import Task, TaskStatus, Provider, TaskException
-from freenas.dispatcher.rpc import RpcException, description, accepts, returns, private
+from task import Task, Provider, TaskException, TaskDescription
+from freenas.dispatcher.rpc import description, accepts, private
 from freenas.dispatcher.rpc import SchemaHelper as h
-from freenas.utils import first_or_default, normalize
+from freenas.utils import normalize
 
 
 logger = logging.getLogger(__name__)

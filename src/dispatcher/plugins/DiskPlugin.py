@@ -51,8 +51,7 @@ from task import (
     query, TaskDescription
 )
 from debug import AttachData, AttachCommandOutput
-from freenas.dispatcher.rpc import RpcException, accepts, returns, description, private
-from freenas.dispatcher.rpc import SchemaHelper as h, generator
+from freenas.dispatcher.rpc import RpcException, accepts, returns, description, private, SchemaHelper as h, generator
 
 # Note the following monkey patch is required for pySMART to work correctly
 gevent.monkey.patch_subprocess()

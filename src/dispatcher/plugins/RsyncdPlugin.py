@@ -37,7 +37,7 @@ from datastore.config import ConfigNode
 from freenas.dispatcher.rpc import RpcException, SchemaHelper as h, description, accepts, returns, private
 from task import (
     Task, ProgressTask, Provider, TaskException, query,
-    ValidationException, VerifyException,
+    ValidationException, VerifyException, TaskDescription
 )
 
 logger = logging.getLogger('RsyncdPlugin')

@@ -40,7 +40,8 @@ from task import (
     query,
     Provider,
     Task,
-    VerifyException
+    VerifyException,
+    TaskDescription
 )
 
 logger = logging.getLogger('DirectoryServicePlugin')

@@ -29,7 +29,7 @@ import logging
 
 from datastore.config import ConfigNode
 from freenas.dispatcher.rpc import RpcException, SchemaHelper as h, description, accepts, returns, private
-from task import Task, Provider, TaskException, ValidationException
+from task import Task, Provider, TaskException, ValidationException, TaskDescription
 from freenas.utils.permissions import get_unix_permissions, get_integer
 
 logger = logging.getLogger('TFTPPlugin')

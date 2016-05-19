@@ -32,7 +32,7 @@ import ipaddress
 import logging
 from freenas.dispatcher.rpc import RpcException, description, accepts, returns
 from freenas.dispatcher.rpc import SchemaHelper as h
-from task import Provider, Task, TaskException, VerifyException, query
+from task import Provider, Task, TaskException, VerifyException, query, TaskDescription
 from lib.system import system, SubprocessException
 from bsd import kld
 from freenas.utils.query import wrap

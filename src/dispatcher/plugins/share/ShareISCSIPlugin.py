@@ -30,7 +30,7 @@ import errno
 import uuid
 import hashlib
 import ctl
-from task import Task, TaskStatus, Provider, TaskException, VerifyException
+from task import Task, Provider, VerifyException, TaskDescription
 from freenas.dispatcher.rpc import RpcException, description, accepts, returns, private
 from freenas.dispatcher.rpc import SchemaHelper as h
 from freenas.utils import normalize

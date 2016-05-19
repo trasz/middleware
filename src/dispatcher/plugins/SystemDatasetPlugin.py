@@ -36,7 +36,7 @@ import tempfile
 import libzfs
 from freenas.dispatcher.rpc import RpcException, accepts, returns, description, private
 from freenas.dispatcher.rpc import SchemaHelper as h
-from task import Task, Provider, VerifyException
+from task import Task, Provider, VerifyException, TaskDescription
 from freenas.utils.copytree import copytree
 
 

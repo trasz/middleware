@@ -28,9 +28,9 @@
 import os
 import io
 import tarfile
-from freenas.dispatcher.rpc import RpcException
+from freenas.dispatcher.rpc import RpcException, description
 from lib.system import system, SubprocessException
-from task import ProgressTask, TaskWarning
+from task import ProgressTask, TaskWarning, TaskDescription
 
 
 class CollectDebugTask(ProgressTask):

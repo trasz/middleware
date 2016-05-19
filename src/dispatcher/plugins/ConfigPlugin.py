@@ -25,7 +25,7 @@
 #
 #####################################################################
 
-from task import Provider, Task
+from task import Provider, Task, TaskDescription
 from freenas.dispatcher.rpc import description, accepts, returns, private, SchemaHelper as h
 
 

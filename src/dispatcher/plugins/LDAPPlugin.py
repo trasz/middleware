@@ -36,10 +36,12 @@ from freenas.dispatcher.rpc import (
 
 from task import (
     Provider,
-    Task
+    Task,
+    TaskDescription
 )
 
 logger = logging.getLogger('LDAPPlugin')
+
 
 @description("Provides access to LDAP configuration")
 class LDAPProvider(Provider):

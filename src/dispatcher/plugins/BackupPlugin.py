@@ -35,7 +35,7 @@ from datetime import datetime
 from freenas.dispatcher.jsonenc import dumps, loads
 from freenas.dispatcher.fd import FileDescriptor
 from freenas.dispatcher.rpc import RpcException, accepts, returns, description, SchemaHelper as h
-from task import Provider, Task, ProgressTask, VerifyException, TaskException
+from task import Provider, Task, ProgressTask, VerifyException, TaskException, TaskDescription
 from freenas.utils import normalize, first_or_default
 from freenas.utils.query import wrap
 

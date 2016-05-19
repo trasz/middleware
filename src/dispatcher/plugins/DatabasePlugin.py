@@ -29,7 +29,8 @@ import errno
 import json
 from datastore import DatastoreException
 from datastore.restore import restore_db
-from task import Task, ProgressTask, TaskException
+from freenas.dispatcher.rpc import description
+from task import Task, ProgressTask, TaskException, TaskDescription
 
 
 FACTORY_DB = '/usr/local/share/datastore/factory.json'

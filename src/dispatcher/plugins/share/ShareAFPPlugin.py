@@ -29,7 +29,7 @@ import os
 import bsd
 import pwd
 import signal
-from task import Task, TaskWarning, TaskStatus, Provider, TaskException
+from task import Task, TaskWarning, Provider, TaskDescription
 from freenas.dispatcher.rpc import description, accepts, private
 from freenas.dispatcher.rpc import SchemaHelper as h
 from freenas.utils import first_or_default, normalize

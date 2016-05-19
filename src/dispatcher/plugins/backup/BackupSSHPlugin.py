@@ -28,7 +28,8 @@
 import os
 import errno
 import socket
-from task import Provider, Task, ProgressTask, TaskException
+from task import Task, ProgressTask, TaskException, TaskDescription
+from freenas.dispatcher.rpc import description
 from paramiko import transport, sftp_client, ssh_exception, rsakey, dsskey
 from freenas.utils import normalize
 
@@ -124,12 +125,12 @@ class BackupSSHDeleteTask(Task):
             conn.close()
 
 
-def split_hostport(str):
-    if ':' in str:
-        parts = str.split(':')
+def split_hostport(string):
+    if ':' in string:
+        parts = string.split(':')
         return parts[0], int(parts[1])
     else:
-        return str, 22
+        return string, 22
 
 
 def try_key_auth(session, backup):
