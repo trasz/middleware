@@ -627,6 +627,7 @@ class Balancer(object):
         2) any task exists
         """
         started = 0
+        executing_tasks = [t for t in self.task_list if t.state == TaskState.EXECUTING]
         waiting_tasks = [t for t in self.task_list if t.state == TaskState.WAITING]
 
         for task in waiting_tasks:
@@ -637,7 +638,7 @@ class Balancer(object):
             self.threads.append(task.start())
             started += 1
 
-        if not started and (exit or len(waiting_tasks) == 1):
+        if not started and not executing_tasks and (exit or len(waiting_tasks) == 1):
             for task in waiting_tasks:
                 self.logger.warning('Aborting task {0}: deadlock'.format(task.id))
                 self.abort(task.id, VerifyException(errno.EBUSY, 'Resource deadlock avoided'))
