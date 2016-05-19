@@ -28,6 +28,7 @@
 import os
 import sys
 import errno
+import logging
 from freenas.utils.query import wrap
 from task import Provider, Task, ProgressTask, VerifyException, TaskException, query, TaskDescription
 from freenas.dispatcher.rpc import accepts, returns, description, SchemaHelper as h
@@ -36,6 +37,9 @@ sys.path.append('/usr/local/lib')
 from freenasOS.Update import (
     ListClones, FindClone, RenameClone, ActivateClone, DeleteClone, CreateClone
 )
+
+
+logger = logging.getLogger(__name__)
 
 
 @description("Provides information on Boot pool")
@@ -80,11 +84,6 @@ class BootEnvironmentCreate(Task):
         if not CreateClone(newname, bename=source):
             raise TaskException(errno.EIO, 'Cannot create the {0} boot environment'.format(newname))
 
-        self.dispatcher.dispatch_event('boot.environment.changed', {
-            'operation': 'create',
-            'ids': [newname]
-        })
-
 
 @description("Activates the specified Boot Environment to be selected on reboot")
 @accepts(str)
@@ -102,11 +101,6 @@ class BootEnvironmentActivate(Task):
     def run(self, name):
         if not ActivateClone(name):
             raise TaskException(errno.EIO, 'Cannot activate the {0} boot environment'.format(name))
-
-        self.dispatcher.dispatch_event('boot.environment.changed', {
-            'operation': 'update',
-            'ids': [name]
-        })
 
 
 @description("Renames the given Boot Environment with the alternate name provieded")
@@ -131,11 +125,6 @@ class BootEnvironmentUpdate(Task):
             if not ActivateClone(id):
                 raise TaskException(errno.EIO, 'Cannot activate the {0} boot environment'.format(id))
 
-        self.dispatcher.dispatch_event('boot.environment.changed', {
-            'operation': 'update',
-            'ids': [id]
-        })
-
 
 @description("Deletes the given Boot Environments. Note: It cannot delete an activated BE")
 @accepts(str)
@@ -153,11 +142,6 @@ class BootEnvironmentsDelete(Task):
     def run(self, id):
         if not DeleteClone(id):
             raise TaskException(errno.EIO, 'Cannot delete the {0} boot environment'.format(id))
-
-        self.dispatcher.dispatch_event('boot.environment.changed', {
-            'operation': 'delete',
-            'ids': [id]
-        })
 
 
 @description("Attaches the given Disk to the Boot Pool")
@@ -212,6 +196,8 @@ def _depends():
 
 
 def _init(dispatcher, plugin):
+    boot_pool = dispatcher.call_sync('zfs.pool.get_boot_pool')
+
     plugin.register_schema_definition('boot-environment', {
         'type': 'object',
         'properties': {
@@ -225,6 +211,24 @@ def _init(dispatcher, plugin):
         }
     })
 
+    def on_dataset_change(args):
+        for i in args['ids']:
+            path = i.split('/')
+
+            if len(path) != 3:
+                continue
+
+            if path[:2] != [boot_pool['id'], 'ROOT']:
+                continue
+
+            if args['operation'] in ('create', 'delete'):
+                logging.info('Boot environment {0} {1}d'.format(path[-1], args['operation']))
+
+            dispatcher.dispatch_event('boot.environment.changed', {
+                'operation': args['operation'],
+                'ids': [path[-1]]
+            })
+
     plugin.register_provider('boot.pool', BootPoolProvider)
     plugin.register_provider('boot.environment', BootEnvironmentsProvider)
 
@@ -237,3 +241,5 @@ def _init(dispatcher, plugin):
 
     plugin.register_task_handler('boot.disk.attach', BootAttachDisk)
     plugin.register_task_handler('boot.disk.detach', BootDetachDisk)
+
+    plugin.register_event_handler('zfs.dataset.changed', on_dataset_change)
