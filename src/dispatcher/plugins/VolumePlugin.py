@@ -2341,7 +2341,9 @@ def _init(dispatcher, plugin):
         'type': 'object',
         'additionalProperties': True,
         'properties': {
-            'value': {'pattern': '^on$|^off$|^lzjb$|^zle$|^lz4$|^gzip($|-[1-9]$)'}
+            'value': {'enum': ['on', 'off', 'lzjb', 'zle', 'lz4', 'gzip', 'gzip-1',
+                               'gzip-2', 'gzip-3', 'gzip-4', 'gzip-5', 'gzip-6',
+                               'gzip-7', 'gzip-8', 'gzip-9']}
         }
     })
 
@@ -2349,7 +2351,9 @@ def _init(dispatcher, plugin):
         'type': 'object',
         'additionalProperties': True,
         'properties': {
-            'value': {'pattern': '^on$|^off$|^verify$|^sha(256|512)(,verify)?$|^skein(,verify)?$|^edonr,verify$'}
+            'value': {'enum': ['on', 'off', 'verify', 'sha256', 'sha256,verify',
+                               'sha512', 'sha512,verify', 'skein', 'skein,verify',
+                               'edonr,verify']}
         }
     })
 
@@ -2358,6 +2362,14 @@ def _init(dispatcher, plugin):
         'additionalProperties': True,
         'properties': {
             'value': {'enum': ['sensitive', 'insensitive', 'mixed']}
+        }
+    })
+
+    plugin.register_schema_definition('volume-dataset-atime-property', {
+        'type': 'object',
+        'additionalProperties': True,
+        'properties': {
+            'value': {'enum': ['on', 'off']}
         }
     })
 
@@ -2427,7 +2439,10 @@ def _init(dispatcher, plugin):
                 {'$ref': 'volume-property'},
                 {'$ref': 'volume-dataset-compression-property'}
                 ]},
-            'atime': {'$ref': 'volume-property'},
+            'atime': {'allOf': [
+                {'$ref': 'volume-property'},
+                {'$ref': 'volume-dataset-atime-property'}
+                ]},
             'dedup': {'allOf': [
                 {'$ref': 'volume-property'},
                 {'$ref': 'volume-dataset-dedup-property'}
