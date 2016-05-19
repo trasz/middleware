@@ -329,7 +329,7 @@ class Task(object):
             "finished_at": self.finished_at,
             "user": self.user,
             "resources": self.resources,
-            "description": self.get_description(),
+            "description": self.get_description().__getstate__(),
             "session": self.session_id,
             "name": self.name,
             "parent": self.parent.id if self.parent else None,
@@ -420,12 +420,15 @@ class Task(object):
 
     def get_description(self):
         if not self.description:
-            return None
+            if not self.clazz:
+                return TaskDescription(self.name)
+
+            return TaskDescription(self.clazz.early_describe())
 
         if isinstance(self.description, TaskDescription):
-            return self.description.__getstate__()
+            return self.description
 
-        return TaskDescription(str(self.description)).__getstate__()
+        return TaskDescription(str(self.description))
 
     def progress_watcher(self):
         while True:

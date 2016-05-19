@@ -64,6 +64,10 @@ class Task(object):
             'metadata': getattr(cls, 'metadata', None)
         }
 
+    @classmethod
+    def early_describe(cls):
+        return cls.__name__
+
     def describe(self, *args, **kwargs):
         return
 
