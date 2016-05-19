@@ -125,6 +125,7 @@ class VolumeProvider(Provider):
                             pass
 
                 vol.update({
+                    'rname': 'zpool:{0}'.format(vol['id']),
                     'description': None,
                     'mountpoint': None,
                     'upgraded': None,
@@ -2179,6 +2180,7 @@ def _init(dispatcher, plugin):
         return {
             'id': ds['name'],
             'name': ds['name'],
+            'rname': 'zfs:{0}'.format(ds['id']),
             'volume': ds['pool'],
             'type': ds['type'],
             'mountpoint': ds.get('properties.mountpoint.value'),
@@ -2295,6 +2297,7 @@ def _init(dispatcher, plugin):
                 'type': 'string',
                 'enum': ['zfs']
             },
+            'rname': {'type': 'string'},
             'topology': {'$ref': 'zfs-topology'},
             'scan': {'$ref': 'zfs-scan'},
             'encrypted': {'type': 'boolean'},
@@ -2396,6 +2399,7 @@ def _init(dispatcher, plugin):
         'properties': {
             'id': {'type': 'string'},
             'name': {'type': 'string'},
+            'rname': {'type': 'string'},
             'volume': {'type': 'string'},
             'mountpoint': {'type': 'string'},
             'mounted': {'type': 'boolean'},
