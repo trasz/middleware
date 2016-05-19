@@ -91,6 +91,7 @@ class DiskProvider(Provider):
                 disk['online'] = self.is_online(disk['path'])
                 disk['status'] = diskinfo_cache.get(disk['id'])
 
+            disk['rname'] = 'disk:{0}'.format(disk['path'])
             return disk
 
         return wrap(self.datastore.query('disks', callback=extend)).query(*(filter or []), **(params or {}))
@@ -1341,6 +1342,7 @@ def _init(dispatcher, plugin):
         'properties': {
             'id': {'type': 'string'},
             'name': {'type': 'string'},
+            'rname': {'type': 'string'},
             'path': {'type': 'string'},
             'description': {'type': 'string'},
             'serial': {'type': 'string'},
