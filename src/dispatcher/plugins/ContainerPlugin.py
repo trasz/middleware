@@ -298,9 +298,11 @@ class ContainerCreateTask(ContainerBaseTask):
         })
 
         normalize(container['config'], {
-            'memsize': 512,
+            'memsize': 512*1024*1024,
             'ncpus': 1
         })
+
+        container['config']['memsize'] = int(container['config']['memsize'] / (1024 * 1024))
 
         self.init_dataset(container)
         self.init_files(container)
@@ -442,6 +444,11 @@ class ContainerUpdateTask(ContainerBaseTask):
 
         if not updated_params.get('enabled', True):
             self.join_subtasks(self.run_subtask('container.stop', id))
+
+        config = updated_params.get('config')
+        if config:
+            if 'memsize' in config:
+                updated_params['config']['memsize'] = int(config.get('memsize') / (1024 * 1024))
 
         container.update(updated_params)
         self.datastore.update('containers', id, container)
