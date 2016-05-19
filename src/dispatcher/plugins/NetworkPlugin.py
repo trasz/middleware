@@ -112,6 +112,10 @@ class HostsProvider(Provider):
 @description("Updates global network configuration settings")
 @accepts(h.ref('network-config'))
 class NetworkConfigureTask(Task):
+    @classmethod
+    def early_describe(cls):
+        pass
+
     def describe(self, settings):
         return TaskDescription("Updating global network settings")
 
@@ -137,6 +141,10 @@ class NetworkConfigureTask(Task):
 @returns(str)
 @description('Creates network interface')
 class CreateInterfaceTask(Task):
+    @classmethod
+    def early_describe(cls):
+        pass
+
     def describe(self, iface):
         return TaskDescription("Creating {name} network interface", name=iface['type'])
 
@@ -197,6 +205,10 @@ class CreateInterfaceTask(Task):
 @description("Deletes interface")
 @accepts(str)
 class DeleteInterfaceTask(Task):
+    @classmethod
+    def early_describe(cls):
+        pass
+
     def describe(self, id):
         return TaskDescription("Deleting network interface {name}", name=id)
 
@@ -229,6 +241,10 @@ class DeleteInterfaceTask(Task):
     h.forbidden('id', 'type', 'status')
 ))
 class ConfigureInterfaceTask(Task):
+    @classmethod
+    def early_describe(cls):
+        pass
+
     def describe(self, id, updated_fields):
         return TaskDescription("Updating configuration of network interface {name}", name=id)
 
@@ -301,6 +317,10 @@ class ConfigureInterfaceTask(Task):
 @description("Enables interface")
 @accepts(str)
 class InterfaceUpTask(Task):
+    @classmethod
+    def early_describe(cls):
+        pass
+
     def describe(self, id):
         return TaskDescription("Setting network interface {name} up", name=id)
 
@@ -329,6 +349,10 @@ class InterfaceUpTask(Task):
 @description("Disables interface")
 @accepts(str)
 class InterfaceDownTask(Task):
+    @classmethod
+    def early_describe(cls):
+        pass
+
     def describe(self, id):
         return TaskDescription("Setting network interface {name} down", name=id)
 
@@ -357,6 +381,10 @@ class InterfaceDownTask(Task):
 @description("Renews IP lease on interface")
 @accepts(str)
 class InterfaceRenewTask(Task):
+    @classmethod
+    def early_describe(cls):
+        pass
+
     def describe(self, id):
         return TaskDescription("Renewing IP address of network interface {name}", name=id)
 
@@ -391,6 +419,10 @@ class InterfaceRenewTask(Task):
     h.required('id', 'address')
 ))
 class AddHostTask(Task):
+    @classmethod
+    def early_describe(cls):
+        pass
+
     def describe(self, host):
         return TaskDescription("Adding static host {name}", name=host['id'])
 
@@ -416,6 +448,10 @@ class AddHostTask(Task):
 @description("Updates host entry in the database")
 @accepts(str, h.ref('network-host'))
 class UpdateHostTask(Task):
+    @classmethod
+    def early_describe(cls):
+        pass
+
     def describe(self, id, updated_fields):
         return TaskDescription("Updating static host {name}", name=id)
 
@@ -444,6 +480,10 @@ class UpdateHostTask(Task):
 @description("Deletes host entry from the database")
 @accepts(str)
 class DeleteHostTask(Task):
+    @classmethod
+    def early_describe(cls):
+        pass
+
     def describe(self, id, updated_fields):
         return TaskDescription("Deleting static host {name}", name=id)
 
@@ -473,6 +513,10 @@ class DeleteHostTask(Task):
     h.required('id', 'type', 'network', 'netmask', 'gateway')
 ))
 class AddRouteTask(Task):
+    @classmethod
+    def early_describe(cls):
+        pass
+
     def describe(self, route):
         return TaskDescription("Adding static route {name}", name=route['id'])
 
@@ -529,6 +573,10 @@ class AddRouteTask(Task):
 @description("Updates static route in the system")
 @accepts(str, h.ref('network-route'))
 class UpdateRouteTask(Task):
+    @classmethod
+    def early_describe(cls):
+        pass
+
     def describe(self, name, updated_fields):
         return TaskDescription("Updating static route {name}", name=id)
 
@@ -593,6 +641,10 @@ class UpdateRouteTask(Task):
 @description("Deletes static route from the system")
 @accepts(str)
 class DeleteRouteTask(Task):
+    @classmethod
+    def early_describe(cls):
+        pass
+
     def describe(self, id):
         return TaskDescription("Deleting static route {name}", name=id)
 

@@ -260,6 +260,13 @@ class ContainerBaseTask(Task):
 @accepts(h.ref('container'))
 @description('Creates a container')
 class ContainerCreateTask(ContainerBaseTask):
+    @classmethod
+    def early_describe(cls):
+        pass
+
+    def describe(self, *args, **kwargs):
+        pass
+
     def verify(self, container):
         if not self.dispatcher.call_sync('volume.query', [('id', '=', container['target'])], {'single': True}):
             raise VerifyException(errno.ENXIO, 'Volume {0} doesn\'t exist'.format(container['target']))
@@ -323,6 +330,13 @@ class ContainerCreateTask(ContainerBaseTask):
 @accepts(str, str)
 @description('Imports existing container')
 class ContainerImportTask(ContainerBaseTask):
+    @classmethod
+    def early_describe(cls):
+        pass
+
+    def describe(self, *args, **kwargs):
+        pass
+
     def verify(self, name, volume):
         if not self.dispatcher.call_sync('volume.query', [('id', '=', volume)], {'single': True}):
             raise VerifyException(errno.ENXIO, 'Volume {0} doesn\'t exist'.format(volume))
@@ -362,6 +376,13 @@ class ContainerImportTask(ContainerBaseTask):
 @accepts(str, bool)
 @description('Sets container immutable')
 class ContainerSetImmutableTask(ContainerBaseTask):
+    @classmethod
+    def early_describe(cls):
+        pass
+
+    def describe(self, *args, **kwargs):
+        pass
+
     def verify(self, id, immutable):
         if not self.datastore.exists('containers', ('id', '=', id)):
             raise VerifyException(errno.ENOENT, 'Container {0} does not exist'.format(id))
@@ -382,6 +403,13 @@ class ContainerSetImmutableTask(ContainerBaseTask):
 @accepts(str, h.ref('container'))
 @description('Updates container')
 class ContainerUpdateTask(ContainerBaseTask):
+    @classmethod
+    def early_describe(cls):
+        pass
+
+    def describe(self, *args, **kwargs):
+        pass
+
     def verify(self, id, updated_params):
         if not self.datastore.exists('containers', ('id', '=', id)):
             raise VerifyException(errno.ENOENT, 'Container {0} not found'.format(id))
@@ -437,6 +465,13 @@ class ContainerUpdateTask(ContainerBaseTask):
 @accepts(str)
 @description('Deletes container')
 class ContainerDeleteTask(Task):
+    @classmethod
+    def early_describe(cls):
+        pass
+
+    def describe(self, *args, **kwargs):
+        pass
+
     def verify(self, id):
         if not self.datastore.exists('containers', ('id', '=', id)):
             raise VerifyException(errno.ENOENT, 'Container {0} not found'.format(id))
@@ -477,6 +512,13 @@ class ContainerDeleteTask(Task):
 @accepts(str)
 @description('Exports container from database')
 class ContainerExportTask(Task):
+    @classmethod
+    def early_describe(cls):
+        pass
+
+    def describe(self, *args, **kwargs):
+        pass
+
     def verify(self, id):
         if not self.datastore.exists('containers', ('id', '=', id)):
             raise VerifyException(errno.ENOENT, 'Container {0} not found'.format(id))
@@ -494,6 +536,13 @@ class ContainerExportTask(Task):
 @accepts(str)
 @description('Starts container')
 class ContainerStartTask(Task):
+    @classmethod
+    def early_describe(cls):
+        pass
+
+    def describe(self, *args, **kwargs):
+        pass
+
     def verify(self, id):
         container = self.dispatcher.call_sync('container.query', [('id', '=', id)], {'single': True})
         if not container['enabled']:
@@ -511,6 +560,13 @@ class ContainerStartTask(Task):
 @accepts(str, bool)
 @description('Stops container')
 class ContainerStopTask(Task):
+    @classmethod
+    def early_describe(cls):
+        pass
+
+    def describe(self, *args, **kwargs):
+        pass
+
     def verify(self, id, force=False):
         return ['system']
 
@@ -526,6 +582,13 @@ class ContainerStopTask(Task):
 @description('Downloads container image')
 class DownloadImageTask(ProgressTask):
     BLOCKSIZE = 65536
+
+    @classmethod
+    def early_describe(cls):
+        pass
+
+    def describe(self, *args, **kwargs):
+        pass
 
     def verify(self, url, sha256, vmdir, destination):
         return []
@@ -555,6 +618,13 @@ class DownloadImageTask(ProgressTask):
 
 @description('Downloads container templates')
 class VMTemplateFetchTask(ProgressTask):
+    @classmethod
+    def early_describe(cls):
+        pass
+
+    def describe(self, *args, **kwargs):
+        pass
+
     def verify(self):
         return []
 

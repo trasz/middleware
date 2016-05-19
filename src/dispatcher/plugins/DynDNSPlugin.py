@@ -68,6 +68,10 @@ class DynDNSProvider(Provider):
 @description('Configure DynamicDNS service')
 @accepts(h.ref('service-dyndns'))
 class DynDNSConfigureTask(Task):
+    @classmethod
+    def early_describe(cls):
+        pass
+
     def describe(self, share):
         return 'Configuring DynamicDNS service'
 

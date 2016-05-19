@@ -184,6 +184,13 @@ class FilesystemProvider(Provider):
 @private
 @description('Downloads a file')
 class DownloadFileTask(Task):
+    @classmethod
+    def early_describe(cls):
+        pass
+
+    def describe(self, *args, **kwargs):
+        pass
+
     def verify(self, connection):
         return []
 
@@ -203,6 +210,13 @@ class DownloadFileTask(Task):
 @private
 @description('Uploads a file')
 class UploadFileTask(Task):
+    @classmethod
+    def early_describe(cls):
+        pass
+
+    def describe(self, *args, **kwargs):
+        pass
+
     def verify(self, connection):
         return []
 
@@ -221,6 +235,13 @@ class UploadFileTask(Task):
 @accepts(str, h.ref('permissions'), bool)
 @description('Sets permissions')
 class SetPermissionsTask(Task):
+    @classmethod
+    def early_describe(cls):
+        pass
+
+    def describe(self, *args, **kwargs):
+        pass
+
     def verify(self, path, permissions, recursive=False):
         if not os.path.exists(path):
             raise VerifyException(errno.ENOENT, 'Path {0} does not exist'.format(path))

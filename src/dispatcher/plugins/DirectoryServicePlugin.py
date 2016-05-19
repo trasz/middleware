@@ -86,6 +86,13 @@ class DirectoryServicesProvider(Provider):
 )
 @description("Adds new AFP share")
 class DirectoryServiceCreateTask(Task):
+    @classmethod
+    def early_describe(cls):
+        pass
+
+    def describe(self, *args, **kwargs):
+        pass
+
     def verify(self, directoryservice):
         dstypes = self.dispatcher.call_sync('dsd.configuration.get_supported_directories')
         type = directoryservice['type']
@@ -105,6 +112,13 @@ class DirectoryServiceCreateTask(Task):
 
 @description("Update directory service")
 class DirectoryServiceUpdateTask(Task):
+    @classmethod
+    def early_describe(cls):
+        pass
+
+    def describe(self, *args, **kwargs):
+        pass
+
     def verify(self, id, updated_fields):
         directoryservice = self.dispatcher.call_sync('dsd.configuration.verify', id)
         if not directoryservice:
@@ -117,6 +131,13 @@ class DirectoryServiceUpdateTask(Task):
 
 @description("Delete directory service")
 class DirectoryServiceDeleteTask(Task):
+    @classmethod
+    def early_describe(cls):
+        pass
+
+    def describe(self, *args, **kwargs):
+        pass
+
     def verify(self, id):
         directoryservice = self.dispatcher.call_sync('dsd.configuration.verify', id)
         if not directoryservice:
@@ -129,6 +150,13 @@ class DirectoryServiceDeleteTask(Task):
 
 @description("Enable directory service")
 class DirectoryServiceEnableTask(Task):
+    @classmethod
+    def early_describe(cls):
+        pass
+
+    def describe(self, *args, **kwargs):
+        pass
+
     def verify(self, id):
         directoryservice = self.dispatcher.call_sync('dsd.configuration.verify', id)
         if not directoryservice:
@@ -141,6 +169,13 @@ class DirectoryServiceEnableTask(Task):
 
 @description("Disablle directory service")
 class DirectoryServiceDisableTask(Task):
+    @classmethod
+    def early_describe(cls):
+        pass
+
+    def describe(self, *args, **kwargs):
+        pass
+
     def verify(self, id):
         directoryservice = self.dispatcher.call_sync('dsd.configuration.verify', id)
         if not directoryservice:
@@ -153,6 +188,13 @@ class DirectoryServiceDisableTask(Task):
 
 @description("Get directory service servers")
 class DirectoryServiceGetTask(Task):
+    @classmethod
+    def early_describe(cls):
+        pass
+
+    def describe(self, *args, **kwargs):
+        pass
+
     def verify(self, args):
         self.logger.debug("XXX: DirectoryServiceGetTask.verify: args = %s", args)
 
@@ -173,6 +215,13 @@ class DirectoryServiceGetTask(Task):
 
 @description("Configure a directory service")
 class DirectoryServiceConfigureTask(Task):
+    @classmethod
+    def early_describe(cls):
+        pass
+
+    def describe(self, *args, **kwargs):
+        pass
+
     def verify(self, args):
         id = args[0] 
         what = args[1]
@@ -196,6 +245,13 @@ class DirectoryServiceConfigureTask(Task):
 
 @description("Obtain a Kerberos ticket")
 class DirectoryServiceKerberosTicketTask(Task):
+    @classmethod
+    def early_describe(cls):
+        pass
+
+    def describe(self, *args, **kwargs):
+        pass
+
     def verify(self, id):
         return ['directoryservice']
 
@@ -209,6 +265,13 @@ class DirectoryServiceKerberosTicketTask(Task):
 
 @description("Join an Active Directory")
 class DirectoryServiceJoinActiveDirectoryTask(Task):
+    @classmethod
+    def early_describe(cls):
+        pass
+
+    def describe(self, *args, **kwargs):
+        pass
+
     def verify(self, id):
         return ['directoryservice']
 

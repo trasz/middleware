@@ -50,6 +50,10 @@ class FTPProvider(Provider):
 @description('Configure FTP service')
 @accepts(h.ref('service-ftp'))
 class FTPConfigureTask(Task):
+    @classmethod
+    def early_describe(cls):
+        pass
+
     def describe(self, share):
         return 'Configuring FTP service'
 

@@ -47,6 +47,10 @@ class SNMPProvider(Provider):
 @description('Configure SNMP service')
 @accepts(h.ref('service-snmp'))
 class SNMPConfigureTask(Task):
+    @classmethod
+    def early_describe(cls):
+        pass
+
     def describe(self, snmp):
         return 'Configuring SNMP service'
 

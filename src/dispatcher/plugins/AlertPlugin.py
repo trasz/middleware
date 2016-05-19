@@ -166,6 +166,10 @@ class AlertsFiltersProvider(Provider):
     h.required('id')
 ))
 class AlertFilterCreateTask(Task):
+    @classmethod
+    def early_describe(cls):
+        pass
+
     def describe(self, alertfilter):
         return TaskDescription('Creating alert filter {name}', name=alertfilter['name'])
 
@@ -184,6 +188,10 @@ class AlertFilterCreateTask(Task):
 @description("Deletes the specified Alert Filter")
 @accepts(str)
 class AlertFilterDeleteTask(Task):
+    @classmethod
+    def early_describe(cls):
+        pass
+
     def describe(self, id):
         alertfilter = self.datastore.get_by_id('alert.filters', id)
         return TaskDescription('Deleting alert filter {name}', name=alertfilter['name'] if alertfilter else id)
@@ -217,6 +225,10 @@ class AlertFilterDeleteTask(Task):
 @description("Updates the specified Alert Filter")
 @accepts(str, h.ref('alert-filter'))
 class AlertFilterUpdateTask(Task):
+    @classmethod
+    def early_describe(cls):
+        pass
+
     def describe(self, id, updated_fields):
         alertfilter = self.datastore.get_by_id('alert.filters', id)
         return TaskDescription('Updating alert filter {name}', name=alertfilter['id'] if alertfilter else None)
@@ -244,6 +256,13 @@ class AlertFilterUpdateTask(Task):
 @accepts(str, h.ref('alert-severity'))
 @description('Sends alerts')
 class SendAlertTask(Task):
+    @classmethod
+    def early_describe(cls):
+        pass
+
+    def describe(self, *args, **kwargs):
+        pass
+
     def verify(self, message, priority=None):
         return []
 

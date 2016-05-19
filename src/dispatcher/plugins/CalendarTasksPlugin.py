@@ -48,6 +48,10 @@ class CalendarTasksProvider(Provider):
 @returns(str)
 @description('Creates a calendar task')
 class CreateCalendarTask(Task):
+    @classmethod
+    def early_describe(cls):
+        pass
+
     def describe(self, task):
         return TaskDescription("Creating calendar task {name}", name=task['name'])
 
@@ -75,6 +79,10 @@ class CreateCalendarTask(Task):
 )
 @description('Updates a calendar task')
 class UpdateCalendarTask(Task):
+    @classmethod
+    def early_describe(cls):
+        pass
+
     def describe(self, id, updated_params):
         return TaskDescription("Updating calendar task {name}", name=id)
 
@@ -96,6 +104,10 @@ class UpdateCalendarTask(Task):
 @accepts(str)
 @description('Deletes a calendar task')
 class DeleteCalendarTask(Task):
+    @classmethod
+    def early_describe(cls):
+        pass
+
     def describe(self, id):
         return TaskDescription("Updating calendar task {name}", name=id)
 
@@ -117,6 +129,10 @@ class DeleteCalendarTask(Task):
 @accepts(str)
 @description("Runs the calendar task specified by the given id")
 class RunCalendarTask(Task):
+    @classmethod
+    def early_describe(cls):
+        pass
+
     def describe(self, id):
         return TaskDescription("Starting calendar task {name}", name=id)
 
@@ -133,6 +149,10 @@ class RunCalendarTask(Task):
 @accepts(str, str)
 @description('Runs a shell command as a specified user')
 class CommandTask(Task):
+    @classmethod
+    def early_describe(cls):
+        pass
+
     def describe(self, user, command):
         return TaskDescription("Starting command {name} as {user}", name=command, user=user)
 

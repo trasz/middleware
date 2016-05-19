@@ -90,6 +90,10 @@ class AFPSharesProvider(Provider):
 @accepts(h.ref('share'))
 @description("Adds new AFP share")
 class CreateAFPShareTask(Task):
+    @classmethod
+    def early_describe(cls):
+        pass
+
     def describe(self, share):
         return "Creating AFP share {0}".format(share['name'])
 
@@ -130,6 +134,10 @@ class CreateAFPShareTask(Task):
 @accepts(str, h.ref('share'))
 @description("Updates existing AFP share")
 class UpdateAFPShareTask(Task):
+    @classmethod
+    def early_describe(cls):
+        pass
+
     def describe(self, id, updated_fields):
         return "Updating AFP share {0}".format(id)
 
@@ -152,6 +160,10 @@ class UpdateAFPShareTask(Task):
 @accepts(str)
 @description("Removes AFP share")
 class DeleteAFPShareTask(Task):
+    @classmethod
+    def early_describe(cls):
+        pass
+
     def describe(self, name):
         return "Deleting AFP share {0}".format(name)
 
@@ -177,6 +189,10 @@ class DeleteAFPShareTask(Task):
 @accepts(h.ref('share'))
 @description("Imports existing AFP share")
 class ImportAFPShareTask(CreateAFPShareTask):
+    @classmethod
+    def early_describe(cls):
+        pass
+
     def describe(self, share):
         return "Importing AFP share {0}".format(share['name'])
 
@@ -189,6 +205,13 @@ class ImportAFPShareTask(CreateAFPShareTask):
 
 @description('Terminates AFP connection')
 class TerminateAFPConnectionTask(Task):
+    @classmethod
+    def early_describe(cls):
+        pass
+
+    def describe(self, *args, **kwargs):
+        pass
+
     def verify(self, address):
         return ['system']
 

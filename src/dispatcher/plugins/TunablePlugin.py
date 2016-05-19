@@ -77,6 +77,10 @@ class TunablesProvider(Provider):
     h.required('var', 'value', 'type'),
 ))
 class TunableCreateTask(Task):
+    @classmethod
+    def early_describe(cls):
+        pass
+
     def describe(self, tunable):
         return TaskDescription("Deleting Tunable {name}", name=tunable['var'])
 
@@ -136,6 +140,10 @@ class TunableCreateTask(Task):
 @description("Updates Tunable")
 @accepts(str, h.ref('tunable'))
 class TunableUpdateTask(Task):
+    @classmethod
+    def early_describe(cls):
+        pass
+
     def describe(self, id, updated_fields):
         return TaskDescription("Updating Tunable {name}", name=id)
 
@@ -201,6 +209,10 @@ class TunableUpdateTask(Task):
 @description("Deletes Tunable")
 @accepts(str)
 class TunableDeleteTask(Task):
+    @classmethod
+    def early_describe(cls):
+        pass
+
     def describe(self, id):
         return TaskDescription("Deleting Tunable {name}", name=id)
 

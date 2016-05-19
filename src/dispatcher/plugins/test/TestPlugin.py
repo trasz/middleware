@@ -36,6 +36,13 @@ from freenas.dispatcher.fd import FileDescriptor
 
 @description('Downloads tests')
 class TestDownloadTask(Task):
+    @classmethod
+    def early_describe(cls):
+        pass
+
+    def describe(self, *args, **kwargs):
+        pass
+
     def verify(self):
         return []
 

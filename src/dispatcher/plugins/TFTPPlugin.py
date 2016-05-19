@@ -50,6 +50,10 @@ class TFTPProvider(Provider):
 @description('Configure TFTP service')
 @accepts(h.ref('service-tftpd'))
 class TFTPConfigureTask(Task):
+    @classmethod
+    def early_describe(cls):
+        pass
+
     def describe(self, share):
         return 'Configuring TFTP service'
 

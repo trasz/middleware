@@ -177,6 +177,13 @@ class SystemStatProvider(Provider):
 @accepts(str, h.ref('statistic'))
 @description('Updates alert levels on a given statistic')
 class UpdateAlertTask(Task):
+    @classmethod
+    def early_describe(cls):
+        pass
+
+    def describe(self, *args, **kwargs):
+        pass
+
     def verify(self, name, stat):
         if name not in self.dispatcher.call_sync('statd.output.get_data_sources'):
             raise VerifyException(errno.ENOENT, 'Statistic {0} not found.'.format(name))

@@ -36,6 +36,13 @@ from freenas.utils import normalize
 
 @description('Lists information about a specific SSH backup')
 class BackupSSHListTask(Task):
+    @classmethod
+    def early_describe(cls):
+        pass
+
+    def describe(self, *args, **kwargs):
+        pass
+
     def verify(self, backup):
         return []
 
@@ -62,6 +69,13 @@ class BackupSSHListTask(Task):
 
 @description('Initializes a SSH backup')
 class BackupSSHInitTask(Task):
+    @classmethod
+    def early_describe(cls):
+        pass
+
+    def describe(self, *args, **kwargs):
+        pass
+
     def verify(self, backup):
         return []
 
@@ -76,6 +90,13 @@ class BackupSSHInitTask(Task):
 
 @description('Puts new data onto SSH backup')
 class BackupSSHPutTask(ProgressTask):
+    @classmethod
+    def early_describe(cls):
+        pass
+
+    def describe(self, *args, **kwargs):
+        pass
+
     def verify(self, backup, name, fd):
         return []
 
@@ -95,6 +116,13 @@ class BackupSSHPutTask(ProgressTask):
 
 @description('Gets data from SSH backup')
 class BackupSSHGetTask(Task):
+    @classmethod
+    def early_describe(cls):
+        pass
+
+    def describe(self, *args, **kwargs):
+        pass
+
     def verify(self, backup, name, fd):
         return []
 
@@ -114,6 +142,13 @@ class BackupSSHGetTask(Task):
 
 @description('Deletes SSH backup task')
 class BackupSSHDeleteTask(Task):
+    @classmethod
+    def early_describe(cls):
+        pass
+
+    def describe(self, *args, **kwargs):
+        pass
+
     def verify(self, backup, name):
         pass
 

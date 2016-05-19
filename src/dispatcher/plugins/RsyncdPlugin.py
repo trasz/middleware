@@ -64,6 +64,10 @@ class RsyncdModuleProvider(Provider):
 @description('Configure Rsyncd service')
 @accepts(h.ref('service-rsyncd'))
 class RsyncdConfigureTask(Task):
+    @classmethod
+    def early_describe(cls):
+        pass
+
     def describe(self, share):
         return 'Configuring Rsyncd service'
 
@@ -97,6 +101,10 @@ class RsyncdConfigureTask(Task):
     h.required('name', 'path'),
 ))
 class RsyncdModuleCreateTask(Task):
+    @classmethod
+    def early_describe(cls):
+        pass
+
     def describe(self, rsyncmod):
         return 'Adding rsync module'
 
@@ -133,6 +141,10 @@ class RsyncdModuleCreateTask(Task):
     h.ref('rsyncd-module'),
 ))
 class RsyncdModuleUpdateTask(Task):
+    @classmethod
+    def early_describe(cls):
+        pass
+
     def describe(self, uuid, updated_fields):
         return 'Updating rsync module'
 
@@ -176,6 +188,10 @@ class RsyncdModuleUpdateTask(Task):
 @description("Delete a rsync module in the system")
 @accepts(str)
 class RsyncdModuleDeleteTask(Task):
+    @classmethod
+    def early_describe(cls):
+        pass
+
     def describe(self, uuid):
         return 'Deleting rsync module'
 
@@ -222,6 +238,10 @@ def demote(user_uid, user_gid):
 @description("Runs an Rsync Copy Task with the specified arguments")
 @accepts(h.ref('rsync_copy'))
 class RsyncCopyTask(ProgressTask):
+    @classmethod
+    def early_describe(cls):
+        pass
+
     def describe(self, params):
         return 'Running Rsync Copy Task with user specified arguments'
 

@@ -50,6 +50,10 @@ class NFSProvider(Provider):
 @description('Configure NFS service')
 @accepts(h.ref('service-nfs'))
 class NFSConfigureTask(Task):
+    @classmethod
+    def early_describe(cls):
+        pass
+
     def describe(self, share):
         return 'Configuring NFS service'
 

@@ -72,6 +72,10 @@ class SupportProvider(Provider):
 @description("Submits a new support ticket")
 @accepts(h.ref('support-ticket'))
 class SupportSubmitTask(Task):
+    @classmethod
+    def early_describe(cls):
+        pass
+
     def describe(self, ticket):
         return 'Submitting ticket'
 

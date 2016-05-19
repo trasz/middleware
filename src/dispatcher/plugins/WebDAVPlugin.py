@@ -48,6 +48,10 @@ class WebDAVProvider(Provider):
 @description('Configure WebDAV service')
 @accepts(h.ref('service-webdav'))
 class WebDAVConfigureTask(Task):
+    @classmethod
+    def early_describe(cls):
+        pass
+
     def describe(self, share):
         return 'Configuring WebDAV service'
 

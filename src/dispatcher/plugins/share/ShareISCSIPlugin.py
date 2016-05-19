@@ -106,6 +106,10 @@ class ISCSIPortalProvider(Provider):
 @accepts(h.ref('iscsi-share'))
 @description("Adds new iSCSI share")
 class CreateISCSIShareTask(Task):
+    @classmethod
+    def early_describe(cls):
+        pass
+
     def describe(self, share):
         return "Creating iSCSI share {0}".format(share['name'])
 
@@ -151,6 +155,10 @@ class CreateISCSIShareTask(Task):
 @accepts(str, h.ref('iscsi-share'))
 @description("Updates existing iSCSI share")
 class UpdateISCSIShareTask(Task):
+    @classmethod
+    def early_describe(cls):
+        pass
+
     def describe(self, id, updated_fields):
         return "Updating iSCSI share {0}".format(id)
 
@@ -173,6 +181,10 @@ class UpdateISCSIShareTask(Task):
 @accepts(str)
 @description("Removes iSCSI share")
 class DeleteiSCSIShareTask(Task):
+    @classmethod
+    def early_describe(cls):
+        pass
+
     def describe(self, id):
         return "Deleting iSCSI share {0}".format(id)
 
@@ -205,6 +217,10 @@ class DeleteiSCSIShareTask(Task):
 @accepts(h.ref('iscsi-share'))
 @description("Imports existing iSCSI share")
 class ImportiSCSIShareTask(CreateISCSIShareTask):
+    @classmethod
+    def early_describe(cls):
+        pass
+
     def describe(self, share):
         return "Importing iSCSI share {0}".format(share['name'])
 
@@ -218,6 +234,13 @@ class ImportiSCSIShareTask(CreateISCSIShareTask):
 @accepts(h.ref('share-iscsi-target'))
 @description('Creates ISCSI share')
 class CreateISCSITargetTask(Task):
+    @classmethod
+    def early_describe(cls):
+        pass
+
+    def describe(self, *args, **kwargs):
+        pass
+
     def verify(self, target):
         for i in target.get('extents', []):
             if not self.datastore.exists('shares', ('type', '=', 'iscsi'), ('name', '=', i['name'])):
@@ -245,6 +268,13 @@ class CreateISCSITargetTask(Task):
 @accepts(str, h.ref('share-iscsi-target'))
 @description('Updates ISCSI share')
 class UpdateISCSITargetTask(Task):
+    @classmethod
+    def early_describe(cls):
+        pass
+
+    def describe(self, *args, **kwargs):
+        pass
+
     def verify(self, id, updated_params):
         if not self.datastore.exists('iscsi.targets', ('id', '=', id)):
             raise VerifyException(errno.ENOENT, 'Target {0} does not exist'.format(id))
@@ -277,6 +307,13 @@ class UpdateISCSITargetTask(Task):
 @accepts(str)
 @description('Deletes ISCSI share')
 class DeleteISCSITargetTask(Task):
+    @classmethod
+    def early_describe(cls):
+        pass
+
+    def describe(self, *args, **kwargs):
+        pass
+
     def verify(self, id):
         if not self.datastore.exists('iscsi.targets', ('id', '=', id)):
             raise VerifyException(errno.ENOENT, 'Target {0} does not exist'.format(id))
@@ -301,6 +338,13 @@ class DeleteISCSITargetTask(Task):
 )
 @description('Creates ISCSI auth group')
 class CreateISCSIAuthGroupTask(Task):
+    @classmethod
+    def early_describe(cls):
+        pass
+
+    def describe(self, *args, **kwargs):
+        pass
+
     def verify(self, auth_group):
         return ['service:ctl']
 
@@ -325,6 +369,13 @@ class CreateISCSIAuthGroupTask(Task):
 @accepts(str, h.ref('share-iscsi-auth'))
 @description('Updates ISCSI auth group')
 class UpdateISCSIAuthGroupTask(Task):
+    @classmethod
+    def early_describe(cls):
+        pass
+
+    def describe(self, *args, **kwargs):
+        pass
+
     def verify(self, id, updated_params):
         if not self.datastore.exists('iscsi.auth', ('id', '=', id)):
             raise VerifyException(errno.ENOENT, 'Auth group {0} does not exist'.format(id))
@@ -346,6 +397,13 @@ class UpdateISCSIAuthGroupTask(Task):
 @accepts(str)
 @description('Deletes ISCSI auth group')
 class DeleteISCSIAuthGroupTask(Task):
+    @classmethod
+    def early_describe(cls):
+        pass
+
+    def describe(self, *args, **kwargs):
+        pass
+
     def verify(self, id):
         if not self.datastore.exists('iscsi.auth', ('id', '=', id)):
             raise VerifyException(errno.ENOENT, 'Auth group {0} does not exist'.format(id))
@@ -365,6 +423,13 @@ class DeleteISCSIAuthGroupTask(Task):
 @accepts(h.ref('share-iscsi-portal'))
 @description('Creates ISCSI portal')
 class CreateISCSIPortalTask(Task):
+    @classmethod
+    def early_describe(cls):
+        pass
+
+    def describe(self, *args, **kwargs):
+        pass
+
     def verify(self, portal):
         return ['service:ctl']
 
@@ -389,6 +454,13 @@ class CreateISCSIPortalTask(Task):
 @accepts(str, h.ref('share-iscsi-portal'))
 @description('Updates ISCSI portal')
 class UpdateISCSIPortalTask(Task):
+    @classmethod
+    def early_describe(cls):
+        pass
+
+    def describe(self, *args, **kwargs):
+        pass
+
     def verify(self, id, updated_params):
         if not self.datastore.exists('iscsi.portals', ('id', '=', id)):
             raise VerifyException(errno.ENOENT, 'Portal {0} does not exist'.format(id))
@@ -410,6 +482,13 @@ class UpdateISCSIPortalTask(Task):
 @accepts(str)
 @description('Deletes ISCSI portal')
 class DeleteISCSIPortalTask(Task):
+    @classmethod
+    def early_describe(cls):
+        pass
+
+    def describe(self, *args, **kwargs):
+        pass
+
     def verify(self, id):
         if not self.datastore.exists('iscsi.portals', ('id', '=', id)):
             raise VerifyException(errno.ENOENT, 'Portal {0} does not exist'.format(id))

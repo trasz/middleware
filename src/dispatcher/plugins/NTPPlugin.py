@@ -48,6 +48,10 @@ class NTPServersProvider(Provider):
     h.required('address'),
 ), bool)
 class NTPServerCreateTask(Task):
+    @classmethod
+    def early_describe(cls):
+        pass
+
     def describe(self, ntp):
         return "Creating NTP Server {0}".format(ntp['address'])
 
@@ -93,6 +97,13 @@ class NTPServerCreateTask(Task):
 @description("Updates NTP Server")
 @accepts(str, h.ref('ntp-server'), bool)
 class NTPServerUpdateTask(Task):
+    @classmethod
+    def early_describe(cls):
+        pass
+
+    def describe(self, *args, **kwargs):
+        pass
+
     def verify(self, id, updated_fields, force=False):
 
         ntp = self.datastore.get_by_id('ntpservers', id)
@@ -143,6 +154,13 @@ class NTPServerUpdateTask(Task):
 @description("Deletes NTP Server")
 @accepts(str)
 class NTPServerDeleteTask(Task):
+    @classmethod
+    def early_describe(cls):
+        pass
+
+    def describe(self, *args, **kwargs):
+        pass
+
     def verify(self, id):
         ntp = self.datastore.get_by_id('ntpservers', id)
         if ntp is None:

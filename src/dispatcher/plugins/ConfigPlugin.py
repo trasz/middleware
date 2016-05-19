@@ -45,6 +45,13 @@ class ConfigProvider(Provider):
 @description("Updates configuration settings")
 @accepts(h.object())
 class UpdateConfigTask(Task):
+    @classmethod
+    def early_describe(cls):
+        pass
+
+    def describe(self, *args, **kwargs):
+        pass
+
     def verify(self, settings):
         return ['system']
 

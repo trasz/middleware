@@ -47,6 +47,10 @@ class FakeDisksProvider(Provider):
     )
 )
 class CreateFakeDisk(Task):
+    @classmethod
+    def early_describe(cls):
+        pass
+
     def describe(self, disk):
         return TaskDescription("Creating simulated disk {name}", name=disk['id'])
 
@@ -85,6 +89,10 @@ class CreateFakeDisk(Task):
     )
 )
 class ConfigureFakeDisk(Task):
+    @classmethod
+    def early_describe(cls):
+        pass
+
     def describe(self, id, updated_params):
         return TaskDescription("Updating simulated disk {name}", name=id)
 
@@ -105,6 +113,10 @@ class ConfigureFakeDisk(Task):
 @description("Deletes the Simulated Fake Disk identified with the ID provided")
 @accepts(str)
 class DeleteFakeDisk(Task):
+    @classmethod
+    def early_describe(cls):
+        pass
+
     def describe(self, id):
         return TaskDescription("Deleting simulated disk {name}", name=id)
 

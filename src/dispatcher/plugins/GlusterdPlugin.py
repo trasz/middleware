@@ -46,6 +46,10 @@ class GlusterdProvider(Provider):
 @description('Configure Glusterd service')
 @accepts(h.ref('service-glusterd'))
 class GlusterdConfigureTask(Task):
+    @classmethod
+    def early_describe(cls):
+        pass
+
     def describe(self, share):
         return 'Configuring Glusterd service'
 

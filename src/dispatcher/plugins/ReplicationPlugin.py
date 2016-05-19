@@ -133,7 +133,8 @@ class ReplicationLinkProvider(Provider):
     @private
     def link_cache_remove(self, name):
         link_cache.remove(name)
-        
+
+    @private
     def datasets_from_link(self, link):
         datasets = []
         for dataset in link['datasets']:
@@ -159,6 +160,7 @@ class ReplicationLinkProvider(Provider):
 
         return datasets
 
+    @private
     def get_reserved_shares(self, link_name):
         shares = []
         link = self.dispatcher.call_task_sync('replication.get_latest_link', link_name)
@@ -173,6 +175,7 @@ class ReplicationLinkProvider(Provider):
 
         return shares
 
+    @private
     def get_reserved_containers(self, link_name):
         containers = []
         link = self.dispatcher.call_task_sync('replication.link.get_latest_link', link_name)
@@ -186,6 +189,7 @@ class ReplicationLinkProvider(Provider):
 
         return containers
 
+    @private
     def get_related_shares(self, link_name):
         shares = []
         link = self.dispatcher.call_task_sync('replication.get_latest_link', link_name)
@@ -196,6 +200,7 @@ class ReplicationLinkProvider(Provider):
 
         return shares
 
+    @private
     def get_related_containers(self, link_name):
         containers = []
         link = self.dispatcher.call_task_sync('replication.get_latest_link', link_name)
@@ -290,6 +295,10 @@ class ReplicationBaseTask(Task):
     )
 )
 class ReplicationCreateTask(ReplicationBaseTask):
+    @classmethod
+    def early_describe(cls):
+        pass
+
     def describe(self, link):
         return TaskDescription("Creating the replication link {name}", name=link['name'])
 
@@ -377,6 +386,10 @@ class ReplicationCreateTask(ReplicationBaseTask):
 @description("Ensures slave datasets have been created. Checks if services names are available on slave.")
 @accepts(h.ref('replication-link'))
 class ReplicationPrepareSlaveTask(ReplicationBaseTask):
+    @classmethod
+    def early_describe(cls):
+        pass
+
     def describe(self, link):
         return TaskDescription("Preparing a slave for the link {name}", name=link['name'])
 
@@ -562,6 +575,10 @@ class ReplicationPrepareSlaveTask(ReplicationBaseTask):
 @description("Deletes replication link")
 @accepts(str, bool)
 class ReplicationDeleteTask(ReplicationBaseTask):
+    @classmethod
+    def early_describe(cls):
+        pass
+
     def describe(self, name, scrub=False):
         return TaskDescription("Deleting the replication link {name}", name=name)
 
@@ -611,6 +628,10 @@ class ReplicationDeleteTask(ReplicationBaseTask):
 @description("Update a replication link")
 @accepts(str, h.ref('replication-link'))
 class ReplicationUpdateTask(ReplicationBaseTask):
+    @classmethod
+    def early_describe(cls):
+        pass
+
     def describe(self, name, updated_fields):
         return TaskDescription("Updating the replication link {name}", name=name)
 
@@ -756,6 +777,10 @@ class ReplicationUpdateTask(ReplicationBaseTask):
 @description("Runs replication process based on saved link")
 @accepts(str, h.array(h.ref('replication-transport-plugin')))
 class ReplicationSyncTask(ReplicationBaseTask):
+    @classmethod
+    def early_describe(cls):
+        pass
+
     def describe(self, name, transport_plugins):
         return TaskDescription("Synchronizing the replication link {name}", name=name)
 
@@ -841,6 +866,10 @@ class ReplicationSyncTask(ReplicationBaseTask):
 @description("Creates name reservation for services subject to replication")
 @accepts(str)
 class ReplicationReserveServicesTask(ReplicationBaseTask):
+    @classmethod
+    def early_describe(cls):
+        pass
+
     def describe(self, name):
         return TaskDescription("Reserving services for the replication link {name}", name=name)
 
@@ -891,6 +920,10 @@ class ReplicationReserveServicesTask(ReplicationBaseTask):
 @accepts(str, str, bool, int, str, bool)
 @returns(str)
 class SnapshotDatasetTask(Task):
+    @classmethod
+    def early_describe(cls):
+        pass
+
     def describe(self, dataset, recursive, lifetime, prefix='auto', replicable=False):
         return TaskDescription("Creating a snapshot of {name}", name=dataset)
 
@@ -937,6 +970,10 @@ class SnapshotDatasetTask(Task):
 
 @description('Calculates replication delta between datasets')
 class CalculateReplicationDeltaTask(Task):
+    @classmethod
+    def early_describe(cls):
+        pass
+
     def describe(self, localds, remoteds, snapshots, recursive=False, followdelete=False):
         return TaskDescription(
             "Calculating replication delta between the {name} and the {remoteds}",
@@ -1098,6 +1135,10 @@ class ReplicateDatasetTask(ProgressTask):
         self.wr_fd = None
         self.aborted = False
 
+    @classmethod
+    def early_describe(cls):
+        pass
+
     def describe(self, localds, options, transport_plugins=None, dry_run=False):
         return TaskDescription("Replicating the dataset {name}", name=localds)
 
@@ -1257,6 +1298,10 @@ class ReplicateDatasetTask(ProgressTask):
 @accepts(str)
 @returns(h.ref('replication-link'))
 class ReplicationGetLatestLinkTask(ReplicationBaseTask):
+    @classmethod
+    def early_describe(cls):
+        pass
+
     def describe(self, name):
         return TaskDescription("Fetching the latest link {name}", name=name)
 
@@ -1306,6 +1351,10 @@ class ReplicationGetLatestLinkTask(ReplicationBaseTask):
 @description("Updates local replication link entry if provided remote entry is newer")
 @accepts(h.ref('replication-link'))
 class ReplicationUpdateLinkTask(Task):
+    @classmethod
+    def early_describe(cls):
+        pass
+
     def describe(self, remote_link):
         return TaskDescription("Updating the replication link {name}", name=remote_link['name'])
 
@@ -1339,6 +1388,10 @@ class ReplicationUpdateLinkTask(Task):
 @description("Performs synchronization of actual role (master/slave) with replication link state")
 @accepts(str)
 class ReplicationRoleUpdateTask(ReplicationBaseTask):
+    @classmethod
+    def early_describe(cls):
+        pass
+
     def describe(self, name):
         return TaskDescription("Synchronizing the replication {name} role with it's desired state", name=name)
 
@@ -1394,6 +1447,10 @@ class ReplicationRoleUpdateTask(ReplicationBaseTask):
 @description("Checks if provided replication link would not conflict with other links")
 @accepts(h.ref('replication-link'))
 class ReplicationCheckDatasetsTask(ReplicationBaseTask):
+    @classmethod
+    def early_describe(cls):
+        pass
+
     def describe(self, link):
         return TaskDescription("Checking for conflicts with the replication link {name}", name=link['name'])
 

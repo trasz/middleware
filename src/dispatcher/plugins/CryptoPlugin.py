@@ -162,6 +162,10 @@ class CertificateProvider(Provider):
 ))
 @description('Creates a certificate')
 class CertificateCreateTask(Task):
+    @classmethod
+    def early_describe(cls):
+        pass
+
     def describe(self, certificate):
         return TaskDescription("Creating certificate {name}", name=certificate['name'])
 
@@ -307,6 +311,10 @@ class CertificateCreateTask(Task):
 ))
 @description('Imports a certificate')
 class CertificateImportTask(Task):
+    @classmethod
+    def early_describe(cls):
+        pass
+
     def describe(self, certificate):
         return TaskDescription("Importing certificate {name}", name=certificate['name'])
 
@@ -370,6 +378,10 @@ class CertificateImportTask(Task):
 ))
 @description('Updates a certificate')
 class CertificateUpdateTask(Task):
+    @classmethod
+    def early_describe(cls):
+        pass
+
     def describe(self, id, updated_fields):
         return TaskDescription("Updating certificate {name}", name=id)
 
@@ -430,6 +442,10 @@ class CertificateUpdateTask(Task):
 @accepts(str)
 @description('Deletes a certificate')
 class CertificateDeleteTask(Task):
+    @classmethod
+    def early_describe(cls):
+        pass
+
     def describe(self, id):
         return TaskDescription("Deleting certificate {name}", name=id)
 

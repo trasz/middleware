@@ -70,6 +70,10 @@ class BootEnvironmentsProvider(Provider):
  )
 @accepts(str, h.any_of(str, None))
 class BootEnvironmentCreate(Task):
+    @classmethod
+    def early_describe(cls):
+        pass
+
     def describe(self, newname, source=None):
         return TaskDescription(
             "Cloning Boot Environment {source} - new name {name}",
@@ -88,6 +92,10 @@ class BootEnvironmentCreate(Task):
 @description("Activates the specified Boot Environment to be selected on reboot")
 @accepts(str)
 class BootEnvironmentActivate(Task):
+    @classmethod
+    def early_describe(cls):
+        pass
+
     def describe(self, name):
         return TaskDescription("Activating the Boot Environment {name}", name=name)
 
@@ -106,6 +114,10 @@ class BootEnvironmentActivate(Task):
 @description("Renames the given Boot Environment with the alternate name provieded")
 @accepts(str, h.ref('boot-environment'))
 class BootEnvironmentUpdate(Task):
+    @classmethod
+    def early_describe(cls):
+        pass
+
     def describe(self, id, be):
         return TaskDescription("Updating the Boot Environment {name}", name=id)
 
@@ -129,6 +141,10 @@ class BootEnvironmentUpdate(Task):
 @description("Deletes the given Boot Environments. Note: It cannot delete an activated BE")
 @accepts(str)
 class BootEnvironmentsDelete(Task):
+    @classmethod
+    def early_describe(cls):
+        pass
+
     def describe(self, id):
         return TaskDescription("Deleting the Boot Environment {name}", name=id)
 
@@ -147,6 +163,10 @@ class BootEnvironmentsDelete(Task):
 @description("Attaches the given Disk to the Boot Pool")
 @accepts(str, str)
 class BootAttachDisk(ProgressTask):
+    @classmethod
+    def early_describe(cls):
+        pass
+
     def describe(self, guid, disk):
         return TaskDescription("Attaching the {name} disk to the Boot Pool", name=guid)
 
@@ -181,6 +201,10 @@ class BootAttachDisk(ProgressTask):
 @description("Detaches the specified Disk from the Boot Pool (not functional yet)")
 @accepts(str)
 class BootDetachDisk(Task):
+    @classmethod
+    def early_describe(cls):
+        pass
+
     def describe(self, disk):
         return TaskDescription("Detaching the {name} disk from the Boot Pool", name=disk['name'])
 

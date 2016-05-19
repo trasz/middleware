@@ -167,6 +167,10 @@ class DiskProvider(Provider):
 )
 @accepts(str, str, h.object())
 class DiskGPTFormatTask(Task):
+    @classmethod
+    def early_describe(cls):
+        pass
+
     def describe(self, id, fstype, params=None):
         disk = disk_by_id(self.dispatcher, id)
         return TaskDescription("Formatting disk {name}", name=os.path.basename(disk['path']))
@@ -232,6 +236,10 @@ class DiskGPTFormatTask(Task):
 @description('Formats given disk to be bootable and capable to be included in the Boot Pool')
 @accepts(str)
 class DiskBootFormatTask(Task):
+    @classmethod
+    def early_describe(cls):
+        pass
+
     def describe(self, id):
         disk = disk_by_id(self.dispatcher, id)
         return TaskDescription("Formatting bootable disk {name}", name=disk['path'])
@@ -263,6 +271,10 @@ class DiskBootFormatTask(Task):
 @description("Installs Bootloader (grub) on specified disk")
 @accepts(str)
 class DiskInstallBootloaderTask(Task):
+    @classmethod
+    def early_describe(cls):
+        pass
+
     def describe(self, id):
         disk = disk_by_id(self.dispatcher, id)
         return TaskDescription("Installing bootloader on disk {name}", name=disk['path'])
@@ -290,6 +302,10 @@ class DiskEraseTask(Task):
         self.started = False
         self.mediasize = 0
         self.remaining = 0
+
+    @classmethod
+    def early_describe(cls):
+        pass
 
     def describe(self, id, erase_method=None):
         disk = disk_by_id(self.dispatcher, id)
@@ -368,6 +384,10 @@ class DiskEraseTask(Task):
     )
 )
 class DiskConfigureTask(Task):
+    @classmethod
+    def early_describe(cls):
+        pass
+
     def describe(self, id, updated_fields):
         disk = disk_by_id(self.dispatcher, id)
         return TaskDescription("Configuring disk {name}", name=disk['path'])
@@ -429,6 +449,10 @@ class DiskConfigureTask(Task):
 @description("Deletes offline disk configuration from database")
 @accepts(str)
 class DiskDeleteTask(Task):
+    @classmethod
+    def early_describe(cls):
+        pass
+
     def describe(self, id):
         disk = disk_by_id(self.dispatcher, id)
         return TaskDescription("Deleting offline disk {name} configuration", name=disk['path'])
@@ -451,6 +475,10 @@ class DiskDeleteTask(Task):
 @accepts(str, h.ref('disk-attach-params'))
 @description('Initializes GELI encrypted partition')
 class DiskGELIInitTask(Task):
+    @classmethod
+    def early_describe(cls):
+        pass
+
     def describe(self, id, params=None):
         disk = disk_by_id(self.dispatcher, id)
         return TaskDescription("Creating encrypted partition for {name}", name=os.path.basename(disk['path']))
@@ -507,6 +535,10 @@ class DiskGELIInitTask(Task):
 @accepts(str, h.ref('disk-set-key-params'))
 @description('Sets new GELI user key in specified slot')
 class DiskGELISetUserKeyTask(Task):
+    @classmethod
+    def early_describe(cls):
+        pass
+
     def describe(self, id, params=None):
         disk = disk_by_id(self.dispatcher, id)
         return TaskDescription("Setting new key for encrypted partition on {name}", name=os.path.basename(disk['path']))
@@ -558,6 +590,10 @@ class DiskGELISetUserKeyTask(Task):
 @accepts(str, int)
 @description('Deletes GELI user key entry from a given slot')
 class DiskGELIDelUserKeyTask(Task):
+    @classmethod
+    def early_describe(cls):
+        pass
+
     def describe(self, id, slot):
         disk = disk_by_id(self.dispatcher, id)
         return TaskDescription("Deleting key of encrypted partition on {name}", name=os.path.basename(disk['path']))
@@ -590,6 +626,10 @@ class DiskGELIDelUserKeyTask(Task):
 @returns(h.ref('disk-metadata'))
 @description('Creates a backup of GELI metadata')
 class DiskGELIBackupMetadataTask(Task):
+    @classmethod
+    def early_describe(cls):
+        pass
+
     def describe(self, id):
         disk = disk_by_id(self.dispatcher, id)
         return TaskDescription(
@@ -625,6 +665,10 @@ class DiskGELIBackupMetadataTask(Task):
 @accepts(str, h.ref('disk-metadata'))
 @description('Restores GELI metadata from file')
 class DiskGELIRestoreMetadataTask(Task):
+    @classmethod
+    def early_describe(cls):
+        pass
+
     def describe(self, id, metadata):
         return TaskDescription(
             "Restoring metadata of encrypted partition on {name}",
@@ -660,6 +704,10 @@ class DiskGELIRestoreMetadataTask(Task):
 @accepts(str, h.ref('disk-attach-params'))
 @description('Attaches GELI encrypted partition')
 class DiskGELIAttachTask(Task):
+    @classmethod
+    def early_describe(cls):
+        pass
+
     def describe(self, id, params=None):
         disk = disk_by_id(self.dispatcher, id)
         return TaskDescription("Attaching encrypted partition of {name}", name=os.path.basename(disk['path']))
@@ -708,6 +756,10 @@ class DiskGELIAttachTask(Task):
 @accepts(str)
 @description('Detaches GELI encrypted partition')
 class DiskGELIDetachTask(Task):
+    @classmethod
+    def early_describe(cls):
+        pass
+
     def describe(self, id):
         disk = disk_by_id(self.dispatcher, id)
         return TaskDescription("Detaching encrypted partition of {name}", name=os.path.basename(disk['path']))
@@ -738,6 +790,10 @@ class DiskGELIDetachTask(Task):
 @accepts(str)
 @description('Destroys GELI encrypted partition along with GELI metadata')
 class DiskGELIKillTask(Task):
+    @classmethod
+    def early_describe(cls):
+        pass
+
     def describe(self, id):
         disk = disk_by_id(self.dispatcher, id)
         return TaskDescription("Killing encrypted partition of {0}", name=os.path.basename(disk['path']))
@@ -768,6 +824,10 @@ class DiskGELIKillTask(Task):
 @description("Performs SMART test on disk")
 @accepts(str, h.ref('disk-selftest-type'))
 class DiskTestTask(ProgressTask):
+    @classmethod
+    def early_describe(cls):
+        pass
+
     def describe(self, id, test_type):
         disk = disk_by_id(self.dispatcher, id)
         return TaskDescription("Performing SMART test on disk {name}", name=disk['path'])
@@ -799,6 +859,10 @@ class DiskTestTask(ProgressTask):
 @description("Performs the given SMART test on the disk IDs specified (in parallel)")
 @accepts(h.array(str), h.ref('disk-selftest-type'))
 class DiskParallelTestTask(ProgressTask):
+    @classmethod
+    def early_describe(cls):
+        pass
+
     def describe(self, ids, test_type):
         return TaskDescription("Performing parallel SMART test")
 

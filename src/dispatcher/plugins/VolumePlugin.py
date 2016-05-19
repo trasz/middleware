@@ -627,6 +627,10 @@ class VolumeAutoCreateTask(Task):
 @description("Destroys active volume")
 @accepts(str)
 class VolumeDestroyTask(Task):
+    @classmethod
+    def early_describe(cls):
+        pass
+
     def describe(self, id):
         return TaskDescription("Deleting the volume {name}", name=id)
 
@@ -966,6 +970,10 @@ class VolumeUpdateTask(Task):
 @description("Imports previously exported volume")
 @accepts(str, str, h.object(), h.ref('volume-import-params'), h.one_of(str, None))
 class VolumeImportTask(Task):
+    @classmethod
+    def early_describe(cls):
+        pass
+
     def describe(self, id, new_name, params=None, enc_params=None, password=None):
         return TaskDescription("Importing the volume {name}", name=id)
 
@@ -1055,6 +1063,10 @@ class VolumeImportTask(Task):
 @description("Imports non-ZFS disk contents into existing volume")
 @accepts(str, str, str)
 class VolumeDiskImportTask(ProgressTask):
+    @classmethod
+    def early_describe(cls):
+        pass
+
     def describe(self, src, dest_path, fstype=None):
         return TaskDescription("Importing disk {src} into {dst} path", src=src, dst=dest_path)
 
@@ -1111,6 +1123,10 @@ class VolumeDiskImportTask(ProgressTask):
 @description("Exports active volume")
 @accepts(str)
 class VolumeDetachTask(Task):
+    @classmethod
+    def early_describe(cls):
+        pass
+
     def describe(self, id):
         return TaskDescription("Detaching the volume {name}", name=id)
 
@@ -1152,6 +1168,10 @@ class VolumeDetachTask(Task):
 @description("Upgrades volume to newest ZFS version")
 @accepts(str)
 class VolumeUpgradeTask(Task):
+    @classmethod
+    def early_describe(cls):
+        pass
+
     def describe(self, id):
         return TaskDescription("Upgrading the volume {name}", name=id)
 
@@ -1177,6 +1197,10 @@ class VolumeUpgradeTask(Task):
 @description('Replaces failed disk in active volume')
 @accepts(str, h.ref('zfs-vdev'), h.one_of(str, None))
 class VolumeAutoReplaceTask(Task):
+    @classmethod
+    def early_describe(cls):
+        pass
+
     def describe(self, id, failed_vdev, password=None):
         return TaskDescription("Replacing the failed disk {vdev} in the volume {name}", name=id, vdev=failed_vdev)
 
@@ -1238,6 +1262,10 @@ class VolumeAutoReplaceTask(Task):
 @description("Locks encrypted ZFS volume")
 @accepts(str)
 class VolumeLockTask(Task):
+    @classmethod
+    def early_describe(cls):
+        pass
+
     def describe(self, id):
         return TaskDescription("Locking the encrypted volume {name}", name=id)
 
@@ -1295,6 +1323,10 @@ class VolumeLockTask(Task):
     h.enum(str, ['all', 'containers', 'shares', 'system'])
 )
 class VolumeAutoImportTask(Task):
+    @classmethod
+    def early_describe(cls):
+        pass
+
     def describe(self, volume, scope):
         return TaskDescription("Importing {scope} services from the volume {name}", name=volume, scope=scope)
 
@@ -1437,6 +1469,10 @@ class VolumeAutoImportTask(Task):
 @description("Unlocks encrypted ZFS volume")
 @accepts(str, h.one_of(str, None), h.object())
 class VolumeUnlockTask(Task):
+    @classmethod
+    def early_describe(cls):
+        pass
+
     def describe(self, id, password=None, params=None):
         return TaskDescription("Unlocking the encrypted volume {name}", name=id)
 
@@ -1512,6 +1548,10 @@ class VolumeUnlockTask(Task):
 @description("Generates and sets new key for encrypted ZFS volume")
 @accepts(str, h.one_of(str, None))
 class VolumeRekeyTask(Task):
+    @classmethod
+    def early_describe(cls):
+        pass
+
     def describe(self, id, password=None):
         return TaskDescription("Regenerating the keys for the encrypted volume {name}", name=id)
 
@@ -1582,6 +1622,10 @@ class VolumeRekeyTask(Task):
 @description("Creates a backup file of Master Keys of encrypted volume")
 @accepts(str, str)
 class VolumeBackupKeysTask(Task):
+    @classmethod
+    def early_describe(cls):
+        pass
+
     def describe(self, id, out_path=None):
         return TaskDescription("Creating a backup of the keys of the encrypted volume {name}", name=id)
 
@@ -1630,6 +1674,10 @@ class VolumeBackupKeysTask(Task):
 @description("Loads a backup file of Master Keys of encrypted volume")
 @accepts(str, h.one_of(str, None), str)
 class VolumeRestoreKeysTask(Task):
+    @classmethod
+    def early_describe(cls):
+        pass
+
     def describe(self, id, password=None, in_path=None):
         return TaskDescription("Uploading the keys from backup to the encrypted volume {name}", name=id)
 
@@ -1684,6 +1732,10 @@ class VolumeRestoreKeysTask(Task):
 @description("Scrubs the volume")
 @accepts(str)
 class VolumeScrubTask(MasterProgressTask):
+    @classmethod
+    def early_describe(cls):
+        pass
+
     def describe(self, id):
         return TaskDescription("Performing a scrub of the volume {name}", name=id)
 
@@ -1712,6 +1764,10 @@ class VolumeScrubTask(MasterProgressTask):
 @description("Makes vdev in a volume offline")
 @accepts(str, str)
 class VolumeOfflineVdevTask(Task):
+    @classmethod
+    def early_describe(cls):
+        pass
+
     def describe(self, id, vdev_guid):
         try:
             config = self.dispatcher.call_sync('disk.get_disk_config_by_id', vdev_guid)
@@ -1742,6 +1798,10 @@ class VolumeOfflineVdevTask(Task):
 @description("Makes vdev in a volume online")
 @accepts(str, str)
 class VolumeOnlineVdevTask(Task):
+    @classmethod
+    def early_describe(cls):
+        pass
+
     def describe(self, id, vdev_guid):
         try:
             config = self.dispatcher.call_sync('disk.get_disk_config_by_id', vdev_guid)
@@ -1775,6 +1835,10 @@ class VolumeOnlineVdevTask(Task):
     h.required('id', 'volume')
 ))
 class DatasetCreateTask(Task):
+    @classmethod
+    def early_describe(cls):
+        pass
+
     def describe(self, dataset):
         return TaskDescription("Creating the dataset {name}", name=dataset['id'])
 
@@ -1829,6 +1893,10 @@ class DatasetCreateTask(Task):
 @description("Deletes an existing Dataset from a Volume")
 @accepts(str)
 class DatasetDeleteTask(Task):
+    @classmethod
+    def early_describe(cls):
+        pass
+
     def describe(self, id):
         return TaskDescription("Deleting the dataset {name}", name=id)
 
@@ -1877,6 +1945,10 @@ class DatasetDeleteTask(Task):
 @description("Configures/Updates an existing Dataset's properties")
 @accepts(str, h.ref('volume-dataset'))
 class DatasetConfigureTask(Task):
+    @classmethod
+    def early_describe(cls):
+        pass
+
     def describe(self, id, updated_params):
         return TaskDescription("Configuring the dataset {name}", name=id)
 
@@ -1950,6 +2022,10 @@ class DatasetConfigureTask(Task):
     h.forbidden('id')
 ))
 class SnapshotCreateTask(Task):
+    @classmethod
+    def early_describe(cls):
+        pass
+
     def describe(self, snapshot):
         return TaskDescription("Creating the snapshot {name}", name=snapshot['name'])
 
@@ -1978,6 +2054,10 @@ class SnapshotCreateTask(Task):
 @description("Deletes the specified snapshot")
 @accepts(str)
 class SnapshotDeleteTask(Task):
+    @classmethod
+    def early_describe(cls):
+        pass
+
     def describe(self, id):
         return TaskDescription("Deleting the snapshot {name}", name=id)
 
@@ -1999,6 +2079,10 @@ class SnapshotDeleteTask(Task):
     h.ref('volume-snapshot')
 ))
 class SnapshotConfigureTask(Task):
+    @classmethod
+    def early_describe(cls):
+        pass
+
     def describe(self, id, updated_params):
         return TaskDescription("Configuring the snapshot {name}", name=id)
 

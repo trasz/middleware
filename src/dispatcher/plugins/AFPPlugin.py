@@ -48,6 +48,10 @@ class AFPProvider(Provider):
 @description('Configure AFP service')
 @accepts(h.ref('service-afp'))
 class AFPConfigureTask(Task):
+    @classmethod
+    def early_describe(cls):
+        pass
+
     def describe(self, share):
         return 'Configuring AFP service'
 

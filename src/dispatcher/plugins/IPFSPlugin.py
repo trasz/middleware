@@ -103,6 +103,9 @@ class IPFSProvider(Provider):
 @description('Configure IPFS service')
 @accepts(h.ref('service-ipfs'))
 class IPFSConfigureTask(Task):
+    @classmethod
+    def early_describe(cls):
+        pass
 
     def describe(self, share):
         return 'Configuring IPFS service'

@@ -130,6 +130,12 @@ class MailProvider(Provider):
 @accepts(h.ref('mail'))
 @description('Updates mail configuration')
 class MailConfigureTask(Task):
+    @classmethod
+    def early_describe(cls):
+        pass
+
+    def describe(self, *args, **kwargs):
+        pass
 
     def verify(self, mail):
         errors = ValidationException()

@@ -89,6 +89,13 @@ class IPMIProvider(Provider):
 @accepts(int, h.ref('ipmi-configuration'))
 @description("Configures IPMI module")
 class ConfigureIPMITask(Task):
+    @classmethod
+    def early_describe(cls):
+        pass
+
+    def describe(self, *args, **kwargs):
+        pass
+
     def verify(self, id, updated_params):
         if not self.dispatcher.call_sync('ipmi.is_ipmi_loaded'):
             raise VerifyException(errno.ENXIO, 'No IPMI module loaded')

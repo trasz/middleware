@@ -56,6 +56,13 @@ class ActiveDirectoryProvider(Provider):
 @description("Updates Active Directory settings")
 @accepts(h.ref('activedirectory-config'))
 class ActiveDirectoryConfigureTask(Task):
+    @classmethod
+    def early_describe(cls):
+        pass
+
+    def describe(self, *args, **kwargs):
+        pass
+
     def verify(self, config):
         logger.debug("XXX: ActiveDirectory.verify")
         return ['system'] 

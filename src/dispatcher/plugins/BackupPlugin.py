@@ -70,6 +70,13 @@ class BackupProvider(Provider):
 ))
 @description('Creates a backup task')
 class CreateBackupTask(Task):
+    @classmethod
+    def early_describe(cls):
+        pass
+
+    def describe(self, *args, **kwargs):
+        pass
+
     def verify(self, backup):
         if 'id' in backup and self.datastore.exists('backup', ('id', '=', backup['id'])):
             raise VerifyException('Backup with ID {0} already exists'.format(backup['id']))
@@ -100,6 +107,13 @@ class CreateBackupTask(Task):
 ))
 @description('Updates a backup task')
 class UpdateBackupTask(Task):
+    @classmethod
+    def early_describe(cls):
+        pass
+
+    def describe(self, *args, **kwargs):
+        pass
+
     def verify(self, id, updated_params):
         if not self.datastore.exists('backup', ('id', '=', id)):
             raise VerifyException(errno.ENOENT, 'Backup {0} not found'.format(id))
@@ -122,6 +136,13 @@ class UpdateBackupTask(Task):
 @accepts(str)
 @description('Deletes a backup task')
 class DeleteBackupTask(Task):
+    @classmethod
+    def early_describe(cls):
+        pass
+
+    def describe(self, *args, **kwargs):
+        pass
+
     def verify(self, id):
         if not self.datastore.exists('backup', ('id', '=', id)):
             raise VerifyException(errno.ENOENT, 'Backup {0} not found'.format(id))
@@ -138,6 +159,13 @@ class DeleteBackupTask(Task):
 
 @description('Lists information about a specific backup')
 class BackupQueryTask(ProgressTask):
+    @classmethod
+    def early_describe(cls):
+        pass
+
+    def describe(self, *args, **kwargs):
+        pass
+
     def verify(self, id):
         return []
 
@@ -182,6 +210,13 @@ class BackupQueryTask(ProgressTask):
 @accepts(str, bool, bool)
 @description('Sends new changes to the backup')
 class BackupSyncTask(ProgressTask):
+    @classmethod
+    def early_describe(cls):
+        pass
+
+    def describe(self, *args, **kwargs):
+        pass
+
     def verify(self, id, snapshot=True, dry_run=False):
         if not self.datastore.exists('backup', ('id', '=', id)):
             raise VerifyException(errno.ENOENT, 'Backup {0} not found'.format(id))
@@ -287,6 +322,13 @@ class BackupSyncTask(ProgressTask):
 
 @description('Restores from backup')
 class BackupRestoreTask(ProgressTask):
+    @classmethod
+    def early_describe(cls):
+        pass
+
+    def describe(self, *args, **kwargs):
+        pass
+
     def verify(self, id, dataset=None, snapshot=None):
         return []
 

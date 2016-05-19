@@ -143,6 +143,10 @@ class UPSProvider(Provider):
 @description('Configure UPS service')
 @accepts(h.ref('service-ups'))
 class UPSConfigureTask(Task):
+    @classmethod
+    def early_describe(cls):
+        pass
+
     def describe(self, share):
         return 'Configuring UPS service'
 

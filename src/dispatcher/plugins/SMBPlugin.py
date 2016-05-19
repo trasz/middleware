@@ -74,6 +74,10 @@ class SMBProvider(Provider):
 @description('Configure SMB service')
 @accepts(h.ref('service-smb'))
 class SMBConfigureTask(Task):
+    @classmethod
+    def early_describe(cls):
+        pass
+
     def describe(self, smb):
         return 'Configuring SMB service'
 

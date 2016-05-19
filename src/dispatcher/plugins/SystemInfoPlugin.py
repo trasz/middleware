@@ -241,6 +241,10 @@ class SystemUIProvider(Provider):
 @description("Configures general system settings")
 @accepts(h.ref('system-general'))
 class SystemGeneralConfigureTask(Task):
+    @classmethod
+    def early_describe(cls):
+        pass
+
     def describe(self, props):
         return "System General Settings Configure"
 
@@ -297,6 +301,9 @@ class SystemGeneralConfigureTask(Task):
 @description("Configures advanced system settings")
 @accepts(h.ref('system-advanced'))
 class SystemAdvancedConfigureTask(Task):
+    @classmethod
+    def early_describe(cls):
+        pass
 
     def describe(self, props):
         return "System Advanced Settings Configure"
@@ -394,6 +401,9 @@ class SystemAdvancedConfigureTask(Task):
 @description("Configures the System UI settings")
 @accepts(h.ref('system-ui'))
 class SystemUIConfigureTask(Task):
+    @classmethod
+    def early_describe(cls):
+        pass
 
     def describe(self, props):
         return "System UI Settings Configure"
@@ -441,6 +451,13 @@ class SystemUIConfigureTask(Task):
 ))
 @description("Configures system time")
 class SystemTimeConfigureTask(Task):
+    @classmethod
+    def early_describe(cls):
+        pass
+
+    def describe(self, *args, **kwargs):
+        pass
+
     def verify(self, props):
         return ['system']
 
@@ -467,6 +484,10 @@ class SystemRebootTask(Task):
         super(SystemRebootTask, self).__init__(dispatcher, datastore)
         self.finish_event = Event()
         self.abort_flag = False
+
+    @classmethod
+    def early_describe(cls):
+        pass
 
     def describe(self, delay=None):
         return "System Reboot"
@@ -508,6 +529,10 @@ class SystemRebootTask(Task):
 @accepts(h.any_of(int, None))
 @description("Shuts the system down")
 class SystemHaltTask(Task):
+    @classmethod
+    def early_describe(cls):
+        pass
+
     def describe(self):
         return "System Shutdown"
 

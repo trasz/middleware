@@ -250,6 +250,10 @@ class ServiceInfoProvider(Provider):
     h.enum(str, ['start', 'stop', 'restart', 'reload'])
 )
 class ServiceManageTask(Task):
+    @classmethod
+    def early_describe(cls):
+        pass
+
     def describe(self, id, action):
         svc = self.datastore.get_by_id('service_definitions', id)
         return TaskDescription("{action}ing service {name}", action=action.title(), name=svc['name'])
@@ -301,6 +305,10 @@ class ServiceManageTask(Task):
     h.forbidden('id', 'name', 'builtin', 'pid', 'state')
 ))
 class UpdateServiceConfigTask(Task):
+    @classmethod
+    def early_describe(cls):
+        pass
+
     def describe(self, id, updated_fields):
         svc = self.datastore.get_by_id('service_definitions', id)
         return TaskDescription("Updating configuration of service {name}", name=svc['name'])

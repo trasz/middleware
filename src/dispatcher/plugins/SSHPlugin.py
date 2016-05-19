@@ -48,6 +48,10 @@ class SSHProvider(Provider):
 @description('Configure SSH service')
 @accepts(h.ref('service-sshd'))
 class SSHConfigureTask(Task):
+    @classmethod
+    def early_describe(cls):
+        pass
+
     def describe(self, ssh):
         return 'Configuring SSH service'
 

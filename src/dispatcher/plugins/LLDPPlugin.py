@@ -47,6 +47,10 @@ class LLDPProvider(Provider):
 @description('Configure LLDP service')
 @accepts(h.ref('service-lldp'))
 class LLDPConfigureTask(Task):
+    @classmethod
+    def early_describe(cls):
+        pass
+
     def describe(self, share):
         return 'Configuring LLDP service'
 

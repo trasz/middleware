@@ -50,6 +50,10 @@ class ISCSIProvider(Provider):
 @description('Configure ISCSI service')
 @accepts(h.ref('service-iscsi'))
 class ISCSIConfigureTask(Task):
+    @classmethod
+    def early_describe(cls):
+        pass
+
     def describe(self, iscsi):
         return 'Configuring iSCSI service'
 

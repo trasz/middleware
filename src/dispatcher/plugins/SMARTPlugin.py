@@ -46,6 +46,10 @@ class SMARTProvider(Provider):
 @description('Configure SMART service')
 @accepts(h.ref('service-smartd'))
 class SMARTConfigureTask(Task):
+    @classmethod
+    def early_describe(cls):
+        pass
+
     def describe(self, share):
         return 'Configuring SMART service'
 

@@ -54,6 +54,12 @@ class LDAPProvider(Provider):
 @description("Updates LDAP settings")
 @accepts(h.ref('ldap-config'))
 class LDAPConfigureTask(Task):
+    @classmethod
+    def early_describe(cls):
+        pass
+
+    def describe(self, *args, **kwargs):
+        pass
 
     def verify(self, config):
         return ['system'] 

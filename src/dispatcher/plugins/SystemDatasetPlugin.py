@@ -232,6 +232,13 @@ class SystemDatasetProvider(Provider):
 @description("Updates .system dataset configuration")
 @accepts(str)
 class SystemDatasetConfigure(Task):
+    @classmethod
+    def early_describe(cls):
+        pass
+
+    def describe(self, *args, **kwargs):
+        pass
+
     def verify(self, pool):
         return ['system']
 
@@ -258,6 +265,13 @@ class SystemDatasetConfigure(Task):
 @description("Imports .system dataset from a volume")
 @accepts(str)
 class SystemDatasetImport(Task):
+    @classmethod
+    def early_describe(cls):
+        pass
+
+    def describe(self, *args, **kwargs):
+        pass
+
     def verify(self, pool):
         if not self.dispatcher.call_sync('zfs.dataset.query', [('pool', '=', pool), ('name', '~', '.system')], {'single': True}):
             raise VerifyException('System dataset not found on pool {0}'.format(pool))
