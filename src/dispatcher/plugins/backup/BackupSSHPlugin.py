@@ -34,6 +34,7 @@ from paramiko import transport, sftp_client, ssh_exception, rsakey, dsskey
 from freenas.utils import normalize
 
 
+@description('Lists information about a specific SSH backup')
 class BackupSSHListTask(Task):
     def verify(self, backup):
         return []
@@ -59,6 +60,7 @@ class BackupSSHListTask(Task):
         return result
 
 
+@description('Initializes a SSH backup')
 class BackupSSHInitTask(Task):
     def verify(self, backup):
         return []
@@ -72,6 +74,7 @@ class BackupSSHInitTask(Task):
         return backup['properties']
 
 
+@description('Puts new data onto SSH backup')
 class BackupSSHPutTask(ProgressTask):
     def verify(self, backup, name, fd):
         return []
@@ -90,6 +93,7 @@ class BackupSSHPutTask(ProgressTask):
             conn.close()
 
 
+@description('Gets data from SSH backup')
 class BackupSSHGetTask(Task):
     def verify(self, backup, name, fd):
         return []
@@ -108,6 +112,7 @@ class BackupSSHGetTask(Task):
             conn.close()
 
 
+@description('Deletes SSH backup task')
 class BackupSSHDeleteTask(Task):
     def verify(self, backup, name):
         pass

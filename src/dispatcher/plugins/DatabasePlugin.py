@@ -36,6 +36,7 @@ from task import Task, ProgressTask, TaskException, TaskDescription
 FACTORY_DB = '/usr/local/share/datastore/factory.json'
 
 
+@description('Dumps current database state')
 class DownloadDatabaseTask(Task):
     def verify(self):
         return ['system']
@@ -44,6 +45,7 @@ class DownloadDatabaseTask(Task):
         pass
 
 
+@description('Uploads database state from file')
 class UploadDatabaseTask(Task):
     def verify(self):
         return ['system']
@@ -52,6 +54,7 @@ class UploadDatabaseTask(Task):
         pass
 
 
+@description('Restores database config to it\'s defaults')
 class RestoreFactoryConfigTask(ProgressTask):
     def verify(self):
         return ['root']

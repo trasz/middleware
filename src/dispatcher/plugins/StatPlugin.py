@@ -71,6 +71,7 @@ UNITS = {
 }
 
 
+@description('Provides information about statistics')
 class StatProvider(Provider):
     @query('statistic')
     def query(self, filter=None, params=None):
@@ -93,6 +94,7 @@ class StatProvider(Provider):
         return normalize(name, value)
 
 
+@description('Provides information about CPU statistics')
 class CpuStatProvider(Provider):
     @query('statistic')
     def query(self, filter=None, params=None):
@@ -110,6 +112,7 @@ class CpuStatProvider(Provider):
         return wrap(stats).query(*(filter or []), **(params or {}))
 
 
+@description('Provides information about disk statistics')
 class DiskStatProvider(Provider):
     @query('statistic')
     def query(self, filter=None, params=None):
@@ -126,6 +129,7 @@ class DiskStatProvider(Provider):
         return wrap(stats).query(*(filter or []), **(params or {}))
 
 
+@description('Provides information about network statistics')
 class NetworkStatProvider(Provider):
     @query('statistic')
     def query(self, filter=None, params=None):
@@ -142,6 +146,7 @@ class NetworkStatProvider(Provider):
         return wrap(stats).query(*(filter or []), **(params or {}))
 
 
+@description('Provides information about system statistics')
 class SystemStatProvider(Provider):
     @query('statistic')
     def query(self, filter=None, params=None):
@@ -170,6 +175,7 @@ class SystemStatProvider(Provider):
 
 
 @accepts(str, h.ref('statistic'))
+@description('Updates alert levels on a given statistic')
 class UpdateAlertTask(Task):
     def verify(self, name, stat):
         if name not in self.dispatcher.call_sync('statd.output.get_data_sources'):

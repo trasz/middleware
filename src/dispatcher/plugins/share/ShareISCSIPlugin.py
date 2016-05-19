@@ -84,24 +84,27 @@ class ISCSISharesProvider(Provider):
         return '0x6589cfc000000{0}'.format(hashlib.sha256(uuid.uuid4().bytes).hexdigest()[0:19])
 
 
+@description('Provides information about ISCSI targets')
 class ISCSITargetsProvider(Provider):
     def query(self, filter=None, params=None):
         return self.datastore.query('iscsi.targets', *(filter or []), **(params or {}))
 
 
+@description('Provides information about ISCSI auth groups')
 class ISCSIAuthProvider(Provider):
     def query(self, filter=None, params=None):
         return self.datastore.query('iscsi.auth', *(filter or []), **(params or {}))
 
 
+@description('Provides information about ISCSI portals')
 class ISCSIPortalProvider(Provider):
     def query(self, filter=None, params=None):
         return self.datastore.query('iscsi.portals', *(filter or []), **(params or {}))
 
 
 @private
-@description("Adds new iSCSI share")
 @accepts(h.ref('iscsi-share'))
+@description("Adds new iSCSI share")
 class CreateISCSIShareTask(Task):
     def describe(self, share):
         return "Creating iSCSI share {0}".format(share['name'])
@@ -145,8 +148,8 @@ class CreateISCSIShareTask(Task):
 
 
 @private
-@description("Updates existing iSCSI share")
 @accepts(str, h.ref('iscsi-share'))
+@description("Updates existing iSCSI share")
 class UpdateISCSIShareTask(Task):
     def describe(self, id, updated_fields):
         return "Updating iSCSI share {0}".format(id)
@@ -167,8 +170,8 @@ class UpdateISCSIShareTask(Task):
 
 
 @private
-@description("Removes iSCSI share")
 @accepts(str)
+@description("Removes iSCSI share")
 class DeleteiSCSIShareTask(Task):
     def describe(self, id):
         return "Deleting iSCSI share {0}".format(id)
@@ -199,8 +202,8 @@ class DeleteiSCSIShareTask(Task):
 
 
 @private
-@description("Imports existing iSCSI share")
 @accepts(h.ref('iscsi-share'))
+@description("Imports existing iSCSI share")
 class ImportiSCSIShareTask(CreateISCSIShareTask):
     def describe(self, share):
         return "Importing iSCSI share {0}".format(share['name'])
@@ -213,6 +216,7 @@ class ImportiSCSIShareTask(CreateISCSIShareTask):
 
 
 @accepts(h.ref('share-iscsi-target'))
+@description('Creates ISCSI share')
 class CreateISCSITargetTask(Task):
     def verify(self, target):
         for i in target.get('extents', []):
@@ -239,6 +243,7 @@ class CreateISCSITargetTask(Task):
 
 
 @accepts(str, h.ref('share-iscsi-target'))
+@description('Updates ISCSI share')
 class UpdateISCSITargetTask(Task):
     def verify(self, id, updated_params):
         if not self.datastore.exists('iscsi.targets', ('id', '=', id)):
@@ -270,6 +275,7 @@ class UpdateISCSITargetTask(Task):
 
 
 @accepts(str)
+@description('Deletes ISCSI share')
 class DeleteISCSITargetTask(Task):
     def verify(self, id):
         if not self.datastore.exists('iscsi.targets', ('id', '=', id)):
@@ -293,6 +299,7 @@ class DeleteISCSITargetTask(Task):
         h.required('type')
     )
 )
+@description('Creates ISCSI auth group')
 class CreateISCSIAuthGroupTask(Task):
     def verify(self, auth_group):
         return ['service:ctl']
@@ -316,6 +323,7 @@ class CreateISCSIAuthGroupTask(Task):
 
 
 @accepts(str, h.ref('share-iscsi-auth'))
+@description('Updates ISCSI auth group')
 class UpdateISCSIAuthGroupTask(Task):
     def verify(self, id, updated_params):
         if not self.datastore.exists('iscsi.auth', ('id', '=', id)):
@@ -336,6 +344,7 @@ class UpdateISCSIAuthGroupTask(Task):
 
 
 @accepts(str)
+@description('Deletes ISCSI auth group')
 class DeleteISCSIAuthGroupTask(Task):
     def verify(self, id):
         if not self.datastore.exists('iscsi.auth', ('id', '=', id)):
@@ -354,6 +363,7 @@ class DeleteISCSIAuthGroupTask(Task):
 
 
 @accepts(h.ref('share-iscsi-portal'))
+@description('Creates ISCSI portal')
 class CreateISCSIPortalTask(Task):
     def verify(self, portal):
         return ['service:ctl']
@@ -377,6 +387,7 @@ class CreateISCSIPortalTask(Task):
 
 
 @accepts(str, h.ref('share-iscsi-portal'))
+@description('Updates ISCSI portal')
 class UpdateISCSIPortalTask(Task):
     def verify(self, id, updated_params):
         if not self.datastore.exists('iscsi.portals', ('id', '=', id)):
@@ -397,6 +408,7 @@ class UpdateISCSIPortalTask(Task):
 
 
 @accepts(str)
+@description('Deletes ISCSI portal')
 class DeleteISCSIPortalTask(Task):
     def verify(self, id):
         if not self.datastore.exists('iscsi.portals', ('id', '=', id)):

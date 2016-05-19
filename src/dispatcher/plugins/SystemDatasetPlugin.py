@@ -193,6 +193,7 @@ def import_system_dataset(dispatcher, services, src_pool, old_pool, old_id):
     return id
 
 
+@description('Provides information about System Dataset')
 class SystemDatasetProvider(Provider):
     @private
     @description("Initializes the .system dataset")

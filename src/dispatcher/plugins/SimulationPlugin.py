@@ -33,6 +33,7 @@ from freenas.dispatcher.rpc import SchemaHelper as h
 from freenas.utils import normalize
 
 
+@description('Provides information about simulated disks')
 class FakeDisksProvider(Provider):
     def query(self, filter=None, params=None):
         return self.datastore.query('simulator.disks', *(filter or []), **(params or {}))

@@ -179,6 +179,7 @@ class ImportSMBShareTask(CreateSMBShareTask):
         return super(ImportSMBShareTask, self).run(share)
 
 
+@description('Terminates SMB connection')
 class TerminateSMBConnectionTask(Task):
     def verify(self, address):
         return ['system']

@@ -34,6 +34,7 @@ from freenas.dispatcher.rpc import description
 from freenas.dispatcher.fd import FileDescriptor
 
 
+@description('Downloads tests')
 class TestDownloadTask(Task):
     def verify(self):
         return []

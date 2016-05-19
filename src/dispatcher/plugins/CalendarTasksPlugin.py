@@ -32,6 +32,7 @@ from task import Provider, Task, TaskException, query, TaskDescription
 from lib.system import system, SubprocessException
 
 
+@description('Provides information about calendar tasks')
 class CalendarTasksProvider(Provider):
     @query('calendar-task')
     def query(self, filter=None, params=None):
@@ -45,6 +46,7 @@ class CalendarTasksProvider(Provider):
     )
 )
 @returns(str)
+@description('Creates a calendar task')
 class CreateCalendarTask(Task):
     def describe(self, task):
         return TaskDescription("Creating calendar task {name}", name=task['name'])
@@ -71,6 +73,7 @@ class CreateCalendarTask(Task):
         h.no(h.required('status'))
     )
 )
+@description('Updates a calendar task')
 class UpdateCalendarTask(Task):
     def describe(self, id, updated_params):
         return TaskDescription("Updating calendar task {name}", name=id)
@@ -91,6 +94,7 @@ class UpdateCalendarTask(Task):
 
 
 @accepts(str)
+@description('Deletes a calendar task')
 class DeleteCalendarTask(Task):
     def describe(self, id):
         return TaskDescription("Updating calendar task {name}", name=id)
@@ -127,6 +131,7 @@ class RunCalendarTask(Task):
 
 
 @accepts(str, str)
+@description('Runs a shell command as a specified user')
 class CommandTask(Task):
     def describe(self, user, command):
         return TaskDescription("Starting command {name} as {user}", name=command, user=user)

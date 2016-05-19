@@ -47,6 +47,7 @@ from task import (
 logger = logging.getLogger('DirectoryServicePlugin')
 
 
+@description('Provides information about directory services')
 class DirectoryServicesProvider(Provider):
     @query('directoryservice')
     def query(self, filter=None, params=None):
@@ -76,7 +77,6 @@ class DirectoryServicesProvider(Provider):
         self.dispatcher.call_sync('dsd.configuration.disable', id)
 
 
-@description("Create directory service")
 @accepts(
     h.all_of(
         h.ref('directoryservice'),
@@ -84,6 +84,7 @@ class DirectoryServicesProvider(Provider):
         h.forbidden('id')
     )
 )
+@description("Adds new AFP share")
 class DirectoryServiceCreateTask(Task):
     def verify(self, directoryservice):
         dstypes = self.dispatcher.call_sync('dsd.configuration.get_supported_directories')
@@ -124,6 +125,7 @@ class DirectoryServiceDeleteTask(Task):
 
     def run(self, id):
         return self.dispatcher.call_sync('dsd.configuration.delete', id)
+
 
 @description("Enable directory service")
 class DirectoryServiceEnableTask(Task):
@@ -189,7 +191,7 @@ class DirectoryServiceConfigureTask(Task):
             raise VerifyException(errno.ENOENT, 'No such configuration!')
 
         self.dispatcher.call_sync('dsd.configuration.update_%s' % what, id, enable)
-        return [ 'ship' ]
+        return ['ship']
 
 
 @description("Obtain a Kerberos ticket")

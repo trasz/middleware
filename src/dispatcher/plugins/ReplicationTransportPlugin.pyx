@@ -206,6 +206,7 @@ cdef uint32_t write_fd(int fd, void *buf, uint32_t nbytes) nogil:
             return done
 
 
+@description('Provides information about known peers')
 class HostProvider(Provider):
     @query('known-host')
     def query(self, filter=None, params=None):
@@ -225,6 +226,7 @@ class HostProvider(Provider):
         return [i for i in keys]
 
 
+@description('Provides information about replication transport layer')
 class TransportProvider(Provider):
     def __init__(self):
         super(TransportProvider, self).__init__()

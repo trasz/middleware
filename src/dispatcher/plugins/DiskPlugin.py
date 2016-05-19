@@ -79,6 +79,7 @@ class SelfTestType(enum.Enum):
     OFFLINE = 'offline'
 
 
+@description('Provides information about disks')
 class DiskProvider(Provider):
     @query('disk')
     @generator
@@ -448,6 +449,7 @@ class DiskDeleteTask(Task):
 
 
 @accepts(str, h.ref('disk-attach-params'))
+@description('Initializes GELI encrypted partition')
 class DiskGELIInitTask(Task):
     def describe(self, id, params=None):
         disk = disk_by_id(self.dispatcher, id)
@@ -503,6 +505,7 @@ class DiskGELIInitTask(Task):
 
 
 @accepts(str, h.ref('disk-set-key-params'))
+@description('Sets new GELI user key in specified slot')
 class DiskGELISetUserKeyTask(Task):
     def describe(self, id, params=None):
         disk = disk_by_id(self.dispatcher, id)
@@ -553,6 +556,7 @@ class DiskGELISetUserKeyTask(Task):
 
 
 @accepts(str, int)
+@description('Deletes GELI user key entry from a given slot')
 class DiskGELIDelUserKeyTask(Task):
     def describe(self, id, slot):
         disk = disk_by_id(self.dispatcher, id)
@@ -584,6 +588,7 @@ class DiskGELIDelUserKeyTask(Task):
 
 @accepts(str)
 @returns(h.ref('disk-metadata'))
+@description('Creates a backup of GELI metadata')
 class DiskGELIBackupMetadataTask(Task):
     def describe(self, id):
         disk = disk_by_id(self.dispatcher, id)
@@ -618,6 +623,7 @@ class DiskGELIBackupMetadataTask(Task):
 
 
 @accepts(str, h.ref('disk-metadata'))
+@description('Restores GELI metadata from file')
 class DiskGELIRestoreMetadataTask(Task):
     def describe(self, id, metadata):
         return TaskDescription(
@@ -652,6 +658,7 @@ class DiskGELIRestoreMetadataTask(Task):
 
 
 @accepts(str, h.ref('disk-attach-params'))
+@description('Attaches GELI encrypted partition')
 class DiskGELIAttachTask(Task):
     def describe(self, id, params=None):
         disk = disk_by_id(self.dispatcher, id)
@@ -699,6 +706,7 @@ class DiskGELIAttachTask(Task):
 
 
 @accepts(str)
+@description('Detaches GELI encrypted partition')
 class DiskGELIDetachTask(Task):
     def describe(self, id):
         disk = disk_by_id(self.dispatcher, id)
@@ -728,6 +736,7 @@ class DiskGELIDetachTask(Task):
 
 
 @accepts(str)
+@description('Destroys GELI encrypted partition along with GELI metadata')
 class DiskGELIKillTask(Task):
     def describe(self, id):
         disk = disk_by_id(self.dispatcher, id)

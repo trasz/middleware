@@ -242,6 +242,7 @@ class AlertFilterUpdateTask(Task):
 
 
 @accepts(str, h.ref('alert-severity'))
+@description('Sends alerts')
 class SendAlertTask(Task):
     def verify(self, message, priority=None):
         return []

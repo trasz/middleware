@@ -52,6 +52,7 @@ logger = logging.getLogger('IPMIPlugin')
 channels = []
 
 
+@description('Provides information about IPMI')
 class IPMIProvider(Provider):
     @accepts()
     @returns(bool)

@@ -59,8 +59,8 @@ class NFSSharesProvider(Provider):
 
 
 @private
-@description("Adds new NFS share")
 @accepts(h.ref('share'))
+@description("Adds new NFS share")
 class CreateNFSShareTask(Task):
     def describe(self, share):
         return "Creating NFS share {0}".format(share['name'])
@@ -92,8 +92,8 @@ class CreateNFSShareTask(Task):
 
 
 @private
-@description("Updates existing NFS share")
 @accepts(str, h.ref('share'))
+@description("Updates existing NFS share")
 class UpdateNFSShareTask(Task):
     def describe(self, id, updated_fields):
         return "Updating NFS share {0}".format(id)
@@ -120,8 +120,8 @@ class UpdateNFSShareTask(Task):
 
 
 @private
-@description("Removes NFS share")
 @accepts(str)
+@description("Removes NFS share")
 class DeleteNFSShareTask(Task):
     def describe(self, id):
         return "Deleting NFS share {0}".format(id)
@@ -140,8 +140,8 @@ class DeleteNFSShareTask(Task):
 
 
 @private
-@description("Imports existing NFS share")
 @accepts(h.ref('share'))
+@description("Imports existing NFS share")
 class ImportNFSShareTask(CreateNFSShareTask):
     def describe(self, share):
         return "Importing NFS share {0}".format(share['name'])
@@ -159,6 +159,7 @@ class ImportNFSShareTask(CreateNFSShareTask):
 
 
 @private
+@description('Terminates NFS connection')
 class TerminateNFSConnectionTask(Task):
     def verify(self, address):
         return []

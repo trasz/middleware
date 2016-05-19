@@ -135,6 +135,7 @@ class NetworkConfigureTask(Task):
     h.forbidden('id', 'status')
 ))
 @returns(str)
+@description('Creates network interface')
 class CreateInterfaceTask(Task):
     def describe(self, iface):
         return TaskDescription("Creating {name} network interface", name=iface['type'])

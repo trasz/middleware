@@ -160,6 +160,7 @@ class CertificateProvider(Provider):
     h.ref('crypto-certificate'),
     h.required('type', 'name', 'country', 'state', 'city', 'organization', 'email', 'common'),
 ))
+@description('Creates a certificate')
 class CertificateCreateTask(Task):
     def describe(self, certificate):
         return TaskDescription("Creating certificate {name}", name=certificate['name'])
@@ -304,6 +305,7 @@ class CertificateCreateTask(Task):
     h.ref('crypto-certificate'),
     h.required('name', 'type', 'certificate'),
 ))
+@description('Imports a certificate')
 class CertificateImportTask(Task):
     def describe(self, certificate):
         return TaskDescription("Importing certificate {name}", name=certificate['name'])
@@ -366,6 +368,7 @@ class CertificateImportTask(Task):
 @accepts(str, h.all_of(
     h.ref('crypto-certificate'),
 ))
+@description('Updates a certificate')
 class CertificateUpdateTask(Task):
     def describe(self, id, updated_fields):
         return TaskDescription("Updating certificate {name}", name=id)
@@ -425,6 +428,7 @@ class CertificateUpdateTask(Task):
 
 
 @accepts(str)
+@description('Deletes a certificate')
 class CertificateDeleteTask(Task):
     def describe(self, id):
         return TaskDescription("Deleting certificate {name}", name=id)

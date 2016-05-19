@@ -406,6 +406,7 @@ class VolumeProvider(Provider):
         }
 
 
+@description('Provides information about datasets')
 class DatasetProvider(Provider):
     @query('volume-dataset')
     @generator
@@ -413,6 +414,7 @@ class DatasetProvider(Provider):
         return datasets.query(*(filter or []), **(params or {}))
 
 
+@description('Provides information about snapshots')
 class SnapshotProvider(Provider):
     @query('volume-snapshot')
     @generator
@@ -1172,6 +1174,7 @@ class VolumeUpgradeTask(Task):
         })
 
 
+@description('Replaces failed disk in active volume')
 @accepts(str, h.ref('zfs-vdev'), h.one_of(str, None))
 class VolumeAutoReplaceTask(Task):
     def describe(self, id, failed_vdev, password=None):

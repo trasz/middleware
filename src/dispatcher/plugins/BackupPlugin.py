@@ -44,6 +44,7 @@ logger = logging.getLogger(__name__)
 MANIFEST_FILENAME = 'FREENAS_MANIFEST'
 
 
+@description('Provides information about backups')
 class BackupProvider(Provider):
     def query(self, filter=None, params=None):
         def extend(backup):
@@ -67,6 +68,7 @@ class BackupProvider(Provider):
     h.ref('backup'),
     h.required('name', 'provider', 'dataset')
 ))
+@description('Creates a backup task')
 class CreateBackupTask(Task):
     def verify(self, backup):
         if 'id' in backup and self.datastore.exists('backup', ('id', '=', backup['id'])):
@@ -96,6 +98,7 @@ class CreateBackupTask(Task):
     h.ref('backup'),
     h.forbidden('id', 'provider', 'dataset')
 ))
+@description('Updates a backup task')
 class UpdateBackupTask(Task):
     def verify(self, id, updated_params):
         if not self.datastore.exists('backup', ('id', '=', id)):
@@ -117,6 +120,7 @@ class UpdateBackupTask(Task):
 
 
 @accepts(str)
+@description('Deletes a backup task')
 class DeleteBackupTask(Task):
     def verify(self, id):
         if not self.datastore.exists('backup', ('id', '=', id)):
@@ -132,6 +136,7 @@ class DeleteBackupTask(Task):
         })
 
 
+@description('Lists information about a specific backup')
 class BackupQueryTask(ProgressTask):
     def verify(self, id):
         return []
@@ -175,6 +180,7 @@ class BackupQueryTask(ProgressTask):
 
 
 @accepts(str, bool, bool)
+@description('Sends new changes to the backup')
 class BackupSyncTask(ProgressTask):
     def verify(self, id, snapshot=True, dry_run=False):
         if not self.datastore.exists('backup', ('id', '=', id)):
@@ -279,6 +285,7 @@ class BackupSyncTask(ProgressTask):
         self.upload(backup['provider'], backup['properties'], MANIFEST_FILENAME, dumps(new_manifest, indent=4))
 
 
+@description('Restores from backup')
 class BackupRestoreTask(ProgressTask):
     def verify(self, id, dataset=None, snapshot=None):
         return []

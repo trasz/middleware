@@ -36,6 +36,7 @@ from freenas.dispatcher.rpc import description
 CHUNK_SIZE = 5 * 1024 * 1024
 
 
+@description('Lists information about a specific S3 backup')
 class BackupS3ListTask(Task):
     def verify(self, backup):
         return []
@@ -68,6 +69,7 @@ class BackupS3ListTask(Task):
         return result
 
 
+@description('Initializes a S3 backup')
 class BackupS3InitTask(Task):
     def verify(self, backup):
         return []
@@ -76,6 +78,7 @@ class BackupS3InitTask(Task):
         pass
 
 
+@description('Puts new data onto S3 backup')
 class BackupS3PutTask(ProgressTask):
     def verify(self, backup, name, fd):
         return []
@@ -130,6 +133,7 @@ class BackupS3PutTask(ProgressTask):
             pass
 
 
+@description('Gets data from S3 backup')
 class BackupS3GetTask(Task):
     def verify(self, backup, name, fd):
         return []

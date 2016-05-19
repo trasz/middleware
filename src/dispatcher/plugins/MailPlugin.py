@@ -128,6 +128,7 @@ class MailProvider(Provider):
 
 
 @accepts(h.ref('mail'))
+@description('Updates mail configuration')
 class MailConfigureTask(Task):
 
     def verify(self, mail):

@@ -33,6 +33,7 @@ from lib.system import system, SubprocessException
 from task import ProgressTask, TaskWarning, TaskDescription
 
 
+@description('Collects debug information')
 class CollectDebugTask(ProgressTask):
     def verify(self, fd):
         return ['system']
@@ -85,6 +86,7 @@ class CollectDebugTask(ProgressTask):
                     done += 1
 
 
+@description('Saves debug information')
 class SaveDebugTask(ProgressTask):
     def verify(self):
         return ['system']

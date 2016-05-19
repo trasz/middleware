@@ -76,6 +76,7 @@ class Session(object):
         }
 
 
+@description('Provides information about UI transactions')
 class UITransactionProvider(Provider):
     @pass_sender
     @accepts(str, int)

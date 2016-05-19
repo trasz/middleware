@@ -49,6 +49,7 @@ from freenas.utils.query import wrap
 VM_OUI = '00:a0:98'  # NetApp
 
 
+@description('Provides information about containers')
 class ContainerProvider(Provider):
     @query('container')
     def query(self, filter=None, params=None):
@@ -125,6 +126,7 @@ class ContainerProvider(Provider):
         return result
 
 
+@description('Provides information about container/VM templates')
 class VMTemplateProvider(Provider):
     @query('container')
     def query(self, filter=None, params=None):
@@ -256,6 +258,7 @@ class ContainerBaseTask(Task):
 
 
 @accepts(h.ref('container'))
+@description('Creates a container')
 class ContainerCreateTask(ContainerBaseTask):
     def verify(self, container):
         if not self.dispatcher.call_sync('volume.query', [('id', '=', container['target'])], {'single': True}):
@@ -318,6 +321,7 @@ class ContainerCreateTask(ContainerBaseTask):
 
 
 @accepts(str, str)
+@description('Imports existing container')
 class ContainerImportTask(ContainerBaseTask):
     def verify(self, name, volume):
         if not self.dispatcher.call_sync('volume.query', [('id', '=', volume)], {'single': True}):
@@ -356,6 +360,7 @@ class ContainerImportTask(ContainerBaseTask):
 
 
 @accepts(str, bool)
+@description('Sets container immutable')
 class ContainerSetImmutableTask(ContainerBaseTask):
     def verify(self, id, immutable):
         if not self.datastore.exists('containers', ('id', '=', id)):
@@ -375,6 +380,7 @@ class ContainerSetImmutableTask(ContainerBaseTask):
 
 
 @accepts(str, h.ref('container'))
+@description('Updates container')
 class ContainerUpdateTask(ContainerBaseTask):
     def verify(self, id, updated_params):
         if not self.datastore.exists('containers', ('id', '=', id)):
@@ -429,6 +435,7 @@ class ContainerUpdateTask(ContainerBaseTask):
 
 
 @accepts(str)
+@description('Deletes container')
 class ContainerDeleteTask(Task):
     def verify(self, id):
         if not self.datastore.exists('containers', ('id', '=', id)):
@@ -468,6 +475,7 @@ class ContainerDeleteTask(Task):
 
 
 @accepts(str)
+@description('Exports container from database')
 class ContainerExportTask(Task):
     def verify(self, id):
         if not self.datastore.exists('containers', ('id', '=', id)):
@@ -484,6 +492,7 @@ class ContainerExportTask(Task):
 
 
 @accepts(str)
+@description('Starts container')
 class ContainerStartTask(Task):
     def verify(self, id):
         container = self.dispatcher.call_sync('container.query', [('id', '=', id)], {'single': True})
@@ -500,6 +509,7 @@ class ContainerStartTask(Task):
 
 
 @accepts(str, bool)
+@description('Stops container')
 class ContainerStopTask(Task):
     def verify(self, id, force=False):
         return ['system']
@@ -513,6 +523,7 @@ class ContainerStopTask(Task):
 
 
 @accepts(str, str)
+@description('Downloads container image')
 class DownloadImageTask(ProgressTask):
     BLOCKSIZE = 65536
 
@@ -542,6 +553,7 @@ class DownloadImageTask(ProgressTask):
                     dst.write(chunk)
 
 
+@description('Downloads container templates')
 class VMTemplateFetchTask(ProgressTask):
     def verify(self):
         return []

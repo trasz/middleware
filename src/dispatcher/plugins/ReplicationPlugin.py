@@ -72,6 +72,7 @@ class ReplicationAction(object):
         return d
 
 
+@description('Provides information about replication tasks')
 class ReplicationLinkProvider(Provider):
     @query('replication-link')
     def query(self, filter=None, params=None):
@@ -886,6 +887,7 @@ class ReplicationReserveServicesTask(ReplicationBaseTask):
         remote_client.disconnect()
 
 
+@description('Creates a snapshot of selected dataset')
 @accepts(str, str, bool, int, str, bool)
 @returns(str)
 class SnapshotDatasetTask(Task):
@@ -933,6 +935,7 @@ class SnapshotDatasetTask(Task):
         ))
 
 
+@description('Calculates replication delta between datasets')
 class CalculateReplicationDeltaTask(Task):
     def describe(self, localds, remoteds, snapshots, recursive=False, followdelete=False):
         return TaskDescription(
@@ -1087,7 +1090,7 @@ class CalculateReplicationDeltaTask(Task):
         return actions, total_send_size
 
 
-@description("Runs a replication task with the specified arguments")
+@description("Runs a dataset replication with the specified arguments")
 class ReplicateDatasetTask(ProgressTask):
     def __init__(self, dispatcher, datastore):
         super(ReplicateDatasetTask, self).__init__(dispatcher, datastore)
