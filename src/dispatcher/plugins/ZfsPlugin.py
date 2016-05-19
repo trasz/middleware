@@ -157,6 +157,26 @@ class ZfsDatasetProvider(Provider):
         return datasets.query(*(filter or []), **(params or {}))
 
     @accepts(str)
+    @returns(h.object())
+    def get_properties_allowed_values(self, properties):
+        try:
+            props_allowed_values = {}
+            zfs = get_zfs()
+            ds = zfs.get_dataset("freenas-boot")
+
+            for prop in properties:
+                if prop in ds.properties:
+                    props_allowed_values[prop] = list(ds.properties[prop].allowed_values.split('|'))
+
+            return props_allowed_values
+        except libzfs.ZFSException as err:
+            if err.code == libzfs.Error.NOENT:
+                raise RpcException(errno.ENOENT, str(err))
+
+            raise RpcException(zfs_error_to_errno(err.code), str(err))
+
+
+    @accepts(str)
     @returns(h.array(
         h.one_of(
             h.ref('zfs-dataset'),
