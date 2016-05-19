@@ -162,7 +162,7 @@ class ZfsDatasetProvider(Provider):
         try:
             props_allowed_values = {}
             zfs = get_zfs()
-            ds = zfs.get_dataset("freenas-boot")
+            ds = zfs.get_dataset(self.configstore.get('system.boot_pool_name'))
 
             for prop in properties:
                 if prop in ds.properties:
