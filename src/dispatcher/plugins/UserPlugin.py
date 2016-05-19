@@ -168,6 +168,10 @@ class UserCreateTask(Task):
         self.id = None
         self.created_group = False
 
+    @classmethod
+    def early_describe(cls):
+        return "Creating user"
+
     def describe(self, user):
         return TaskDescription("Adding user {name}", name=user['username'])
 
@@ -300,6 +304,10 @@ class UserCreateTask(Task):
 @description("Deletes an user from the system")
 @accepts(str)
 class UserDeleteTask(Task):
+    @classmethod
+    def early_describe(cls):
+        return "Deleting user"
+
     def describe(self, id):
         user = self.datastore.get_by_id('users', id)
         return TaskDescription("Deleting user {name}", name=user['username'] if user else id)
@@ -354,6 +362,10 @@ class UserUpdateTask(Task):
     def __init__(self, dispatcher, datastore):
         super(UserUpdateTask, self).__init__(dispatcher, datastore)
         self.original_user = None
+
+    @classmethod
+    def early_describe(cls):
+        return "Updating user"
 
     def describe(self, id, updated_fields):
         user = self.datastore.get_by_id('users', id)
@@ -492,6 +504,10 @@ class UserUpdateTask(Task):
     h.forbidden('builtin')
 ))
 class GroupCreateTask(Task):
+    @classmethod
+    def early_describe(cla):
+        return "Creating group"
+
     def describe(self, group):
         return TaskDescription("Adding group {name}", name=group['name'])
 
@@ -555,6 +571,10 @@ class GroupCreateTask(Task):
     )
 )
 class GroupUpdateTask(Task):
+    @classmethod
+    def early_describe(cls):
+        return "Updating group"
+
     def describe(self, id, updated_fields):
         group = self.datastore.get_by_id('groups', id)
         return TaskDescription("Updating group {name}", name=group['name'] if group else id)
@@ -602,6 +622,10 @@ class GroupUpdateTask(Task):
 @description("Deletes a group")
 @accepts(str)
 class GroupDeleteTask(Task):
+    @classmethod
+    def early_describe(cls):
+        return "Deleting group"
+
     def describe(self, id):
         group = self.datastore.get_by_id('groups', id)
         return TaskDescription("Deleting group {name}", name=group['name'] if group else id)

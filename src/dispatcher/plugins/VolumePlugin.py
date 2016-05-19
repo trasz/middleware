@@ -419,7 +419,7 @@ class SnapshotProvider(Provider):
         return snapshots.query(*(filter or []), **(params or {}))
 
 
-@description("Creates new volume")
+@description("Creating a volume")
 @accepts(
     h.all_of(
         h.ref('volume'),
@@ -428,8 +428,12 @@ class SnapshotProvider(Provider):
     h.one_of(str, None)
 )
 class VolumeCreateTask(ProgressTask):
+    @classmethod
+    def early_describe(cls):
+        return "Creating a volume"
+
     def describe(self, volume, password=None):
-        return TaskDescription("Creating the volume {name}", name=volume['id'])
+        return TaskDescription("Creating volume {name}", name=volume['id'])
 
     def verify(self, volume, password=None):
         if self.datastore.exists('volumes', ('id', '=', volume['id'])):
@@ -551,6 +555,10 @@ class VolumeCreateTask(ProgressTask):
 @description("Creates new volume and automatically guesses disks layout")
 @accepts(str, str, str, h.array(str), h.array(str), h.array(str), h.one_of(bool, None), h.one_of(str, None))
 class VolumeAutoCreateTask(Task):
+    @classmethod
+    def early_describe(cls):
+        return "Creating a volume"
+
     def describe(self, name, type, layout, disks, cache_disks=None, log_disks=None, encryption=False, password=None):
         return TaskDescription("Creating the volume {name}", name=name)
 
@@ -682,6 +690,10 @@ class VolumeDestroyTask(Task):
 @description("Updates configuration of existing volume")
 @accepts(str, h.ref('volume'), h.one_of(str, None))
 class VolumeUpdateTask(Task):
+    @classmethod
+    def early_describe(cls):
+        return "Updating a volume"
+
     def describe(self, id, updated_params, password=None):
         return TaskDescription("Updating the volume {name}", name=id)
 
