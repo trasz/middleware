@@ -622,6 +622,15 @@ class Main(object):
             if err.errno != errno.EEXIST:
                 raise err
 
+        # Last, but not least, enable IP forwarding in kernel
+        try:
+            sysctl.sysctlbyname('net.inet.ip.forwarding', 1)
+        except OSError as err:
+            raise err
+
+    def init_dhcp(self):
+        pass
+
     def init_ec2(self):
         self.ec2 = EC2MetadataServer(self)
         self.ec2.start()
