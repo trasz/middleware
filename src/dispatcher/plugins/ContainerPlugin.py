@@ -290,7 +290,12 @@ class ContainerCreateTask(ContainerBaseTask):
             if template is None:
                 raise TaskException(errno.ENOENT, 'Template {0} not found'.format(container['template'].get('name')))
 
-            deep_update(template, container)
+            result = {}
+            for key in container:
+                if container[key]:
+                    result[key] = container[key]
+            deep_update(template, result)
+            container = template
         else:
             normalize(container, {
                 'config': {},
