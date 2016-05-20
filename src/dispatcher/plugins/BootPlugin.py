@@ -29,8 +29,10 @@ import os
 import sys
 import errno
 import logging
-from freenas.utils.query import wrap
+import bsd
+from datetime import datetime
 from task import Provider, Task, ProgressTask, VerifyException, TaskException, query, TaskDescription
+from cache import EventCacheStore
 from freenas.dispatcher.rpc import accepts, returns, description, SchemaHelper as h
 
 sys.path.append('/usr/local/lib')
@@ -40,6 +42,7 @@ from freenasOS.Update import (
 
 
 logger = logging.getLogger(__name__)
+bootenvs = None
 
 
 @description("Provides information on Boot pool")
@@ -53,21 +56,12 @@ class BootPoolProvider(Provider):
 class BootEnvironmentsProvider(Provider):
     @query('boot-environment')
     def query(self, filter=None, params=None):
-        def extend(obj):
-            nr = obj['active']
-            obj['active'] = 'N' in nr
-            obj['on_reboot'] = 'R' in nr
-            obj['space'] = int(obj.pop('rawspace'))
-            obj['id'] = obj.pop('name')
-            return obj
-
-        clones = list(map(extend, ListClones()))
-        return wrap(clones).query(*(filter or []), **(params or {}))
+        return bootenvs.query(*(filter or []), **(params or {}))
 
 
 @description(
     "Creates a clone of the current Boot Environment or of the specified source (optional)"
- )
+)
 @accepts(str, h.any_of(str, None))
 class BootEnvironmentCreate(Task):
     @classmethod
@@ -118,13 +112,13 @@ class BootEnvironmentUpdate(Task):
         return TaskDescription("Updating the Boot Environment {name}", name=id)
 
     def verify(self, id, be):
+        return ['system']
+
+    def run(self, id, updated_params):
         be = FindClone(id)
         if not be:
             raise VerifyException(errno.ENOENT, 'Boot environment {0} not found'.format(id))
 
-        return ['system']
-
-    def run(self, id, updated_params):
         if 'id' in updated_params:
             if not RenameClone(id, updated_params['id']):
                 raise TaskException(errno.EIO, 'Cannot rename the {0} boot evironment'.format(id))
@@ -216,13 +210,15 @@ def _depends():
 
 
 def _init(dispatcher, plugin):
-    boot_pool = dispatcher.call_sync('zfs.pool.get_boot_pool')
+    global bootenvs
+
+    bootenvs = EventCacheStore(dispatcher, 'boot.environment')
 
     plugin.register_schema_definition('boot-environment', {
         'type': 'object',
         'properties': {
             'id': {'type': 'string'},
-            'realname': {'type': 'string', 'readOnly': True},
+            'name': {'type': 'string', 'readOnly': True},
             'active': {'type': 'boolean'},
             'on_reboot': {'type': 'boolean', 'readOnly': True},
             'mountpoint': {'type': 'string', 'readOnly': True},
@@ -231,23 +227,43 @@ def _init(dispatcher, plugin):
         }
     })
 
+    def convert_bootenv(ds):
+        boot_pool = dispatcher.call_sync('zfs.pool.get_boot_pool')
+        root_mount = bsd.statfs('/')
+        path = ds['id'].split('/')
+
+        if len(path) != 3:
+            return
+
+        if path[:2] != [boot_pool['id'], 'ROOT']:
+            return
+
+        return {
+            'active': root_mount.source == ds['id'],
+            'on_reboot': boot_pool['properties.bootfs.value'] == ds['id'],
+            'id': ds.get('properties.beadm:nickname.value', path[-1]),
+            'space': int(ds['properties.used.rawvalue']),
+            'realname': path[-1],
+            'mountpoint': ds.get('mountpoint'),
+            'created': datetime.fromtimestamp(int(ds['properties.creation.rawvalue']))
+        }
+
     def on_dataset_change(args):
-        for i in args['ids']:
-            path = i.split('/')
+        if args['operation'] in ('delete', 'create'):
+            bootenvs.propagate(args, convert_bootenv)
 
-            if len(path) != 3:
-                continue
+        if args['operation'] == 'update':
+            for i in args['entities']:
+                realname = i['id'].split('/')[-1]
+                ds = bootenvs.query(('realname', '=', realname), single=True)
+                if not ds:
+                    continue
 
-            if path[:2] != [boot_pool['id'], 'ROOT']:
-                continue
+                nickname = i.get('properties.beadm:nickname.value')
+                if nickname and nickname != realname:
+                    bootenvs.rename(realname, nickname)
 
-            if args['operation'] in ('create', 'delete'):
-                logging.info('Boot environment {0} {1}d'.format(path[-1], args['operation']))
-
-            dispatcher.dispatch_event('boot.environment.changed', {
-                'operation': args['operation'],
-                'ids': [path[-1]]
-            })
+                bootenvs.put(nickname or realname, convert_bootenv(i))
 
     plugin.register_provider('boot.pool', BootPoolProvider)
     plugin.register_provider('boot.environment', BootEnvironmentsProvider)
@@ -262,4 +278,10 @@ def _init(dispatcher, plugin):
     plugin.register_task_handler('boot.disk.attach', BootAttachDisk)
     plugin.register_task_handler('boot.disk.detach', BootDetachDisk)
 
-    plugin.register_event_handler('zfs.dataset.changed', on_dataset_change)
+    bootenvs.populate(
+        dispatcher.call_sync('zfs.dataset.query'),
+        convert_bootenv
+    )
+
+    plugin.register_event_handler('entity-subscriber.zfs.dataset.changed', on_dataset_change)
+    bootenvs.ready = True
