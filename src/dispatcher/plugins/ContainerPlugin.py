@@ -595,7 +595,7 @@ class ContainerStopTask(Task):
         })
 
 
-@accepts(str, str)
+@accepts(str, str, str, str)
 @description('Downloads container image')
 class DownloadImageTask(ProgressTask):
     BLOCKSIZE = 65536
