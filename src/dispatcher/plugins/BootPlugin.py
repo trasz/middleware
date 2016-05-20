@@ -222,7 +222,7 @@ def _init(dispatcher, plugin):
             'name': {'type': 'string', 'readOnly': True},
             'active': {'type': 'boolean'},
             'on_reboot': {'type': 'boolean', 'readOnly': True},
-            'mountpoint': {'type': 'string', 'readOnly': True},
+            'mountpoint': {'type': ['string', 'null'], 'readOnly': True},
             'space': {'type': 'integer', 'readOnly': True},
             'created': {'type': 'datetime', 'readOnly': True}
         }
