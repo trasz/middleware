@@ -778,13 +778,13 @@ class ZfsRenameTask(ZfsBaseTask):
 
 
 @private
-@accepts(str)
+@accepts(str, str)
 class ZfsCloneTask(ZfsBaseTask):
-    def run(self, path):
+    def run(self, name, new_name):
         try:
             zfs = get_zfs()
-            dataset = zfs.get_dataset(path)
-            dataset.delete()
+            dataset = zfs.get_dataset(name)
+            dataset.clone(new_name)
         except libzfs.ZFSException as err:
             raise TaskException(zfs_error_to_errno(err.code), str(err))
 
