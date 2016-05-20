@@ -48,7 +48,7 @@ import select
 import tempfile
 import ipaddress
 import pf
-from bsd import kld
+from bsd import kld, sysctl
 from gevent.queue import Queue, Channel
 from gevent.event import Event
 from geventwebsocket import WebSocketServer, WebSocketApplication, Resource
@@ -529,6 +529,7 @@ class Main(object):
         self.configstore = None
         self.config = None
         self.mgmt = None
+        self.nat = None
         self.vm_started = Event()
         self.containers = {}
         self.tokens = {}
@@ -589,6 +590,13 @@ class Main(object):
             ipaddress.ip_interface('169.254.169.254/32')
         ))
 
+        self.nat = ManagementNetwork(self, NAT_INTERFACE, NAT_ADDR)
+        self.nat.up()
+        self.nat.bridge_if.add_address(netif.InterfaceAddress(
+            netif.AddressFamily.INET,
+            ipaddress.ip_interface('169.254.169.254/32')
+        ))
+
     def init_nat(self):
         default_if = self.client.call_sync('networkd.configuration.get_default_interface')
         if not default_if:
@@ -597,24 +605,25 @@ class Main(object):
 
         p = pf.PF()
 
-        # Try to find and remove existing NAT rules for the same subnet
-        oldrule = first_or_default(
-            lambda r: r.src.address.address == MGMT_ADDR.network.network_address,
-            p.get_rules('nat')
-        )
+        for addr in (MGMT_ADDR, NAT_ADDR):
+            # Try to find and remove existing NAT rules for the same subnet
+            oldrule = first_or_default(
+                lambda r: r.src.address.address == addr.network.network_address,
+                p.get_rules('nat')
+            )
 
-        if oldrule:
-            p.delete_rule('nat', oldrule.index)
+            if oldrule:
+                p.delete_rule('nat', oldrule.index)
 
-        rule = pf.Rule()
-        rule.src.address.address = MGMT_ADDR.network.network_address
-        rule.src.address.netmask = MGMT_ADDR.netmask
-        rule.action = pf.RuleAction.NAT
-        rule.af = socket.AF_INET
-        rule.ifname = default_if
-        rule.redirect_pool.append(pf.Address(ifname=default_if))
-        rule.proxy_ports = [50001, 65535]
-        p.append_rule('nat', rule)
+            rule = pf.Rule()
+            rule.src.address.address = addr.network.network_address
+            rule.src.address.netmask = addr.netmask
+            rule.action = pf.RuleAction.NAT
+            rule.af = socket.AF_INET
+            rule.ifname = default_if
+            rule.redirect_pool.append(pf.Address(ifname=default_if))
+            rule.proxy_ports = [50001, 65535]
+            p.append_rule('nat', rule)
 
         try:
             p.enable()
