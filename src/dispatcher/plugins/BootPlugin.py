@@ -212,6 +212,7 @@ def _depends():
 def _init(dispatcher, plugin):
     global bootenvs
 
+    boot_pool_name = dispatcher.configstore.get('system.boot_pool_name')
     bootenvs = EventCacheStore(dispatcher, 'boot.environment')
 
     plugin.register_schema_definition('boot-environment', {
@@ -248,22 +249,41 @@ def _init(dispatcher, plugin):
             'created': datetime.fromtimestamp(int(ds['properties.creation.rawvalue']))
         }
 
-    def on_dataset_change(args):
-        if args['operation'] in ('delete', 'create'):
-            bootenvs.propagate(args, convert_bootenv)
+    def on_pool_change(args):
+        with dispatcher.get_lock('bootenvs'):
+            if args['operation'] != 'update':
+                return
 
-        if args['operation'] == 'update':
             for i in args['entities']:
-                realname = i['id'].split('/')[-1]
-                ds = bootenvs.query(('realname', '=', realname), single=True)
-                if not ds:
+                if i['id'] != boot_pool_name:
                     continue
 
-                nickname = i.get('properties.beadm:nickname.value')
-                if nickname and nickname != realname:
-                    bootenvs.rename(realname, nickname)
+                be = bootenvs.query(('on_reboot', '=', True), single=True)
+                be_realname = i['properties.bootfs.value'].split('/')[-1]
+                if be and be_realname == be['realname']:
+                    return
 
-                bootenvs.put(nickname or realname, convert_bootenv(i))
+                be = bootenvs.query(('realname', '=', be_realname), single=True)
+                be['on_reboot'] = True
+                bootenvs.put(be['id'], be)
+
+    def on_dataset_change(args):
+        with dispatcher.get_lock('bootenvs'):
+            if args['operation'] in ('delete', 'create'):
+                bootenvs.propagate(args, convert_bootenv)
+
+            if args['operation'] == 'update':
+                for i in args['entities']:
+                    realname = i['id'].split('/')[-1]
+                    ds = bootenvs.query(('realname', '=', realname), single=True)
+                    if not ds:
+                        continue
+
+                    nickname = i.get('properties.beadm:nickname.value')
+                    if nickname and nickname != realname:
+                        bootenvs.rename(ds['id'], nickname)
+
+                    bootenvs.put(nickname or realname, convert_bootenv(i))
 
     plugin.register_provider('boot.pool', BootPoolProvider)
     plugin.register_provider('boot.environment', BootEnvironmentsProvider)
@@ -284,4 +304,5 @@ def _init(dispatcher, plugin):
     )
 
     plugin.register_event_handler('entity-subscriber.zfs.dataset.changed', on_dataset_change)
+    plugin.register_event_handler('entity-subscriber.zfs.pool.changed', on_pool_change)
     bootenvs.ready = True
