@@ -60,9 +60,9 @@ class TestWarningsTask(Task):
         return []
 
     def run(self):
-        self.add_warning(errno.EBUSY, 'Warning 1')
-        self.add_warning(errno.ENXIO, 'Warning 2')
-        self.add_warning(errno.EINVAL, 'Warning 3 with extra payload', extra={'hello': 'world'})
+        self.add_warning(TaskWarning(errno.EBUSY, 'Warning 1'))
+        self.add_warning(TaskWarning(errno.ENXIO, 'Warning 2'))
+        self.add_warning(TaskWarning(errno.EINVAL, 'Warning 3 with extra payload', extra={'hello': 'world'}))
 
 
 def _init(dispatcher, plugin):
