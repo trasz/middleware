@@ -736,7 +736,7 @@ class InstallImageTask(Task):
 
         with open(destination, 'wb') as dst:
             with gzip.open(image_path, 'rb') as src:
-                for chunk in iter(lambda: src.read(self.BLOCKSIZE), b""):
+                for chunk in iter(lambda: src.read(BLOCKSIZE), b""):
                     dst.write(chunk)
 
 
