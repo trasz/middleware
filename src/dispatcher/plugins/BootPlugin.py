@@ -260,12 +260,17 @@ def _init(dispatcher, plugin):
 
                 be = bootenvs.query(('on_reboot', '=', True), single=True)
                 be_realname = i['properties.bootfs.value'].split('/')[-1]
+
                 if be and be_realname == be['realname']:
                     return
 
-                be = bootenvs.query(('realname', '=', be_realname), single=True)
-                be['on_reboot'] = True
-                bootenvs.put(be['id'], be)
+                if be:
+                    be['on_reboot'] = False
+                    bootenvs.put(be['id'], be)
+
+                new_be = bootenvs.query(('realname', '=', be_realname), single=True)
+                new_be['on_reboot'] = True
+                bootenvs.put(new_be['id'], new_be)
 
     def on_dataset_change(args):
         with dispatcher.get_lock('bootenvs'):
@@ -279,11 +284,11 @@ def _init(dispatcher, plugin):
                     if not ds:
                         continue
 
-                    nickname = i.get('properties.beadm:nickname.value')
-                    if nickname and nickname != realname:
+                    nickname = i.get('properties.beadm:nickname.value', realname)
+                    if nickname and nickname != ds['id']:
                         bootenvs.rename(ds['id'], nickname)
 
-                    bootenvs.put(nickname or realname, convert_bootenv(i))
+                    bootenvs.put(nickname, convert_bootenv(i))
 
     plugin.register_provider('boot.pool', BootPoolProvider)
     plugin.register_provider('boot.environment', BootEnvironmentsProvider)
