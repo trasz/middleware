@@ -52,10 +52,11 @@ class ISCSIProvider(Provider):
 class ISCSIConfigureTask(Task):
     @classmethod
     def early_describe(cls):
-        pass
+        return 'Configuring iSCSI service'
 
     def describe(self, iscsi):
-        return 'Configuring iSCSI service'
+        node = ConfigNode('service.iscsi', self.configstore)
+        return TaskDescription('Configuring {name} iSCSI service', name=node['base_name'] or '')
 
     def verify(self, iscsi):
         return ['system']

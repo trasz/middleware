@@ -76,10 +76,10 @@ class SMBProvider(Provider):
 class SMBConfigureTask(Task):
     @classmethod
     def early_describe(cls):
-        pass
+        return 'Configuring SMB service'
 
     def describe(self, smb):
-        return 'Configuring SMB service'
+        return TaskDescription('Configuring SMB service')
 
     def verify(self, smb):
         errors = ValidationException()

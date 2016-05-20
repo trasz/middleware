@@ -132,10 +132,13 @@ class MailProvider(Provider):
 class MailConfigureTask(Task):
     @classmethod
     def early_describe(cls):
-        pass
+        return 'Updating mail configuration'
 
-    def describe(self, *args, **kwargs):
-        pass
+    def describe(self, mail):
+        return TaskDescription(
+            'Updating {name} mail configuration',
+            name=mail.get('user', '') + '@' + mail.get('server', '') if mail else ''
+        )
 
     def verify(self, mail):
         errors = ValidationException()

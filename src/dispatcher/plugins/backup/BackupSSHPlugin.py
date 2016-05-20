@@ -38,10 +38,13 @@ from freenas.utils import normalize
 class BackupSSHListTask(Task):
     @classmethod
     def early_describe(cls):
-        pass
+        return 'Listing information about SSH backup'
 
-    def describe(self, *args, **kwargs):
-        pass
+    def describe(self, backup):
+        return TaskDescription(
+            'Listing information about SSH backup {name}',
+            name=backup.get('hostport', '') if backup else ''
+        )
 
     def verify(self, backup):
         return []
@@ -71,10 +74,10 @@ class BackupSSHListTask(Task):
 class BackupSSHInitTask(Task):
     @classmethod
     def early_describe(cls):
-        pass
+        return 'Initializing SSH backup'
 
-    def describe(self, *args, **kwargs):
-        pass
+    def describe(self, backup):
+        return TaskDescription('Initializing SSH backup {name}', name=backup.get('hostport', '') if backup else '')
 
     def verify(self, backup):
         return []
@@ -92,10 +95,10 @@ class BackupSSHInitTask(Task):
 class BackupSSHPutTask(ProgressTask):
     @classmethod
     def early_describe(cls):
-        pass
+        return 'Putting new data onto SSH backup'
 
-    def describe(self, *args, **kwargs):
-        pass
+    def describe(self, backup, name, fd):
+        return TaskDescription('Putting new data onto SSH backup {name}', name=name)
 
     def verify(self, backup, name, fd):
         return []
@@ -118,10 +121,10 @@ class BackupSSHPutTask(ProgressTask):
 class BackupSSHGetTask(Task):
     @classmethod
     def early_describe(cls):
-        pass
+        return 'Getting data from SSH backup'
 
-    def describe(self, *args, **kwargs):
-        pass
+    def describe(self, backup, name, fd):
+        return TaskDescription('Getting data from SSH backup {name}', name=name)
 
     def verify(self, backup, name, fd):
         return []
@@ -144,10 +147,10 @@ class BackupSSHGetTask(Task):
 class BackupSSHDeleteTask(Task):
     @classmethod
     def early_describe(cls):
-        pass
+        return 'Deleting SSH backup task'
 
-    def describe(self, *args, **kwargs):
-        pass
+    def describe(self, backup, name):
+        return TaskDescription('Deleting SSH backup task {name}', name=name)
 
     def verify(self, backup, name):
         pass

@@ -243,10 +243,10 @@ class SystemUIProvider(Provider):
 class SystemGeneralConfigureTask(Task):
     @classmethod
     def early_describe(cls):
-        pass
+        return "Configuring general system settings"
 
     def describe(self, props):
-        return "System General Settings Configure"
+        return TaskDescription("Configuring general system settings")
 
     def verify(self, props):
         errors = ValidationException()
@@ -303,10 +303,10 @@ class SystemGeneralConfigureTask(Task):
 class SystemAdvancedConfigureTask(Task):
     @classmethod
     def early_describe(cls):
-        pass
+        return 'Configuring advanced system settings'
 
     def describe(self, props):
-        return "System Advanced Settings Configure"
+        return TaskDescription('Configuring advanced system settings')
 
     def verify(self, props):
         return ['system']
@@ -403,10 +403,10 @@ class SystemAdvancedConfigureTask(Task):
 class SystemUIConfigureTask(Task):
     @classmethod
     def early_describe(cls):
-        pass
+        return 'Configuring System UI settings'
 
     def describe(self, props):
-        return "System UI Settings Configure"
+        return TaskDescription('Configuring System UI settings')
 
     def verify(self, props):
         return ['system']
@@ -453,10 +453,10 @@ class SystemUIConfigureTask(Task):
 class SystemTimeConfigureTask(Task):
     @classmethod
     def early_describe(cls):
-        pass
+        return 'Configuring system time'
 
-    def describe(self, *args, **kwargs):
-        pass
+    def describe(self, props):
+        return TaskDescription('Configuring system time')
 
     def verify(self, props):
         return ['system']
@@ -487,10 +487,10 @@ class SystemRebootTask(Task):
 
     @classmethod
     def early_describe(cls):
-        pass
+        return 'Rebooting system'
 
     def describe(self, delay=None):
-        return "System Reboot"
+        return TaskDescription('Rebooting system with delay {delay} seconds', delay=delay or 0)
 
     def verify(self, delay=None):
         return ['root']
@@ -531,10 +531,10 @@ class SystemRebootTask(Task):
 class SystemHaltTask(Task):
     @classmethod
     def early_describe(cls):
-        pass
+        return 'Shutting the system down'
 
     def describe(self):
-        return "System Shutdown"
+        return TaskDescription('Shutting the system down')
 
     def verify(self):
         return ['root']

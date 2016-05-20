@@ -48,10 +48,10 @@ class GlusterdProvider(Provider):
 class GlusterdConfigureTask(Task):
     @classmethod
     def early_describe(cls):
-        pass
-
-    def describe(self, share):
         return 'Configuring Glusterd service'
+
+    def describe(self, glusterd):
+        return TaskDescription('Configuring Glusterd service')
 
     def verify(self, glusterd):
         errors = []

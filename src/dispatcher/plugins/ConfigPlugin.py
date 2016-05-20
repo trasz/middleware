@@ -47,10 +47,10 @@ class ConfigProvider(Provider):
 class UpdateConfigTask(Task):
     @classmethod
     def early_describe(cls):
-        pass
+        return "Updating configuration settings"
 
-    def describe(self, *args, **kwargs):
-        pass
+    def describe(self, settings):
+        return TaskDescription("Updating configuration settings")
 
     def verify(self, settings):
         return ['system']

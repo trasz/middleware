@@ -252,7 +252,7 @@ class ServiceInfoProvider(Provider):
 class ServiceManageTask(Task):
     @classmethod
     def early_describe(cls):
-        pass
+        return 'Changing service state'
 
     def describe(self, id, action):
         svc = self.datastore.get_by_id('service_definitions', id)
@@ -307,7 +307,7 @@ class ServiceManageTask(Task):
 class UpdateServiceConfigTask(Task):
     @classmethod
     def early_describe(cls):
-        pass
+        return 'Updating service configuration'
 
     def describe(self, id, updated_fields):
         svc = self.datastore.get_by_id('service_definitions', id)

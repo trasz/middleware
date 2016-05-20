@@ -72,10 +72,10 @@ class BackupProvider(Provider):
 class CreateBackupTask(Task):
     @classmethod
     def early_describe(cls):
-        pass
+        return 'Creating backup task'
 
-    def describe(self, *args, **kwargs):
-        pass
+    def describe(self, backup):
+        return TaskDescription('Creating backup task {name}', name=backup.get('name', '') if backup else '')
 
     def verify(self, backup):
         if 'id' in backup and self.datastore.exists('backup', ('id', '=', backup['id'])):
@@ -109,10 +109,11 @@ class CreateBackupTask(Task):
 class UpdateBackupTask(Task):
     @classmethod
     def early_describe(cls):
-        pass
+        return 'Updating backup task'
 
-    def describe(self, *args, **kwargs):
-        pass
+    def describe(self, id, updated_params):
+        backup = self.datastore.get_by_id('backup', id)
+        return TaskDescription('Updating backup task {name}', name=backup.get('name', id) if backup else id)
 
     def verify(self, id, updated_params):
         if not self.datastore.exists('backup', ('id', '=', id)):
@@ -138,10 +139,11 @@ class UpdateBackupTask(Task):
 class DeleteBackupTask(Task):
     @classmethod
     def early_describe(cls):
-        pass
+        return 'Deleting backup task'
 
-    def describe(self, *args, **kwargs):
-        pass
+    def describe(self, id):
+        backup = self.datastore.get_by_id('backup', id)
+        return TaskDescription('Deleting backup task {name}', name=backup.get('name', id) if backup else id)
 
     def verify(self, id):
         if not self.datastore.exists('backup', ('id', '=', id)):
@@ -161,10 +163,11 @@ class DeleteBackupTask(Task):
 class BackupQueryTask(ProgressTask):
     @classmethod
     def early_describe(cls):
-        pass
+        return 'Querying backup task'
 
-    def describe(self, *args, **kwargs):
-        pass
+    def describe(self, id):
+        backup = self.datastore.get_by_id('backup', id)
+        return TaskDescription('Querying backup task {name}', name=backup.get('name', id) if backup else id)
 
     def verify(self, id):
         return []
@@ -212,10 +215,11 @@ class BackupQueryTask(ProgressTask):
 class BackupSyncTask(ProgressTask):
     @classmethod
     def early_describe(cls):
-        pass
+        return 'Sending data to backup'
 
-    def describe(self, *args, **kwargs):
-        pass
+    def describe(self, id, snapshot=True, dry_run=False):
+        backup = self.datastore.get_by_id('backup', id)
+        return TaskDescription('Sending data to backup {name}', name=backup.get('name', id) if backup else id)
 
     def verify(self, id, snapshot=True, dry_run=False):
         if not self.datastore.exists('backup', ('id', '=', id)):
@@ -324,10 +328,11 @@ class BackupSyncTask(ProgressTask):
 class BackupRestoreTask(ProgressTask):
     @classmethod
     def early_describe(cls):
-        pass
+        return 'Restoring data from backup'
 
-    def describe(self, *args, **kwargs):
-        pass
+    def describe(self, id, dataset=None, snapshot=None):
+        backup = self.datastore.get_by_id('backup', id)
+        return TaskDescription('Restoring data from backup {name}', name=backup.get('name', id) if backup else id)
 
     def verify(self, id, dataset=None, snapshot=None):
         return []

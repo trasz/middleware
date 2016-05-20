@@ -49,10 +49,11 @@ class LLDPProvider(Provider):
 class LLDPConfigureTask(Task):
     @classmethod
     def early_describe(cls):
-        pass
-
-    def describe(self, share):
         return 'Configuring LLDP service'
+
+    def describe(self, lldp):
+        node = ConfigNode('service.lldp', self.configstore)
+        return TaskDescription('Configuring {name} LLDP service', name=node['save_description'] or '')
 
     def verify(self, lldp):
         errors = ValidationException()

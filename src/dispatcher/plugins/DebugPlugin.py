@@ -37,10 +37,10 @@ from task import ProgressTask, TaskWarning, TaskDescription
 class CollectDebugTask(ProgressTask):
     @classmethod
     def early_describe(cls):
-        pass
+        return 'Collecting debug data'
 
-    def describe(self, *args, **kwargs):
-        pass
+    def describe(self, fd):
+        return TaskDescription('Collecting debug data')
 
     def verify(self, fd):
         return ['system']
@@ -97,10 +97,10 @@ class CollectDebugTask(ProgressTask):
 class SaveDebugTask(ProgressTask):
     @classmethod
     def early_describe(cls):
-        pass
+        return 'Saving debug data'
 
-    def describe(self, *args, **kwargs):
-        pass
+    def describe(self):
+        return TaskDescription('Saving debug data')
 
     def verify(self):
         return ['system']

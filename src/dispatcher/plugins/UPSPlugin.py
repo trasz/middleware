@@ -145,10 +145,10 @@ class UPSProvider(Provider):
 class UPSConfigureTask(Task):
     @classmethod
     def early_describe(cls):
-        pass
-
-    def describe(self, share):
         return 'Configuring UPS service'
+
+    def describe(self, ups):
+        return TaskDescription('Configuring UPS service')
 
     def verify(self, ups):
         errors = ValidationException()

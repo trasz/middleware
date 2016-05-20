@@ -105,10 +105,10 @@ class IPFSProvider(Provider):
 class IPFSConfigureTask(Task):
     @classmethod
     def early_describe(cls):
-        pass
-
-    def describe(self, share):
         return 'Configuring IPFS service'
+
+    def describe(self, ipfs):
+        return TaskDescription('Configuring IPFS service')
 
     def verify(self, ipfs):
         errors = ValidationException()

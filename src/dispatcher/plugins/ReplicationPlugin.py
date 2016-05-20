@@ -297,10 +297,10 @@ class ReplicationBaseTask(Task):
 class ReplicationCreateTask(ReplicationBaseTask):
     @classmethod
     def early_describe(cls):
-        pass
+        return "Creating the replication link"
 
     def describe(self, link):
-        return TaskDescription("Creating the replication link {name}", name=link['name'])
+        return TaskDescription("Creating the replication link {name}", name=link.get('name', '') or '')
 
     def verify(self, link):
         partners = link['partners']
@@ -388,10 +388,10 @@ class ReplicationCreateTask(ReplicationBaseTask):
 class ReplicationPrepareSlaveTask(ReplicationBaseTask):
     @classmethod
     def early_describe(cls):
-        pass
+        return "Preparing slave for replication link"
 
     def describe(self, link):
-        return TaskDescription("Preparing a slave for the link {name}", name=link['name'])
+        return TaskDescription("Preparing slave for replication link {name}", name=link.get('name') or '')
 
     def verify(self, link):
         return []
@@ -577,7 +577,7 @@ class ReplicationPrepareSlaveTask(ReplicationBaseTask):
 class ReplicationDeleteTask(ReplicationBaseTask):
     @classmethod
     def early_describe(cls):
-        pass
+        return "Deleting the replication link"
 
     def describe(self, name, scrub=False):
         return TaskDescription("Deleting the replication link {name}", name=name)
@@ -630,7 +630,7 @@ class ReplicationDeleteTask(ReplicationBaseTask):
 class ReplicationUpdateTask(ReplicationBaseTask):
     @classmethod
     def early_describe(cls):
-        pass
+        return "Updating the replication link"
 
     def describe(self, name, updated_fields):
         return TaskDescription("Updating the replication link {name}", name=name)
@@ -779,10 +779,10 @@ class ReplicationUpdateTask(ReplicationBaseTask):
 class ReplicationSyncTask(ReplicationBaseTask):
     @classmethod
     def early_describe(cls):
-        pass
+        return "Synchronizing replication link"
 
     def describe(self, name, transport_plugins):
-        return TaskDescription("Synchronizing the replication link {name}", name=name)
+        return TaskDescription("Synchronizing replication link {name}", name=name)
 
     def verify(self, name, transport_plugins):
         if not self.datastore.exists('replication.links', ('name', '=', name)):
@@ -868,10 +868,10 @@ class ReplicationSyncTask(ReplicationBaseTask):
 class ReplicationReserveServicesTask(ReplicationBaseTask):
     @classmethod
     def early_describe(cls):
-        pass
+        return "Reserving services for replication link"
 
     def describe(self, name):
-        return TaskDescription("Reserving services for the replication link {name}", name=name)
+        return TaskDescription("Reserving services for replication link {name}", name=name)
 
     def verify(self, name):
         if not self.datastore.exists('replication.links', ('name', '=', name)):
@@ -922,10 +922,10 @@ class ReplicationReserveServicesTask(ReplicationBaseTask):
 class SnapshotDatasetTask(Task):
     @classmethod
     def early_describe(cls):
-        pass
+        return "Creating a snapshot of ZFS dataset"
 
     def describe(self, dataset, recursive, lifetime, prefix='auto', replicable=False):
-        return TaskDescription("Creating a snapshot of {name}", name=dataset)
+        return TaskDescription("Creating a snapshot of {name} ZFS dataset", name=dataset)
 
     def verify(self, dataset, recursive, lifetime, prefix='auto', replicable=False):
         if not self.dispatcher.call_sync('zfs.dataset.query', [('name', '=', dataset)], {'single': True}):
@@ -972,7 +972,7 @@ class SnapshotDatasetTask(Task):
 class CalculateReplicationDeltaTask(Task):
     @classmethod
     def early_describe(cls):
-        pass
+        return "Calculating replication delta"
 
     def describe(self, localds, remoteds, snapshots, recursive=False, followdelete=False):
         return TaskDescription(
@@ -1137,10 +1137,10 @@ class ReplicateDatasetTask(ProgressTask):
 
     @classmethod
     def early_describe(cls):
-        pass
+        return "Replicating dataset"
 
     def describe(self, localds, options, transport_plugins=None, dry_run=False):
-        return TaskDescription("Replicating the dataset {name}", name=localds)
+        return TaskDescription("Replicating dataset {name}", name=localds)
 
     def verify(self, localds, options, transport_plugins=None, dry_run=False):
         return ['zfs:{0}'.format(localds)]
@@ -1300,10 +1300,10 @@ class ReplicateDatasetTask(ProgressTask):
 class ReplicationGetLatestLinkTask(ReplicationBaseTask):
     @classmethod
     def early_describe(cls):
-        pass
+        return "Fetching latest replication link"
 
     def describe(self, name):
-        return TaskDescription("Fetching the latest link {name}", name=name)
+        return TaskDescription("Fetching latest replication link {name}", name=name)
 
     def verify(self, name):
         if not self.datastore.exists('replication.links', ('name', '=', name)):
@@ -1353,10 +1353,10 @@ class ReplicationGetLatestLinkTask(ReplicationBaseTask):
 class ReplicationUpdateLinkTask(Task):
     @classmethod
     def early_describe(cls):
-        pass
+        return "Updating replication link"
 
     def describe(self, remote_link):
-        return TaskDescription("Updating the replication link {name}", name=remote_link['name'])
+        return TaskDescription("Updating replication link {name}", name=remote_link['name'])
 
     def verify(self, remote_link):
         if not self.datastore.exists('replication.links', ('name', '=', remote_link['name'])):
@@ -1390,10 +1390,10 @@ class ReplicationUpdateLinkTask(Task):
 class ReplicationRoleUpdateTask(ReplicationBaseTask):
     @classmethod
     def early_describe(cls):
-        pass
+        return "Synchronizing replication link role with it's desired state"
 
     def describe(self, name):
-        return TaskDescription("Synchronizing the replication {name} role with it's desired state", name=name)
+        return TaskDescription("Synchronizing replication link {name} role with it's desired state", name=name)
 
     def verify(self, name):
         if not self.datastore.exists('replication.links', ('name', '=', name)):
@@ -1449,10 +1449,10 @@ class ReplicationRoleUpdateTask(ReplicationBaseTask):
 class ReplicationCheckDatasetsTask(ReplicationBaseTask):
     @classmethod
     def early_describe(cls):
-        pass
+        return "Checking for conflicts with replication link"
 
     def describe(self, link):
-        return TaskDescription("Checking for conflicts with the replication link {name}", name=link['name'])
+        return TaskDescription("Checking for conflicts with replication link {name}", name=link['name'])
 
     def verify(self, link):
         if not self.datastore.exists('replication.links', ('name', '=', link['name'])):

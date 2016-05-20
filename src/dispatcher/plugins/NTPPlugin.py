@@ -50,10 +50,10 @@ class NTPServersProvider(Provider):
 class NTPServerCreateTask(Task):
     @classmethod
     def early_describe(cls):
-        pass
+        return "Creating NTP Server"
 
-    def describe(self, ntp):
-        return "Creating NTP Server {0}".format(ntp['address'])
+    def describe(self, ntp, force=False):
+        return TaskDescription("Creating NTP Server {name}", name=ntp['address'])
 
     def verify(self, ntp, force=False):
         errors = ValidationException()
@@ -99,10 +99,11 @@ class NTPServerCreateTask(Task):
 class NTPServerUpdateTask(Task):
     @classmethod
     def early_describe(cls):
-        pass
+        return "Creating NTP Server"
 
-    def describe(self, *args, **kwargs):
-        pass
+    def describe(self, id, updated_fields, force=False):
+        ntp = self.datastore.get_by_id('ntpservers', id)
+        return TaskDescription("Creating NTP Server {name}", name=ntp.get('address', '') or '')
 
     def verify(self, id, updated_fields, force=False):
 
@@ -156,10 +157,11 @@ class NTPServerUpdateTask(Task):
 class NTPServerDeleteTask(Task):
     @classmethod
     def early_describe(cls):
-        pass
+        return "Creating NTP Server"
 
-    def describe(self, *args, **kwargs):
-        pass
+    def describe(self, id):
+        ntp = self.datastore.get_by_id('ntpservers', id)
+        return TaskDescription("Creating NTP Server {name}", name=ntp.get('address', '') or '')
 
     def verify(self, id):
         ntp = self.datastore.get_by_id('ntpservers', id)

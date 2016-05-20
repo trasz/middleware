@@ -52,10 +52,10 @@ class NFSProvider(Provider):
 class NFSConfigureTask(Task):
     @classmethod
     def early_describe(cls):
-        pass
-
-    def describe(self, share):
         return 'Configuring NFS service'
+
+    def describe(self, nfs):
+        return TaskDescription('Configuring NFS service')
 
     def verify(self, nfs):
         errors = []

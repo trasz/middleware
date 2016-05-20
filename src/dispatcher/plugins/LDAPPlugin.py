@@ -56,10 +56,10 @@ class LDAPProvider(Provider):
 class LDAPConfigureTask(Task):
     @classmethod
     def early_describe(cls):
-        pass
+        return 'Updating LDAP settings'
 
-    def describe(self, *args, **kwargs):
-        pass
+    def describe(self, config):
+        return TaskDescription('Updating LDAP settings')
 
     def verify(self, config):
         return ['system'] 

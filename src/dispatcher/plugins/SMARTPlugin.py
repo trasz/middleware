@@ -48,10 +48,10 @@ class SMARTProvider(Provider):
 class SMARTConfigureTask(Task):
     @classmethod
     def early_describe(cls):
-        pass
-
-    def describe(self, share):
         return 'Configuring SMART service'
+
+    def describe(self, smartd):
+        return TaskDescription('Configuring SMART service')
 
     def verify(self, smartd):
         errors = []

@@ -40,10 +40,10 @@ FACTORY_DB = '/usr/local/share/datastore/factory.json'
 class DownloadDatabaseTask(Task):
     @classmethod
     def early_describe(cls):
-        pass
+        return 'Downloading current database state'
 
-    def describe(self, *args, **kwargs):
-        pass
+    def describe(self):
+        return TaskDescription('Downloading current database state')
 
     def verify(self):
         return ['system']
@@ -56,10 +56,10 @@ class DownloadDatabaseTask(Task):
 class UploadDatabaseTask(Task):
     @classmethod
     def early_describe(cls):
-        pass
+        return 'Loading database from file'
 
-    def describe(self, *args, **kwargs):
-        pass
+    def describe(self):
+        return TaskDescription('Loading database from file')
 
     def verify(self):
         return ['system']
@@ -72,10 +72,10 @@ class UploadDatabaseTask(Task):
 class RestoreFactoryConfigTask(ProgressTask):
     @classmethod
     def early_describe(cls):
-        pass
+        return 'Restoring database defaults'
 
-    def describe(self, *args, **kwargs):
-        pass
+    def describe(self):
+        return TaskDescription('Restoring database defaults')
 
     def verify(self):
         return ['root']

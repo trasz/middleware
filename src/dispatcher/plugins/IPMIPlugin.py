@@ -91,10 +91,11 @@ class IPMIProvider(Provider):
 class ConfigureIPMITask(Task):
     @classmethod
     def early_describe(cls):
-        pass
+        return 'Configuring IPMI module'
 
-    def describe(self, *args, **kwargs):
-        pass
+    def describe(self, id, updated_params):
+        config = self.dispatcher.call_sync('ipmi.get_config', id)
+        return TaskDescription('Configuring {name} IPMI module', name=config.get('address', '') if config else '')
 
     def verify(self, id, updated_params):
         if not self.dispatcher.call_sync('ipmi.is_ipmi_loaded'):

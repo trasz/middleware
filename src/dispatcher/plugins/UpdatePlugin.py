@@ -454,7 +454,7 @@ class UpdateProvider(Provider):
 class UpdateConfigureTask(Task):
     @classmethod
     def early_describe(cls):
-        pass
+        return "Configuring updates"
 
     def describe(self, props):
         return TaskDescription("Configuring updates")
@@ -498,7 +498,7 @@ class UpdateConfigureTask(Task):
 class CheckUpdateTask(Task):
     @classmethod
     def early_describe(cls):
-        pass
+        return "Checking for updates"
 
     def describe(self, conditions=None):
         return TaskDescription("Checking for updates")
@@ -535,7 +535,7 @@ class CheckUpdateTask(Task):
 class DownloadUpdateTask(ProgressTask):
     @classmethod
     def early_describe(cls):
-        pass
+        return "Downloading updates"
 
     def describe(self):
         return TaskDescription("Downloading updates")
@@ -618,7 +618,7 @@ class DownloadUpdateTask(ProgressTask):
 class UpdateManualTask(ProgressTask):
     @classmethod
     def early_describe(cls):
-        pass
+        return 'Updating from a file'
 
     def describe(self, path, sha256):
         return TaskDescription("Updating from a file ({name})".format(name=path))
@@ -702,7 +702,7 @@ class UpdateManualTask(ProgressTask):
 class UpdateApplyTask(ProgressTask):
     @classmethod
     def early_describe(cls):
-        pass
+        return "Applying updates"
 
     def describe(self, reboot_post_install=False):
         return TaskDescription("Applying updates")
@@ -764,7 +764,7 @@ class UpdateApplyTask(ProgressTask):
 class UpdateVerifyTask(ProgressTask):
     @classmethod
     def early_describe(cls):
-        pass
+        return "Verifying installation integrity"
 
     def describe(self):
         return TaskDescription("Verifying installation integrity")
@@ -802,7 +802,7 @@ class UpdateVerifyTask(ProgressTask):
 class CheckFetchUpdateTask(MasterProgressTask):
     @classmethod
     def early_describe(cls):
-        pass
+        return "Checking for updates"
 
     def describe(self, mail=False):
         return TaskDescription("Checking for updates")
@@ -850,7 +850,7 @@ class CheckFetchUpdateTask(MasterProgressTask):
 class UpdateNowTask(MasterProgressTask):
     @classmethod
     def early_describe(cls):
-        pass
+        return "Checking for updates and updating"
 
     def describe(self, mail=False):
         return TaskDescription("Checking for updates and updating")

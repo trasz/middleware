@@ -79,10 +79,10 @@ class TunablesProvider(Provider):
 class TunableCreateTask(Task):
     @classmethod
     def early_describe(cls):
-        pass
+        return "Creating Tunable"
 
     def describe(self, tunable):
-        return TaskDescription("Deleting Tunable {name}", name=tunable['var'])
+        return TaskDescription("Creating Tunable {name}", name=tunable.get('var', '') if tunable else '')
 
     def verify(self, tunable):
 
@@ -142,10 +142,11 @@ class TunableCreateTask(Task):
 class TunableUpdateTask(Task):
     @classmethod
     def early_describe(cls):
-        pass
+        return "Updating Tunable"
 
     def describe(self, id, updated_fields):
-        return TaskDescription("Updating Tunable {name}", name=id)
+        tunable = self.datastore.get_by_id('tunables', id)
+        return TaskDescription("Updating Tunable {name}", name=tunable.get('var', id) if tunable else id)
 
     def verify(self, id, updated_fields):
 
@@ -211,10 +212,11 @@ class TunableUpdateTask(Task):
 class TunableDeleteTask(Task):
     @classmethod
     def early_describe(cls):
-        pass
+        return "Deleting Tunable"
 
-    def describe(self, id):
-        return TaskDescription("Deleting Tunable {name}", name=id)
+    def describe(self, id, updated_fields):
+        tunable = self.datastore.get_by_id('tunables', id)
+        return TaskDescription("Deleting Tunable {name}", name=tunable.get('var', id) if tunable else id)
 
     def verify(self, id):
 

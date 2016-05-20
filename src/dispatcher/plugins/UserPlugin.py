@@ -505,7 +505,7 @@ class UserUpdateTask(Task):
 ))
 class GroupCreateTask(Task):
     @classmethod
-    def early_describe(cla):
+    def early_describe(cls):
         return "Creating group"
 
     def describe(self, group):

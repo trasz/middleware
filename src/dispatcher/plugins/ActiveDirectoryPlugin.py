@@ -58,10 +58,13 @@ class ActiveDirectoryProvider(Provider):
 class ActiveDirectoryConfigureTask(Task):
     @classmethod
     def early_describe(cls):
-        pass
+        return "Updating Active Directory settings"
 
-    def describe(self, *args, **kwargs):
-        pass
+    def describe(self, config):
+        return TaskDescription(
+            "Updating Active Directory domain {name} settings",
+            name=config.get('domain', '') if config else ''
+        )
 
     def verify(self, config):
         logger.debug("XXX: ActiveDirectory.verify")

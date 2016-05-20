@@ -254,10 +254,10 @@ class ZpoolScrubTask(Task):
 
     @classmethod
     def early_describe(cls):
-        pass
+        return "Scrubbing ZFS pool"
 
     def describe(self, pool):
-        return "Scrubbing pool {0}".format(pool)
+        return TaskDescription("Scrubbing ZFS pool {name}", name=pool)
 
     def verify(self, pool, threshold=None):
         zfs = get_zfs()
@@ -347,10 +347,10 @@ class ZpoolCreateTask(Task):
 
     @classmethod
     def early_describe(cls):
-        pass
+        return 'Creating ZFS pool'
 
-    def describe(self, *args, **kwargs):
-        pass
+    def describe(self, name, topology, params=None):
+        return TaskDescription('Creating ZFS pool {name}', name=name)
 
     def verify(self, name, topology, params=None):
         zfs = get_zfs()
@@ -414,10 +414,10 @@ class ZpoolBaseTask(Task):
 class ZpoolConfigureTask(ZpoolBaseTask):
     @classmethod
     def early_describe(cls):
-        pass
+        return 'Updating ZFS pool configuration'
 
-    def describe(self, *args, **kwargs):
-        pass
+    def describe(self, pool, updated_props):
+        return TaskDescription('Updating ZFS pool {name} configuration', name=pool)
 
     def verify(self, pool, updated_props):
         super(ZpoolConfigureTask, self).verify(pool)
@@ -439,10 +439,10 @@ class ZpoolConfigureTask(ZpoolBaseTask):
 class ZpoolDestroyTask(ZpoolBaseTask):
     @classmethod
     def early_describe(cls):
-        pass
+        return 'Destroying ZFS pool'
 
-    def describe(self, *args, **kwargs):
-        pass
+    def describe(self, name):
+        return TaskDescription('Destroying ZFS pool {name}', name=name)
 
     def run(self, name):
         try:
@@ -473,10 +473,10 @@ class ZpoolExtendTask(ZpoolBaseTask):
 
     @classmethod
     def early_describe(cls):
-        pass
+        return 'Extending ZFS pool'
 
-    def describe(self, *args, **kwargs):
-        pass
+    def describe(self, pool, new_vdevs, updated_vdevs):
+        return TaskDescription('Extending ZFS pool {name}', name=pool)
 
     def run(self, pool, new_vdevs, updated_vdevs):
         try:
@@ -532,14 +532,22 @@ class ZpoolExtendTask(ZpoolBaseTask):
 
 @private
 @accepts(str, str)
-@description('Detaches ZFS pool')
+@description('Detaches disk from ZFS pool')
 class ZpoolDetachTask(ZpoolBaseTask):
     @classmethod
     def early_describe(cls):
-        pass
+        return 'Detaching disk from ZFS pool'
 
-    def describe(self, *args, **kwargs):
-        pass
+    def describe(self, pool, guid):
+        try:
+            disk = self.dispatcher.call_sync('disk.query', [('id', '=', guid)], {'single': True})
+        except RpcException:
+            disk = None
+        return TaskDescription(
+            'Detaching disk {disk} from ZFS pool {name}',
+            disk=disk.get('path', guid) if disk else guid,
+            name=pool
+        )
 
     def run(self, pool, guid):
         try:
@@ -563,10 +571,19 @@ class ZpoolDetachTask(ZpoolBaseTask):
 class ZpoolReplaceTask(ZpoolBaseTask):
     @classmethod
     def early_describe(cls):
-        pass
+        return 'Replacing disk in ZFS pool'
 
-    def describe(self, *args, **kwargs):
-        pass
+    def describe(self, pool, guid, vdev):
+        try:
+            disk = self.dispatcher.call_sync('disk.query', [('id', '=', guid)], {'single': True})
+        except RpcException:
+            disk = None
+        return TaskDescription(
+            'Replacing disk {disk} with disk {new_disk} in ZFS pool {name}',
+            disk=disk.get('path', guid) if disk else guid,
+            new_disk=vdev.get('path', '') if vdev else '',
+            name=pool
+        )
 
     def run(self, pool, guid, vdev):
         try:
@@ -585,14 +602,22 @@ class ZpoolReplaceTask(ZpoolBaseTask):
 
 @private
 @accepts(str, str, bool)
-@description('Sets ZFS pool offline')
+@description('Sets disk in ZFS pool offline')
 class ZpoolOfflineDiskTask(ZpoolBaseTask):
     @classmethod
     def early_describe(cls):
-        pass
+        return 'Setting disk in ZFS pool offline'
 
-    def describe(self, *args, **kwargs):
-        pass
+    def describe(self, pool, guid, temporary=False):
+        try:
+            disk = self.dispatcher.call_sync('disk.query', [('id', '=', guid)], {'single': True})
+        except RpcException:
+            disk = None
+        return TaskDescription(
+            'Setting disk {disk} in ZFS pool {name} offline',
+            disk=disk.get('path', guid) if disk else guid,
+            name=pool
+        )
 
     def run(self, pool, guid, temporary=False):
         try:
@@ -609,14 +634,22 @@ class ZpoolOfflineDiskTask(ZpoolBaseTask):
 
 @private
 @accepts(str, str)
-@description('Sets ZFS pool online')
+@description('Sets disk in ZFS pool online')
 class ZpoolOnlineDiskTask(ZpoolBaseTask):
     @classmethod
     def early_describe(cls):
-        pass
+        return 'Setting disk in ZFS pool online'
 
-    def describe(self, *args, **kwargs):
-        pass
+    def describe(self, pool, guid):
+        try:
+            disk = self.dispatcher.call_sync('disk.query', [('id', '=', guid)], {'single': True})
+        except RpcException:
+            disk = None
+        return TaskDescription(
+            'Setting disk {disk} in ZFS pool {name} online',
+            disk=disk.get('path', guid) if disk else guid,
+            name=pool
+        )
 
     def run(self, pool, guid):
         try:
@@ -633,14 +666,14 @@ class ZpoolOnlineDiskTask(ZpoolBaseTask):
 
 @private
 @accepts(str)
-@description('Upgrades ZFS pool to newest ZFS version')
+@description('Upgrades ZFS pool to latest ZFS version')
 class ZpoolUpgradeTask(ZpoolBaseTask):
     @classmethod
     def early_describe(cls):
-        pass
+        return 'Upgrading ZFS pool to latest ZFS version'
 
-    def describe(self, *args, **kwargs):
-        pass
+    def describe(self, pool):
+        return TaskDescription('Upgrading ZFS pool {name} to latest ZFS version', name=pool)
 
     def run(self, pool):
         try:
@@ -657,10 +690,10 @@ class ZpoolUpgradeTask(ZpoolBaseTask):
 class ZpoolImportTask(Task):
     @classmethod
     def early_describe(cls):
-        pass
+        return 'Importing ZFS pool'
 
-    def describe(self, *args, **kwargs):
-        pass
+    def describe(self, guid, name=None, properties=None):
+        return TaskDescription('Importing ZFS pool {name}', name=name or '')
 
     def verify(self, guid, name=None, properties=None):
         zfs = get_zfs()
@@ -686,10 +719,10 @@ class ZpoolImportTask(Task):
 class ZpoolExportTask(ZpoolBaseTask):
     @classmethod
     def early_describe(cls):
-        pass
+        return 'Exporting ZFS pool'
 
-    def describe(self, *args, **kwargs):
-        pass
+    def describe(self, name):
+        return TaskDescription('Exporting ZFS pool {name}', name=name)
 
     def verify(self, name):
         super(ZpoolExportTask, self).verify(name)
@@ -704,13 +737,6 @@ class ZpoolExportTask(ZpoolBaseTask):
 
 
 class ZfsBaseTask(Task):
-    @classmethod
-    def early_describe(cls):
-        pass
-
-    def describe(self, *args, **kwargs):
-        pass
-
     def verify(self, *args, **kwargs):
         path = args[0]
         try:
@@ -728,10 +754,10 @@ class ZfsBaseTask(Task):
 class ZfsDatasetMountTask(ZfsBaseTask):
     @classmethod
     def early_describe(cls):
-        pass
+        return 'Mounting ZFS dataset'
 
-    def describe(self, *args, **kwargs):
-        pass
+    def describe(self, name, recursive=False):
+        return TaskDescription('Mounting ZFS dataset {name}', name=name)
 
     def run(self, name, recursive=False):
         try:
@@ -755,10 +781,10 @@ class ZfsDatasetMountTask(ZfsBaseTask):
 class ZfsDatasetUmountTask(ZfsBaseTask):
     @classmethod
     def early_describe(cls):
-        pass
+        return 'Unmounting ZFS dataset'
 
-    def describe(self, *args, **kwargs):
-        pass
+    def describe(self, name, recursive=False):
+        return TaskDescription('Unmounting ZFS dataset {name}', name=name)
 
     def run(self, name, recursive=False):
         try:
@@ -784,10 +810,10 @@ class ZfsDatasetCreateTask(Task):
 
     @classmethod
     def early_describe(cls):
-        pass
+        return 'Creating ZFS dataset'
 
-    def describe(self, *args, **kwargs):
-        pass
+    def describe(self, path, type, params=None):
+        return TaskDescription('Creating ZFS dataset {name}', name=path)
 
     def verify(self, path, type, params=None):
         pool_name = path.split('/')[0]
@@ -820,10 +846,10 @@ class ZfsDatasetCreateTask(Task):
 class ZfsSnapshotCreateTask(ZfsBaseTask):
     @classmethod
     def early_describe(cls):
-        pass
+        return 'Creating ZFS snapshot'
 
-    def describe(self, *args, **kwargs):
-        pass
+    def describe(self, path, snapshot_name, recursive=False, params=None):
+        return TaskDescription('Creating snapshot of ZFS dataset {name}', name=path)
 
     def run(self, path, snapshot_name, recursive=False, params=None):
         if params:
@@ -843,10 +869,10 @@ class ZfsSnapshotCreateTask(ZfsBaseTask):
 class ZfsSnapshotDeleteTask(ZfsBaseTask):
     @classmethod
     def early_describe(cls):
-        pass
+        return 'Deleting ZFS snapshot'
 
-    def describe(self, *args, **kwargs):
-        pass
+    def describe(self, path, snapshot_name, recursive=False):
+        return TaskDescription('Deleting snapshot {name} of ZFS dataset {path}', name=snapshot_name, path=path)
 
     def run(self, path, snapshot_name, recursive=False):
         try:
@@ -863,10 +889,10 @@ class ZfsSnapshotDeleteTask(ZfsBaseTask):
 class ZfsSnapshotDeleteMultipleTask(ZfsBaseTask):
     @classmethod
     def early_describe(cls):
-        pass
+        return 'Deleting ZFS snapshots'
 
-    def describe(self, *args, **kwargs):
-        pass
+    def describe(self, path, snapshot_names=None, recursive=False):
+        return TaskDescription('Deleting snapshots of ZFS dataset {name}', name=path)
 
     def run(self, path, snapshot_names=None, recursive=False):
         try:
@@ -888,10 +914,10 @@ class ZfsSnapshotDeleteMultipleTask(ZfsBaseTask):
 class ZfsConfigureTask(ZfsBaseTask):
     @classmethod
     def early_describe(cls):
-        pass
+        return 'Updating configuration of ZFS object'
 
-    def describe(self, *args, **kwargs):
-        pass
+    def describe(self, name, properties):
+        return TaskDescription('Updating configuration of ZFS object {name}', name=name)
 
     def run(self, name, properties):
         try:
@@ -915,10 +941,10 @@ class ZfsConfigureTask(ZfsBaseTask):
 class ZfsDestroyTask(ZfsBaseTask):
     @classmethod
     def early_describe(cls):
-        pass
+        return 'Destroying ZFS object'
 
-    def describe(self, *args, **kwargs):
-        pass
+    def describe(self, name):
+        return TaskDescription('Destroying ZFS object {name}', name=name)
 
     def run(self, name):
         try:
@@ -935,10 +961,10 @@ class ZfsDestroyTask(ZfsBaseTask):
 class ZfsRenameTask(ZfsBaseTask):
     @classmethod
     def early_describe(cls):
-        pass
+        return 'Renaming ZFS object'
 
-    def describe(self, *args, **kwargs):
-        pass
+    def describe(self, name, new_name):
+        return TaskDescription('Renaming ZFS object {name} to {new_name}', name=name, new_name=new_name)
 
     def run(self, name, new_name):
         try:
@@ -955,10 +981,10 @@ class ZfsRenameTask(ZfsBaseTask):
 class ZfsCloneTask(ZfsBaseTask):
     @classmethod
     def early_describe(cls):
-        pass
+        return 'Cloning ZFS object'
 
-    def describe(self, *args, **kwargs):
-        pass
+    def describe(self, name, new_name):
+        return TaskDescription('Cloning ZFS object {name} to {new_name}', name=name, new_name=new_name)
 
     def run(self, name, new_name):
         try:
@@ -974,10 +1000,14 @@ class ZfsCloneTask(ZfsBaseTask):
 class ZfsSendTask(ZfsBaseTask):
     @classmethod
     def early_describe(cls):
-        pass
+        return 'Sending ZFS replication stream'
 
-    def describe(self, *args, **kwargs):
-        pass
+    def describe(self, name, fromsnap, tosnap, fd):
+        return TaskDescription(
+            'Sending ZFS replication stream from snapshot {fromsnap} to snapshot {tosnap}',
+            fromsnap=fromsnap,
+            tosnap=tosnap
+        )
 
     def run(self, name, fromsnap, tosnap, fd):
         try:
@@ -998,10 +1028,13 @@ class ZfsSendTask(ZfsBaseTask):
 class ZfsReceiveTask(Task):
     @classmethod
     def early_describe(cls):
-        pass
+        return 'Receiving ZFS replication stream'
 
-    def describe(self, *args, **kwargs):
-        pass
+    def describe(self, name, fd, force=False, nomount=False, props=None, limitds=None):
+        return TaskDescription(
+            'Receiving ZFS replication stream into {name} dataset',
+            name=name.split('/')[0] if name else ''
+        )
 
     def verify(self, name, fd, force=False, nomount=False, props=None, limitds=None):
         try:

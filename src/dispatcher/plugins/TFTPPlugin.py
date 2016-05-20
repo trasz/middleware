@@ -52,10 +52,10 @@ class TFTPProvider(Provider):
 class TFTPConfigureTask(Task):
     @classmethod
     def early_describe(cls):
-        pass
-
-    def describe(self, share):
         return 'Configuring TFTP service'
+
+    def describe(self, tftp):
+        return TaskDescription('Configuring TFTP service')
 
     def verify(self, tftp):
         errors = []

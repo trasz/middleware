@@ -52,10 +52,10 @@ class FTPProvider(Provider):
 class FTPConfigureTask(Task):
     @classmethod
     def early_describe(cls):
-        pass
-
-    def describe(self, share):
         return 'Configuring FTP service'
+
+    def describe(self, ftp):
+        return TaskDescription('Configuring FTP service')
 
     def verify(self, ftp):
         errors = ValidationException()

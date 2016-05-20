@@ -168,10 +168,10 @@ class AlertsFiltersProvider(Provider):
 class AlertFilterCreateTask(Task):
     @classmethod
     def early_describe(cls):
-        pass
+        return 'Creating alert filter'
 
     def describe(self, alertfilter):
-        return TaskDescription('Creating alert filter {name}', name=alertfilter['name'])
+        return TaskDescription('Creating alert filter {name}', name=alertfilter.get('name', '') if alertfilter else '')
 
     def verify(self, alertfilter):
         return []
@@ -190,11 +190,11 @@ class AlertFilterCreateTask(Task):
 class AlertFilterDeleteTask(Task):
     @classmethod
     def early_describe(cls):
-        pass
+        return 'Deleting alert filter'
 
     def describe(self, id):
         alertfilter = self.datastore.get_by_id('alert.filters', id)
-        return TaskDescription('Deleting alert filter {name}', name=alertfilter['name'] if alertfilter else id)
+        return TaskDescription('Deleting alert filter {name}', name=alertfilter.get('name', id) if alertfilter else id)
 
     def verify(self, id):
 
@@ -227,11 +227,11 @@ class AlertFilterDeleteTask(Task):
 class AlertFilterUpdateTask(Task):
     @classmethod
     def early_describe(cls):
-        pass
+        return 'Updating alert filter'
 
     def describe(self, id, updated_fields):
         alertfilter = self.datastore.get_by_id('alert.filters', id)
-        return TaskDescription('Updating alert filter {name}', name=alertfilter['id'] if alertfilter else None)
+        return TaskDescription('Updating alert filter {name}', name=alertfilter.get('name', id) if alertfilter else id)
 
     def verify(self, id, updated_fields):
         return []
@@ -254,14 +254,14 @@ class AlertFilterUpdateTask(Task):
 
 
 @accepts(str, h.ref('alert-severity'))
-@description('Sends alerts')
+@description('Sends user alerts')
 class SendAlertTask(Task):
     @classmethod
     def early_describe(cls):
-        pass
+        return 'Sending user alert'
 
-    def describe(self, *args, **kwargs):
-        pass
+    def describe(self, message, priority=None):
+        return TaskDescription('Sending user alert')
 
     def verify(self, message, priority=None):
         return []

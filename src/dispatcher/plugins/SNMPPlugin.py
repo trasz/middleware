@@ -49,10 +49,10 @@ class SNMPProvider(Provider):
 class SNMPConfigureTask(Task):
     @classmethod
     def early_describe(cls):
-        pass
+        return 'Configuring SNMP service'
 
     def describe(self, snmp):
-        return 'Configuring SNMP service'
+        return TaskDescription('Configuring SNMP service')
 
     def verify(self, snmp):
         errors = ValidationException()

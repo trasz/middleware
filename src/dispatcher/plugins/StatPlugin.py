@@ -179,10 +179,10 @@ class SystemStatProvider(Provider):
 class UpdateAlertTask(Task):
     @classmethod
     def early_describe(cls):
-        pass
+        return 'Updating alert levels of statistic'
 
-    def describe(self, *args, **kwargs):
-        pass
+    def describe(self, name, stat):
+        return TaskDescription('Updating alert levels of statistic {name}', name=name)
 
     def verify(self, name, stat):
         if name not in self.dispatcher.call_sync('statd.output.get_data_sources'):

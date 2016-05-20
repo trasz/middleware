@@ -50,10 +50,10 @@ class SSHProvider(Provider):
 class SSHConfigureTask(Task):
     @classmethod
     def early_describe(cls):
-        pass
+        return 'Configuring SSH service'
 
     def describe(self, ssh):
-        return 'Configuring SSH service'
+        return TaskDescription('Configuring SSH service')
 
     def verify(self, ssh):
         return ['system']

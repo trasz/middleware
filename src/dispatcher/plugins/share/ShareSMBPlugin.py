@@ -65,8 +65,12 @@ class SMBSharesProvider(Provider):
 @description("Adds new SMB share")
 @accepts(h.ref('share'))
 class CreateSMBShareTask(Task):
+    @classmethod
+    def early_describe(cls):
+        return "Creating SMB share"
+
     def describe(self, share):
-        return "Creating SMB share {0}".format(share['name'])
+        return TaskDescription("Creating SMB share {name}", name=share.get('name', '') if share else '')
 
     def verify(self, share):
         return ['service:smb']
@@ -109,8 +113,13 @@ class CreateSMBShareTask(Task):
 @description("Updates existing SMB share")
 @accepts(str, h.ref('share'))
 class UpdateSMBShareTask(Task):
+    @classmethod
+    def early_describe(cls):
+        return "Updating SMB share"
+
     def describe(self, id, updated_fields):
-        return "Updating SMB share {0}".format(id)
+        share = self.datastore.get_by_id('shares', id)
+        return TaskDescription("Updating SMB share {name}", name=share.get('name', id) if share else id)
 
     def verify(self, id, updated_fields):
         return ['service:smb']
@@ -140,8 +149,13 @@ class UpdateSMBShareTask(Task):
 @description("Removes SMB share")
 @accepts(str)
 class DeleteSMBShareTask(Task):
+    @classmethod
+    def early_describe(cls):
+        return "Deleting SMB share"
+
     def describe(self, id):
-        return "Deleting SMB share {0}".format(id)
+        share = self.datastore.get_by_id('shares', id)
+        return TaskDescription("Deleting SMB share {name}", name=share.get('name', id) if share else id)
 
     def verify(self, id):
         return ['service:smb']
@@ -169,8 +183,12 @@ class DeleteSMBShareTask(Task):
 @description("Imports existing SMB share")
 @accepts(h.ref('share'))
 class ImportSMBShareTask(CreateSMBShareTask):
+    @classmethod
+    def early_describe(cls):
+        return "Importing SMB share"
+
     def describe(self, share):
-        return "Importing SMB share {0}".format(share['name'])
+        return TaskDescription("Importing SMB share {name}", name=share.get('name', '') if share else '')
 
     def verify(self, share):
         return super(ImportSMBShareTask, self).verify(share)
@@ -181,6 +199,13 @@ class ImportSMBShareTask(CreateSMBShareTask):
 
 @description('Terminates SMB connection')
 class TerminateSMBConnectionTask(Task):
+    @classmethod
+    def early_describe(cls):
+        return 'Terminating SMB connection'
+
+    def describe(self, address):
+        return TaskDescription('Terminating SMB connection with {name}', name=address)
+
     def verify(self, address):
         return ['system']
 

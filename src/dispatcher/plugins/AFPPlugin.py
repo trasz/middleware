@@ -50,10 +50,10 @@ class AFPProvider(Provider):
 class AFPConfigureTask(Task):
     @classmethod
     def early_describe(cls):
-        pass
+        return 'Configuring AFP service'
 
     def describe(self, share):
-        return 'Configuring AFP service'
+        return TaskDescription('Configuring AFP service')
 
     def verify(self, afp):
 

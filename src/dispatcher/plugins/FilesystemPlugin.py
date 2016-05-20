@@ -186,10 +186,10 @@ class FilesystemProvider(Provider):
 class DownloadFileTask(Task):
     @classmethod
     def early_describe(cls):
-        pass
+        return 'Downloading file'
 
-    def describe(self, *args, **kwargs):
-        pass
+    def describe(self, connection):
+        return TaskDescription('Downloading file')
 
     def verify(self, connection):
         return []
@@ -212,10 +212,10 @@ class DownloadFileTask(Task):
 class UploadFileTask(Task):
     @classmethod
     def early_describe(cls):
-        pass
+        return 'Uploading file'
 
-    def describe(self, *args, **kwargs):
-        pass
+    def describe(self, connection):
+        return TaskDescription('Uploading file')
 
     def verify(self, connection):
         return []
@@ -237,10 +237,10 @@ class UploadFileTask(Task):
 class SetPermissionsTask(Task):
     @classmethod
     def early_describe(cls):
-        pass
+        return 'Setting permissions'
 
-    def describe(self, *args, **kwargs):
-        pass
+    def describe(self, path, permissions, recursive=False):
+        return TaskDescription('Setting permissions on path {name}', name=path)
 
     def verify(self, path, permissions, recursive=False):
         if not os.path.exists(path):

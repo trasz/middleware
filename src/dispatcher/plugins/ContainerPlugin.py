@@ -262,10 +262,10 @@ class ContainerBaseTask(Task):
 class ContainerCreateTask(ContainerBaseTask):
     @classmethod
     def early_describe(cls):
-        pass
+        return 'Creating container'
 
-    def describe(self, *args, **kwargs):
-        pass
+    def describe(self, container):
+        return TaskDescription('Creating container {name}', name=container.get('name', ''))
 
     def verify(self, container):
         if not self.dispatcher.call_sync('volume.query', [('id', '=', container['target'])], {'single': True}):
@@ -334,10 +334,10 @@ class ContainerCreateTask(ContainerBaseTask):
 class ContainerImportTask(ContainerBaseTask):
     @classmethod
     def early_describe(cls):
-        pass
+        return 'Importing container'
 
-    def describe(self, *args, **kwargs):
-        pass
+    def describe(self, name, volume):
+        return TaskDescription('Importing container {name}', name=name)
 
     def verify(self, name, volume):
         if not self.dispatcher.call_sync('volume.query', [('id', '=', volume)], {'single': True}):
@@ -380,10 +380,15 @@ class ContainerImportTask(ContainerBaseTask):
 class ContainerSetImmutableTask(ContainerBaseTask):
     @classmethod
     def early_describe(cls):
-        pass
+        return 'Updating container\'s immutable property'
 
-    def describe(self, *args, **kwargs):
-        pass
+    def describe(self, id, immutable):
+        container = self.datastore.get_by_id('containers', id)
+        return TaskDescription(
+            'Setting {name} container\'s immutable property to {value}',
+            name=container.get('name', '') if container else '',
+            value='on' if immutable else 'off'
+        )
 
     def verify(self, id, immutable):
         if not self.datastore.exists('containers', ('id', '=', id)):
@@ -407,10 +412,11 @@ class ContainerSetImmutableTask(ContainerBaseTask):
 class ContainerUpdateTask(ContainerBaseTask):
     @classmethod
     def early_describe(cls):
-        pass
+        return 'Updating container'
 
-    def describe(self, *args, **kwargs):
-        pass
+    def describe(self, id, updated_params):
+        container = self.datastore.get_by_id('containers', id)
+        return TaskDescription('Updating container {name}', name=container.get('name', '') if container else '')
 
     def verify(self, id, updated_params):
         if not self.datastore.exists('containers', ('id', '=', id)):
@@ -474,10 +480,11 @@ class ContainerUpdateTask(ContainerBaseTask):
 class ContainerDeleteTask(Task):
     @classmethod
     def early_describe(cls):
-        pass
+        return 'Deleting container'
 
-    def describe(self, *args, **kwargs):
-        pass
+    def describe(self, id):
+        container = self.datastore.get_by_id('containers', id)
+        return TaskDescription('Deleting container {name}', name=container.get('name', '') if container else '')
 
     def verify(self, id):
         if not self.datastore.exists('containers', ('id', '=', id)):
@@ -521,10 +528,11 @@ class ContainerDeleteTask(Task):
 class ContainerExportTask(Task):
     @classmethod
     def early_describe(cls):
-        pass
+        return 'Exporting container'
 
-    def describe(self, *args, **kwargs):
-        pass
+    def describe(self, id):
+        container = self.datastore.get_by_id('containers', id)
+        return TaskDescription('Exporting container {name}', name=container.get('name', '') if container else '')
 
     def verify(self, id):
         if not self.datastore.exists('containers', ('id', '=', id)):
@@ -545,10 +553,11 @@ class ContainerExportTask(Task):
 class ContainerStartTask(Task):
     @classmethod
     def early_describe(cls):
-        pass
+        return 'Starting container'
 
-    def describe(self, *args, **kwargs):
-        pass
+    def describe(self, id):
+        container = self.datastore.get_by_id('containers', id)
+        return TaskDescription('Starting container {name}', name=container.get('name', '') if container else '')
 
     def verify(self, id):
         container = self.dispatcher.call_sync('container.query', [('id', '=', id)], {'single': True})
@@ -569,10 +578,11 @@ class ContainerStartTask(Task):
 class ContainerStopTask(Task):
     @classmethod
     def early_describe(cls):
-        pass
+        return 'Stopping container'
 
-    def describe(self, *args, **kwargs):
-        pass
+    def describe(self, id, force=False):
+        container = self.datastore.get_by_id('containers', id)
+        return TaskDescription('Stopping container {name}', name=container.get('name', '') if container else '')
 
     def verify(self, id, force=False):
         return ['system']
@@ -592,10 +602,10 @@ class DownloadImageTask(ProgressTask):
 
     @classmethod
     def early_describe(cls):
-        pass
+        return 'Downloading container image'
 
-    def describe(self, *args, **kwargs):
-        pass
+    def describe(self, url, sha256, vmdir, destination):
+        return TaskDescription('Downloading container image {name}', name=url or '')
 
     def verify(self, url, sha256, vmdir, destination):
         return []
@@ -627,10 +637,10 @@ class DownloadImageTask(ProgressTask):
 class VMTemplateFetchTask(ProgressTask):
     @classmethod
     def early_describe(cls):
-        pass
+        return 'Downloading container templates'
 
-    def describe(self, *args, **kwargs):
-        pass
+    def describe(self):
+        return TaskDescription('Downloading container templates')
 
     def verify(self):
         return []

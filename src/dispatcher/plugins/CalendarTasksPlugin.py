@@ -50,7 +50,7 @@ class CalendarTasksProvider(Provider):
 class CreateCalendarTask(Task):
     @classmethod
     def early_describe(cls):
-        pass
+        return "Creating calendar task"
 
     def describe(self, task):
         return TaskDescription("Creating calendar task {name}", name=task['name'])
@@ -81,7 +81,7 @@ class CreateCalendarTask(Task):
 class UpdateCalendarTask(Task):
     @classmethod
     def early_describe(cls):
-        pass
+        return "Updating calendar task"
 
     def describe(self, id, updated_params):
         return TaskDescription("Updating calendar task {name}", name=id)
@@ -106,10 +106,10 @@ class UpdateCalendarTask(Task):
 class DeleteCalendarTask(Task):
     @classmethod
     def early_describe(cls):
-        pass
+        return "Deleting calendar task"
 
     def describe(self, id):
-        return TaskDescription("Updating calendar task {name}", name=id)
+        return TaskDescription("Deleting calendar task {name}", name=id)
 
     def verify(self, id):
         return ['system']
@@ -131,7 +131,7 @@ class DeleteCalendarTask(Task):
 class RunCalendarTask(Task):
     @classmethod
     def early_describe(cls):
-        pass
+        return "Starting calendar task"
 
     def describe(self, id):
         return TaskDescription("Starting calendar task {name}", name=id)
@@ -151,7 +151,7 @@ class RunCalendarTask(Task):
 class CommandTask(Task):
     @classmethod
     def early_describe(cls):
-        pass
+        return "Starting shell command"
 
     def describe(self, user, command):
         return TaskDescription("Starting command {name} as {user}", name=command, user=user)

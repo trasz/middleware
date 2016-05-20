@@ -50,10 +50,10 @@ class WebDAVProvider(Provider):
 class WebDAVConfigureTask(Task):
     @classmethod
     def early_describe(cls):
-        pass
-
-    def describe(self, share):
         return 'Configuring WebDAV service'
+
+    def describe(self, webdav):
+        return TaskDescription('Configuring WebDAV service')
 
     def verify(self, webdav):
         errors = ValidationException()

@@ -84,14 +84,14 @@ class DirectoryServicesProvider(Provider):
         h.forbidden('id')
     )
 )
-@description("Adds new AFP share")
+@description("Creates directory service")
 class DirectoryServiceCreateTask(Task):
     @classmethod
     def early_describe(cls):
-        pass
+        return "Creating directory service"
 
-    def describe(self, *args, **kwargs):
-        pass
+    def describe(self, directoryservice):
+        return TaskDescription("Creating directory service {name}", name=directoryservice.get('name', ''))
 
     def verify(self, directoryservice):
         dstypes = self.dispatcher.call_sync('dsd.configuration.get_supported_directories')
@@ -114,10 +114,11 @@ class DirectoryServiceCreateTask(Task):
 class DirectoryServiceUpdateTask(Task):
     @classmethod
     def early_describe(cls):
-        pass
+        return "Updating directory service"
 
-    def describe(self, *args, **kwargs):
-        pass
+    def describe(self, id, updated_fields):
+        service = self.datastore.get_by_id('directoryservices', id)
+        return TaskDescription("Updating directory service {name}", name=service.get('name', '') if service else '')
 
     def verify(self, id, updated_fields):
         directoryservice = self.dispatcher.call_sync('dsd.configuration.verify', id)
@@ -133,10 +134,11 @@ class DirectoryServiceUpdateTask(Task):
 class DirectoryServiceDeleteTask(Task):
     @classmethod
     def early_describe(cls):
-        pass
+        return 'Deleting directory service'
 
-    def describe(self, *args, **kwargs):
-        pass
+    def describe(self, id):
+        service = self.datastore.get_by_id('directoryservices', id)
+        return TaskDescription("Deleting directory service {name}", name=service.get('name', '') if service else '')
 
     def verify(self, id):
         directoryservice = self.dispatcher.call_sync('dsd.configuration.verify', id)
@@ -152,10 +154,11 @@ class DirectoryServiceDeleteTask(Task):
 class DirectoryServiceEnableTask(Task):
     @classmethod
     def early_describe(cls):
-        pass
+        return 'Enabling directory service'
 
-    def describe(self, *args, **kwargs):
-        pass
+    def describe(self, id):
+        service = self.datastore.get_by_id('directoryservices', id)
+        return TaskDescription("Enabling directory service {name}", name=service.get('name', '') if service else '')
 
     def verify(self, id):
         directoryservice = self.dispatcher.call_sync('dsd.configuration.verify', id)
@@ -167,14 +170,15 @@ class DirectoryServiceEnableTask(Task):
         return self.dispatcher.call_sync('dsd.configuration.enable', id)
 
 
-@description("Disablle directory service")
+@description("Disable directory service")
 class DirectoryServiceDisableTask(Task):
     @classmethod
     def early_describe(cls):
-        pass
+        return 'Disabling directory service'
 
-    def describe(self, *args, **kwargs):
-        pass
+    def describe(self, id):
+        service = self.datastore.get_by_id('directoryservices', id)
+        return TaskDescription("Disabling directory service {name}", name=service.get('name', '') if service else '')
 
     def verify(self, id):
         directoryservice = self.dispatcher.call_sync('dsd.configuration.verify', id)
@@ -190,10 +194,14 @@ class DirectoryServiceDisableTask(Task):
 class DirectoryServiceGetTask(Task):
     @classmethod
     def early_describe(cls):
-        pass
+        return 'Fetching directory service servers'
 
-    def describe(self, *args, **kwargs):
-        pass
+    def describe(self, args):
+        service = self.datastore.get_by_id('directoryservices', args[0])
+        return TaskDescription(
+            "Fetching directory service servers {name}",
+            name=service.get('name', '') if service else ''
+        )
 
     def verify(self, args):
         self.logger.debug("XXX: DirectoryServiceGetTask.verify: args = %s", args)
@@ -217,10 +225,14 @@ class DirectoryServiceGetTask(Task):
 class DirectoryServiceConfigureTask(Task):
     @classmethod
     def early_describe(cls):
-        pass
+        return 'Configuring directory service'
 
-    def describe(self, *args, **kwargs):
-        pass
+    def describe(self, args):
+        service = self.datastore.get_by_id('directoryservices', args[0])
+        return TaskDescription(
+            "Configuring directory service {name}",
+            name=service.get('name', '') if service else ''
+        )
 
     def verify(self, args):
         id = args[0] 
@@ -247,10 +259,10 @@ class DirectoryServiceConfigureTask(Task):
 class DirectoryServiceKerberosTicketTask(Task):
     @classmethod
     def early_describe(cls):
-        pass
+        return 'Obtaining Kerberos ticket'
 
-    def describe(self, *args, **kwargs):
-        pass
+    def describe(self, id):
+        return TaskDescription('Obtaining Kerberos ticket {name}', name=id)
 
     def verify(self, id):
         return ['directoryservice']
@@ -267,10 +279,10 @@ class DirectoryServiceKerberosTicketTask(Task):
 class DirectoryServiceJoinActiveDirectoryTask(Task):
     @classmethod
     def early_describe(cls):
-        pass
+        return 'Joining Active Directory'
 
-    def describe(self, *args, **kwargs):
-        pass
+    def describe(self, id):
+        return TaskDescription('Joining Active Directory {name}', name=id)
 
     def verify(self, id):
         return ['directoryservice']

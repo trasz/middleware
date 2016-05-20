@@ -74,10 +74,10 @@ class SupportProvider(Provider):
 class SupportSubmitTask(Task):
     @classmethod
     def early_describe(cls):
-        pass
+        return 'Submitting ticket'
 
     def describe(self, ticket):
-        return 'Submitting ticket'
+        return TaskDescription('Submitting ticket')
 
     def verify(self, ticket):
         return ['system']

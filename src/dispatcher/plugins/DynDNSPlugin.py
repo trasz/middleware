@@ -70,10 +70,10 @@ class DynDNSProvider(Provider):
 class DynDNSConfigureTask(Task):
     @classmethod
     def early_describe(cls):
-        pass
-
-    def describe(self, share):
         return 'Configuring DynamicDNS service'
+
+    def describe(self, dyndns):
+        return TaskDescription('Configuring DynamicDNS service')
 
     def verify(self, dyndns):
         errors = []

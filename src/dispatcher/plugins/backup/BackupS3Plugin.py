@@ -40,10 +40,10 @@ CHUNK_SIZE = 5 * 1024 * 1024
 class BackupS3ListTask(Task):
     @classmethod
     def early_describe(cls):
-        pass
+        return 'Listing information about S3 backup'
 
-    def describe(self, *args, **kwargs):
-        pass
+    def describe(self, backup):
+        return TaskDescription('Listing information about S3 backup')
 
     def verify(self, backup):
         return []
@@ -80,10 +80,10 @@ class BackupS3ListTask(Task):
 class BackupS3InitTask(Task):
     @classmethod
     def early_describe(cls):
-        pass
+        return 'Initializing S3 backup'
 
-    def describe(self, *args, **kwargs):
-        pass
+    def describe(self, backup):
+        return TaskDescription('Initializing S3 backup')
 
     def verify(self, backup):
         return []
@@ -96,10 +96,10 @@ class BackupS3InitTask(Task):
 class BackupS3PutTask(ProgressTask):
     @classmethod
     def early_describe(cls):
-        pass
+        return 'Putting new data onto S3 backup'
 
-    def describe(self, *args, **kwargs):
-        pass
+    def describe(self, backup, name, fd):
+        return TaskDescription('Putting new data onto S3 backup {name}', name=name)
 
     def verify(self, backup, name, fd):
         return []
@@ -158,10 +158,10 @@ class BackupS3PutTask(ProgressTask):
 class BackupS3GetTask(Task):
     @classmethod
     def early_describe(cls):
-        pass
+        return 'Getting data from S3 backup'
 
-    def describe(self, *args, **kwargs):
-        pass
+    def describe(self, backup, name, fd):
+        return TaskDescription('Getting data from S3 backup {name}', name=name)
 
     def verify(self, backup, name, fd):
         return []

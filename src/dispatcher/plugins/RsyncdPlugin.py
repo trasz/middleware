@@ -66,10 +66,10 @@ class RsyncdModuleProvider(Provider):
 class RsyncdConfigureTask(Task):
     @classmethod
     def early_describe(cls):
-        pass
-
-    def describe(self, share):
         return 'Configuring Rsyncd service'
+
+    def describe(self, rsyncd):
+        return TaskDescription('Configuring Rsyncd service')
 
     def verify(self, rsyncd):
         errors = []
@@ -103,10 +103,10 @@ class RsyncdConfigureTask(Task):
 class RsyncdModuleCreateTask(Task):
     @classmethod
     def early_describe(cls):
-        pass
+        return 'Adding rsync module'
 
     def describe(self, rsyncmod):
-        return 'Adding rsync module'
+        return TaskDescription('Adding rsync module {name}', name=rsyncmod.get('name', '') or '')
 
     def verify(self, rsyncmod):
         errors = ValidationException()
@@ -143,10 +143,11 @@ class RsyncdModuleCreateTask(Task):
 class RsyncdModuleUpdateTask(Task):
     @classmethod
     def early_describe(cls):
-        pass
+        return 'Updating rsync module'
 
     def describe(self, uuid, updated_fields):
-        return 'Updating rsync module'
+        rsyncmod = self.datastore.get_by_id('rsyncd-module', uuid)
+        return TaskDescription('Updating rsync module {name}', name=rsyncmod.get('name', '') if rsyncmod else '')
 
     def verify(self, uuid, updated_fields):
 
@@ -190,10 +191,11 @@ class RsyncdModuleUpdateTask(Task):
 class RsyncdModuleDeleteTask(Task):
     @classmethod
     def early_describe(cls):
-        pass
+        return 'Deleting rsync module'
 
     def describe(self, uuid):
-        return 'Deleting rsync module'
+        rsyncmod = self.datastore.get_by_id('rsyncd-module', uuid)
+        return TaskDescription('Deleting rsync module {name}', name=rsyncmod.get('name', '') if rsyncmod else '')
 
     def verify(self, uuid):
 
@@ -240,10 +242,15 @@ def demote(user_uid, user_gid):
 class RsyncCopyTask(ProgressTask):
     @classmethod
     def early_describe(cls):
-        pass
+        return 'Running Rsync Copy Task with user specified arguments'
 
     def describe(self, params):
-        return 'Running Rsync Copy Task with user specified arguments'
+        return TaskDescription(
+            'Running Rsync Copy Task {path} => {name}:{remote_path}',
+            path=params.get('path', '') if params else '',
+            name=params.get('user', '') + '@' + params.get('remote_host', '') if params else '',
+            remote_path=params.get('remote_path', '') if params else ''
+        )
 
     def verify(self, params):
         errors = ValidationException()

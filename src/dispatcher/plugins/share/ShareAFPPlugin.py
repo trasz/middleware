@@ -92,10 +92,10 @@ class AFPSharesProvider(Provider):
 class CreateAFPShareTask(Task):
     @classmethod
     def early_describe(cls):
-        pass
+        return "Creating AFP share"
 
     def describe(self, share):
-        return "Creating AFP share {0}".format(share['name'])
+        return TaskDescription("Creating AFP share {name}", name=share.get('name', '') if share else '')
 
     def verify(self, share):
         return ['service:afp']
@@ -136,10 +136,11 @@ class CreateAFPShareTask(Task):
 class UpdateAFPShareTask(Task):
     @classmethod
     def early_describe(cls):
-        pass
+        return "Updating AFP share"
 
     def describe(self, id, updated_fields):
-        return "Updating AFP share {0}".format(id)
+        share = self.datastore.get_by_id('shares', id)
+        return TaskDescription("Updating AFP share {name}", name=share.get('name', id) if share else id)
 
     def verify(self, id, updated_fields):
         return ['service:afp']
@@ -162,10 +163,11 @@ class UpdateAFPShareTask(Task):
 class DeleteAFPShareTask(Task):
     @classmethod
     def early_describe(cls):
-        pass
+        return "Deleting AFP share"
 
-    def describe(self, name):
-        return "Deleting AFP share {0}".format(name)
+    def describe(self, id):
+        share = self.datastore.get_by_id('shares', id)
+        return TaskDescription("Deleting AFP share {name}", name=share.get('name', id) if share else id)
 
     def verify(self, id):
         return ['service:afp']
@@ -191,10 +193,10 @@ class DeleteAFPShareTask(Task):
 class ImportAFPShareTask(CreateAFPShareTask):
     @classmethod
     def early_describe(cls):
-        pass
+        return "Importing AFP share"
 
     def describe(self, share):
-        return "Importing AFP share {0}".format(share['name'])
+        return TaskDescription("Importing AFP share {name}", name=share.get('name', '') if share else '')
 
     def verify(self, share):
         return super(ImportAFPShareTask, self).verify(share)
@@ -207,10 +209,10 @@ class ImportAFPShareTask(CreateAFPShareTask):
 class TerminateAFPConnectionTask(Task):
     @classmethod
     def early_describe(cls):
-        pass
+        return 'Terminating AFP connection'
 
-    def describe(self, *args, **kwargs):
-        pass
+    def describe(self, address):
+        return TaskDescription('Terminating AFP connection from {name}', name=address)
 
     def verify(self, address):
         return ['system']

@@ -49,10 +49,10 @@ class FakeDisksProvider(Provider):
 class CreateFakeDisk(Task):
     @classmethod
     def early_describe(cls):
-        pass
+        return "Creating simulated disk"
 
     def describe(self, disk):
-        return TaskDescription("Creating simulated disk {name}", name=disk['id'])
+        return TaskDescription("Creating simulated disk {name}", name=disk.get('path', '') if disk else '')
 
     def verify(self, disk):
         return ['system']
@@ -91,10 +91,11 @@ class CreateFakeDisk(Task):
 class ConfigureFakeDisk(Task):
     @classmethod
     def early_describe(cls):
-        pass
+        return "Updating simulated disk"
 
     def describe(self, id, updated_params):
-        return TaskDescription("Updating simulated disk {name}", name=id)
+        disk = self.datastore.get_by_id('simulator.disks', id)
+        return TaskDescription("Updating simulated disk {name}", name=disk.get('path', id) if disk else id)
 
     def verify(self, id, updated_params):
         if not self.datastore.exists('simulator.disks', ('id', '=', id)):
@@ -115,10 +116,11 @@ class ConfigureFakeDisk(Task):
 class DeleteFakeDisk(Task):
     @classmethod
     def early_describe(cls):
-        pass
+        return "Deleting simulated disk"
 
     def describe(self, id):
-        return TaskDescription("Deleting simulated disk {name}", name=id)
+        disk = self.datastore.get_by_id('simulator.disks', id)
+        return TaskDescription("Deleting simulated disk {name}", name=disk.get('path', id) if disk else id)
 
     def verify(self, id):
         if not self.datastore.exists('simulator.disks', ('id', '=', id)):

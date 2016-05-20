@@ -62,8 +62,12 @@ class NFSSharesProvider(Provider):
 @accepts(h.ref('share'))
 @description("Adds new NFS share")
 class CreateNFSShareTask(Task):
+    @classmethod
+    def early_describe(cls):
+        return "Creating NFS share"
+
     def describe(self, share):
-        return "Creating NFS share {0}".format(share['name'])
+        return TaskDescription("Creating NFS share {name}", name=share.get('name', '') if share else '')
 
     def verify(self, share):
         properties = share['properties']
@@ -95,8 +99,13 @@ class CreateNFSShareTask(Task):
 @accepts(str, h.ref('share'))
 @description("Updates existing NFS share")
 class UpdateNFSShareTask(Task):
+    @classmethod
+    def early_describe(cls):
+        return "Updating NFS share"
+
     def describe(self, id, updated_fields):
-        return "Updating NFS share {0}".format(id)
+        share = self.datastore.get_by_id('shares', id)
+        return TaskDescription("Updating NFS share {name}", name=share.get('name', id) if share else id)
 
     def verify(self, id, updated_fields):
         if 'properties' in updated_fields:
@@ -123,8 +132,13 @@ class UpdateNFSShareTask(Task):
 @accepts(str)
 @description("Removes NFS share")
 class DeleteNFSShareTask(Task):
+    @classmethod
+    def early_describe(cls):
+        return "Deleting NFS share"
+
     def describe(self, id):
-        return "Deleting NFS share {0}".format(id)
+        share = self.datastore.get_by_id('shares', id)
+        return TaskDescription("Deleting NFS share {name}", name=share.get('name', id) if share else id)
 
     def verify(self, id):
         return ['service:nfs']
@@ -143,8 +157,12 @@ class DeleteNFSShareTask(Task):
 @accepts(h.ref('share'))
 @description("Imports existing NFS share")
 class ImportNFSShareTask(CreateNFSShareTask):
+    @classmethod
+    def early_describe(cls):
+        return "Importing NFS share"
+
     def describe(self, share):
-        return "Importing NFS share {0}".format(share['name'])
+        return TaskDescription("Importing NFS share {name}", name=share.get('name', '') if share else '')
 
     def verify(self, share):
         properties = share['properties']
@@ -161,6 +179,13 @@ class ImportNFSShareTask(CreateNFSShareTask):
 @private
 @description('Terminates NFS connection')
 class TerminateNFSConnectionTask(Task):
+    @classmethod
+    def early_describe(cls):
+        return 'Terminating NFS connection'
+
+    def describe(self, address):
+        return TaskDescription('Terminating NFS connection with {name}', name=address)
+
     def verify(self, address):
         return []
 

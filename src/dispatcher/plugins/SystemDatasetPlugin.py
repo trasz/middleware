@@ -234,10 +234,10 @@ class SystemDatasetProvider(Provider):
 class SystemDatasetConfigure(Task):
     @classmethod
     def early_describe(cls):
-        pass
+        return 'Updating .system dataset configuration'
 
-    def describe(self, *args, **kwargs):
-        pass
+    def describe(self, pool):
+        return TaskDescription('Updating .system dataset configuration')
 
     def verify(self, pool):
         return ['system']
@@ -267,10 +267,10 @@ class SystemDatasetConfigure(Task):
 class SystemDatasetImport(Task):
     @classmethod
     def early_describe(cls):
-        pass
+        return 'Importing .system dataset from volume'
 
-    def describe(self, *args, **kwargs):
-        pass
+    def describe(self, pool):
+        return TaskDescription('Importing .system dataset from volume {name}', name=pool)
 
     def verify(self, pool):
         if not self.dispatcher.call_sync('zfs.dataset.query', [('pool', '=', pool), ('name', '~', '.system')], {'single': True}):
