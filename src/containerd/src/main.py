@@ -48,6 +48,7 @@ import select
 import tempfile
 import ipaddress
 import pf
+from bsd import kld
 from gevent.queue import Queue, Channel
 from gevent.event import Event
 from geventwebsocket import WebSocketServer, WebSocketApplication, Resource
@@ -662,6 +663,14 @@ class Main(object):
 
         gevent.signal(signal.SIGTERM, self.die)
         gevent.signal(signal.SIGQUIT, self.die)
+
+        # Load pf kernel module
+        try:
+            kld.kldload('/boot/kernel/pf.ko')
+        except OSError as err:
+            if err.errno != errno.EEXIST:
+                self.logger.error('Cannot load PF module: %s', str(err))
+                self.logger.error('NAT unavailable')
 
         self.config = args.c
         self.init_datastore()
