@@ -80,10 +80,10 @@ class ManagementNetwork(object):
         self.bridge_if.up()
 
         # Start DHCP server
-        self.dhcp_server.server_name = 'FreeNAS'
-        self.dhcp_server.on_request = self.dhcp_request
-        self.dhcp_server.start(self.subnet)
-        self.dhcp_server_thread = gevent.spawn(self.dhcp_worker)
+        #self.dhcp_server.server_name = 'FreeNAS'
+        #self.dhcp_server.on_request = self.dhcp_request
+        #self.dhcp_server.start(self.subnet)
+        #self.dhcp_server_thread = gevent.spawn(self.dhcp_worker)
 
     def down(self):
         self.bridge_if.down()
