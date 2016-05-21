@@ -72,7 +72,7 @@ MGMT_INTERFACE = 'mgmt0'
 NAT_ADDR = ipaddress.ip_interface('172.21.0.1/16')
 NAT_INTERFACE = 'nat0'
 DEFAULT_CONFIGFILE = '/usr/local/etc/middleware.conf'
-SCROLLBACK_SIZE = 65536
+SCROLLBACK_SIZE = 20 * 1024
 
 
 class VirtualMachineState(enum.Enum):
@@ -86,7 +86,7 @@ class BinaryRingBuffer(object):
         self.data = bytearray(size)
 
     def push(self, data):
-        #del self.data[0:len(data)]
+        del self.data[0:len(data)]
         self.data += data
 
     def read(self):
