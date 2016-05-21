@@ -290,6 +290,8 @@ class ContainerCreateTask(ContainerBaseTask):
             if template is None:
                 raise TaskException(errno.ENOENT, 'Template {0} not found'.format(container['template'].get('name')))
 
+            template['config']['memsize'] = template['config']['memsize'] * 1024 * 1024
+
             result = {}
             for key in container:
                 if container[key]:
