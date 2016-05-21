@@ -61,7 +61,7 @@ class ManagementNetwork(object):
         self.allocations = {}
         self.logger = logging.getLogger('ManagementNetwork:{0}'.format(self.ifname))
 
-    def up(self):
+    def up(self, nat=True):
         # Destroy old bridge (if exists)
         try:
             netif.destroy_interface(self.ifname)
@@ -80,10 +80,11 @@ class ManagementNetwork(object):
         self.bridge_if.up()
 
         # Start DHCP server
-        #self.dhcp_server.server_name = 'FreeNAS'
-        #self.dhcp_server.on_request = self.dhcp_request
-        #self.dhcp_server.start(self.subnet)
-        #self.dhcp_server_thread = gevent.spawn(self.dhcp_worker)
+        if nat:
+            self.dhcp_server.server_name = 'FreeNAS'
+            self.dhcp_server.on_request = self.dhcp_request
+            self.dhcp_server.start(self.subnet)
+            self.dhcp_server_thread = gevent.spawn(self.dhcp_worker)
 
     def down(self):
         self.bridge_if.down()
