@@ -264,7 +264,7 @@ class UpdateShareTask(Task):
 
     def describe(self, id, updated_fields):
         share = self.datastore.get_by_id('shares', id)
-        return TaskDescription("Updating share {name}", name=share('name', id) if share else id)
+        return TaskDescription("Updating share {name}", name=share.get('name', id) if share else id)
 
     def verify(self, id, updated_fields):
         share = self.datastore.get_by_id('shares', id)
