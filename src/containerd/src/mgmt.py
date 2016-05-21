@@ -124,6 +124,8 @@ class ManagementNetwork(object):
             allocation.lease.client_mac = mac
             allocation.lease.client_ip = self.pick_ip_address()
             allocation.lease.client_mask = self.subnet.netmask
+            allocation.lease.router = self.subnet.ip
+            allocation.lease.dns_addresses = [ipaddress.ip_address('8.8.8.8'), ipaddress.ip_address('8.8.4.4')]
             allocation.lease.static_routes = [
                 (ipaddress.ip_network('169.254.169.254/32'), ipaddress.ip_address('169.254.16.1'))
             ]
