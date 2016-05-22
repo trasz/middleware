@@ -116,7 +116,10 @@ class CreateAFPShareTask(Task):
             'groups_allow': None,
             'groups_deny': None,
             'hosts_allow': None,
-            'hosts_deny': None
+            'hosts_deny': None,
+            'default_file_perms': None,
+            'default_directory_perms': None,
+            'default_umask': None
         })
 
         id = self.datastore.insert('shares', share)
