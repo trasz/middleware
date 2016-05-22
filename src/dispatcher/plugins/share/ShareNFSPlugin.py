@@ -91,7 +91,7 @@ class CreateNFSShareTask(Task):
 
         id = self.datastore.insert('shares', share)
         self.dispatcher.call_sync('etcd.generation.generate_group', 'nfs')
-        self.dispatcher.call_sync('service.reload', 'nfs')
+        self.dispatcher.call_sync('service.reload', 'nfs', timeout=60)
         return id
 
 
@@ -121,7 +121,7 @@ class UpdateNFSShareTask(Task):
         share.update(updated_fields)
         self.datastore.update('shares', id, share)
         self.dispatcher.call_sync('etcd.generation.generate_group', 'nfs')
-        self.dispatcher.call_sync('service.reload', 'nfs')
+        self.dispatcher.call_sync('service.reload', 'nfs', timeout=60)
         self.dispatcher.dispatch_event('share.nfs.changed', {
             'operation': 'update',
             'ids': [id]
@@ -146,7 +146,7 @@ class DeleteNFSShareTask(Task):
     def run(self, id):
         self.datastore.delete('shares', id)
         self.dispatcher.call_sync('etcd.generation.generate_group', 'nfs')
-        self.dispatcher.call_sync('service.reload', 'nfs')
+        self.dispatcher.call_sync('service.reload', 'nfs', timeout=60)
         self.dispatcher.dispatch_event('share.nfs.changed', {
             'operation': 'delete',
             'ids': [id]
