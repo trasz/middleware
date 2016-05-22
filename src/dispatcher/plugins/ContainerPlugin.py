@@ -46,8 +46,6 @@ from freenas.utils.query import wrap
 
 
 VM_OUI = '00:a0:98'  # NetApp
-
-
 BLOCKSIZE = 65536
 
 
@@ -124,7 +122,6 @@ class ContainerProvider(Provider):
     @description("Returns list of supported container types")
     def supported_types(self):
         result = ['JAIL', 'VM', 'DOCKER']
-
         return result
 
 
