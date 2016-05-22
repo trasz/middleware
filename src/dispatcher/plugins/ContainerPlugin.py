@@ -240,6 +240,10 @@ class ContainerBaseTask(Task):
             container_ds = os.path.join(container['target'], 'vm', container['name'])
             opts = {}
 
+            normalize(res['properties'], {
+                'auto': False
+            })
+
             if properties['type'] == 'NFS':
                 opts['sharenfs'] = {'value': '-network={0}'.format(str(mgmt_net.network))}
                 if not self.configstore.get('service.nfs.enable'):
@@ -904,6 +908,10 @@ def _init(dispatcher, plugin):
         'type': 'object',
         'additionalProperties': False,
         'properties': {
+            'mode': {
+                'type': 'string',
+                'enum': ['AHCI', 'VIRTIO']
+            },
             'size': {'type': 'integer'}
         }
     })
