@@ -238,6 +238,7 @@ class ContainerBaseTask(Task):
             opts = {}
 
             normalize(res['properties'], {
+                'type': 'VT9P',
                 'auto': False
             })
 
