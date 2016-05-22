@@ -195,9 +195,9 @@ class VirtualMachine(object):
         self.console_thread = gevent.spawn(self.console_worker)
 
     def stop(self, force=False):
-        self.logger.info('Stopping container {0} ({1})'.format(self.name, self.id))
+        self.logger.info('Stopping VM {0}'.format(self.name))
         if self.state == VirtualMachineState.STOPPED:
-            raise RuntimeError()
+            raise RuntimeError('Already stopped')
 
         for i in self.tap_interfaces:
             self.cleanup_tap(i)

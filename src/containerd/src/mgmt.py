@@ -113,8 +113,14 @@ class ManagementNetwork(object):
     def allocate_ip_address(self, mac, hostname):
         allocation = self.allocations.get(mac)
         if not allocation or not allocation.vm():
+            self.logger.debug('Trying to match MAC address {0} and hostname {1} to a container'.format(
+                mac,
+                hostname
+            ))
+
             vm = self.context.vm_by_mgmt_mac(mac)
             if not vm:
+                self.logger.warning('Cannot find a match for MAC {0}'.format(mac))
                 return None
 
             allocation = AddressAllocation()
