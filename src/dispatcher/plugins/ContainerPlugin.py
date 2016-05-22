@@ -217,6 +217,10 @@ class ContainerBaseTask(Task):
                 'volsize': res['properties']['size']
             }))
 
+            normalize(res['properties'], {
+                'mode': 'AHCI'
+            })
+
             if res['properties'].get('source'):
                 self.join_subtasks(self.run_subtask(
                     'container.image.install',

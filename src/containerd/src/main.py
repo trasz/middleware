@@ -123,8 +123,14 @@ class VirtualMachine(object):
 
         for i in self.devices:
             if i['type'] == 'DISK':
+                drivermap = {
+                    'AHCI': 'ahci-hd',
+                    'VIRTIO': 'virtio-blk'
+                }
+
+                driver = drivermap.get(i['properties']['mode'], 'AHCI')
                 path = self.context.client.call_sync('container.get_disk_path', self.id, i['name'])
-                args += ['-s', '{0}:0,ahci-hd,{1}'.format(index, path)]
+                args += ['-s', '{0}:0,{1},{2}'.format(index, driver, path)]
                 index += 1
 
             if i['type'] == 'CDROM':
