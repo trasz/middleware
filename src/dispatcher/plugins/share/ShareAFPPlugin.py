@@ -260,9 +260,15 @@ def _init(dispatcher, plugin):
             'zero_dev_numbers': {'type': 'boolean'},
             'no_stat': {'type': 'boolean'},
             'afp3_privileges': {'type': 'boolean'},
-            'default_file_perms': {'$ref': 'unix-permissions'},
-            'default_directory_perms': {'$ref': 'unix-permissions'},
-            'default_umask': {'$ref': 'unix-permissions'},
+            'default_file_perms': {
+                'oneOf': [{'$ref': 'unix-permissions'}, {'type': 'null'}]
+            },
+            'default_directory_perms': {
+                'oneOf': [{'$ref': 'unix-permissions'}, {'type': 'null'}]
+            },
+            'default_umask': {
+                'oneOf': [{'$ref': 'unix-permissions'}, {'type': 'null'}]
+            },
             'ro_users': {
                 'type': ['array', 'null'],
                 'items': {'type': 'string'}
