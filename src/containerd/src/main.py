@@ -128,7 +128,7 @@ class VirtualMachine(object):
                     'VIRTIO': 'virtio-blk'
                 }
 
-                driver = drivermap.get(i['properties']['mode'], 'AHCI')
+                driver = drivermap.get(i['properties'].get('mode'), 'AHCI')
                 path = self.context.client.call_sync('container.get_disk_path', self.id, i['name'])
                 args += ['-s', '{0}:0,{1},{2}'.format(index, driver, path)]
                 index += 1
