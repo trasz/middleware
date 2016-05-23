@@ -115,26 +115,26 @@ EVENT_MASKS = [
     'service.started'
 ]
 ENTITY_SUBSCRIBERS = [
-    'user',
-    'group',
-    'disk',
-    'volume',
-    'volume.dataset',
-    'volume.snapshot',
-    'network.interface',
-    'network.host',
-    'network.route',
-    'service',
-    'share',
-    'task',
-    'alert',
-    'alert.filter',
-    'container',
-    'syslog',
-    'replication.link',
-    'replication.host',
-    'backup',
-    'boot.environment'
+    'user.query',
+    'group.query',
+    'disk.query',
+    'volume.query',
+    'volume.dataset.query',
+    'volume.snapshot.query',
+    'network.interface.query',
+    'network.host.query',
+    'network.route.query',
+    'service.query',
+    'share.query',
+    'task.query',
+    'alert.query',
+    'alert.filter.query',
+    'container.query',
+    'syslog.query',
+    'replication.link.query',
+    'replication.host.query',
+    'backup.query',
+    'boot.environment.query'
 ]
 
 
