@@ -296,8 +296,6 @@ class ContainerCreateTask(ContainerBaseTask):
             if template is None:
                 raise TaskException(errno.ENOENT, 'Template {0} not found'.format(container['template'].get('name')))
 
-            template['config']['memsize'] = template['config']['memsize'] * 1024 * 1024
-
             result = {}
             for key in container:
                 if container[key]:
@@ -316,7 +314,7 @@ class ContainerCreateTask(ContainerBaseTask):
         })
 
         normalize(container['config'], {
-            'memsize': 512*1024*1024,
+            'memsize': 512,
             'ncpus': 1
         })
 
@@ -471,11 +469,6 @@ class ContainerUpdateTask(ContainerBaseTask):
 
         if not updated_params.get('enabled', True):
             self.join_subtasks(self.run_subtask('container.stop', id))
-
-        config = updated_params.get('config')
-        if config:
-            if 'memsize' in config:
-                updated_params['config']['memsize'] = int(config.get('memsize') / (1024 * 1024))
 
         container.update(updated_params)
         self.datastore.update('containers', id, container)
