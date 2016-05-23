@@ -157,17 +157,27 @@ class ZfsDatasetProvider(Provider):
     def query(self, filter=None, params=None):
         return datasets.query(*(filter or []), **(params or {}))
 
-    @accepts(str)
+    @accepts(h.array(str))
     @returns(h.object())
     def get_properties_allowed_values(self, properties):
+        accessible_properties = ['dedup', 'compression', 'atime', 'casesensitivity']
         try:
             props_allowed_values = {}
             zfs = get_zfs()
             ds = zfs.get_dataset(self.configstore.get('system.boot_pool_name'))
 
             for prop in properties:
-                if prop in ds.properties:
+                if prop in accessible_properties:
                     props_allowed_values[prop] = list(ds.properties[prop].allowed_values.split('|'))
+                    # ZFS separators usage for allowed values of 'dedup' property is inconsisten,
+                    # both comma and pipe symbols are used. This part makes the output list consistent
+                    if prop == 'dedup':
+                        for value in props_allowed_values[prop]:
+                            if ', ' in value:
+                                props_allowed_values[prop].remove(value)
+                                props_allowed_values[prop].extend(value.split(', '))
+                else:
+                    props_allowed_values[prop] = ""
 
             return props_allowed_values
         except libzfs.ZFSException as err:
