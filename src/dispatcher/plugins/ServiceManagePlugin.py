@@ -229,19 +229,19 @@ class ServiceInfoProvider(Provider):
 
         if node['enable'].value and state != 'RUNNING':
             logger.info('Starting service {0}'.format(service))
-            self.dispatcher.call_sync('service.ensure_started', service)
+            self.dispatcher.call_sync('service.ensure_started', service, timeout=120)
 
         elif not node['enable'].value and state != 'STOPPED':
             logger.info('Stopping service {0}'.format(service))
-            self.dispatcher.call_sync('service.ensure_stopped', service)
+            self.dispatcher.call_sync('service.ensure_stopped', service, timeout=120)
 
         else:
             if restart:
                 logger.info('Restarting service {0}'.format(service))
-                self.dispatcher.call_sync('service.restart', service)
+                self.dispatcher.call_sync('service.restart', service, timeout=120)
             elif reload:
                 logger.info('Reloading service {0}'.format(service))
-                self.dispatcher.call_sync('service.reload', service)
+                self.dispatcher.call_sync('service.reload', service, timeout=120)
 
 
 @description("Provides functionality to start, stop, restart or reload service")
@@ -388,7 +388,7 @@ class UpdateServiceConfigTask(Task):
                             break
 
         self.dispatcher.call_sync('etcd.generation.generate_group', 'services')
-        self.dispatcher.call_sync('service.apply_state', service_def['name'], restart, reload, timeout=30)
+        self.dispatcher.call_sync('service.apply_state', service_def['name'], restart, reload, timeout=120)
         self.dispatcher.dispatch_event('service.changed', {
             'operation': 'update',
             'ids': [service_def['id']]
