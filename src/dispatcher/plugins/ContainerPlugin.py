@@ -318,8 +318,6 @@ class ContainerCreateTask(ContainerBaseTask):
             'ncpus': 1
         })
 
-        container['config']['memsize'] = int(container['config']['memsize'] / (1024 * 1024))
-
         self.join_subtasks(self.run_subtask('container.cache.update', container['template']['name']))
 
         self.init_dataset(container)
