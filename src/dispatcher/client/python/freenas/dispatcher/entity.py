@@ -143,7 +143,7 @@ class EntitySubscriber(object):
             self.ready.set()
 
         self.client.call_async(
-            '{0}.query'.format(self.name),
+            self.name,
             callback, [],
             {'limit': self.items.maxsize},
             streaming=True
@@ -162,7 +162,7 @@ class EntitySubscriber(object):
 
     def query(self, *filter, **params):
         if self.remote:
-            return wrap(list(self.client.call_sync('{0}.query'.format(self.name), filter, params, streaming=True)))
+            return wrap(list(self.client.call_sync(self.name, filter, params, streaming=True)))
 
         return wrap(list(self.items.values())).query(*filter, **params)
 
