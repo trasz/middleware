@@ -480,7 +480,7 @@ class UpdateConfigureTask(Task):
             self.configstore.set('update.train', train_to_set)
         if 'check_auto' in props:
             self.configstore.set('update.check_auto', props.get('check_auto'))
-        self.dispatcher.dispatch_event('update.changed', {
+        self.dispatcher.dispatch_event('update.query.changed', {
             'operation': 'update',
         })
 
@@ -950,7 +950,7 @@ def _init(dispatcher, plugin):
 
     # Register Event Types
     plugin.register_event_type('update.in_progress', schema=h.ref('update-progress'))
-    plugin.register_event_type('update.changed')
+    plugin.register_event_type('update.query.changed')
 
     # Register reources
     plugin.register_resource(Resource(update_resource_string), ['system'])

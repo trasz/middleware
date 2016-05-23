@@ -298,7 +298,7 @@ class ContainerCreateTask(ContainerBaseTask):
             self.create_device(container, res)
 
         id = self.datastore.insert('containers', container)
-        self.dispatcher.dispatch_event('container.changed', {
+        self.dispatcher.dispatch_event('container.query.changed', {
             'operation': 'create',
             'ids': [id]
         })
@@ -347,7 +347,7 @@ class ContainerImportTask(ContainerBaseTask):
             )
 
         id = self.datastore.insert('containers', container)
-        self.dispatcher.dispatch_event('container.changed', {
+        self.dispatcher.dispatch_event('container.query.changed', {
             'operation': 'create',
             'ids': [id]
         })
@@ -368,7 +368,7 @@ class ContainerSetImmutableTask(ContainerBaseTask):
         container['enabled'] = not immutable
         container['immutable'] = immutable
         self.datastore.update('containers', id, container)
-        self.dispatcher.dispatch_event('container.changed', {
+        self.dispatcher.dispatch_event('container.query.changed', {
             'operation': 'update',
             'ids': [id]
         })
@@ -411,7 +411,7 @@ class ContainerUpdateTask(ContainerBaseTask):
 
         container.update(updated_params)
         self.datastore.update('containers', id, container)
-        self.dispatcher.dispatch_event('container.changed', {
+        self.dispatcher.dispatch_event('container.query.changed', {
             'operation': 'update',
             'ids': [id]
         })
@@ -461,7 +461,7 @@ class ContainerDeleteTask(Task):
                 raise err
 
         self.datastore.delete('containers', id)
-        self.dispatcher.dispatch_event('container.changed', {
+        self.dispatcher.dispatch_event('container.query.changed', {
             'operation': 'delete',
             'ids': [id]
         })
@@ -477,7 +477,7 @@ class ContainerExportTask(Task):
 
     def run(self, id):
         self.datastore.delete('containers', id)
-        self.dispatcher.dispatch_event('container.changed', {
+        self.dispatcher.dispatch_event('container.query.changed', {
             'operation': 'delete',
             'ids': [id]
         })
@@ -493,7 +493,7 @@ class ContainerStartTask(Task):
 
     def run(self, id):
         self.dispatcher.call_sync('containerd.management.start_container', id)
-        self.dispatcher.dispatch_event('container.changed', {
+        self.dispatcher.dispatch_event('container.query.changed', {
             'operation': 'update',
             'ids': [id]
         })
@@ -506,7 +506,7 @@ class ContainerStopTask(Task):
 
     def run(self, id, force=False):
         self.dispatcher.call_sync('containerd.management.stop_container', id, force)
-        self.dispatcher.dispatch_event('container.changed', {
+        self.dispatcher.dispatch_event('container.query.changed', {
             'operation': 'update',
             'ids': [id]
         })
@@ -740,4 +740,4 @@ def _init(dispatcher, plugin):
     plugin.attach_hook('volume.pre_destroy', volume_pre_destroy)
     plugin.attach_hook('volume.pre_detach', volume_pre_detach)
 
-    plugin.register_event_type('container.changed')
+    plugin.register_event_type('container.query.changed')

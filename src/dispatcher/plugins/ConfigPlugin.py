@@ -52,7 +52,7 @@ class UpdateConfigTask(Task):
         for i in settings:
             self.configstore.set(i['key'], i['value'])
 
-        self.dispatcher.dispatch_event('config.changed', {
+        self.dispatcher.dispatch_event('config.query.changed', {
             'operation': 'update',
             'ids': [list(settings.keys())]
         })

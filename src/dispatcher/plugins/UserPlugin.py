@@ -285,7 +285,7 @@ class UserCreateTask(Task):
                 " Use '{0}' instead as the mountpoint".format(volumes_root)
             )
 
-        self.dispatcher.dispatch_event('user.changed', {
+        self.dispatcher.dispatch_event('user.query.changed', {
             'operation': 'create',
             'ids': [id]
         })
@@ -344,7 +344,7 @@ class UserDeleteTask(Task):
         except DatastoreException as e:
             raise TaskException(errno.EBADMSG, 'Cannot delete user: {0}'.format(str(e)))
 
-        self.dispatcher.dispatch_event('user.changed', {
+        self.dispatcher.dispatch_event('user.query.changed', {
             'operation': 'delete',
             'ids': [id]
         })
@@ -486,7 +486,7 @@ class UserUpdateTask(Task):
                 "Use '{0}' instead as the mountpoint".format(volumes_root)
             )
 
-        self.dispatcher.dispatch_event('user.changed', {
+        self.dispatcher.dispatch_event('user.query.changed', {
             'operation': 'update',
             'ids': [user['id']]
         })
@@ -554,7 +554,7 @@ class GroupCreateTask(Task):
         except RpcException as e:
             raise TaskException(errno.ENXIO, 'Cannot regenerate groups file, etcd service is offline')
 
-        self.dispatcher.dispatch_event('group.changed', {
+        self.dispatcher.dispatch_event('group.query.changed', {
             'operation': 'create',
             'ids': [gid]
         })
@@ -613,7 +613,7 @@ class GroupUpdateTask(Task):
         except RpcException as e:
             raise TaskException(errno.ENXIO, 'Cannot regenerate groups file, etcd service is offline')
 
-        self.dispatcher.dispatch_event('group.changed', {
+        self.dispatcher.dispatch_event('group.query.changed', {
             'operation': 'update',
             'ids': [id]
         })
@@ -658,7 +658,7 @@ class GroupDeleteTask(Task):
         except RpcException as e:
             raise TaskException(errno.ENXIO, 'Cannot regenerate config files')
 
-        self.dispatcher.dispatch_event('group.changed', {
+        self.dispatcher.dispatch_event('group.query.changed', {
             'operation': 'delete',
             'ids': [id]
         })
@@ -744,8 +744,8 @@ def _init(dispatcher, plugin):
     plugin.register_task_handler('group.delete', GroupDeleteTask)
 
     # Register event types
-    plugin.register_event_type('user.changed')
-    plugin.register_event_type('group.changed')
+    plugin.register_event_type('user.query.changed')
+    plugin.register_event_type('group.query.changed')
 
     # Register debug hook
     plugin.register_debug_hook(collect_debug)

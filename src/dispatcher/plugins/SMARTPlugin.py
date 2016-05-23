@@ -62,10 +62,6 @@ class SMARTConfigureTask(Task):
             node = ConfigNode('service.smartd', self.configstore)
             node.update(smartd)
             self.dispatcher.call_sync('etcd.generation.generate_group', 'smartd')
-            self.dispatcher.dispatch_event('service.smartd.changed', {
-                'operation': 'updated',
-                'ids': None,
-            })
         except RpcException as e:
             raise TaskException(
                 errno.ENXIO, 'Cannot reconfigure SMART: {0}'.format(str(e))

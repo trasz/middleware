@@ -153,7 +153,7 @@ def _init(dispatcher, plugin):
     })
 
     # Register events
-    plugin.register_event_type('support.changed')
+    plugin.register_event_type('support.query.changed')
 
     # Register provider
     plugin.register_provider('support', SupportProvider)

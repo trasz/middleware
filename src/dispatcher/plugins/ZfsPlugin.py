@@ -1463,9 +1463,9 @@ def _init(dispatcher, plugin):
     plugin.register_provider('zfs.snapshot', ZfsSnapshotProvider)
 
     # Register Event Types
-    plugin.register_event_type('zfs.pool.changed')
-    plugin.register_event_type('zfs.dataset.changed')
-    plugin.register_event_type('zfs.snapshot.changed')
+    plugin.register_event_type('zfs.pool.query.changed')
+    plugin.register_event_type('zfs.dataset.query.changed')
+    plugin.register_event_type('zfs.snapshot.query.changed')
 
     # Register Task Handlers
     plugin.register_task_handler('zfs.pool.create', ZpoolCreateTask)

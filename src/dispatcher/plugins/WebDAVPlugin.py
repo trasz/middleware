@@ -77,10 +77,6 @@ class WebDAVConfigureTask(Task):
             node = ConfigNode('service.webdav', self.configstore)
             node.update(webdav)
             self.dispatcher.call_sync('etcd.generation.generate_group', 'services')
-            self.dispatcher.dispatch_event('service.webdav.changed', {
-                'operation': 'updated',
-                'ids': None,
-            })
         except RpcException as e:
             raise TaskException(
                 errno.ENXIO, 'Cannot reconfigure WebDAV: {0}'.format(str(e))

@@ -232,7 +232,7 @@ class CreateShareTask(Task):
             self.join_subtasks(self.run_subtask('file.set_permissions', path, share['permissions']))
 
         ids = self.join_subtasks(self.run_subtask('share.{0}.create'.format(share['type']), share))
-        self.dispatcher.dispatch_event('share.changed', {
+        self.dispatcher.dispatch_event('share.query.changed', {
             'operation': 'create',
             'ids': ids
         })
@@ -325,7 +325,7 @@ class UpdateShareTask(Task):
             path = self.dispatcher.call_sync('share.translate_path', id)
             self.join_subtasks(self.run_subtask('file.set_permissions', path, updated_fields['permissions']))
 
-        self.dispatcher.dispatch_event('share.changed', {
+        self.dispatcher.dispatch_event('share.query.changed', {
             'operation': 'update',
             'ids': [share['id']]
         })
@@ -389,7 +389,7 @@ class ImportShareTask(Task):
 
         ids = self.join_subtasks(self.run_subtask('share.{0}.import'.format(share['type']), share))
 
-        self.dispatcher.dispatch_event('share.changed', {
+        self.dispatcher.dispatch_event('share.query.changed', {
             'operation': 'create',
             'ids': ids
         })
@@ -444,7 +444,7 @@ class DeleteShareTask(Task):
             pass
 
         self.join_subtasks(self.run_subtask('share.{0}.delete'.format(share['type']), id))
-        self.dispatcher.dispatch_event('share.changed', {
+        self.dispatcher.dispatch_event('share.query.changed', {
             'operation': 'delete',
             'ids': [id]
         })
@@ -468,7 +468,7 @@ class ExportShareTask(Task):
         share = self.datastore.get_by_id('shares', id)
 
         self.join_subtasks(self.run_subtask('share.{0}.delete'.format(share['type']), id))
-        self.dispatcher.dispatch_event('share.changed', {
+        self.dispatcher.dispatch_event('share.query.changed', {
             'operation': 'delete',
             'ids': [id]
         })
@@ -636,7 +636,7 @@ def _init(dispatcher, plugin):
 
     # Register Event Types
     plugin.register_event_type(
-        'share.changed',
+        'share.query.changed',
         schema={
             'type': 'object',
             'properties': {

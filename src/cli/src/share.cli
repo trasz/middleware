@@ -1,0 +1,3 @@
+setenv tasks_blocking=yes
+share nfs create name=testshare2 volume=tank
+

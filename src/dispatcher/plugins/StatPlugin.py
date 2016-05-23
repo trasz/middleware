@@ -195,7 +195,7 @@ class UpdateAlertTask(Task):
                     raw(name, updated_alerts[field])
                 )
 
-        self.dispatcher.dispatch_event('stat.alert.changed', {
+        self.dispatcher.dispatch_event('stat.alert.query.changed', {
             'operation': 'update',
             'ids': [name]
         })
@@ -258,5 +258,5 @@ def _init(dispatcher, plugin):
     plugin.register_provider('stat.network', NetworkStatProvider)
     plugin.register_provider('stat.system', SystemStatProvider)
     plugin.register_task_handler('stat.alert_update', UpdateAlertTask)
-    plugin.register_event_type('stat.alert.changed')
+    plugin.register_event_type('stat.alert.query.changed')
 

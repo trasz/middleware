@@ -125,7 +125,7 @@ class DevdEventSource(EventSource):
         self.socket = None
         self.register_event_type("system.device.attached")
         self.register_event_type("system.device.detached")
-        self.register_event_type("system.device.changed")
+        self.register_event_type("system.device.query.changed")
         self.register_event_type("system.network.interface.attached")
         self.register_event_type("system.network.interface.detached")
         self.register_event_type("system.network.interface.link_up")

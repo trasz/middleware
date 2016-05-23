@@ -1,0 +1,76 @@
+# Namespace: account
+account
+# Namespace: user
+user
+ladvd set uid=142 username="ladvd" fullname="Ladvd User" group="ladvd" groups=<generator object UsersNamespace.display_aux_groups at 0x105f64bf8> shell="/usr/sbin/nologin" home="/var/empty" password_disabled=false locked=false email=none sudo=false pubkey=none
+webdav set uid=666 username="webdav" fullname="WebDAV Anonymous User" group="webdav" groups=<generator object UsersNamespace.display_aux_groups at 0x105f64e60> shell="/usr/sbin/nologin" home="/nonexistent" password_disabled=false locked=false email=none sudo=false pubkey=none
+ftp set uid=14 username="ftp" fullname="" group="ftp" groups=<generator object UsersNamespace.display_aux_groups at 0x105f64bf8> shell="/bin/csh" home="/nonexistent" password_disabled=false locked=false email=none sudo=false pubkey=none
+swift set uid=187 username="swift" fullname="SWIFT User" group="swift" groups=<generator object UsersNamespace.display_aux_groups at 0x105f64e60> shell="/usr/sbin/nologin" home="/" password_disabled=false locked=false email=none sudo=false pubkey=none
+sshd set uid=22 username="sshd" fullname="Secure Shell Daemon" group="sshd" groups=<generator object UsersNamespace.display_aux_groups at 0x105f64bf8> shell="/usr/sbin/nologin" home="/var/empty" password_disabled=false locked=false email=none sudo=false pubkey=none
+riakcs set uid=668 username="riakcs" fullname="RIAK CS" group="riak" groups=<generator object UsersNamespace.display_aux_groups at 0x105f64e60> shell="/bin/sh" home="/usr/local/lib/riak-cs" password_disabled=false locked=false email=none sudo=false pubkey=none
+operator set uid=2 username="operator" fullname="System &" group="operator" groups=<generator object UsersNamespace.display_aux_groups at 0x105f64bf8> shell="/usr/sbin/nologin" home="/" password_disabled=false locked=false email=none sudo=false pubkey=none
+mailnull set uid=26 username="mailnull" fullname="Sendmail Default User" group="mailnull" groups=<generator object UsersNamespace.display_aux_groups at 0x105f64e60> shell="/usr/sbin/nologin" home="/var/spool/mqueue" password_disabled=false locked=false email=none sudo=false pubkey=none
+auditdistd set uid=78 username="auditdistd" fullname="Auditdistd unprivileged user" group="audit" groups=<generator object UsersNamespace.display_aux_groups at 0x105f64bf8> shell="/usr/sbin/nologin" home="/var/empty" password_disabled=false locked=false email=none sudo=false pubkey=none
+uucp set uid=66 username="uucp" fullname="UUCP pseudo-user" group="uucp" groups=<generator object UsersNamespace.display_aux_groups at 0x105f64e60> shell="/usr/local/libexec/uucp/uucico" home="/var/spool/uucppublic" password_disabled=false locked=false email=none sudo=false pubkey=none
+_dhcp set uid=65 username="_dhcp" fullname="dhcp programs" group="_dhcp" groups=<generator object UsersNamespace.display_aux_groups at 0x105f64bf8> shell="/usr/sbin/nologin" home="/var/empty" password_disabled=false locked=false email=none sudo=false pubkey=none
+stanchion set uid=669 username="stanchion" fullname="Stanchion User" group="riak" groups=<generator object UsersNamespace.display_aux_groups at 0x105f64e60> shell="/bin/sh" home="/usr/local/lib/stanchion" password_disabled=false locked=false email=none sudo=false pubkey=none
+proxy set uid=62 username="proxy" fullname="Packet Filter pseudo-user" group="proxy" groups=<generator object UsersNamespace.display_aux_groups at 0x105f64bf8> shell="/usr/sbin/nologin" home="/nonexistent" password_disabled=false locked=false email=none sudo=false pubkey=none
+tty set uid=4 username="tty" fullname="Tty Sandbox" group="nogroup" groups=<generator object UsersNamespace.display_aux_groups at 0x105f64e60> shell="/usr/sbin/nologin" home="/" password_disabled=false locked=false email=none sudo=false pubkey=none
+nobody set uid=65534 username="nobody" fullname="Unprivileged user" group="nobody" groups=<generator object UsersNamespace.display_aux_groups at 0x105f64bf8> shell="/usr/sbin/nologin" home="/nonexistent" password_disabled=false locked=false email=none sudo=false pubkey=none
+man set uid=9 username="man" fullname="Mister Man Pages" group="man" groups=<generator object UsersNamespace.display_aux_groups at 0x105f64e60> shell="/usr/sbin/nologin" home="/usr/share/man" password_disabled=false locked=false email=none sudo=false pubkey=none
+kmem set uid=5 username="kmem" fullname="KMem Sandbox" group="kmem" groups=<generator object UsersNamespace.display_aux_groups at 0x105f64bf8> shell="/usr/sbin/nologin" home="/" password_disabled=false locked=false email=none sudo=false pubkey=none
+daemon set uid=1 username="daemon" fullname="Owner of many system processes" group="daemon" groups=<generator object UsersNamespace.display_aux_groups at 0x105f64e60> shell="/usr/sbin/nologin" home="/root" password_disabled=false locked=false email=none sudo=false pubkey=none
+bin set uid=3 username="bin" fullname="Binaries Commands and Source" group="bin" groups=<generator object UsersNamespace.display_aux_groups at 0x105f64bf8> shell="/usr/sbin/nologin" home="/" password_disabled=false locked=false email=none sudo=false pubkey=none
+bind set uid=53 username="bind" fullname="Bind Sandbox" group="bind" groups=<generator object UsersNamespace.display_aux_groups at 0x105f64e60> shell="/usr/sbin/nologin" home="/" password_disabled=false locked=false email=none sudo=false pubkey=none
+mongodb set uid=922 username="mongodb" fullname="MongoDB pseudo-user" group="mongodb" groups=<generator object UsersNamespace.display_aux_groups at 0x105f64bf8> shell="/usr/sbin/nologin" home="/data" password_disabled=false locked=false email=none sudo=false pubkey=none
+messagebus set uid=556 username="messagebus" fullname="D-BUS Daemon User" group="messagebus" groups=<generator object UsersNamespace.display_aux_groups at 0x105f64e60> shell="/usr/sbin/nologin" home="/nonexistent" password_disabled=false locked=false email=none sudo=false pubkey=none
+smmsp set uid=25 username="smmsp" fullname="Sendmail Submission User" group="smmsp" groups=<generator object UsersNamespace.display_aux_groups at 0x105f64bf8> shell="/usr/sbin/nologin" home="/var/spool/clientmqueue" password_disabled=false locked=false email=none sudo=false pubkey=none
+riak set uid=667 username="riak" fullname="Riak KV User" group="riak" groups=<generator object UsersNamespace.display_aux_groups at 0x105f64e60> shell="/bin/sh" home="/usr/local/lib/riak" password_disabled=false locked=false email=none sudo=false pubkey=none
+games set uid=7 username="games" fullname="Games pseudo-user" group="games" groups=<generator object UsersNamespace.display_aux_groups at 0x105f64bf8> shell="/usr/sbin/nologin" home="/" password_disabled=false locked=false email=none sudo=false pubkey=none
+www set uid=80 username="www" fullname="World Wide Web Owner" group="www" groups=<generator object UsersNamespace.display_aux_groups at 0x105f64e60> shell="/usr/sbin/nologin" home="/nonexistent" password_disabled=false locked=false email=none sudo=false pubkey=none
+news set uid=8 username="news" fullname="News Subsystem" group="news" groups=<generator object UsersNamespace.display_aux_groups at 0x105f64bf8> shell="/usr/sbin/nologin" home="/" password_disabled=false locked=false email=none sudo=false pubkey=none
+root set uid=0 username="root" fullname="bluh" group="wheel" groups=<generator object UsersNamespace.display_aux_groups at 0x105f64e60> shell="/bin/csh" home="/root" password_disabled=false locked=false email=none sudo=false pubkey=none
+pop set uid=68 username="pop" fullname="Post Office Owner" group="mail" groups=<generator object UsersNamespace.display_aux_groups at 0x105f64bf8> shell="/usr/sbin/nologin" home="/nonexistent" password_disabled=false locked=false email=none sudo=false pubkey=none
+_pflogd set uid=64 username="_pflogd" fullname="pflogd privsep user" group="_pflogd" groups=<generator object UsersNamespace.display_aux_groups at 0x105f64e60> shell="/usr/sbin/nologin" home="/var/empty" password_disabled=false locked=false email=none sudo=false pubkey=none
+create uid=1001 username="jceel" fullname="Jakub Klama" group="jceel" groups=<generator object UsersNamespace.display_aux_groups at 0x105f64bf8> shell="/bin/sh" home="/nonexistent" password_disabled=none locked=none email=none sudo=none pubkey=none
+..
+# Namespace: group
+group
+mail set name="mail" gid=6
+ladvd set name="ladvd" gid=142
+audit set name="audit" gid=77
+webdav set name="webdav" gid=666
+ftp set name="ftp" gid=14
+news set name="news" gid=8
+sshd set name="sshd" gid=22
+kmem set name="kmem" gid=2
+mailnull set name="mailnull" gid=26
+uucp set name="uucp" gid=66
+_dhcp set name="_dhcp" gid=65
+wheel set name="wheel" gid=0
+guest set name="guest" gid=31
+proxy set name="proxy" gid=62
+tty set name="tty" gid=4
+games set name="games" gid=13
+swift set name="swift" gid=187
+operator set name="operator" gid=5
+network set name="network" gid=69
+daemon set name="daemon" gid=1
+sys set name="sys" gid=3
+authpf set name="authpf" gid=63
+bind set name="bind" gid=53
+mongodb set name="mongodb" gid=922
+nogroup set name="nogroup" gid=65533
+staff set name="staff" gid=20
+man set name="man" gid=9
+nobody set name="nobody" gid=65534
+bin set name="bin" gid=7
+_pflogd set name="_pflogd" gid=64
+messagebus set name="messagebus" gid=556
+smmsp set name="smmsp" gid=25
+dialer set name="dialer" gid=68
+riak set name="riak" gid=667
+www set name="www" gid=80
+create name="jceel" gid=1000
+..
+..

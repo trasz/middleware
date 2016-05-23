@@ -84,7 +84,7 @@ class DynDNSConfigureTask(Task):
             node = ConfigNode('service.dyndns', self.configstore)
             node.update(dyndns)
             self.dispatcher.call_sync('etcd.generation.generate_group', 'dyndns')
-            self.dispatcher.dispatch_event('service.dyndns.changed', {
+            self.dispatcher.dispatch_event('service.dyndns.query.changed', {
                 'operation': 'updated',
                 'ids': None,
             })

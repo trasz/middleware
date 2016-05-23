@@ -67,10 +67,6 @@ class NFSConfigureTask(Task):
             node.update(nfs)
             self.dispatcher.call_sync('etcd.generation.generate_group', 'services')
             self.dispatcher.call_sync('etcd.generation.generate_group', 'nfs')
-            self.dispatcher.dispatch_event('service.nfs.changed', {
-                'operation': 'updated',
-                'ids': None,
-            })
         except RpcException as e:
             raise TaskException(
                 errno.ENXIO, 'Cannot reconfigure NFS: {0}'.format(str(e))

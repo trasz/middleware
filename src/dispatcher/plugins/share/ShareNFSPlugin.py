@@ -114,7 +114,7 @@ class UpdateNFSShareTask(Task):
         self.datastore.update('shares', id, share)
         self.dispatcher.call_sync('etcd.generation.generate_group', 'nfs')
         self.dispatcher.call_sync('service.reload', 'nfs')
-        self.dispatcher.dispatch_event('share.nfs.changed', {
+        self.dispatcher.dispatch_event('share.nfs.query.changed', {
             'operation': 'update',
             'ids': [id]
         })
@@ -134,7 +134,7 @@ class DeleteNFSShareTask(Task):
         self.datastore.delete('shares', id)
         self.dispatcher.call_sync('etcd.generation.generate_group', 'nfs')
         self.dispatcher.call_sync('service.reload', 'nfs')
-        self.dispatcher.dispatch_event('share.nfs.changed', {
+        self.dispatcher.dispatch_event('share.nfs.query.changed', {
             'operation': 'delete',
             'ids': [id]
         })
@@ -213,4 +213,4 @@ def _init(dispatcher, plugin):
     plugin.register_task_handler("share.nfs.import", ImportNFSShareTask)
     plugin.register_task_handler("share.nfs.terminate_connection", TerminateNFSConnectionTask)
     plugin.register_provider("share.nfs", NFSSharesProvider)
-    plugin.register_event_type('share.nfs.changed')
+    plugin.register_event_type('share.nfs.query.changed')

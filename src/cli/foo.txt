@@ -1,0 +1,44 @@
+User ID   User name              Full name              Primary group   Password Disabled 
+142       ladvd        Ladvd User                       ladvd           no                
+666       webdav       WebDAV Anonymous User            webdav          no                
+14        ftp                                           ftp             no                
+187       swift        SWIFT User                       swift           no                
+22        sshd         Secure Shell Daemon              sshd            no                
+668       riakcs       RIAK CS                          riak            no                
+2         operator     System &                         operator        no                
+26        mailnull     Sendmail Default User            mailnull        no                
+78        auditdistd   Auditdistd unprivileged user     audit           no                
+66        uucp         UUCP pseudo-user                 uucp            no                
+65        _dhcp        dhcp programs                    _dhcp           no                
+669       stanchion    Stanchion User                   riak            no                
+62        proxy        Packet Filter pseudo-user        proxy           no                
+4         tty          Tty Sandbox                      nogroup         no                
+65534     nobody       Unprivileged user                nobody          no                
+9         man          Mister Man Pages                 man             no                
+5         kmem         KMem Sandbox                     kmem            no                
+1         daemon       Owner of many system processes   daemon          no                
+3         bin          Binaries Commands and Source     bin             no                
+53        bind         Bind Sandbox                     bind            no                
+922       mongodb      MongoDB pseudo-user              mongodb         no                
+556       messagebus   D-BUS Daemon User                messagebus      no                
+25        smmsp        Sendmail Submission User         smmsp           no                
+667       riak         Riak KV User                     riak            no                
+7         games        Games pseudo-user                games           no                
+80        www          World Wide Web Owner             www             no                
+8         news         News Subsystem                   news            no                
+0         root         bluh                             wheel           no                
+68        pop          Post Office Owner                mail            no                
+64        _pflogd      pflogd privsep user              _pflogd         no                
+1001      jceel        Jakub Klama                      jceel           no                
+User ID (uid)                           0        
+User name (username)                    root     
+Full name (fullname)                    bluh     
+Primary group (group)                   wheel    
+Auxilliary groups (groups)              empty    
+Login shell (shell)                     /bin/csh 
+Home directory (home)                   /root    
+Password Disabled (password_disabled)   no       
+Locked (locked)                         no       
+Email address (email)                   none     
+Sudo allowed (sudo)                     no       
+SSH public key (pubkey)                 none     

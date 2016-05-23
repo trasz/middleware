@@ -79,5 +79,5 @@ def _init(dispatcher, plugin):
         for i in args['entities']:
             volume_status(i)
 
-    plugin.register_event_handler('entity-subscriber.volume.changed', on_volume_change)
+    plugin.register_event_handler('entity-subscriber.volume.query.changed', on_volume_change)
     volumes_upgraded()

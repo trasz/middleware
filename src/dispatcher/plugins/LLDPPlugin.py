@@ -69,10 +69,6 @@ class LLDPConfigureTask(Task):
         try:
             node = ConfigNode('service.lldp', self.configstore)
             node.update(lldp)
-            self.dispatcher.dispatch_event('service.lldp.changed', {
-                'operation': 'updated',
-                'ids': None,
-            })
         except RpcException as e:
             raise TaskException(
                 errno.ENXIO, 'Cannot reconfigure LLDP: {0}'.format(str(e))

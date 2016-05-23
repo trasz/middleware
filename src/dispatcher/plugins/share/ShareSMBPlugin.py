@@ -97,7 +97,7 @@ class CreateSMBShareTask(Task):
         except smbconf.SambaConfigException:
             raise TaskException(errno.EFAULT, 'Cannot access samba registry')
 
-        self.dispatcher.dispatch_event('share.smb.changed', {
+        self.dispatcher.dispatch_event('share.smb.query.changed', {
             'operation': 'create',
             'ids': [id]
         })
@@ -130,7 +130,7 @@ class UpdateSMBShareTask(Task):
         except smbconf.SambaConfigException:
             raise TaskException(errno.EFAULT, 'Cannot access samba registry')
 
-        self.dispatcher.dispatch_event('share.smb.changed', {
+        self.dispatcher.dispatch_event('share.smb.query.changed', {
             'operation': 'update',
             'ids': [id]
         })
@@ -159,7 +159,7 @@ class DeleteSMBShareTask(Task):
         except smbconf.SambaConfigException:
             raise TaskException(errno.EFAULT, 'Cannot access samba registry')
 
-        self.dispatcher.dispatch_event('share.smb.changed', {
+        self.dispatcher.dispatch_event('share.smb.query.changed', {
             'operation': 'delete',
             'ids': [id]
         })
@@ -298,7 +298,7 @@ def _init(dispatcher, plugin):
     plugin.register_task_handler("share.smb.import", ImportSMBShareTask)
     plugin.register_task_handler("share.smb.terminate_connection", TerminateSMBConnectionTask)
     plugin.register_provider("share.smb", SMBSharesProvider)
-    plugin.register_event_type('share.smb.changed')
+    plugin.register_event_type('share.smb.query.changed')
 
     # Sync samba registry with our database
     smb_conf = smbconf.SambaConfig('registry')

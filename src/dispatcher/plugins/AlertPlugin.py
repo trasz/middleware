@@ -79,7 +79,7 @@ class AlertsProvider(Provider):
         })
 
         self.datastore.update('alerts', id, alert)
-        self.dispatcher.dispatch_event('alert.changed', {
+        self.dispatcher.dispatch_event('alert.query.changed', {
             'operation': 'update',
             'ids': [id]
         })
@@ -111,7 +111,7 @@ class AlertsProvider(Provider):
         })
 
         id = self.datastore.insert('alerts', alert)
-        self.dispatcher.dispatch_event('alert.changed', {
+        self.dispatcher.dispatch_event('alert.query.changed', {
             'operation': 'create',
             'ids': [id]
         })
@@ -136,7 +136,7 @@ class AlertsProvider(Provider):
         })
 
         self.datastore.update('alerts', id, alert)
-        self.dispatcher.dispatch_event('alert.changed', {
+        self.dispatcher.dispatch_event('alert.query.changed', {
             'operation': 'update',
             'ids': [id]
         })
@@ -175,7 +175,7 @@ class AlertFilterCreateTask(Task):
     def run(self, alertfilter):
         id = self.datastore.insert('alert.filters', alertfilter)
 
-        self.dispatcher.dispatch_event('alert.filter.changed', {
+        self.dispatcher.dispatch_event('alert.filter.query.changed', {
             'operation': 'create',
             'ids': [id]
         })
@@ -208,7 +208,7 @@ class AlertFilterDeleteTask(Task):
                 'Cannot delete alert filter: {0}'.format(str(e))
             )
 
-        self.dispatcher.dispatch_event('alert.filter.changed', {
+        self.dispatcher.dispatch_event('alert.filter.query.changed', {
             'operation': 'delete',
             'ids': [id]
         })
@@ -235,7 +235,7 @@ class AlertFilterUpdateTask(Task):
                 'Cannot update alert filter: {0}'.format(str(e))
             )
 
-        self.dispatcher.dispatch_event('alert.filter.changed', {
+        self.dispatcher.dispatch_event('alert.filter.query.changed', {
             'operation': 'update',
             'ids': [id],
         })
@@ -371,7 +371,7 @@ def _init(dispatcher, plugin):
 
     # Register event types
     plugin.register_event_type(
-        'alert.changed',
+        'alert.query.changed',
         schema={
             'type': 'object',
             'properties': {
@@ -382,7 +382,7 @@ def _init(dispatcher, plugin):
         }
     )
     plugin.register_event_type(
-        'alert.filter.changed',
+        'alert.filter.query.changed',
         schema={
             'type': 'object',
             'properties': {

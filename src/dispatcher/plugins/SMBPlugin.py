@@ -125,10 +125,6 @@ class SMBConfigureTask(Task):
             if 'netbiosname' in smb or 'workgroup' in smb:
                 action = 'RESTART'
 
-            self.dispatcher.dispatch_event('service.smb.changed', {
-                'operation': 'updated',
-                'ids': None,
-            })
         except RpcException as e:
             raise TaskException(
                 errno.ENXIO, 'Cannot reconfigure SMB: {0}'.format(str(e))

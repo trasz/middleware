@@ -84,7 +84,7 @@ class CreateBackupTask(Task):
 
         id = self.datastore.insert('backup', backup)
 
-        self.dispatcher.emit_event('backup.changed', {
+        self.dispatcher.emit_event('backup.query.changed', {
             'operation': 'create',
             'ids': [id]
         })
@@ -108,7 +108,7 @@ class UpdateBackupTask(Task):
         backup.update(updated_params)
         self.datastore.update('backup', id, backup)
 
-        self.dispatcher.emit_event('backup.changed', {
+        self.dispatcher.emit_event('backup.query.changed', {
             'operation': 'update',
             'ids': [id]
         })
@@ -126,7 +126,7 @@ class DeleteBackupTask(Task):
 
     def run(self, id):
         self.datastore.delete('backup', id)
-        self.dispatcher.emit_event('backup.changed', {
+        self.dispatcher.emit_event('backup.query.changed', {
             'operation': 'delete',
             'ids': [id]
         })
@@ -408,7 +408,7 @@ def _init(dispatcher, plugin):
             ]
         })
 
-    plugin.register_event_type('backup.changed')
+    plugin.register_event_type('backup.query.changed')
 
     plugin.register_provider('backup', BackupProvider)
     plugin.register_task_handler('backup.create', CreateBackupTask)

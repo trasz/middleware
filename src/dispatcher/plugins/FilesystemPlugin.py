@@ -292,12 +292,12 @@ class SetPermissionsTask(Task):
                     a.apply(file=os.path.join(root, n))
 
         if ds:
-            self.dispatcher.dispatch_event('zfs.dataset.changed', {
+            self.dispatcher.dispatch_event('zfs.dataset.query.changed', {
                 'operation': 'update',
                 'ids': [ds['id']]
             })
 
-        self.dispatcher.dispatch_event('file.permissions.changed', {
+        self.dispatcher.dispatch_event('file.permissions.query.changed', {
             'path': path,
             'recursive': recursive,
             'permissions': permissions

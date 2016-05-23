@@ -114,7 +114,7 @@ class TunableCreateTask(Task):
                 sysctl_set(tunable['var'], tunable['value'])
 
             pkey = self.datastore.insert('tunables', tunable)
-            self.dispatcher.dispatch_event('tunable.changed', {
+            self.dispatcher.dispatch_event('tunable.query.changed', {
                 'operation': 'create',
                 'ids': [pkey]
             })
@@ -180,7 +180,7 @@ class TunableUpdateTask(Task):
                 sysctl_set(tunable['var'], tunable['value'])
 
             self.datastore.update('tunables', id, tunable)
-            self.dispatcher.dispatch_event('tunable.changed', {
+            self.dispatcher.dispatch_event('tunable.query.changed', {
                 'operation': 'update',
                 'ids': [id]
             })
@@ -217,7 +217,7 @@ class TunableDeleteTask(Task):
 
         try:
             self.datastore.delete('tunables', id)
-            self.dispatcher.dispatch_event('tunable.changed', {
+            self.dispatcher.dispatch_event('tunable.query.changed', {
                 'operation': 'delete',
                 'ids': [id]
             })
@@ -260,7 +260,7 @@ def _init(dispatcher, plugin):
     })
 
     # Register events
-    plugin.register_event_type('tunable.changed')
+    plugin.register_event_type('tunable.query.changed')
 
     # Register provider
     plugin.register_provider('tunable', TunablesProvider)

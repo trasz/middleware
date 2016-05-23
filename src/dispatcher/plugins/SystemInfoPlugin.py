@@ -289,7 +289,7 @@ class SystemGeneralConfigureTask(Task):
                 'Cannot reconfigure system: {0}'.format(str(e),)
             )
 
-        self.dispatcher.dispatch_event('system.general.changed', {
+        self.dispatcher.dispatch_event('system.general.get_config.changed', {
             'operation': 'update',
         })
 
@@ -386,7 +386,7 @@ class SystemAdvancedConfigureTask(Task):
         except RpcException as e:
             raise TaskException(errno.ENXIO, 'Cannot reconfigure system: {0}'.format(str(e)))
 
-        self.dispatcher.dispatch_event('system.advanced.changed', {
+        self.dispatcher.dispatch_event('system.advanced.get_config.changed', {
             'operation': 'update',
         })
 
@@ -429,7 +429,7 @@ class SystemUIConfigureTask(Task):
                 'Cannot reconfigure system UI: {0}'.format(str(e),)
             )
 
-        self.dispatcher.dispatch_event('system.ui.changed', {
+        self.dispatcher.dispatch_event('system.ui.get_config.changed', {
             'operation': 'update',
             'ids': ['system.ui'],
         })
@@ -557,7 +557,7 @@ def _init(dispatcher, plugin):
 
         dispatcher.configstore.set('system.hostname', args['hostname'])
         dispatcher.call_sync('service.restart', 'mdns')
-        dispatcher.dispatch_event('system.general.changed', {
+        dispatcher.dispatch_event('system.general.get_config.changed', {
             'operation': 'update',
         })
 
@@ -639,9 +639,9 @@ def _init(dispatcher, plugin):
     plugin.register_event_handler('system.hostname.change', on_hostname_change)
 
     # Register Event Types
-    plugin.register_event_type('system.general.changed')
-    plugin.register_event_type('system.advanced.changed')
-    plugin.register_event_type('system.ui.changed')
+    plugin.register_event_type('system.general.get_config..changed')
+    plugin.register_event_type('system.advanced.get_config.changed')
+    plugin.register_event_type('system.ui.get_config.changed')
     plugin.register_event_type('power.changed', schema=h.ref('power_changed'))
 
     # Register providers

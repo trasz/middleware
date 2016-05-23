@@ -118,7 +118,7 @@ class CreateAFPShareTask(Task):
         id = self.datastore.insert('shares', share)
         self.dispatcher.call_sync('etcd.generation.generate_group', 'afp')
         self.dispatcher.call_sync('service.reload', 'afp')
-        self.dispatcher.dispatch_event('share.afp.changed', {
+        self.dispatcher.dispatch_event('share.afp.query.changed', {
             'operation': 'create',
             'ids': [id]
         })
@@ -142,7 +142,7 @@ class UpdateAFPShareTask(Task):
         self.datastore.update('shares', id, share)
         self.dispatcher.call_sync('etcd.generation.generate_group', 'afp')
         self.dispatcher.call_sync('service.reload', 'afp')
-        self.dispatcher.dispatch_event('share.afp.changed', {
+        self.dispatcher.dispatch_event('share.afp.query.changed', {
             'operation': 'update',
             'ids': [id]
         })
@@ -167,7 +167,7 @@ class DeleteAFPShareTask(Task):
         self.datastore.delete('shares', id)
         self.dispatcher.call_sync('etcd.generation.generate_group', 'afp')
         self.dispatcher.call_sync('service.reload', 'afp')
-        self.dispatcher.dispatch_event('share.afp.changed', {
+        self.dispatcher.dispatch_event('share.afp.query.changed', {
             'operation': 'delete',
             'ids': [id]
         })
@@ -286,4 +286,4 @@ def _init(dispatcher, plugin):
     plugin.register_task_handler("share.afp.import", ImportAFPShareTask)
     plugin.register_task_handler("share.afp.terminate_connection", TerminateAFPConnectionTask)
     plugin.register_provider("share.afp", AFPSharesProvider)
-    plugin.register_event_type('share.afp.changed')
+    plugin.register_event_type('share.afp.query.changed')

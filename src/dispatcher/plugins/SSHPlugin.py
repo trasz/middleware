@@ -59,10 +59,6 @@ class SSHConfigureTask(Task):
             node = ConfigNode('service.sshd', self.configstore)
             node.update(ssh)
             self.dispatcher.call_sync('etcd.generation.generate_group', 'sshd')
-            self.dispatcher.dispatch_event('service.sshd.changed', {
-                'operation': 'updated',
-                'ids': None,
-            })
         except RpcException as e:
             raise TaskException(
                 errno.ENXIO, 'Cannot reconfigure SSH: {0}'.format(str(e))

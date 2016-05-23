@@ -1,0 +1,34 @@
+# Namespace: user
+user
+ladvd set uid=142 username="ladvd" fullname="Ladvd User" group="ladvd" groups=[] shell="/usr/sbin/nologin" home="/var/empty" password_disabled=false locked=false email=none sudo=false pubkey=none
+webdav set uid=666 username="webdav" fullname="WebDAV Anonymous User" group="webdav" groups=[] shell="/usr/sbin/nologin" home="/nonexistent" password_disabled=false locked=false email=none sudo=false pubkey=none
+ftp set uid=14 username="ftp" fullname="" group="ftp" groups=[] shell="/bin/csh" home="/nonexistent" password_disabled=false locked=false email=none sudo=false pubkey=none
+swift set uid=187 username="swift" fullname="SWIFT User" group="swift" groups=[] shell="/usr/sbin/nologin" home="/" password_disabled=false locked=false email=none sudo=false pubkey=none
+sshd set uid=22 username="sshd" fullname="Secure Shell Daemon" group="sshd" groups=[] shell="/usr/sbin/nologin" home="/var/empty" password_disabled=false locked=false email=none sudo=false pubkey=none
+riakcs set uid=668 username="riakcs" fullname="RIAK CS" group="riak" groups=[] shell="/bin/sh" home="/usr/local/lib/riak-cs" password_disabled=false locked=false email=none sudo=false pubkey=none
+operator set uid=2 username="operator" fullname="System &" group="operator" groups=[] shell="/usr/sbin/nologin" home="/" password_disabled=false locked=false email=none sudo=false pubkey=none
+mailnull set uid=26 username="mailnull" fullname="Sendmail Default User" group="mailnull" groups=[] shell="/usr/sbin/nologin" home="/var/spool/mqueue" password_disabled=false locked=false email=none sudo=false pubkey=none
+auditdistd set uid=78 username="auditdistd" fullname="Auditdistd unprivileged user" group="audit" groups=[] shell="/usr/sbin/nologin" home="/var/empty" password_disabled=false locked=false email=none sudo=false pubkey=none
+uucp set uid=66 username="uucp" fullname="UUCP pseudo-user" group="uucp" groups=[] shell="/usr/local/libexec/uucp/uucico" home="/var/spool/uucppublic" password_disabled=false locked=false email=none sudo=false pubkey=none
+_dhcp set uid=65 username="_dhcp" fullname="dhcp programs" group="_dhcp" groups=[] shell="/usr/sbin/nologin" home="/var/empty" password_disabled=false locked=false email=none sudo=false pubkey=none
+stanchion set uid=669 username="stanchion" fullname="Stanchion User" group="riak" groups=[] shell="/bin/sh" home="/usr/local/lib/stanchion" password_disabled=false locked=false email=none sudo=false pubkey=none
+proxy set uid=62 username="proxy" fullname="Packet Filter pseudo-user" group="proxy" groups=[] shell="/usr/sbin/nologin" home="/nonexistent" password_disabled=false locked=false email=none sudo=false pubkey=none
+tty set uid=4 username="tty" fullname="Tty Sandbox" group="nogroup" groups=[] shell="/usr/sbin/nologin" home="/" password_disabled=false locked=false email=none sudo=false pubkey=none
+nobody set uid=65534 username="nobody" fullname="Unprivileged user" group="nobody" groups=[] shell="/usr/sbin/nologin" home="/nonexistent" password_disabled=false locked=false email=none sudo=false pubkey=none
+man set uid=9 username="man" fullname="Mister Man Pages" group="man" groups=[] shell="/usr/sbin/nologin" home="/usr/share/man" password_disabled=false locked=false email=none sudo=false pubkey=none
+kmem set uid=5 username="kmem" fullname="KMem Sandbox" group="kmem" groups=[] shell="/usr/sbin/nologin" home="/" password_disabled=false locked=false email=none sudo=false pubkey=none
+daemon set uid=1 username="daemon" fullname="Owner of many system processes" group="daemon" groups=[] shell="/usr/sbin/nologin" home="/root" password_disabled=false locked=false email=none sudo=false pubkey=none
+bin set uid=3 username="bin" fullname="Binaries Commands and Source" group="bin" groups=[] shell="/usr/sbin/nologin" home="/" password_disabled=false locked=false email=none sudo=false pubkey=none
+bind set uid=53 username="bind" fullname="Bind Sandbox" group="bind" groups=[] shell="/usr/sbin/nologin" home="/" password_disabled=false locked=false email=none sudo=false pubkey=none
+mongodb set uid=922 username="mongodb" fullname="MongoDB pseudo-user" group="mongodb" groups=[] shell="/usr/sbin/nologin" home="/data" password_disabled=false locked=false email=none sudo=false pubkey=none
+messagebus set uid=556 username="messagebus" fullname="D-BUS Daemon User" group="messagebus" groups=[] shell="/usr/sbin/nologin" home="/nonexistent" password_disabled=false locked=false email=none sudo=false pubkey=none
+smmsp set uid=25 username="smmsp" fullname="Sendmail Submission User" group="smmsp" groups=[] shell="/usr/sbin/nologin" home="/var/spool/clientmqueue" password_disabled=false locked=false email=none sudo=false pubkey=none
+riak set uid=667 username="riak" fullname="Riak KV User" group="riak" groups=[] shell="/bin/sh" home="/usr/local/lib/riak" password_disabled=false locked=false email=none sudo=false pubkey=none
+games set uid=7 username="games" fullname="Games pseudo-user" group="games" groups=[] shell="/usr/sbin/nologin" home="/" password_disabled=false locked=false email=none sudo=false pubkey=none
+www set uid=80 username="www" fullname="World Wide Web Owner" group="www" groups=[] shell="/usr/sbin/nologin" home="/nonexistent" password_disabled=false locked=false email=none sudo=false pubkey=none
+news set uid=8 username="news" fullname="News Subsystem" group="news" groups=[] shell="/usr/sbin/nologin" home="/" password_disabled=false locked=false email=none sudo=false pubkey=none
+root set uid=0 username="root" fullname="daf" group="wheel" groups=[] shell="/bin/csh" home="/root" password_disabled=false locked=false email=none sudo=false pubkey=none
+pop set uid=68 username="pop" fullname="Post Office Owner" group="mail" groups=[] shell="/usr/sbin/nologin" home="/nonexistent" password_disabled=false locked=false email=none sudo=false pubkey=none
+_pflogd set uid=64 username="_pflogd" fullname="pflogd privsep user" group="_pflogd" groups=[] shell="/usr/sbin/nologin" home="/var/empty" password_disabled=false locked=false email=none sudo=false pubkey=none
+create uid=1001 username="jceel" fullname="x" group="jceel" groups=["wheel"] shell="/bin/sh" home="/nonexistent" password_disabled=none locked=none email=none sudo=none pubkey=none
+..

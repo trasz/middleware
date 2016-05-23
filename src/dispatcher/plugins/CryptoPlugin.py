@@ -292,7 +292,7 @@ class CertificateCreateTask(Task):
         except RpcException as e:
             raise TaskException(errno.ENXIO, 'Cannot generate certificate: {0}'.format(str(e)))
 
-        self.dispatcher.dispatch_event('crypto.certificate.changed', {
+        self.dispatcher.dispatch_event('crypto.certificate.query.changed', {
             'operation': 'create',
             'ids': [pkey]
         })
@@ -355,7 +355,7 @@ class CertificateImportTask(Task):
         except RpcException as e:
             raise TaskException(errno.ENXIO, 'Cannot generate certificate: {0}'.format(str(e)))
 
-        self.dispatcher.dispatch_event('crypto.certificate.changed', {
+        self.dispatcher.dispatch_event('crypto.certificate.query.changed', {
             'operation': 'create',
             'ids': [pkey]
         })
@@ -416,7 +416,7 @@ class CertificateUpdateTask(Task):
         except RpcException as e:
             raise TaskException(errno.ENXIO, 'Cannot generate certificate: {0}'.format(str(e)))
 
-        self.dispatcher.dispatch_event('crypto.certificate.changed', {
+        self.dispatcher.dispatch_event('crypto.certificate.query.changed', {
             'operation': 'update',
             'ids': [id]
         })
@@ -448,7 +448,7 @@ class CertificateDeleteTask(Task):
         except RpcException as e:
             raise TaskException(errno.ENXIO, 'Cannot generate certificate: {0}'.format(str(e)))
 
-        self.dispatcher.dispatch_event('crypto.certificate.changed', {
+        self.dispatcher.dispatch_event('crypto.certificate.query.changed', {
             'operation': 'delete',
             'ids': [id]
         })
@@ -506,4 +506,4 @@ def _init(dispatcher, plugin):
     plugin.register_task_handler('crypto.certificate.delete', CertificateDeleteTask)
 
     # Register event types
-    plugin.register_event_type('crypto.certificate.changed')
+    plugin.register_event_type('crypto.certificate.query.changed')

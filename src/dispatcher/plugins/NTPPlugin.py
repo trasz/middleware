@@ -79,7 +79,7 @@ class NTPServerCreateTask(Task):
             pkey = self.datastore.insert('ntpservers', ntp)
             self.dispatcher.call_sync('etcd.generation.generate_group', 'ntpd')
             self.dispatcher.call_sync('service.restart', 'ntpd')
-            self.dispatcher.dispatch_event('ntpservers.changed', {
+            self.dispatcher.dispatch_event('ntpservers.query.changed', {
                 'operation': 'create',
                 'ids': [pkey]
             })
@@ -129,7 +129,7 @@ class NTPServerUpdateTask(Task):
             self.datastore.update('ntpservers', id, ntp)
             self.dispatcher.call_sync('etcd.generation.generate_group', 'ntpd')
             self.dispatcher.call_sync('service.restart', 'ntpd')
-            self.dispatcher.dispatch_event('ntpservers.changed', {
+            self.dispatcher.dispatch_event('ntpservers.query.changed', {
                 'operation': 'update',
                 'ids': [id]
             })
@@ -154,7 +154,7 @@ class NTPServerDeleteTask(Task):
             self.datastore.delete('ntpservers', id)
             self.dispatcher.call_sync('etcd.generation.generate_group', 'ntpd')
             self.dispatcher.call_sync('service.restart', 'ntpd')
-            self.dispatcher.dispatch_event('ntpservers.changed', {
+            self.dispatcher.dispatch_event('ntpservers.query.changed', {
                 'operation': 'delete',
                 'ids': [id]
             })
@@ -180,7 +180,7 @@ def _init(dispatcher, plugin):
     })
 
     # Register events
-    plugin.register_event_type('ntpservers.changed')
+    plugin.register_event_type('ntpservers.query.changed')
 
     # Register provider
     plugin.register_provider("ntpservers", NTPServersProvider)

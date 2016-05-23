@@ -94,7 +94,7 @@ class CreateWebDAVShareTask(Task):
         id = self.datastore.insert('shares', share)
         self.dispatcher.call_sync('etcd.generation.generate_group', 'webdav')
         self.dispatcher.call_sync('service.reload', 'webdav')
-        self.dispatcher.dispatch_event('share.webdav.changed', {
+        self.dispatcher.dispatch_event('share.webdav.query.changed', {
             'operation': 'create',
             'ids': [id]
         })
@@ -118,7 +118,7 @@ class UpdateWebDAVShareTask(Task):
         self.datastore.update('shares', id, share)
         self.dispatcher.call_sync('etcd.generation.generate_group', 'webdav')
         self.dispatcher.call_sync('service.reload', 'webdav')
-        self.dispatcher.dispatch_event('share.webdav.changed', {
+        self.dispatcher.dispatch_event('share.webdav.query.changed', {
             'operation': 'update',
             'ids': [id]
         })
@@ -138,7 +138,7 @@ class DeleteWebDAVShareTask(Task):
         self.datastore.delete('shares', id)
         self.dispatcher.call_sync('etcd.generation.generate_group', 'webdav')
         self.dispatcher.call_sync('service.reload', 'webdav')
-        self.dispatcher.dispatch_event('share.webdav.changed', {
+        self.dispatcher.dispatch_event('share.webdav.query.changed', {
             'operation': 'delete',
             'ids': [id]
         })
@@ -187,4 +187,4 @@ def _init(dispatcher, plugin):
     plugin.register_task_handler("share.webdav.delete", DeleteWebDAVShareTask)
     plugin.register_task_handler("share.webdav.import", ImportWebDAVShareTask)
     plugin.register_provider("share.webdav", WebDAVSharesProvider)
-    plugin.register_event_type('share.webdav.changed')
+    plugin.register_event_type('share.webdav.query.changed')

@@ -1690,7 +1690,7 @@ class KnownHostCreateTask(Task):
         with open(AUTH_FILE, 'a') as auth_file:
             auth_file.write(known_host['pubkey'])
 
-        self.dispatcher.dispatch_event('replication.host.changed', {
+        self.dispatcher.dispatch_event('replication.host.query.changed', {
             'operation': 'create',
             'ids': [id]
         })
@@ -1767,7 +1767,7 @@ class KnownHostDeleteTask(Task):
         with open(AUTH_FILE, 'w') as auth_file:
             auth_file.write(new_auth_keys)
 
-        self.dispatcher.dispatch_event('replication.host.changed', {
+        self.dispatcher.dispatch_event('replication.host.query.changed', {
             'operation': 'delete',
             'ids': [name]
         })
@@ -1813,7 +1813,7 @@ class KnownHostPortUpdateTask(Task):
 
         self.datastore.update('replication.known_hosts', name, known_host)
 
-        self.dispatcher.dispatch_event('replication.host.changed', {
+        self.dispatcher.dispatch_event('replication.host.query.changed', {
             'operation': 'update',
             'ids': [name]
         })
@@ -1958,7 +1958,7 @@ def _init(dispatcher, plugin):
     plugin.register_task_handler("replication.known_host.update_port", KnownHostPortUpdateTask)
 
     # Register event types
-    plugin.register_event_type('replication.host.changed')
+    plugin.register_event_type('replication.host.query.changed')
 
     #Event handlers methods
     def on_ssh_change(args):
@@ -1971,7 +1971,7 @@ def _init(dispatcher, plugin):
                 dispatcher.call_task_sync('replication.hosts_pair.update_port', host, new_ssh_port)
 
     #Register event handlers
-    plugin.register_event_handler('service.sshd.changed', on_ssh_change)
+    plugin.register_event_handler('service.sshd.query.changed', on_ssh_change)
 
     #Create home directory and authorized keys file for replication user
     if not os.path.exists(REPL_HOME):

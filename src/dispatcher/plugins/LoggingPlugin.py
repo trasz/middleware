@@ -43,7 +43,7 @@ class SyslogProvider(Provider):
 class SyslogEventSource(EventSource):
     def __init__(self, dispatcher):
         super(SyslogEventSource, self).__init__(dispatcher)
-        self.register_event_type("syslog.changed")
+        self.register_event_type("syslog.query.changed")
 
     def run(self):
         # Initial call to obtain cursor
@@ -52,7 +52,7 @@ class SyslogEventSource(EventSource):
         while True:
             try:
                 for i in self.datastore.tail(cursor):
-                    self.dispatcher.dispatch_event('syslog.changed', {
+                    self.dispatcher.dispatch_event('syslog.query.changed', {
                         'operation': 'create',
                         'ids': [i['id']]
                     })

@@ -185,7 +185,7 @@ class CreateInterfaceTask(Task):
         except RpcException as e:
             raise TaskException(errno.ENXIO, 'Cannot reconfigure network: {0}'.format(str(e)))
 
-        self.dispatcher.dispatch_event('network.interface.changed', {
+        self.dispatcher.dispatch_event('network.interface.query.changed', {
             'operation': 'create',
             'ids': [name]
         })
@@ -216,7 +216,7 @@ class DeleteInterfaceTask(Task):
         except RpcException as e:
             raise TaskException(errno.ENXIO, 'Cannot reconfigure network: {0}'.format(str(e)))
 
-        self.dispatcher.dispatch_event('network.interface.changed', {
+        self.dispatcher.dispatch_event('network.interface.query.changed', {
             'operation': 'delete',
             'ids': [id]
         })
@@ -291,7 +291,7 @@ class ConfigureInterfaceTask(Task):
         except RpcException as err:
             raise TaskException(errno.ENXIO, 'Cannot reconfigure interface: {0}'.format(str(err)))
 
-        self.dispatcher.dispatch_event('network.interface.changed', {
+        self.dispatcher.dispatch_event('network.interface.query.changed', {
             'operation': 'update',
             'ids': [id]
         })
@@ -319,7 +319,7 @@ class InterfaceUpTask(Task):
         except RpcException as err:
             raise TaskException(errno.ENXIO, 'Cannot reconfigure interface: {0}'.format(str(err)))
 
-        self.dispatcher.dispatch_event('network.interface.changed', {
+        self.dispatcher.dispatch_event('network.interface.query.changed', {
             'operation': 'update',
             'ids': [id]
         })
@@ -347,7 +347,7 @@ class InterfaceDownTask(Task):
         except RpcException as err:
             raise TaskException(err.code, err.message, err.extra)
 
-        self.dispatcher.dispatch_event('network.interface.changed', {
+        self.dispatcher.dispatch_event('network.interface.query.changed', {
             'operation': 'update',
             'ids': [id]
         })
@@ -378,7 +378,7 @@ class InterfaceRenewTask(Task):
         except RpcException as err:
             raise TaskException(err.code, err.message, err.extra)
 
-        self.dispatcher.dispatch_event('network.interface.changed', {
+        self.dispatcher.dispatch_event('network.interface.query.changed', {
             'operation': 'update',
             'ids': [id]
         })
@@ -406,7 +406,7 @@ class AddHostTask(Task):
         except RpcException as err:
             raise TaskException(errno.ENXIO, 'Cannot update host: {0}'.format(str(err)))
 
-        self.dispatcher.dispatch_event('network.host.changed', {
+        self.dispatcher.dispatch_event('network.host.query.changed', {
             'operation': 'create',
             'ids': [host['id']]
         })
@@ -434,7 +434,7 @@ class UpdateHostTask(Task):
         except RpcException as err:
             raise TaskException(errno.ENXIO, 'Cannot update host: {0}'.format(str(err)))
 
-        self.dispatcher.dispatch_event('network.host.changed', {
+        self.dispatcher.dispatch_event('network.host.query.changed', {
             'operation': 'update',
             'ids': [id]
         })
@@ -460,7 +460,7 @@ class DeleteHostTask(Task):
         except RpcException as err:
             raise TaskException(errno.ENXIO, 'Cannot delete host: {0}'.format(str(err)))
 
-        self.dispatcher.dispatch_event('network.host.changed', {
+        self.dispatcher.dispatch_event('network.host.query.changed', {
             'operation': 'delete',
             'ids': [id]
         })
@@ -519,7 +519,7 @@ class AddRouteTask(Task):
         except RpcException as e:
             raise TaskException(errno.ENXIO, 'Cannot reconfigure interface: {0}'.format(str(e)))
 
-        self.dispatcher.dispatch_event('network.route.changed', {
+        self.dispatcher.dispatch_event('network.route.query.changed', {
             'operation': 'create',
             'ids': [route['id']]
         })
@@ -583,7 +583,7 @@ class UpdateRouteTask(Task):
         except RpcException as e:
             raise TaskException(errno.ENXIO, 'Cannot reconfigure interface: {0}'.format(str(e)))
 
-        self.dispatcher.dispatch_event('network.route.changed', {
+        self.dispatcher.dispatch_event('network.route.query.changed', {
             'operation': 'update',
             'ids': [route['id']]
         })
@@ -608,7 +608,7 @@ class DeleteRouteTask(Task):
         except RpcException as e:
             raise TaskException(errno.ENXIO, 'Cannot reconfigure interface: {0}'.format(str(e)))
 
-        self.dispatcher.dispatch_event('network.route.changed', {
+        self.dispatcher.dispatch_event('network.route.query.changed', {
             'operation': 'delete',
             'ids': [id]
         })
@@ -832,9 +832,9 @@ def _init(dispatcher, plugin):
 
     plugin.register_event_handler('network.dns.configured', on_resolv_conf_change)
     plugin.register_event_type('network.changed')
-    plugin.register_event_type('network.config.changed')
-    plugin.register_event_type('network.interface.changed')
-    plugin.register_event_type('network.host.changed')
-    plugin.register_event_type('network.route.changed')
+    plugin.register_event_type('network.config.get_config.changed')
+    plugin.register_event_type('network.interface.query.changed')
+    plugin.register_event_type('network.host.query.changed')
+    plugin.register_event_type('network.route.query.changed')
 
     plugin.register_debug_hook(collect_debug)

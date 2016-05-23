@@ -1,0 +1,1 @@
+root set uid=0 username="root" fullname="x" group="wheel" groups=[] shell="/bin/csh" home="/root" password_disabled=false locked=false email=none sudo=false pubkey=none

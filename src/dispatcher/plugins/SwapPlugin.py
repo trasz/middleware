@@ -190,7 +190,7 @@ def _init(dispatcher, plugin):
     })
 
     plugin.register_provider('swap', SwapProvider)
-    plugin.register_event_handler('volume.changed', on_volumes_change)
+    plugin.register_event_handler('volume.query.changed', on_volumes_change)
     plugin.attach_hook('volume.pre_destroy', volumes_pre_detach)
     plugin.attach_hook('volume.pre_detach', volumes_pre_detach)
 

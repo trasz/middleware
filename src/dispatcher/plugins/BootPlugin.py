@@ -224,7 +224,7 @@ def _init(dispatcher, plugin):
             if args['operation'] in ('create', 'delete'):
                 logging.info('Boot environment {0} {1}d'.format(path[-1], args['operation']))
 
-            dispatcher.dispatch_event('boot.environment.changed', {
+            dispatcher.dispatch_event('boot.environment.query.changed', {
                 'operation': args['operation'],
                 'ids': [path[-1]]
             })
@@ -232,7 +232,7 @@ def _init(dispatcher, plugin):
     plugin.register_provider('boot.pool', BootPoolProvider)
     plugin.register_provider('boot.environment', BootEnvironmentsProvider)
 
-    plugin.register_event_type('boot.environment.changed')
+    plugin.register_event_type('boot.environment.query.changed')
 
     plugin.register_task_handler('boot.environment.clone', BootEnvironmentCreate)
     plugin.register_task_handler('boot.environment.activate', BootEnvironmentActivate)
@@ -242,4 +242,4 @@ def _init(dispatcher, plugin):
     plugin.register_task_handler('boot.disk.attach', BootAttachDisk)
     plugin.register_task_handler('boot.disk.detach', BootDetachDisk)
 
-    plugin.register_event_handler('zfs.dataset.changed', on_dataset_change)
+    plugin.register_event_handler('zfs.dataset.query.changed', on_dataset_change)

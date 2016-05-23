@@ -62,11 +62,6 @@ class ISCSIConfigureTask(Task):
             self.dispatcher.call_sync('etcd.generation.generate_group', 'services')
             self.dispatcher.call_sync('etcd.generation.generate_group', 'ctl')
             self.dispatcher.call_sync('service.apply_state', 'iscsi')
-
-            self.dispatcher.dispatch_event('service.iscsi.changed', {
-                'operation': 'updated',
-                'ids': None,
-            })
         except RpcException as e:
             raise TaskException(
                 errno.ENXIO, 'Cannot reconfigure iSCSI: {0}'.format(str(e))

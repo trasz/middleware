@@ -1,0 +1,6 @@
+setenv tasks_blocking=yes
+service cifs stop
+service cifs config set enable=no
+share smb delete smbdemo
+share smb create smbdemo volume=tank guest_ok=yes
+service cifs config set enable=yes

@@ -67,10 +67,6 @@ class TFTPConfigureTask(Task):
             tftp['umask'] = get_integer(tftp['umask'])
             node.update(tftp)
             self.dispatcher.call_sync('etcd.generation.generate_group', 'services')
-            self.dispatcher.dispatch_event('service.tftpd.changed', {
-                'operation': 'updated',
-                'ids': None,
-            })
         except RpcException as e:
             raise TaskException(
                 errno.ENXIO, 'Cannot reconfigure TFTP: {0}'.format(str(e))

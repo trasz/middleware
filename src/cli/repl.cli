@@ -1,0 +1,21 @@
+getting_cmds=1
+i = 0
+cmds = []
+​
+while (getting_cmds) {
+        x = readline("cmd> ")
+        if (x != "done") {
+                cmds["i"] = x
+        } else {
+                getting_cmds = 0
+        }
+        i = i + 1
+}
+​
+function commit()
+{
+        for (i in cmds) {
+                eval(i)
+	}
+}
+

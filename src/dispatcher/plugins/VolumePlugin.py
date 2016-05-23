@@ -547,7 +547,7 @@ class VolumeCreateTask(ProgressTask):
             })
 
         self.set_progress(90)
-        self.dispatcher.dispatch_event('volume.changed', {
+        self.dispatcher.dispatch_event('volume.query.changed', {
             'operation': 'create',
             'ids': [id]
         })
@@ -682,7 +682,7 @@ class VolumeDestroyTask(Task):
                     self.join_subtasks(*subtasks)
 
             self.datastore.delete('volumes', vol['id'])
-            self.dispatcher.dispatch_event('volume.changed', {
+            self.dispatcher.dispatch_event('volume.query.changed', {
                 'operation': 'delete',
                 'ids': [vol['id']]
             })
@@ -955,7 +955,7 @@ class VolumeUpdateTask(Task):
 
             volume['topology'] = new_topology
             self.datastore.update('volumes', volume['id'], volume)
-            self.dispatcher.dispatch_event('volume.changed', {
+            self.dispatcher.dispatch_event('volume.query.changed', {
                 'operation': 'update',
                 'ids': [volume['id']]
             })
@@ -1043,7 +1043,7 @@ class VolumeImportTask(Task):
                 'mountpoint': mountpoint
             })
 
-            self.dispatcher.dispatch_event('volume.changed', {
+            self.dispatcher.dispatch_event('volume.query.changed', {
                 'operation': 'create',
                 'ids': [new_id]
             })
@@ -1166,7 +1166,7 @@ class VolumeUpgradeTask(Task):
             raise TaskException(errno.ENOENT, 'Volume {0} not found'.format(id))
 
         self.join_subtasks(self.run_subtask('zfs.pool.upgrade', id))
-        self.dispatcher.dispatch_event('volume.changed', {
+        self.dispatcher.dispatch_event('volume.query.changed', {
             'operation': 'update',
             'ids': [vol['id']]
         })
@@ -1280,7 +1280,7 @@ class VolumeLockTask(Task):
                     ))
             self.join_subtasks(*subtasks)
 
-            self.dispatcher.dispatch_event('volume.changed', {
+            self.dispatcher.dispatch_event('volume.query.changed', {
                 'operation': 'update',
                 'ids': [vol['id']]
             })
@@ -1498,7 +1498,7 @@ class VolumeUnlockTask(Task):
 
             self.join_subtasks(self.run_subtask('zfs.mount', id))
 
-            self.dispatcher.dispatch_event('volume.changed', {
+            self.dispatcher.dispatch_event('volume.query.changed', {
                 'operation': 'update',
                 'ids': [vol['id']]
             })
@@ -1570,7 +1570,7 @@ class VolumeRekeyTask(Task):
                 subtasks.append(self.run_subtask('disk.geli.ukey.del', disk_id, slot))
             self.join_subtasks(*subtasks)
 
-            self.dispatcher.dispatch_event('volume.changed', {
+            self.dispatcher.dispatch_event('volume.query.changed', {
                 'operation': 'update',
                 'ids': [vol['id']]
             })
@@ -2207,7 +2207,7 @@ def _init(dispatcher, plugin):
                     if volume and volume.get('encrypted', False) == False:
                         logger.info('Volume {0} is going away'.format(volume['id']))
                         dispatcher.datastore.delete('volumes', volume['id'])
-                        dispatcher.dispatch_event('volume.changed', {
+                        dispatcher.dispatch_event('volume.query.changed', {
                             'operation': 'delete',
                             'ids': [volume['id']]
                         })
@@ -2218,7 +2218,7 @@ def _init(dispatcher, plugin):
                 if args['operation'] == 'update':
                     volume = dispatcher.datastore.get_one('volumes', ('id', '=', i['name']))
                     if volume:
-                        dispatcher.dispatch_event('volume.changed', {
+                        dispatcher.dispatch_event('volume.query.changed', {
                             'operation': 'update',
                             'ids': [volume['id']]
                         })
@@ -2249,7 +2249,7 @@ def _init(dispatcher, plugin):
                         dispatcher.call_task_sync('zfs.pool.export', i['name'])
                         dispatcher.call_task_sync('zfs.pool.import', i['guid'], i['name'])
 
-                    dispatcher.dispatch_event('volume.changed', {
+                    dispatcher.dispatch_event('volume.query.changed', {
                         'operation': 'create',
                         'ids': [i['name']]
                     })
@@ -2612,12 +2612,12 @@ def _init(dispatcher, plugin):
     plugin.register_hook('volume.pre_rename')
     plugin.register_hook('volume.post_rename')
 
-    plugin.register_event_handler('entity-subscriber.zfs.pool.changed', on_pool_change)
+    plugin.register_event_handler('entity-subscriber.zfs.pool.query.changed', on_pool_change)
     plugin.register_event_handler('fs.zfs.vdev.removed', on_vdev_remove)
 
-    plugin.register_event_type('volume.changed')
-    plugin.register_event_type('volume.dataset.changed')
-    plugin.register_event_type('volume.snapshot.changed')
+    plugin.register_event_type('volume.query.changed')
+    plugin.register_event_type('volume.dataset.query.changed')
+    plugin.register_event_type('volume.snapshot.query.changed')
 
     for vol in dispatcher.call_sync('volume.query'):
         if vol.get('providers_presence', 'ALL') == 'NONE':
@@ -2651,7 +2651,7 @@ def _init(dispatcher, plugin):
     snapshots.populate(dispatcher.call_sync('zfs.snapshot.query'), callback=convert_snapshot)
     snapshots.ready = True
     plugin.register_event_handler(
-        'entity-subscriber.zfs.snapshot.changed',
+        'entity-subscriber.zfs.snapshot.query.changed',
         on_snapshot_change
     )
 
@@ -2660,7 +2660,7 @@ def _init(dispatcher, plugin):
     datasets.populate(dispatcher.call_sync('zfs.dataset.query'), callback=convert_dataset)
     datasets.ready = True
     plugin.register_event_handler(
-        'entity-subscriber.zfs.dataset.changed',
+        'entity-subscriber.zfs.dataset.query.changed',
         on_dataset_change
     )
 

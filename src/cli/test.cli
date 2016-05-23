@@ -1,0 +1,4 @@
+account user create testuser password=blah
+account user testuser set fullname=z
+account user testuser set shell="/bin/csh"
+

@@ -420,7 +420,7 @@ class DiskConfigureTask(Task):
                         )
             self.dispatcher.call_sync('disk.update_disk_cache', disk['path'], timeout=120)
 
-        self.dispatcher.dispatch_event('disk.changed', {
+        self.dispatcher.dispatch_event('disk.query.changed', {
             'operation': 'update',
             'ids': [disk['id']]
         })
@@ -1138,7 +1138,7 @@ def update_disk_cache(dispatcher, path):
         diskinfo_cache.remove(old_id)
         diskinfo_cache.put(identifier, disk)
         dispatcher.datastore.delete('disks', old_id)
-        dispatcher.dispatch_event('disk.changed', {
+        dispatcher.dispatch_event('disk.query.changed', {
             'operation': 'delete',
             'ids': [old_id]
         })
@@ -1229,7 +1229,7 @@ def purge_disk_cache(dispatcher, path):
         ds_disk['delete_at'] = datetime.utcnow() + EXPIRE_TIMEOUT
         dispatcher.datastore.update('disks', ds_disk['id'], ds_disk)
 
-    dispatcher.dispatch_event('disk.changed', {
+    dispatcher.dispatch_event('disk.query.changed', {
         'operation': 'update',
         'ids': [disk['id']]
     })
@@ -1266,7 +1266,7 @@ def persist_disk(dispatcher, disk):
         ds_disk.update({'smart_options': None})
 
     dispatcher.datastore.upsert('disks', disk['id'], ds_disk)
-    dispatcher.dispatch_event('disk.changed', {
+    dispatcher.dispatch_event('disk.query.changed', {
         'operation': 'create' if new else 'update',
         'ids': [disk['id']]
     })
@@ -1475,7 +1475,7 @@ def _init(dispatcher, plugin):
     plugin.register_task_handler('disk.test', DiskTestTask)
     plugin.register_task_handler('disk.parallel_test', DiskParallelTestTask)
 
-    plugin.register_event_type('disk.changed')
+    plugin.register_event_type('disk.query.changed')
 
     plugin.register_debug_hook(collect_debug)
 

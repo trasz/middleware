@@ -289,7 +289,7 @@ class ServiceManageTask(Task):
         except SubprocessException as e:
             raise TaskException(errno.EBUSY, e.err)
 
-        self.dispatcher.dispatch_event('service.changed', {
+        self.dispatcher.dispatch_event('service.query.changed', {
             'operation': 'update',
             'ids': [service['id']]
         })
@@ -381,7 +381,7 @@ class UpdateServiceConfigTask(Task):
 
         self.dispatcher.call_sync('etcd.generation.generate_group', 'services')
         self.dispatcher.call_sync('service.apply_state', service_def['name'], restart, reload, timeout=30)
-        self.dispatcher.dispatch_event('service.changed', {
+        self.dispatcher.dispatch_event('service.query.changed', {
             'operation': 'update',
             'ids': [service_def['id']]
         })
@@ -510,7 +510,7 @@ def _init(dispatcher, plugin):
     plugin.register_task_handler("service.manage", ServiceManageTask)
     plugin.register_task_handler("service.update", UpdateServiceConfigTask)
     plugin.register_provider("service", ServiceInfoProvider)
-    plugin.register_event_type("service.changed")
+    plugin.register_event_type("service.query.changed")
 
     for svc in dispatcher.datastore.query('service_definitions'):
         plugin.register_resource(Resource('service:{0}'.format(svc['name'])), parents=['system'])

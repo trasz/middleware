@@ -188,7 +188,7 @@ class ReplicationLinkProvider(Provider):
     @private
     def put_status(self, name, status):
         status_cache.put(name, status)
-        self.dispatcher.dispatch_event('replication.link.changed', {
+        self.dispatcher.dispatch_event('replication.link.query.changed', {
             'operation': 'update',
             'ids': [name]
         })
@@ -362,7 +362,7 @@ class ReplicationCreateTask(ReplicationBaseTask):
                     'Replication link {0} already exists on {1}'.format(link['name'], remote)
                 )
 
-        self.dispatcher.dispatch_event('replication.link.changed', {
+        self.dispatcher.dispatch_event('replication.link.query.changed', {
             'operation': 'create',
             'ids': [id]
         })
@@ -580,7 +580,7 @@ class ReplicationDeleteTask(ReplicationBaseTask):
         self.dispatcher.call_sync('replication.link.link_cache_remove', link['name'])
         self.dispatcher.unregister_resource('replication:{0}'.format(link['name']))
 
-        self.dispatcher.dispatch_event('replication.link.changed', {
+        self.dispatcher.dispatch_event('replication.link.query.changed', {
             'operation': 'delete',
             'ids': [link['id']]
         })
@@ -742,12 +742,12 @@ class ReplicationUpdateTask(ReplicationBaseTask):
         self.datastore.update('replication.links', link['id'], link)
         self.dispatcher.call_sync('replication.link.link_cache_put', link)
 
-        self.dispatcher.dispatch_event('replication.link.changed', {
+        self.dispatcher.dispatch_event('replication.link.query.changed', {
             'operation': 'update',
             'ids': [link['id']]
         })
         if remote_available:
-            remote_client.emit_event('replication.link.changed', {
+            remote_client.emit_event('replication.link.query.changed', {
                 'operation': 'update',
                 'ids': [link['id']]
             })
@@ -814,7 +814,7 @@ class ReplicationSyncTask(ReplicationBaseTask):
                     transport_plugins
                 )
 
-            self.dispatcher.dispatch_event('replication.link.changed', {
+            self.dispatcher.dispatch_event('replication.link.query.changed', {
                 'operation': 'update',
                 'ids': [link['id']]
             })
@@ -871,13 +871,13 @@ class ReplicationReserveServicesTask(ReplicationBaseTask):
                             old_service = self.datastore.get_by_id(type, id)
                             if old_service != service:
                                 self.datastore.update(type, id, service)
-                                self.dispatcher.dispatch_event('{0}.changed'.format(type[:-1]), {
+                                self.dispatcher.dispatch_event('{0}.query.changed'.format(type[:-1]), {
                                     'operation': 'update',
                                     'ids': [id]
                                 })
                         else:
                             self.datastore.insert(type, service)
-                            self.dispatcher.dispatch_event('{0}.changed'.format(type[:-1]), {
+                            self.dispatcher.dispatch_event('{0}.query.changed'.format(type[:-1]), {
                                 'operation': 'create',
                                 'ids': [id]
                             })
@@ -1329,7 +1329,7 @@ class ReplicationUpdateLinkTask(Task):
         if parse_datetime(local_link['update_date']) < parse_datetime(remote_link['update_date']):
             self.datastore.update('replication.links', remote_link['id'], remote_link)
             self.dispatcher.call_sync('replication.link.link_cache_put', remote_link)
-            self.dispatcher.dispatch_event('replication.link.changed', {
+            self.dispatcher.dispatch_event('replication.link.query.changed', {
                 'operation': 'update',
                 'ids': [remote_link['id']]
             })
@@ -1489,7 +1489,7 @@ def _init(dispatcher, plugin):
     plugin.register_task_handler('replication.delete', ReplicationDeleteTask)
     plugin.register_task_handler('replication.check_datasets', ReplicationCheckDatasetsTask)
 
-    plugin.register_event_type('replication.link.changed')
+    plugin.register_event_type('replication.link.query.changed')
 
     # Generate replication key pair on first run
     if not dispatcher.configstore.get('replication.key.private') or not dispatcher.configstore.get('replication.key.public'):
@@ -1512,7 +1512,7 @@ def _init(dispatcher, plugin):
     def update_link_cache(args):
         sshd_service = dispatcher.call_sync('service.query', [('name', '=', 'sshd')], {'single': True})
         dispatcher.test_or_wait_for_event(
-            'service.changed',
+            'service.query.changed',
             lambda ar:
                 ar['id'] == sshd_service['id'] and
                 dispatcher.call_sync(
@@ -1544,8 +1544,8 @@ def _init(dispatcher, plugin):
                         pass
 
     plugin.register_event_handler('plugin.service_resume', on_etcd_resume)
-    plugin.register_event_handler('replication.link.changed', on_replication_change)
-    plugin.register_event_handler('network.changed', update_link_cache)
+    plugin.register_event_handler('replication.link.query.changed', on_replication_change)
+    plugin.register_event_handler('network.query.changed', update_link_cache)
     links = dispatcher.call_sync('replication.link.local_query')
     for link in links:
         dispatcher.register_resource(Resource('replication:{0}'.format(link['name'])), parents=['replication'])
