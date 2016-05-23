@@ -35,7 +35,7 @@ class EntitySubscriberEventSource(EventSource):
     def __init__(self, dispatcher):
         super(EntitySubscriberEventSource, self).__init__(dispatcher)
         self.handles = {}
-        self.services = []
+        self.methods = []
         dispatcher.register_event_handler('server.event.added', self.event_added)
         dispatcher.register_event_handler('server.event.removed', self.event_removed)
 
@@ -43,19 +43,19 @@ class EntitySubscriberEventSource(EventSource):
         if args['name'].startswith('entity-subscriber'):
             return
 
-        service, _, changed = args['name'].rpartition('.')
+        method, _, changed = args['name'].rpartition('.')
         if changed == 'changed':
-            self.register(service)
+            self.register(method)
 
     def event_removed(self, args):
         if args['name'].startswith('entity-subscriber'):
             return
 
-        service, _, changed = args['name'].rpartition('.')
+        method, _, changed = args['name'].rpartition('.')
         if changed == 'changed':
-            self.services.remove(service)
+            self.methods.remove(method)
 
-    def changed(self, service, event):
+    def changed(self, method, event):
         ids = event.get('ids', None)
         operation = event['operation']
 
@@ -64,63 +64,64 @@ class EntitySubscriberEventSource(EventSource):
             return
 
         if operation in ('delete', 'rename'):
-            self.dispatcher.dispatch_event('entity-subscriber.{0}.changed'.format(service), {
-                'service': service,
+            self.dispatcher.dispatch_event('entity-subscriber.{0}.changed'.format(method), {
+                'method': method,
                 'operation': operation,
                 'ids': ids
             })
         else:
-            gevent.spawn(self.fetch if ids is not None else self.fetch_one, service, operation, ids)
+            gevent.spawn(self.fetch if ids is not None else self.fetch_one, method, operation, ids)
 
-    def fetch(self, service, operation, ids):
+    def fetch(self, method, operation, ids):
         try:
-            keys = list(ids.keys()) if isinstance(ids, dict) else ids
-            entities = self.dispatcher.call_sync('{0}.query'.format(service), [('id', 'in', keys)])
+            keys = list(ids)
+            entities = self.dispatcher.call_sync(method, [('id', 'in', keys)])
         except BaseException as e:
-            self.logger.warn('Cannot fetch changed entities from service {0}: {1}'.format(service, str(e)))
+            self.logger.warn('Cannot fetch changed entities from method {0}: {1}'.format(method, str(e)))
             return
 
-        self.dispatcher.dispatch_event('entity-subscriber.{0}.changed'.format(service), {
-            'service': service,
+        self.dispatcher.dispatch_event('entity-subscriber.{0}.changed'.format(method), {
+            'method': method,
             'operation': operation,
             'ids': ids,
             'entities': entities,
             'nolog': True
         })
 
-    def fetch_one(self, service, operation, ids):
+    def fetch_one(self, method, operation, ids):
         assert operation == 'update'
         assert ids is None
 
-        entity = self.dispatcher.call_sync('{0}.get_config'.format(service))
-        self.dispatcher.dispatch_event('entity-subscriber.{0}.changed'.format(service), {
-            'service': service,
+        entity = self.dispatcher.call_sync(method)
+        self.dispatcher.dispatch_event('entity-subscriber.{0}.changed'.format(method), {
+            'method': method,
             'operation': operation,
             'data': entity,
             'nolog': True
         })
 
     def enable(self, event):
-        service = re.match(r'^entity-subscriber\.([\.\w]+)\.changed$', event).group(1)
-        self.handles[service] = self.dispatcher.register_event_handler(
-            '{0}.changed'.format(service),
-            lambda e: self.changed(service, e))
+        method = re.match(r'^entity-subscriber\.([\.\w]+)\.changed$', event).group(1)
+        self.handles[method] = self.dispatcher.register_event_handler(
+            '{0}.changed'.format(method),
+            lambda e: self.changed(method, e)
+        )
 
     def disable(self, event):
-        service = re.match(r'^entity-subscriber\.([\.\w]+)\.changed$', event).group(1)
-        self.dispatcher.unregister_event_handler('{0}.changed'.format(service), self.handles[service])
+        method = re.match(r'^entity-subscriber\.([\.\w]+)\.changed$', event).group(1)
+        self.dispatcher.unregister_event_handler('{0}.changed'.format(method), self.handles[method])
 
-    def register(self, service):
-        self.dispatcher.register_event_type('entity-subscriber.{0}.changed'.format(service), self)
-        self.logger.info('Registered subscriber for service {0}'.format(service))
-        self.services.append(service)
+    def register(self, method):
+        self.dispatcher.register_event_type('entity-subscriber.{0}.changed'.format(method), self)
+        self.logger.info('Registered subscriber for method {0}'.format(method))
+        self.methods.append(method)
 
     def run(self):
         # Scan through registered events for those ending with .changed
         for i in list(self.dispatcher.event_types.keys()):
-            service, _, changed = i.rpartition('.')
+            method, _, changed = i.rpartition('.')
             if changed == 'changed':
-                self.register(service)
+                self.register(method)
 
 
 def _init(dispatcher, plugin):
