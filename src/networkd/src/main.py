@@ -580,6 +580,7 @@ class ConfigurationService(RpcService):
                             iface.configure(parent, tag)
                         except Exception as e:
                             self.logger.warn('Failed to configure VLAN interface {0}: {1}'.format(name, str(e)))
+                            raise
 
             # Configure protocol and member ports for a LAGG
             if entity.get('type') == 'LAGG':
