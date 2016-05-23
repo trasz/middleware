@@ -807,7 +807,7 @@ class VolumeUpdateTask(Task):
 
                     if new_vdev['type'] == 'mirror':
                         for i in vdev['children']:
-                            if not first_or_default(lambda v: v['guid'] == i['guid'], new_vdev['children']):
+                            if not first_or_default(lambda v: v.get('guid') == i['guid'], new_vdev['children']):
                                 removed_vdevs.append(i['guid'])
 
             for group, vdevs in list(updated_params['topology'].items()):
