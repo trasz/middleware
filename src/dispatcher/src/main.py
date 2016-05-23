@@ -1512,6 +1512,7 @@ class ServerConnection(WebSocketApplication, EventEmitter):
             # the reconnect will just log the session back in
             self.dispatcher.token_store.revoke_token(self.token)
             self.ws.close()
+            self.server.connections.pop(self, None)
         except WebSocketError as werr:
             # This error usually implies that the socket is dead
             # so just log it and move on
