@@ -219,7 +219,7 @@ class VirtualMachine(object):
 
     def set_state(self, state):
         self.state = state
-        self.context.client.emit_event('container.changed', {
+        self.context.client.emit_event('container.query.changed', {
             'operation': 'update',
             'ids': [self.id]
         })

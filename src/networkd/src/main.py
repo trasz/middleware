@@ -252,7 +252,7 @@ class RoutingSocketEventSource(threading.Thread):
                         'new_flags': [f.name for f in message.flags]
                     })
 
-                self.client.emit_event('network.interface.changed', {
+                self.client.emit_event('network.interface.query.changed', {
                     'operation': 'update',
                     'ids': [ifname]
                 })
@@ -292,7 +292,7 @@ class RoutingSocketEventSource(threading.Thread):
                         message.netmask
                     ))
 
-                self.client.emit_event('network.interface.changed', {
+                self.client.emit_event('network.interface.query.changed', {
                     'operation': 'update',
                     'ids': [entity['id']]
                 })
