@@ -607,6 +607,25 @@ class ContainerStopTask(Task):
         })
 
 
+@accepts(str, bool)
+@description('Reboots container')
+class ContainerRebootTask(Task):
+    @classmethod
+    def early_describe(cls):
+        return 'Rebooting container'
+
+    def describe(self, id, force=False):
+        container = self.datastore.get_by_id('containers', id)
+        return TaskDescription('Rebooting container {name}', name=container.get('name', '') if container else '')
+
+    def verify(self, id, force=False):
+        return ['system']
+
+    def run(self, id, force=False):
+        self.join_subtasks(self.run_subtask('container.stop', id, force))
+        self.join_subtasks(self.run_subtask('container.start', id))
+
+
 @accepts(str)
 @description('Caches container images')
 class CacheImagesTask(ProgressTask):
@@ -947,6 +966,7 @@ def _init(dispatcher, plugin):
     plugin.register_task_handler('container.export', ContainerExportTask)
     plugin.register_task_handler('container.start', ContainerStartTask)
     plugin.register_task_handler('container.stop', ContainerStopTask)
+    plugin.register_task_handler('container.reboot', ContainerRebootTask)
     plugin.register_task_handler('container.immutable.set', ContainerSetImmutableTask)
     plugin.register_task_handler('container.image.install', InstallImageTask)
     plugin.register_task_handler('container.image.download', DownloadImageTask)
