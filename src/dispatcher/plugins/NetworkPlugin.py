@@ -308,7 +308,7 @@ class ConfigureInterfaceTask(Task):
         try:
             self.dispatcher.call_sync(task, id)
         except RpcException as err:
-            raise TaskException(errno.ENXIO, 'Cannot reconfigure interface: {0}'.format(str(err)))
+            raise TaskException(err.code, 'Cannot reconfigure interface: {0}'.format(err.message))
 
         self.dispatcher.dispatch_event('network.interface.changed', {
             'operation': 'update',
