@@ -303,11 +303,12 @@ def _init(dispatcher, plugin):
     plugin.register_task_handler('boot.disk.attach', BootAttachDisk)
     plugin.register_task_handler('boot.disk.detach', BootDetachDisk)
 
-    bootenvs.populate(
-        dispatcher.call_sync('zfs.dataset.query'),
-        convert_bootenv
-    )
+    with bootenvs.lock:
+        bootenvs.populate(
+            dispatcher.call_sync('zfs.dataset.query'),
+            convert_bootenv
+        )
 
-    plugin.register_event_handler('entity-subscriber.zfs.dataset.changed', on_dataset_change)
-    plugin.register_event_handler('entity-subscriber.zfs.pool.changed', on_pool_change)
-    bootenvs.ready = True
+        plugin.register_event_handler('entity-subscriber.zfs.dataset.changed', on_dataset_change)
+        plugin.register_event_handler('entity-subscriber.zfs.pool.changed', on_pool_change)
+        bootenvs.ready = True
