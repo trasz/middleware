@@ -39,7 +39,7 @@ def _init(dispatcher, plugin):
         aid = dispatcher.call_sync('alert.get_active_alert', 'VolumeDegraded', volume['id'])
 
         if volume['status'] == 'ONLINE' and aid:
-            dispatcher.call_sync('alert.cancel', aid)
+            dispatcher.call_sync('alert.cancel', aid['id'])
 
         if volume['status'] != 'ONLINE' and volume['id'] and not aid:
             dispatcher.rpc.call_sync('alert.emit', {
