@@ -161,8 +161,9 @@ class TunableUpdateTask(Task):
         ):
             errors.add((1, 'var'), 'This variable already exists.', code=errno.EEXIST)
 
-        if 'value' in updated_fields and '"' in updated_fields['value'] or "'" in updated_fields['value']:
-            errors.add((1, 'value'), 'Quotes are not allowed')
+        if 'value' in updated_fields:
+            if '"' in updated_fields['value'] or "'" in updated_fields['value']:
+                errors.add((1, 'value'), 'Quotes are not allowed')
 
         if 'type' in updated_fields:
             if updated_fields['type'] in ('LOADER', 'RC') and not VAR_LOADER_RC_RE.match(tunable['var']):
