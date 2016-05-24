@@ -157,7 +157,7 @@ def rearrange_swap(dispatcher):
     logger.log(TRACE, 'Rescanning available disks')
     logger.log(TRACE, 'Disks already used for swap: %s', ', '.join(active_swap_disks))
     logger.log(TRACE, 'Disks that could be used for swap: %s', ', '.join(swap_disks - active_swap_disks))
-    logger.lof(TRACE, 'Disks that can\'t be used for swap anymore: %s', ', '.join(active_swap_disks - swap_disks))
+    logger.log(TRACE, 'Disks that can\'t be used for swap anymore: %s', ', '.join(active_swap_disks - swap_disks))
 
     create_swap(dispatcher, list(swap_disks - active_swap_disks))
     remove_swap(dispatcher, list(active_swap_disks - swap_disks))
