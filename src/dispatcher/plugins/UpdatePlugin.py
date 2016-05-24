@@ -942,7 +942,7 @@ class UpdateNowTask(MasterProgressTask):
 
 
 def _depends():
-    return ['CalendarTasksPlugin', 'MailPlugin', 'SystemDatasetPlugin']
+    return ['CalendarTasksPlugin', 'MailPlugin', 'SystemDatasetPlugin', 'AlertPlugin']
 
 
 def _init(dispatcher, plugin):
