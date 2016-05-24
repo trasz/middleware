@@ -640,8 +640,11 @@ class Balancer(object):
 
         if not started and not executing_tasks and (exit or len(waiting_tasks) == 1):
             for task in waiting_tasks:
-                self.logger.warning('Aborting task {0}: deadlock'.format(task.id))
-                self.abort(task.id, VerifyException(errno.EBUSY, 'Resource deadlock avoided'))
+                # Check whether or not task waits on nonexistent resources. If it does,
+                # abort it 'cause there's no chance anymore that missing resources will appear.
+                if any(self.resource_graph.get_resource(res) is None for res in task.resources):
+                    self.logger.warning('Aborting task {0}: deadlock'.format(task.id))
+                    self.abort(task.id, VerifyException(errno.EBUSY, 'Resource deadlock avoided'))
 
     def distribution_thread(self):
         while True:
