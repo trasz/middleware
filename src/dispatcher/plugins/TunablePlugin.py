@@ -214,7 +214,7 @@ class TunableDeleteTask(Task):
     def early_describe(cls):
         return "Deleting Tunable"
 
-    def describe(self, id, updated_fields):
+    def describe(self, id):
         tunable = self.datastore.get_by_id('tunables', id)
         return TaskDescription("Deleting Tunable {name}", name=tunable.get('var', id) if tunable else id)
 
