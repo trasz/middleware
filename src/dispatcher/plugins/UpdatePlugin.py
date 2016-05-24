@@ -863,20 +863,17 @@ class UpdateVerifyTask(ProgressTask):
 
 
 @description("Checks for updates from the update server and downloads them if available")
-@accepts(h.any_of(
-    bool,
-    None,
-))
+@accepts()
 @returns(bool)
 class CheckFetchUpdateTask(MasterProgressTask):
     @classmethod
     def early_describe(cls):
         return "Checking for updates"
 
-    def describe(self, mail=False):
+    def describe(self):
         return TaskDescription("Checking for updates")
 
-    def verify(self, mail=False):
+    def verify(self):
         block = self.dispatcher.resource_graph.get_resource(update_resource_string)
         if block is not None and block.busy:
             raise VerifyException(errno.EBUSY, (
@@ -886,27 +883,12 @@ class CheckFetchUpdateTask(MasterProgressTask):
 
         return []
 
-    def run(self, mail=False):
+    def run(self):
         self.set_progress(0, 'Checking for new updates from update server...')
         self.join_subtasks(self.run_subtask('update.check', weight=0.1))
         if self.dispatcher.call_sync('update.is_update_available'):
             self.message = "New updates found. Downloading them now..."
             self.join_subtasks(self.run_subtask('update.download', weight=0.9))
-
-            if mail:
-                changelog = self.dispatcher.call_sync('update.obtain_changelog')
-                train = self.dispatcher.call_sync('update.get_config').get('train')
-                mailconfig = self.dispatcher.call_sync('mail.get_config')
-
-                # Do a brief check on mail's config (not all exhaustive)
-                if mailconfig['from'].strip() and mailconfig['server'].strip():
-                    self.dispatcher.call_sync('mail.send', {
-                        'subject': 'Update Available',
-                        'message': 'A new update is available for the {0} train.\n\nChangelog:\n{1}'.format(
-                            train,
-                            '\n'.join(changelog),
-                        ),
-                    })
 
             self.set_progress(100, 'Updates successfully Downloaded')
 
@@ -942,7 +924,7 @@ class UpdateNowTask(MasterProgressTask):
 
 
 def _depends():
-    return ['CalendarTasksPlugin', 'MailPlugin', 'SystemDatasetPlugin', 'AlertPlugin']
+    return ['CalendarTasksPlugin', 'SystemDatasetPlugin', 'AlertPlugin']
 
 
 def _init(dispatcher, plugin):
