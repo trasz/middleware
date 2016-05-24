@@ -282,7 +282,7 @@ class ContainerCreateTask(ContainerBaseTask):
         if not self.dispatcher.call_sync('volume.query', [('id', '=', container['target'])], {'single': True}):
             raise VerifyException(errno.ENXIO, 'Volume {0} doesn\'t exist'.format(container['target']))
 
-        return ['zpool:{0}'.format(container['target'])]
+        return ['zpool:{0}'.format(container['target']), 'system']
 
     def run(self, container):
         if container.get('template'):
