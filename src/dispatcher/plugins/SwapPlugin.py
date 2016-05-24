@@ -154,10 +154,10 @@ def rearrange_swap(dispatcher):
     swap_disks = set(get_available_disks(dispatcher))
     active_swap_disks = set(sum([s['disks'] for s in swap_info], []))
 
-    logger.debug('Rescanning available disks')
-    logger.debug('Disks already used for swap: %s', ', '.join(active_swap_disks))
-    logger.debug('Disks that could be used for swap: %s', ', '.join(swap_disks - active_swap_disks))
-    logger.debug('Disks that can\'t be used for swap anymore: %s', ', '.join(active_swap_disks - swap_disks))
+    logger.log(TRACE, 'Rescanning available disks')
+    logger.log(TRACE, 'Disks already used for swap: %s', ', '.join(active_swap_disks))
+    logger.log(TRACE, 'Disks that could be used for swap: %s', ', '.join(swap_disks - active_swap_disks))
+    logger.lof(TRACE, 'Disks that can\'t be used for swap anymore: %s', ', '.join(active_swap_disks - swap_disks))
 
     create_swap(dispatcher, list(swap_disks - active_swap_disks))
     remove_swap(dispatcher, list(active_swap_disks - swap_disks))
