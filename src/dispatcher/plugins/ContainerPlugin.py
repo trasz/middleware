@@ -522,6 +522,8 @@ class ContainerDeleteTask(Task):
         root_ds = os.path.join(pool, 'vm')
         container_ds = os.path.join(root_ds, container['name'])
 
+        self.join_subtasks(self.run_subtask('container.stop', id, True))
+
         try:
             self.join_subtasks(self.run_subtask('volume.dataset.delete', container_ds))
         except RpcException as err:
