@@ -852,7 +852,7 @@ class UpdateNowTask(MasterProgressTask):
     def early_describe(cls):
         return "Checking for updates and updating"
 
-    def describe(self, mail=False):
+    def describe(self, reboot_post_install=False):
         return TaskDescription("Checking for updates and updating")
 
     def verify(self, reboot_post_install=False):
