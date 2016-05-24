@@ -263,7 +263,7 @@ class UserCreateTask(Task):
         except RpcException as e:
             raise TaskException(
                 errno.ENXIO,
-                'Cannot regenerate users file, maybe etcd service is offline. Actual Error: {0}'.format(e)
+                'Cannot regenerate users file: {0}'.format(e)
             )
 
         volumes_root = self.dispatcher.call_sync('volume.get_volumes_root')
@@ -459,7 +459,7 @@ class UserUpdateTask(Task):
         except DatastoreException as e:
             raise TaskException(errno.EBADMSG, 'Cannot update user: {0}'.format(str(e)))
         except RpcException as e:
-            raise TaskException(errno.ENXIO, 'Cannot regenerate users file, etcd service is offline')
+            raise TaskException(e.code, 'Cannot regenerate users file: {0}'.format(e.message))
 
         volumes_root = self.dispatcher.call_sync('volume.get_volumes_root')
         if user['home'].startswith(volumes_root):
@@ -552,7 +552,7 @@ class GroupCreateTask(Task):
         except DatastoreException as e:
             raise TaskException(errno.EBADMSG, 'Cannot add group: {0}'.format(str(e)))
         except RpcException as e:
-            raise TaskException(errno.ENXIO, 'Cannot regenerate groups file, etcd service is offline')
+            raise TaskException(e.code, 'Cannot regenerate groups file: {0}'.format(e.message))
 
         self.dispatcher.dispatch_event('group.changed', {
             'operation': 'create',
@@ -611,7 +611,7 @@ class GroupUpdateTask(Task):
         except DatastoreException as e:
             raise TaskException(errno.EBADMSG, 'Cannot update group: {0}'.format(str(e)))
         except RpcException as e:
-            raise TaskException(errno.ENXIO, 'Cannot regenerate groups file, etcd service is offline')
+            raise TaskException(e.code, 'Cannot regenerate groups file: {0}'.format(e.message))
 
         self.dispatcher.dispatch_event('group.changed', {
             'operation': 'update',
