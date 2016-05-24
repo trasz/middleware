@@ -116,7 +116,6 @@ DebuggerApp.run(function ($route, $location, $rootScope) {
     var postLogInRoute;
 
     $rootScope.$on('$routeChangeStart', function (event, nextRoute, currentRoute) {
-        console.log(nextRoute);
         if ($rootScope.username) {
             console.log("logged in");
         }else {
