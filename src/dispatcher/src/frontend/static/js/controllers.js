@@ -3,21 +3,7 @@ restrict: 'A';
 
 /* Controllers */
 
-function IndexController($scope) {
-  console.log("index page");
-}
-
-function NavController($scope) {
-    console.log("nav bar Controller");
-    $scope.toggleModal = function(){
-        console.log("modal toggled");
-    }
-}
-
 function LoginController($scope, $location, $routeParams, $route, $rootScope) {
-    if ($routeParams) {
-        console.log("this is next route: ",$routeParams.nextRoute);
-    }
     var sock = new middleware.DispatcherClient(document.domain);
     $scope.login = function() {
         var username = $scope.username;
@@ -29,7 +15,6 @@ function LoginController($scope, $location, $routeParams, $route, $rootScope) {
                 $scope.password
             );
         };
-        console.log($scope.loginForm);
         sock.onLogin = function(){
             sock.call("discovery.get_services", null, function (services) {
                 if (services.hasOwnProperty('code') && services['code'] == 13) {
@@ -58,7 +43,6 @@ function LoginController($scope, $location, $routeParams, $route, $rootScope) {
 }
 
 function RpcController($scope, $location, $routeParams, $route,$rootScope, ModalService) {
-    console.log("this is current path : ",$route.current.$$route.originalPath);
     document.title = "RPC Page";
     if (!sessionStorage.getItem("freenas:username")){
         $location.path('/login'+$route.current.$$route.originalPath);
