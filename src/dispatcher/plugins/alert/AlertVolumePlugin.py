@@ -36,12 +36,12 @@ def _depends():
 
 def _init(dispatcher, plugin):
     def volume_status(volume):
-        aid = dispatcher.call_sync('alert.get_active_alert', 'VolumeDegraded', volume['id'])
+        alert = dispatcher.call_sync('alert.get_active_alert', 'VolumeDegraded', volume['id'])
 
-        if volume['status'] == 'ONLINE' and aid:
-            dispatcher.call_sync('alert.cancel', aid['id'])
+        if volume['status'] == 'ONLINE' and alert:
+            dispatcher.call_sync('alert.cancel', alert['id'])
 
-        if volume['status'] != 'ONLINE' and volume['id'] and not aid:
+        if volume['status'] != 'ONLINE' and volume['id'] and not alert:
             dispatcher.rpc.call_sync('alert.emit', {
                 'class': 'VolumeDegraded',
                 'target': volume['id'],

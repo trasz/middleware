@@ -55,7 +55,7 @@ class AlertsProvider(Provider):
 
     @private
     @accepts(str, str)
-    @returns(h.one_of(int, None))
+    @returns(h.ref('alert'))
     def get_active_alert(self, cls, target):
         return self.datastore.query(
             'alerts',
