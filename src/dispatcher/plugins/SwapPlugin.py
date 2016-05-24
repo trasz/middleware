@@ -131,12 +131,6 @@ def remove_swap(dispatcher, disks):
                 logger.warn('Failed to disable swap on {0}: {1}'.format(swap['name'], err.err.strip()))
                 logger.warn('Continuing without {0}'.format(swap['name']))
 
-    # Try to create new swap partitions, as at this stage we
-    # might have two unused data disks
-    if len(disks) > 0:
-        logger.log(TRACE, 'Following disks left: {0}, rearranging swap mirrors'.format(','.join(disks)))
-        rearrange_swap(dispatcher)
-
 
 def create_swap(dispatcher, disks):
     disks = [x for x in [get_swap_partition(dispatcher, x) for x in disks] if x is not None]
