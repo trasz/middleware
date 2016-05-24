@@ -1331,6 +1331,16 @@
                 "subtype": "UPDATES",
                 "severity": "INFO"
             },
+            "UpdateDownloaded": {
+                "type": "SYSTEM",
+                "subtype": "UPDATES",
+                "severity": "INFO"
+            },
+            "UpdateInstalled": {
+                "type": "SYSTEM",
+                "subtype": "UPDATES",
+                "severity": "WARNING"
+            },
             "VolumeUpgradePossible": {
                 "type": "VOLUME",
                 "subtype": "ZFS",
