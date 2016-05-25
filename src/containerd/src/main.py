@@ -256,8 +256,9 @@ class VirtualMachine(object):
                             cdcounter += 1
 
                         print('({0}) {1}'.format(name, path), file=devmap)
-                        if i['name'] == self.config['boot_device']:
-                            bootname = name
+                        if 'boot_device' in self.config:
+                            if i['name'] == self.config['boot_device']:
+                                bootname = name
 
                     if self.config.get('boot_partition'):
                         bootname += ',{0}'.format(self.config['boot_partition'])
