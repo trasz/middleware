@@ -150,15 +150,15 @@ class BootEnvironmentsDelete(Task):
             raise TaskException(errno.EIO, 'Cannot delete the {0} boot environment'.format(id))
 
 
-@description("Attaches the given Disk to the Boot Pool")
+@description("Attaches the given Disk to the boot pool")
 @accepts(str, str)
 class BootAttachDisk(ProgressTask):
     @classmethod
     def early_describe(cls):
-        return "Attaching disk to the Boot Pool"
+        return "Attaching disk to the boot pool"
 
     def describe(self, guid, disk):
-        return TaskDescription("Attaching the {name} disk to the Boot Pool", name=guid)
+        return TaskDescription("Attaching the {name} disk to the boot pool", name=disk)
 
     def verify(self, guid, disk):
         boot_pool_name = self.configstore.get('system.boot_pool_name')
