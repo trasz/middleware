@@ -762,7 +762,8 @@ class InstallImageTask(Task):
         with open(destination, 'wb') as dst:
             with gzip.open(image_path, 'rb') as src:
                 for chunk in iter(lambda: src.read(BLOCKSIZE), b""):
-                    dst.write(chunk)
+                    if os.write(dst.fileno(), chunk) == 0:
+                        raise TaskException(errno.ENOSPC, 'Image is too large to fit in zvol')
 
 
 @description('Downloads container templates')
