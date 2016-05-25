@@ -29,7 +29,7 @@ import logging
 
 from datastore.config import ConfigNode
 from freenas.dispatcher.rpc import RpcException, SchemaHelper as h, description, accepts, returns, private
-from task import Task, Provider, TaskException, ValidationException
+from task import Task, Provider, TaskException, ValidationException, TaskDescription
 
 logger = logging.getLogger('SMARTPlugin')
 
@@ -46,8 +46,12 @@ class SMARTProvider(Provider):
 @description('Configure SMART service')
 @accepts(h.ref('service-smartd'))
 class SMARTConfigureTask(Task):
-    def describe(self, share):
+    @classmethod
+    def early_describe(cls):
         return 'Configuring SMART service'
+
+    def describe(self, smartd):
+        return TaskDescription('Configuring SMART service')
 
     def verify(self, smartd):
         errors = []

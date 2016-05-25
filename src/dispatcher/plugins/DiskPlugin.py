@@ -36,7 +36,7 @@ import base64
 import gevent
 import gevent.monkey
 from xml.etree import ElementTree
-from bsd import geom
+from bsd import geom, getswapinfo
 from gevent.lock import RLock
 from resources import Resource
 from datetime import datetime, timedelta
@@ -51,8 +51,7 @@ from task import (
     query, TaskDescription
 )
 from debug import AttachData, AttachCommandOutput
-from freenas.dispatcher.rpc import RpcException, accepts, returns, description, private
-from freenas.dispatcher.rpc import SchemaHelper as h, generator
+from freenas.dispatcher.rpc import RpcException, accepts, returns, description, private, SchemaHelper as h, generator
 
 # Note the following monkey patch is required for pySMART to work correctly
 gevent.monkey.patch_subprocess()
@@ -80,6 +79,7 @@ class SelfTestType(enum.Enum):
     OFFLINE = 'offline'
 
 
+@description('Provides information about disks')
 class DiskProvider(Provider):
     @query('disk')
     @generator
@@ -91,6 +91,7 @@ class DiskProvider(Provider):
                 disk['online'] = self.is_online(disk['path'])
                 disk['status'] = diskinfo_cache.get(disk['id'])
 
+            disk['rname'] = 'disk:{0}'.format(disk['path'])
             return disk
 
         return wrap(self.datastore.query('disks', callback=extend)).query(*(filter or []), **(params or {}))
@@ -166,6 +167,10 @@ class DiskProvider(Provider):
 )
 @accepts(str, str, h.object())
 class DiskGPTFormatTask(Task):
+    @classmethod
+    def early_describe(cls):
+        return "Formatting disk"
+
     def describe(self, id, fstype, params=None):
         disk = disk_by_id(self.dispatcher, id)
         return TaskDescription("Formatting disk {name}", name=os.path.basename(disk['path']))
@@ -231,6 +236,10 @@ class DiskGPTFormatTask(Task):
 @description('Formats given disk to be bootable and capable to be included in the Boot Pool')
 @accepts(str)
 class DiskBootFormatTask(Task):
+    @classmethod
+    def early_describe(cls):
+        return "Formatting bootable disk"
+
     def describe(self, id):
         disk = disk_by_id(self.dispatcher, id)
         return TaskDescription("Formatting bootable disk {name}", name=disk['path'])
@@ -262,6 +271,10 @@ class DiskBootFormatTask(Task):
 @description("Installs Bootloader (grub) on specified disk")
 @accepts(str)
 class DiskInstallBootloaderTask(Task):
+    @classmethod
+    def early_describe(cls):
+        return "Installing bootloader on disk"
+
     def describe(self, id):
         disk = disk_by_id(self.dispatcher, id)
         return TaskDescription("Installing bootloader on disk {name}", name=disk['path'])
@@ -276,7 +289,7 @@ class DiskInstallBootloaderTask(Task):
     def run(self, id):
         try:
             disk = disk_by_id(self.dispatcher, id)
-            system('/usr/local/sbin/grub-install', "--modules='zfs part_gpt'", disk['path'])
+            system('/usr/local/sbin/grub-install', "--modules=zfs part_gpt", disk['path'])
         except SubprocessException as err:
             raise TaskException(errno.EFAULT, 'Cannot install GRUB: {0}'.format(err.err))
 
@@ -289,6 +302,10 @@ class DiskEraseTask(Task):
         self.started = False
         self.mediasize = 0
         self.remaining = 0
+
+    @classmethod
+    def early_describe(cls):
+        return "Erasing disk"
 
     def describe(self, id, erase_method=None):
         disk = disk_by_id(self.dispatcher, id)
@@ -367,6 +384,10 @@ class DiskEraseTask(Task):
     )
 )
 class DiskConfigureTask(Task):
+    @classmethod
+    def early_describe(cls):
+        return "Configuring disk"
+
     def describe(self, id, updated_fields):
         disk = disk_by_id(self.dispatcher, id)
         return TaskDescription("Configuring disk {name}", name=disk['path'])
@@ -428,6 +449,10 @@ class DiskConfigureTask(Task):
 @description("Deletes offline disk configuration from database")
 @accepts(str)
 class DiskDeleteTask(Task):
+    @classmethod
+    def early_describe(cls):
+        return "Deleting offline disk configuration"
+
     def describe(self, id):
         disk = disk_by_id(self.dispatcher, id)
         return TaskDescription("Deleting offline disk {name} configuration", name=disk['path'])
@@ -448,7 +473,12 @@ class DiskDeleteTask(Task):
 
 
 @accepts(str, h.ref('disk-attach-params'))
+@description('Initializes GELI encrypted partition')
 class DiskGELIInitTask(Task):
+    @classmethod
+    def early_describe(cls):
+        return "Creating encrypted partition"
+
     def describe(self, id, params=None):
         disk = disk_by_id(self.dispatcher, id)
         return TaskDescription("Creating encrypted partition for {name}", name=os.path.basename(disk['path']))
@@ -503,7 +533,12 @@ class DiskGELIInitTask(Task):
 
 
 @accepts(str, h.ref('disk-set-key-params'))
+@description('Sets new GELI user key in specified slot')
 class DiskGELISetUserKeyTask(Task):
+    @classmethod
+    def early_describe(cls):
+        return "Setting new key for encrypted partition"
+
     def describe(self, id, params=None):
         disk = disk_by_id(self.dispatcher, id)
         return TaskDescription("Setting new key for encrypted partition on {name}", name=os.path.basename(disk['path']))
@@ -553,7 +588,12 @@ class DiskGELISetUserKeyTask(Task):
 
 
 @accepts(str, int)
+@description('Deletes GELI user key entry from a given slot')
 class DiskGELIDelUserKeyTask(Task):
+    @classmethod
+    def early_describe(cls):
+        return "Deleting key of encrypted partition"
+
     def describe(self, id, slot):
         disk = disk_by_id(self.dispatcher, id)
         return TaskDescription("Deleting key of encrypted partition on {name}", name=os.path.basename(disk['path']))
@@ -584,7 +624,12 @@ class DiskGELIDelUserKeyTask(Task):
 
 @accepts(str)
 @returns(h.ref('disk-metadata'))
+@description('Creates a backup of GELI metadata')
 class DiskGELIBackupMetadataTask(Task):
+    @classmethod
+    def early_describe(cls):
+        return "Backing up metadata of encrypted partition"
+
     def describe(self, id):
         disk = disk_by_id(self.dispatcher, id)
         return TaskDescription(
@@ -618,7 +663,12 @@ class DiskGELIBackupMetadataTask(Task):
 
 
 @accepts(str, h.ref('disk-metadata'))
+@description('Restores GELI metadata from file')
 class DiskGELIRestoreMetadataTask(Task):
+    @classmethod
+    def early_describe(cls):
+        return "Restoring metadata of encrypted partition"
+
     def describe(self, id, metadata):
         return TaskDescription(
             "Restoring metadata of encrypted partition on {name}",
@@ -652,7 +702,12 @@ class DiskGELIRestoreMetadataTask(Task):
 
 
 @accepts(str, h.ref('disk-attach-params'))
+@description('Attaches GELI encrypted partition')
 class DiskGELIAttachTask(Task):
+    @classmethod
+    def early_describe(cls):
+        return "Attaching encrypted partition"
+
     def describe(self, id, params=None):
         disk = disk_by_id(self.dispatcher, id)
         return TaskDescription("Attaching encrypted partition of {name}", name=os.path.basename(disk['path']))
@@ -699,7 +754,12 @@ class DiskGELIAttachTask(Task):
 
 
 @accepts(str)
+@description('Detaches GELI encrypted partition')
 class DiskGELIDetachTask(Task):
+    @classmethod
+    def early_describe(cls):
+        return "Detaching encrypted partition"
+
     def describe(self, id):
         disk = disk_by_id(self.dispatcher, id)
         return TaskDescription("Detaching encrypted partition of {name}", name=os.path.basename(disk['path']))
@@ -728,7 +788,12 @@ class DiskGELIDetachTask(Task):
 
 
 @accepts(str)
+@description('Destroys GELI encrypted partition along with GELI metadata')
 class DiskGELIKillTask(Task):
+    @classmethod
+    def early_describe(cls):
+        return "Killing encrypted partition"
+
     def describe(self, id):
         disk = disk_by_id(self.dispatcher, id)
         return TaskDescription("Killing encrypted partition of {0}", name=os.path.basename(disk['path']))
@@ -759,6 +824,10 @@ class DiskGELIKillTask(Task):
 @description("Performs SMART test on disk")
 @accepts(str, h.ref('disk-selftest-type'))
 class DiskTestTask(ProgressTask):
+    @classmethod
+    def early_describe(cls):
+        return "Performing SMART test on disk"
+
     def describe(self, id, test_type):
         disk = disk_by_id(self.dispatcher, id)
         return TaskDescription("Performing SMART test on disk {name}", name=disk['path'])
@@ -790,6 +859,10 @@ class DiskTestTask(ProgressTask):
 @description("Performs the given SMART test on the disk IDs specified (in parallel)")
 @accepts(h.array(str), h.ref('disk-selftest-type'))
 class DiskParallelTestTask(ProgressTask):
+    @classmethod
+    def early_describe(cls):
+        return "Performing parallel SMART test"
+
     def describe(self, ids, test_type):
         return TaskDescription("Performing parallel SMART test")
 
@@ -912,11 +985,27 @@ def clean_multipaths(dispatcher):
     multipaths = -1
 
 
+def clean_mirrors(dispatcher):
+    geom.scan()
+    cls = geom.class_by_name('MIRROR')
+    if cls:
+        for i in cls.geoms:
+            if i.name.endswith('.sync'):
+                continue
+
+            logger.info('Destroying mirror device %s', i.name)
+            dispatcher.exec_and_wait_for_event(
+                'system.device.detached',
+                lambda args: args['path'] == '/dev/mirror/{0}'.format(i.name),
+                lambda: system('/sbin/gmirror', 'destroy', i.name)
+            )
+
+
 def get_multipath_name():
     global multipaths
 
     multipaths += 1
-    return 'multipath{0}'.format(multipaths)
+    return 'mpath{0}'.format(multipaths)
 
 
 def attach_to_multipath(dispatcher, disk, ds_disk, path):
@@ -1293,7 +1382,7 @@ def _depends():
 def _init(dispatcher, plugin):
     def on_device_attached(args):
         path = args['path']
-        if re.match(r'^/dev/(da|ada|vtbd|multipath/multipath)[0-9]+$', path):
+        if re.match(r'^/dev/(da|ada|vtbd|multipath/mpath)[0-9]+$', path):
             if not dispatcher.resource_exists('disk:{0}'.format(path)):
                 dispatcher.register_resource(Resource('disk:{0}'.format(path)))
 
@@ -1309,13 +1398,13 @@ def _init(dispatcher, plugin):
             logger.info("Disk %s detached", path)
             purge_disk_cache(dispatcher, path)
 
-        if re.match(r'^/dev/(da|ada|vtbd|multipath/multipath)[0-9]+$', path):
+        if re.match(r'^/dev/(da|ada|vtbd|multipath/mpath)[0-9]+$', path):
             dispatcher.unregister_resource('disk:{0}'.format(path))
 
     def on_device_mediachange(args):
         # Regenerate caches
         path = args['path']
-        if re.match(r'^/dev/(da|ada|vtbd|multipath/multipath)[0-9]+$', path):
+        if re.match(r'^/dev/(da|ada|vtbd|multipath/mpath)[0-9]+$', path):
             with dispatcher.get_lock('diskcache:{0}'.format(path)):
                 logger.info('Updating disk cache for device %s', args['path'])
                 update_disk_cache(dispatcher, args['path'])
@@ -1325,6 +1414,7 @@ def _init(dispatcher, plugin):
         'properties': {
             'id': {'type': 'string'},
             'name': {'type': 'string'},
+            'rname': {'type': 'string'},
             'path': {'type': 'string'},
             'description': {'type': 'string'},
             'serial': {'type': 'string'},
@@ -1467,6 +1557,12 @@ def _init(dispatcher, plugin):
             i['delete_at'] = datetime.utcnow() + EXPIRE_TIMEOUT
 
         dispatcher.datastore.update('disks', i['id'], i)
+
+    # Destroy all swap devices and mirrors
+    for dev in getswapinfo():
+        system('/sbin/swapoff', os.path.join('/dev', dev.devname))
+
+    clean_mirrors(dispatcher)
 
     # Destroy all existing multipaths
     clean_multipaths(dispatcher)

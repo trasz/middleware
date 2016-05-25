@@ -147,8 +147,12 @@ class SharesProvider(Provider):
     h.required('name', 'type', 'target_type', 'target_path', 'properties')
 ))
 class CreateShareTask(Task):
+    @classmethod
+    def early_describe(cls):
+        return "Creating share"
+
     def describe(self, share):
-        return TaskDescription("Creating share {name}", name=share['name'])
+        return TaskDescription("Creating share {name}", name=share.get('name' ) if share else '')
 
     def verify(self, share):
         if not self.dispatcher.call_sync('share.supported_types').get(share['type']):
@@ -254,9 +258,13 @@ class CreateShareTask(Task):
 @description("Updates existing share")
 @accepts(str, h.ref('share'))
 class UpdateShareTask(Task):
+    @classmethod
+    def early_describe(cls):
+        return "Updating share"
+
     def describe(self, id, updated_fields):
         share = self.datastore.get_by_id('shares', id)
-        return TaskDescription("Updating share {name}", name=share['name'] if share else id)
+        return TaskDescription("Updating share {name}", name=share.get('name', id) if share else id)
 
     def verify(self, id, updated_fields):
         share = self.datastore.get_by_id('shares', id)
@@ -345,6 +353,10 @@ class UpdateShareTask(Task):
 @description("Imports existing share")
 @accepts(str, str, str)
 class ImportShareTask(Task):
+    @classmethod
+    def early_describe(cls):
+        return "Importing share"
+
     def describe(self, config_path, name, type):
         return TaskDescription("Importing share {name} from {config_path}", name=name, config_path=config_path)
 
@@ -400,6 +412,18 @@ class ImportShareTask(Task):
 @description("Sets share immutable")
 @accepts(str, bool)
 class ShareSetImmutableTask(Task):
+    @classmethod
+    def early_describe(cls):
+        return 'Updating share\'s immutable property'
+
+    def describe(self, id, immutable):
+        share = self.datastore.get_by_id('shares', id)
+        return TaskDescription(
+            'Setting {name} share\'s immutable property to {value}',
+            name=share.get('name', id) if share else id,
+            value='on' if immutable else 'off'
+        )
+
     def verify(self, id, immutable):
         if not self.datastore.exists('shares', id):
             raise VerifyException(errno.ENOENT, 'Share {0} does not exist'.format(id))
@@ -420,9 +444,13 @@ class ShareSetImmutableTask(Task):
 @description("Deletes share")
 @accepts(str)
 class DeleteShareTask(Task):
+    @classmethod
+    def early_describe(cls):
+        return "Deleting share"
+
     def describe(self, id):
         share = self.datastore.get_by_id('shares', id)
-        return TaskDescription("Deleting share {name}", name=share['name'] if share else id)
+        return TaskDescription("Deleting share {name}", name=share.get('name', id) if share else id)
 
     def verify(self, id):
         share = self.datastore.get_by_id('shares', id)
@@ -453,9 +481,13 @@ class DeleteShareTask(Task):
 @description("Export share")
 @accepts(str)
 class ExportShareTask(Task):
+    @classmethod
+    def early_describe(cls):
+        return "Exporting share"
+
     def describe(self, id):
         share = self.datastore.get_by_id('shares', id)
-        return TaskDescription("Exporting share {name}", name=share['name'] if share else id)
+        return TaskDescription("Exporting share {name}", name=share.get('name', id) if share else id)
 
     def verify(self, id):
         share = self.datastore.get_by_id('shares', id)
@@ -477,6 +509,13 @@ class ExportShareTask(Task):
 @description("Deletes all shares dependent on specified volume/dataset")
 @accepts(str)
 class DeleteDependentShares(Task):
+    @classmethod
+    def early_describe(cls):
+        return 'Deleting shares related to system path'
+
+    def describe(self, path):
+        return TaskDescription('Deleting shares related to system path {name}', name=path)
+
     def verify(self, path):
         return ['system']
 
@@ -492,6 +531,13 @@ class DeleteDependentShares(Task):
 @description("Updates all shares related to specified volume/dataset")
 @accepts(str, h.ref('share'))
 class UpdateRelatedShares(Task):
+    @classmethod
+    def early_describe(cls):
+        return 'Updating shares related to system path'
+
+    def describe(self, path, updated_fields):
+        return TaskDescription('Updating shares related to system path {name}', name=path)
+
     def verify(self, path, updated_fields):
         return ['system']
 
@@ -506,6 +552,13 @@ class UpdateRelatedShares(Task):
 @description("Kills client connections from specified IP address")
 @accepts(str, str)
 class ShareTerminateConnectionTask(Task):
+    @classmethod
+    def early_describe(cls):
+        return 'Killing connections to share'
+
+    def describe(self, share_type, address):
+        return TaskDescription('Killing {address} connections to {name} share', address=address, name=share_type)
+
     def verify(self, share_type, address):
         return ['system']
 

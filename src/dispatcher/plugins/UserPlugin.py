@@ -168,6 +168,10 @@ class UserCreateTask(Task):
         self.id = None
         self.created_group = False
 
+    @classmethod
+    def early_describe(cls):
+        return "Creating user"
+
     def describe(self, user):
         return TaskDescription("Adding user {name}", name=user['username'])
 
@@ -243,7 +247,7 @@ class UserCreateTask(Task):
             if password:
                 system(
                     '/usr/local/bin/smbpasswd', '-D', '0', '-s', '-a', user['username'],
-                    stdin='{0}\n{1}\n'.format(password, password).encode('utf8')
+                    stdin='{0}\n{1}\n'.format(password, password)
                 )
 
                 user['smbhash'] = system('/usr/local/bin/pdbedit', '-d', '0', '-w', user['username'])[0]
@@ -259,7 +263,7 @@ class UserCreateTask(Task):
         except RpcException as e:
             raise TaskException(
                 errno.ENXIO,
-                'Cannot regenerate users file, maybe etcd service is offline. Actual Error: {0}'.format(e)
+                'Cannot regenerate users file: {0}'.format(e)
             )
 
         volumes_root = self.dispatcher.call_sync('volume.get_volumes_root')
@@ -300,6 +304,10 @@ class UserCreateTask(Task):
 @description("Deletes an user from the system")
 @accepts(str)
 class UserDeleteTask(Task):
+    @classmethod
+    def early_describe(cls):
+        return "Deleting user"
+
     def describe(self, id):
         user = self.datastore.get_by_id('users', id)
         return TaskDescription("Deleting user {name}", name=user['username'] if user else id)
@@ -354,6 +362,10 @@ class UserUpdateTask(Task):
     def __init__(self, dispatcher, datastore):
         super(UserUpdateTask, self).__init__(dispatcher, datastore)
         self.original_user = None
+
+    @classmethod
+    def early_describe(cls):
+        return "Updating user"
 
     def describe(self, id, updated_fields):
         user = self.datastore.get_by_id('users', id)
@@ -435,7 +447,7 @@ class UserUpdateTask(Task):
             if password:
                 system(
                     '/usr/local/bin/smbpasswd', '-D', '0', '-s', '-a', user['username'],
-                    stdin='{0}\n{1}\n'.format(password, password).encode('utf8')
+                    stdin='{0}\n{1}\n'.format(password, password)
                 )
                 user['smbhash'] = system('/usr/local/bin/pdbedit', '-d', '0', '-w', user['username'])[0]
                 self.datastore.update('users', id, user)
@@ -447,7 +459,7 @@ class UserUpdateTask(Task):
         except DatastoreException as e:
             raise TaskException(errno.EBADMSG, 'Cannot update user: {0}'.format(str(e)))
         except RpcException as e:
-            raise TaskException(errno.ENXIO, 'Cannot regenerate users file, etcd service is offline')
+            raise TaskException(e.code, 'Cannot regenerate users file: {0}'.format(e.message))
 
         volumes_root = self.dispatcher.call_sync('volume.get_volumes_root')
         if user['home'].startswith(volumes_root):
@@ -492,6 +504,10 @@ class UserUpdateTask(Task):
     h.forbidden('builtin')
 ))
 class GroupCreateTask(Task):
+    @classmethod
+    def early_describe(cls):
+        return "Creating group"
+
     def describe(self, group):
         return TaskDescription("Adding group {name}", name=group['name'])
 
@@ -536,7 +552,7 @@ class GroupCreateTask(Task):
         except DatastoreException as e:
             raise TaskException(errno.EBADMSG, 'Cannot add group: {0}'.format(str(e)))
         except RpcException as e:
-            raise TaskException(errno.ENXIO, 'Cannot regenerate groups file, etcd service is offline')
+            raise TaskException(e.code, 'Cannot regenerate groups file: {0}'.format(e.message))
 
         self.dispatcher.dispatch_event('group.changed', {
             'operation': 'create',
@@ -555,6 +571,10 @@ class GroupCreateTask(Task):
     )
 )
 class GroupUpdateTask(Task):
+    @classmethod
+    def early_describe(cls):
+        return "Updating group"
+
     def describe(self, id, updated_fields):
         group = self.datastore.get_by_id('groups', id)
         return TaskDescription("Updating group {name}", name=group['name'] if group else id)
@@ -591,7 +611,7 @@ class GroupUpdateTask(Task):
         except DatastoreException as e:
             raise TaskException(errno.EBADMSG, 'Cannot update group: {0}'.format(str(e)))
         except RpcException as e:
-            raise TaskException(errno.ENXIO, 'Cannot regenerate groups file, etcd service is offline')
+            raise TaskException(e.code, 'Cannot regenerate groups file: {0}'.format(e.message))
 
         self.dispatcher.dispatch_event('group.changed', {
             'operation': 'update',
@@ -602,6 +622,10 @@ class GroupUpdateTask(Task):
 @description("Deletes a group")
 @accepts(str)
 class GroupDeleteTask(Task):
+    @classmethod
+    def early_describe(cls):
+        return "Deleting group"
+
     def describe(self, id):
         group = self.datastore.get_by_id('groups', id)
         return TaskDescription("Deleting group {name}", name=group['name'] if group else id)

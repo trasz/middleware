@@ -29,7 +29,7 @@ import logging
 
 from datastore.config import ConfigNode
 from freenas.dispatcher.rpc import RpcException, SchemaHelper as h, description, accepts, returns, private
-from task import Task, Provider, TaskException, ValidationException
+from task import Task, Provider, TaskException, ValidationException, TaskDescription
 
 logger = logging.getLogger('LLDPPlugin')
 
@@ -47,8 +47,13 @@ class LLDPProvider(Provider):
 @description('Configure LLDP service')
 @accepts(h.ref('service-lldp'))
 class LLDPConfigureTask(Task):
-    def describe(self, share):
+    @classmethod
+    def early_describe(cls):
         return 'Configuring LLDP service'
+
+    def describe(self, lldp):
+        node = ConfigNode('service.lldp', self.configstore)
+        return TaskDescription('Configuring {name} LLDP service', name=node['save_description'] or '')
 
     def verify(self, lldp):
         errors = ValidationException()

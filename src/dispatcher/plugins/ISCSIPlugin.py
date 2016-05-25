@@ -30,7 +30,7 @@ import logging
 
 from datastore.config import ConfigNode
 from freenas.dispatcher.rpc import RpcException, SchemaHelper as h, description, accepts, returns, private
-from task import Task, Provider, TaskException
+from task import Task, Provider, TaskException, TaskDescription
 
 
 logger = logging.getLogger('ISCSIPlugin')
@@ -50,8 +50,13 @@ class ISCSIProvider(Provider):
 @description('Configure ISCSI service')
 @accepts(h.ref('service-iscsi'))
 class ISCSIConfigureTask(Task):
-    def describe(self, iscsi):
+    @classmethod
+    def early_describe(cls):
         return 'Configuring iSCSI service'
+
+    def describe(self, iscsi):
+        node = ConfigNode('service.iscsi', self.configstore)
+        return TaskDescription('Configuring {name} iSCSI service', name=node['base_name'] or '')
 
     def verify(self, iscsi):
         return ['system']

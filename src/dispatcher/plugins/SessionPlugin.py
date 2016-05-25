@@ -26,10 +26,11 @@
 #####################################################################
 
 import time
-from task import Provider, query
+from task import Provider, query, TaskDescription
 from auth import Token
-from freenas.dispatcher.rpc import (description, pass_sender, returns, accepts,
-                            SchemaHelper as h)
+from freenas.dispatcher.rpc import (
+    description, pass_sender, returns, accepts, SchemaHelper as h
+)
 
 
 @description("Provides Information about the current loggedin Session")

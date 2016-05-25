@@ -63,6 +63,7 @@ early_kld_list="geom_stripe geom_raid3 geom_raid5 geom_gate geom_multipath"
 # A set of kernel modules that can be loaded after mounting local filesystems.
 kld_list="dtraceall ipmi fuse if_cxgbe"
 
+gateway_enable="YES"
 ipv6_activate_all_interfaces="YES"
 rtsold_enable="YES"
 dbus_enable="YES"

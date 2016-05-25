@@ -80,7 +80,7 @@ class FileGenerationService(RpcService):
         text = self.context.generate_file(filename)
         filepath = os.path.join(self.context.root, filename)
         try:
-            with open(filepath, 'w') as fd:
+            with open(filepath, 'w', encoding='utf-8') as fd:
                 fd.write(text)
         except FileNotFoundError as e:
             self.context.logger.error('Failed to open {0}: {1}'.format(filepath, e), exc_info=True)

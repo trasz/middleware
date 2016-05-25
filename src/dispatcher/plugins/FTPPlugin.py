@@ -28,7 +28,7 @@ import logging
 
 from datastore.config import ConfigNode
 from freenas.dispatcher.rpc import RpcException, SchemaHelper as h, description, accepts, returns, private
-from task import Task, Provider, TaskException, ValidationException
+from task import Task, Provider, TaskException, ValidationException, TaskDescription
 from freenas.utils.permissions import get_unix_permissions, get_integer
 
 logger = logging.getLogger('FTPPlugin')
@@ -50,8 +50,12 @@ class FTPProvider(Provider):
 @description('Configure FTP service')
 @accepts(h.ref('service-ftp'))
 class FTPConfigureTask(Task):
-    def describe(self, share):
+    @classmethod
+    def early_describe(cls):
         return 'Configuring FTP service'
+
+    def describe(self, ftp):
+        return TaskDescription('Configuring FTP service')
 
     def verify(self, ftp):
         errors = ValidationException()

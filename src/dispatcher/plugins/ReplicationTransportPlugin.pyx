@@ -206,6 +206,7 @@ cdef uint32_t write_fd(int fd, void *buf, uint32_t nbytes) nogil:
             return done
 
 
+@description('Provides information about known peers')
 class HostProvider(Provider):
     @query('known-host')
     def query(self, filter=None, params=None):
@@ -225,6 +226,7 @@ class HostProvider(Provider):
         return [i for i in keys]
 
 
+@description('Provides information about replication transport layer')
 class TransportProvider(Provider):
     def __init__(self):
         super(TransportProvider, self).__init__()
@@ -264,8 +266,12 @@ class TransportSendTask(Task):
         self.sock = None
         self.conn = None
 
+    @classmethod
+    def early_describe(cls):
+        return "Sending replication stream"
+
     def describe(self, fd, transport):
-        return TaskDescription("Sending the replication stream to {name}", name=transport['client_address'])
+        return TaskDescription("Sending replication stream to {name}", name=transport['client_address'])
 
     def verify(self, fd, transport):
         client_address = transport.get('client_address')
@@ -548,8 +554,12 @@ class TransportReceiveTask(ProgressTask):
         self.fds = []
         self.sock = None
 
+    @classmethod
+    def early_describe(cls):
+        return "Receiving replication stream"
+
     def describe(self, transport):
-        return TaskDescription("Receiving the replication stream from {name}", name=transport['server_address'])
+        return TaskDescription("Receiving replication stream from {name}", name=transport['server_address'])
 
     def verify(self, transport):
         if 'auth_token' not in transport:
@@ -790,9 +800,13 @@ class TransportCompressTask(Task):
         self.fds = []
         self.aborted = False
 
+    @classmethod
+    def early_describe(cls):
+        return "Compressing replication stream"
+
     def describe(self, plugin):
         return TaskDescription(
-            "Compressing the replication stream using the {method} method",
+            "Compressing replication stream using the {method} method",
             method=plugin.get('level', 'DEFAULT')
         )
 
@@ -909,6 +923,10 @@ class TransportDecompressTask(Task):
         self.fds = []
         self.aborted = False
 
+    @classmethod
+    def early_describe(cls):
+        return "Decompressing the replication stream"
+
     def describe(self, plugin):
         return TaskDescription("Decompressing the replication stream")
 
@@ -1023,6 +1041,10 @@ class TransportEncryptTask(Task):
         super(TransportEncryptTask, self).__init__(dispatcher, datastore)
         self.fds = []
         self.aborted = False
+
+    @classmethod
+    def early_describe(cls):
+        return "Encrypting the replication stream"
 
     def describe(self, plugin):
         return TaskDescription(
@@ -1283,9 +1305,13 @@ class TransportDecryptTask(Task):
         self.fds = []
         self.aborted = False
 
+    @classmethod
+    def early_describe(cls):
+        return "Decrypting replication stream"
+
     def describe(self, plugin):
         return TaskDescription(
-            "Decrypting the replication stream using the {algorithm} algorithm",
+            "Decrypting replication stream using the {algorithm} algorithm",
             algorithm=plugin.get('type', 'AES128')
         )
 
@@ -1519,9 +1545,13 @@ class TransportThrottleTask(Task):
         self.fds = []
         self.aborted = False
 
+    @classmethod
+    def early_describe(cls):
+        return "Throttling replication stream"
+
     def describe(self, plugin):
         return TaskDescription(
-            "Throttling the replication stream to {throttle} iB/s",
+            "Throttling replication stream to {throttle} iB/s",
             throttle=plugin.get('buffer_size', 50*1024*1024)
         )
 
@@ -1619,6 +1649,10 @@ class TransportThrottleTask(Task):
 @description('Exchange keys with remote machine for replication purposes')
 @accepts(str, str, str, int)
 class HostsPairCreateTask(Task):
+    @classmethod
+    def early_describe(cls):
+        return 'Exchanging SSH keys with remote host'
+
     def describe(self, username, remote, password, port=22):
         return TaskDescription('Exchanging SSH keys with the remote {name}', name=remote)
 
@@ -1675,6 +1709,10 @@ class HostsPairCreateTask(Task):
 @description('Create known host entry in database')
 @accepts(h.ref('known-host'))
 class KnownHostCreateTask(Task):
+    @classmethod
+    def early_describe(cls):
+        return 'Creating a known host entry'
+
     def describe(self, known_host):
         return TaskDescription('Creating a known host entry for the remote {name}', name=known_host['name'])
 
@@ -1698,6 +1736,10 @@ class KnownHostCreateTask(Task):
 @description('Remove keys making local and remote accessible from each other for replication user')
 @accepts(str)
 class HostsPairDeleteTask(Task):
+    @classmethod
+    def early_describe(cls):
+        return 'Deleting SSH association'
+
     def describe(self, remote):
         return TaskDescription('Deleting SSH association with the remote {name}', name=remote)
 
@@ -1742,6 +1784,10 @@ class HostsPairDeleteTask(Task):
 @description('Remove known host entry from database')
 @accepts(str)
 class KnownHostDeleteTask(Task):
+    @classmethod
+    def early_describe(cls):
+        return 'Deleting known host entry'
+
     def describe(self, name):
         return TaskDescription('Deleting the known host entry for the remote {name}', name=name)
 
@@ -1777,6 +1823,10 @@ class KnownHostDeleteTask(Task):
 @description('Update SSH port number in remote known host entry')
 @accepts(str, int)
 class HostsPairPortUpdateTask(Task):
+    @classmethod
+    def early_describe(cls):
+        return 'Updating the SSH port number in the known host entry'
+
     def describe(self, name, port):
         return TaskDescription('Updating the SSH port number in the known host entry of the {name}', name=name)
 
@@ -1798,6 +1848,10 @@ class HostsPairPortUpdateTask(Task):
 @description('Update SSH port number in known host entry')
 @accepts(str, int)
 class KnownHostPortUpdateTask(Task):
+    @classmethod
+    def early_describe(cls):
+        return 'Updating the SSH port number used for communication with remote host'
+
     def describe(self, name, port):
         return TaskDescription('Updating the SSH port number used to connect to the {name}', name=name)
 

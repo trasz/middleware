@@ -112,6 +112,10 @@ class HostsProvider(Provider):
 @description("Updates global network configuration settings")
 @accepts(h.ref('network-config'))
 class NetworkConfigureTask(Task):
+    @classmethod
+    def early_describe(cls):
+        return "Updating global network settings"
+
     def describe(self, settings):
         return TaskDescription("Updating global network settings")
 
@@ -135,7 +139,12 @@ class NetworkConfigureTask(Task):
     h.forbidden('id', 'status')
 ))
 @returns(str)
+@description('Creates network interface')
 class CreateInterfaceTask(Task):
+    @classmethod
+    def early_describe(cls):
+        return "Creating network interface"
+
     def describe(self, iface):
         return TaskDescription("Creating {name} network interface", name=iface['type'])
 
@@ -196,8 +205,13 @@ class CreateInterfaceTask(Task):
 @description("Deletes interface")
 @accepts(str)
 class DeleteInterfaceTask(Task):
+    @classmethod
+    def early_describe(cls):
+        return "Deleting network interface"
+
     def describe(self, id):
-        return TaskDescription("Deleting network interface {name}", name=id)
+        iface = self.datastore.get_by_id('network.interfaces', id)
+        return TaskDescription("Deleting network interface {name}", name=iface.get('name', ''))
 
     def verify(self, id):
         iface = self.datastore.get_by_id('network.interfaces', id)
@@ -228,8 +242,13 @@ class DeleteInterfaceTask(Task):
     h.forbidden('id', 'type', 'status')
 ))
 class ConfigureInterfaceTask(Task):
+    @classmethod
+    def early_describe(cls):
+        return "Updating configuration of network interface"
+
     def describe(self, id, updated_fields):
-        return TaskDescription("Updating configuration of network interface {name}", name=id)
+        iface = self.datastore.get_by_id('network.interfaces', id)
+        return TaskDescription("Updating configuration of network interface {name}", name=iface.get('name', ''))
 
     def verify(self, id, updated_fields):
         if not self.datastore.exists('network.interfaces', ('id', '=', id)):
@@ -289,7 +308,7 @@ class ConfigureInterfaceTask(Task):
         try:
             self.dispatcher.call_sync(task, id)
         except RpcException as err:
-            raise TaskException(errno.ENXIO, 'Cannot reconfigure interface: {0}'.format(str(err)))
+            raise TaskException(err.code, 'Cannot reconfigure interface: {0}'.format(err.message))
 
         self.dispatcher.dispatch_event('network.interface.changed', {
             'operation': 'update',
@@ -300,8 +319,13 @@ class ConfigureInterfaceTask(Task):
 @description("Enables interface")
 @accepts(str)
 class InterfaceUpTask(Task):
+    @classmethod
+    def early_describe(cls):
+        return "Setting network interface up"
+
     def describe(self, id):
-        return TaskDescription("Setting network interface {name} up", name=id)
+        iface = self.datastore.get_by_id('network.interfaces', id)
+        return TaskDescription("Setting network interface {name} up", name=iface.get('name', ''))
 
     def verify(self, id):
         iface = self.datastore.get_by_id('network.interfaces', id)
@@ -328,8 +352,13 @@ class InterfaceUpTask(Task):
 @description("Disables interface")
 @accepts(str)
 class InterfaceDownTask(Task):
+    @classmethod
+    def early_describe(cls):
+        return "Setting network interface down"
+
     def describe(self, id):
-        return TaskDescription("Setting network interface {name} down", name=id)
+        iface = self.datastore.get_by_id('network.interfaces', id)
+        return TaskDescription("Setting network interface {name} down", name=iface.get('name', ''))
 
     def verify(self, id):
         iface = self.datastore.get_by_id('network.interfaces', id)
@@ -356,8 +385,13 @@ class InterfaceDownTask(Task):
 @description("Renews IP lease on interface")
 @accepts(str)
 class InterfaceRenewTask(Task):
+    @classmethod
+    def early_describe(cls):
+        return "Renewing IP address of network interface"
+
     def describe(self, id):
-        return TaskDescription("Renewing IP address of network interface {name}", name=id)
+        iface = self.datastore.get_by_id('network.interfaces', id)
+        return TaskDescription("Renewing IP address of network interface {name}", name=iface.get('name', ''))
 
     def verify(self, id):
         interface = self.datastore.get_by_id('network.interfaces', id)
@@ -390,6 +424,10 @@ class InterfaceRenewTask(Task):
     h.required('id', 'address')
 ))
 class AddHostTask(Task):
+    @classmethod
+    def early_describe(cls):
+        return "Adding static host"
+
     def describe(self, host):
         return TaskDescription("Adding static host {name}", name=host['id'])
 
@@ -415,6 +453,10 @@ class AddHostTask(Task):
 @description("Updates host entry in the database")
 @accepts(str, h.ref('network-host'))
 class UpdateHostTask(Task):
+    @classmethod
+    def early_describe(cls):
+        return "Updating static host"
+
     def describe(self, id, updated_fields):
         return TaskDescription("Updating static host {name}", name=id)
 
@@ -443,6 +485,10 @@ class UpdateHostTask(Task):
 @description("Deletes host entry from the database")
 @accepts(str)
 class DeleteHostTask(Task):
+    @classmethod
+    def early_describe(cls):
+        return "Deleting static host"
+
     def describe(self, id, updated_fields):
         return TaskDescription("Deleting static host {name}", name=id)
 
@@ -472,6 +518,10 @@ class DeleteHostTask(Task):
     h.required('id', 'type', 'network', 'netmask', 'gateway')
 ))
 class AddRouteTask(Task):
+    @classmethod
+    def early_describe(cls):
+        return "Adding static route"
+
     def describe(self, route):
         return TaskDescription("Adding static route {name}", name=route['id'])
 
@@ -528,6 +578,10 @@ class AddRouteTask(Task):
 @description("Updates static route in the system")
 @accepts(str, h.ref('network-route'))
 class UpdateRouteTask(Task):
+    @classmethod
+    def early_describe(cls):
+        return "Updating static route"
+
     def describe(self, name, updated_fields):
         return TaskDescription("Updating static route {name}", name=id)
 
@@ -592,6 +646,10 @@ class UpdateRouteTask(Task):
 @description("Deletes static route from the system")
 @accepts(str)
 class DeleteRouteTask(Task):
+    @classmethod
+    def early_describe(cls):
+        return "Deleting static route"
+
     def describe(self, id):
         return TaskDescription("Deleting static route {name}", name=id)
 

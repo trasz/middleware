@@ -28,7 +28,7 @@ import logging
 
 from datastore.config import ConfigNode
 from freenas.dispatcher.rpc import RpcException, SchemaHelper as h, description, accepts, returns, private
-from task import Task, Provider, TaskException, ValidationException
+from task import Task, Provider, TaskException, ValidationException, TaskDescription
 
 logger = logging.getLogger('GlusterdPlugin')
 
@@ -46,8 +46,12 @@ class GlusterdProvider(Provider):
 @description('Configure Glusterd service')
 @accepts(h.ref('service-glusterd'))
 class GlusterdConfigureTask(Task):
-    def describe(self, share):
+    @classmethod
+    def early_describe(cls):
         return 'Configuring Glusterd service'
+
+    def describe(self, glusterd):
+        return TaskDescription('Configuring Glusterd service')
 
     def verify(self, glusterd):
         errors = []

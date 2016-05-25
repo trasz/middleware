@@ -12,10 +12,14 @@ var DebuggerApp = angular.module('Debugger', [
 DebuggerApp.config(['$routeProvider', function($routeProvider) {
   $routeProvider.
     when('/', {
-        templateUrl: '../static/partials/rpc.html',
-        controller: RpcController
+      templateUrl: '../static/partials/rpc.html',
+      controller: RpcController
     }).
     when('/login',{
+        templateUrl: '../static/partials/login.html',
+        controller: LoginController
+    }).
+    when('/login/:nextRoute',{
         templateUrl: '../static/partials/login.html',
         controller: LoginController
     }).
@@ -108,7 +112,7 @@ DebuggerApp.controller('ModalController',['$scope', '$element', 'close', functio
 }]);
 
 
-DebuggerApp.run(function ($location, $rootScope) {
+DebuggerApp.run(function ($route, $location, $rootScope) {
     var postLogInRoute;
 
     $rootScope.$on('$routeChangeStart', function (event, nextRoute, currentRoute) {

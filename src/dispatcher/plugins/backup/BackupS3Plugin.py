@@ -29,13 +29,22 @@ import os
 import errno
 import requests
 import boto3
-from task import Provider, Task, ProgressTask, TaskException
+from task import Task, ProgressTask, TaskException, TaskDescription
+from freenas.dispatcher.rpc import description
 
 
 CHUNK_SIZE = 5 * 1024 * 1024
 
 
+@description('Lists information about a specific S3 backup')
 class BackupS3ListTask(Task):
+    @classmethod
+    def early_describe(cls):
+        return 'Listing information about S3 backup'
+
+    def describe(self, backup):
+        return TaskDescription('Listing information about S3 backup')
+
     def verify(self, backup):
         return []
 
@@ -67,7 +76,15 @@ class BackupS3ListTask(Task):
         return result
 
 
+@description('Initializes a S3 backup')
 class BackupS3InitTask(Task):
+    @classmethod
+    def early_describe(cls):
+        return 'Initializing S3 backup'
+
+    def describe(self, backup):
+        return TaskDescription('Initializing S3 backup')
+
     def verify(self, backup):
         return []
 
@@ -75,7 +92,15 @@ class BackupS3InitTask(Task):
         pass
 
 
+@description('Puts new data onto S3 backup')
 class BackupS3PutTask(ProgressTask):
+    @classmethod
+    def early_describe(cls):
+        return 'Putting new data onto S3 backup'
+
+    def describe(self, backup, name, fd):
+        return TaskDescription('Putting new data onto S3 backup {name}', name=name)
+
     def verify(self, backup, name, fd):
         return []
 
@@ -129,7 +154,15 @@ class BackupS3PutTask(ProgressTask):
             pass
 
 
+@description('Gets data from S3 backup')
 class BackupS3GetTask(Task):
+    @classmethod
+    def early_describe(cls):
+        return 'Getting data from S3 backup'
+
+    def describe(self, backup, name, fd):
+        return TaskDescription('Getting data from S3 backup {name}', name=name)
+
     def verify(self, backup, name, fd):
         return []
 

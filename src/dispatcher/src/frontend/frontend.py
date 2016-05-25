@@ -42,6 +42,10 @@ Bootstrap(app)
 def index():
     return render_template('base.html')
 
-@app.route('/new')
-def new():
-    return render_template('fixed.html')
+@app.route('/start')
+def start():
+    return render_template('starter.html')
+
+@app.route('/demo')
+def demo():
+    return render_template('demo_task.html')

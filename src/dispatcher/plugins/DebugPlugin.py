@@ -28,12 +28,20 @@
 import os
 import io
 import tarfile
-from freenas.dispatcher.rpc import RpcException
+from freenas.dispatcher.rpc import RpcException, description
 from lib.system import system, SubprocessException
-from task import ProgressTask, TaskWarning
+from task import ProgressTask, TaskWarning, TaskDescription
 
 
+@description('Collects debug information')
 class CollectDebugTask(ProgressTask):
+    @classmethod
+    def early_describe(cls):
+        return 'Collecting debug data'
+
+    def describe(self, fd):
+        return TaskDescription('Collecting debug data')
+
     def verify(self, fd):
         return ['system']
 
@@ -85,7 +93,15 @@ class CollectDebugTask(ProgressTask):
                     done += 1
 
 
+@description('Saves debug information')
 class SaveDebugTask(ProgressTask):
+    @classmethod
+    def early_describe(cls):
+        return 'Saving debug data'
+
+    def describe(self):
+        return TaskDescription('Saving debug data')
+
     def verify(self):
         return ['system']
 

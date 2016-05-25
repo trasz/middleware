@@ -34,6 +34,7 @@ import traceback
 import hashlib
 import json
 import itertools
+from datetime import datetime
 from freenas.dispatcher import validator
 from freenas.dispatcher.fd import FileDescriptor
 from freenas.utils import iter_chunked
@@ -421,9 +422,22 @@ class SchemaHelper(object):
 
     @staticmethod
     def object(*args, **kwargs):
-        result = {'type': 'object'}
+        required = kwargs.pop('required', None)
+        result = {
+            'type': 'object',
+            'additionalProperties': kwargs.pop('additionalProperties', True)
+        }
+
         if 'properties' in kwargs:
             result['properties'] = {n: convert_schema(x) for n, x in kwargs['properties'].items()}
+
+        if isinstance(required, str):
+            if required == 'all':
+                result['required'] = [k for k, v in result['properties'].items() if not v.get('readOnly')]
+
+        elif isinstance(required, (list, tuple)):
+            result['required'] = required
+
         return result
 
     @staticmethod
@@ -439,11 +453,20 @@ class SchemaHelper(object):
         result['enum'] = values
         return result
 
+    @staticmethod
+    def readonly(sch):
+        result = convert_schema(sch)
+        result['readOnly'] = True
+        return result
+
 
 def convert_schema(sch):
     type_mapping = {
         FileDescriptor: 'fd',
+        datetime: 'datetime',
+        bytes: 'binary',
         str: 'string',
+        int: 'integer',
         float: 'number',
         bool: 'boolean',
         None: 'null'

@@ -28,11 +28,21 @@
 import os
 import threading
 import uuid
-from task import Task
+import errno
+from task import Task, TaskDescription, TaskWarning
+from freenas.dispatcher.rpc import description
 from freenas.dispatcher.fd import FileDescriptor
 
 
+@description('Downloads tests')
 class TestDownloadTask(Task):
+    @classmethod
+    def early_describe(cls):
+        return 'Downloading tests'
+
+    def describe(self):
+        return TaskDescription('Downloading tests')
+
     def verify(self):
         return []
 
@@ -54,5 +64,16 @@ class TestDownloadTask(Task):
         return url
 
 
+class TestWarningsTask(Task):
+    def verify(self):
+        return []
+
+    def run(self):
+        self.add_warning(TaskWarning(errno.EBUSY, 'Warning 1'))
+        self.add_warning(TaskWarning(errno.ENXIO, 'Warning 2'))
+        self.add_warning(TaskWarning(errno.EINVAL, 'Warning 3 with extra payload', extra={'hello': 'world'}))
+
+
 def _init(dispatcher, plugin):
     plugin.register_task_handler('test.test_download', TestDownloadTask)
+    plugin.register_task_handler('test.test_warnings', TestWarningsTask)

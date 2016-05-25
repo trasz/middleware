@@ -69,7 +69,7 @@ def best_match(items, name, key=None, default=None):
 
     matches = list(filter(try_match, items))
     if not matches:
-        return None
+        return default
 
     return max(matches, key=get_length)
 
@@ -91,17 +91,6 @@ def extend(d, d2):
 def normalize(d, d2):
     for k, v in list(d2.items()):
         d.setdefault(k, v)
-
-
-def deep_update(source, overrides):
-    for key, value in overrides.items():
-        if isinstance(value, collections.Mapping) and value:
-            returned = deep_update(source.get(key, {}), value)
-            source[key] = returned
-        else:
-            source[key] = overrides[key]
-
-    return source
 
 
 def force_none(v):
@@ -269,6 +258,10 @@ def in_directory(d1, d2):
         return True
 
     return os.path.commonprefix([d1, d2]) == d2
+
+
+def is_ascii(s):
+    return len(s) == len(s.encode())
 
 
 def xrecvmsg(sock, length, anclength=None):

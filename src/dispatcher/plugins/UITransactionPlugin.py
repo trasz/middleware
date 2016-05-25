@@ -28,7 +28,7 @@
 import errno
 import time
 import gevent
-from freenas.dispatcher.rpc import RpcException, pass_sender, accepts, returns, private
+from freenas.dispatcher.rpc import RpcException, pass_sender, accepts, returns, private, description
 from task import Provider
 from freenas.utils import first_or_default
 
@@ -76,6 +76,7 @@ class Session(object):
         }
 
 
+@description('Provides information about UI transactions')
 class UITransactionProvider(Provider):
     @pass_sender
     @accepts(str, int)

@@ -29,7 +29,7 @@ import logging
 
 from datastore.config import ConfigNode
 from freenas.dispatcher.rpc import RpcException, SchemaHelper as h, description, accepts, returns, private
-from task import Task, Provider, TaskException
+from task import Task, Provider, TaskException, TaskDescription
 from freenas.utils import exclude
 
 logger = logging.getLogger('SSHPlugin')
@@ -48,8 +48,12 @@ class SSHProvider(Provider):
 @description('Configure SSH service')
 @accepts(h.ref('service-sshd'))
 class SSHConfigureTask(Task):
-    def describe(self, ssh):
+    @classmethod
+    def early_describe(cls):
         return 'Configuring SSH service'
+
+    def describe(self, ssh):
+        return TaskDescription('Configuring SSH service')
 
     def verify(self, ssh):
         return ['system']

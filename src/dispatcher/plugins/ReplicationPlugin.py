@@ -72,81 +72,7 @@ class ReplicationAction(object):
         return d
 
 
-class ReplicationProvider(Provider):
-    def datasets_from_link(self, link):
-        datasets = []
-        for dataset in link['datasets']:
-            if link['recursive']:
-                try:
-                    dependencies = self.dispatcher.call_sync(
-                        'zfs.dataset.query',
-                        [('name', '~', '^{0}(/|$)'.format(dataset))],
-                    )
-                except RpcException:
-                    raise RpcException(errno.ENOENT, 'Dataset {0} not found'.format(dataset))
-
-                for dependency in dependencies:
-                    if dependency not in datasets:
-                        datasets.append(dependency)
-            else:
-                dependency = self.dispatcher.call_sync('zfs.dataset.query', [('name', '=', dataset)], {'single': True})
-                if dependency:
-                    if dependency not in datasets:
-                        datasets.append(dependency)
-                else:
-                    raise RpcException(errno.ENOENT, 'Dataset {0} not found'.format(dataset))
-
-        return sorted(datasets, key=lambda d: d['name'])
-
-    def get_reserved_shares(self, link_name):
-        shares = []
-        link = self.dispatcher.call_task_sync('replication.get_latest_link', link_name)
-        datasets = self.dispatcher.call_sync('replication.datasets_from_link', link)
-        for dataset in datasets:
-            dataset_path = self.dispatcher.call_sync('volume.get_dataset_path', dataset['name'])
-            shares.extend(
-                wrap(
-                    self.dispatcher.call_sync('share.get_dependencies', dataset_path, False, False)
-                ).query([('immutable', '=', True)], {})
-            )
-
-        return shares
-
-    def get_reserved_containers(self, link_name):
-        containers = []
-        link = self.dispatcher.call_task_sync('replication.get_latest_link', link_name)
-        datasets = self.dispatcher.call_sync('replication.datasets_from_link', link)
-        for dataset in datasets:
-            containers.extend(
-                wrap(
-                    self.dispatcher.call_sync('share.get_dependencies', dataset['name'], False)
-                ).query([('immutable', '=', True)], {})
-            )
-
-        return containers
-
-    def get_related_shares(self, link_name):
-        shares = []
-        link = self.dispatcher.call_task_sync('replication.get_latest_link', link_name)
-        datasets = self.dispatcher.call_sync('replication.datasets_from_link', link)
-        for dataset in datasets:
-            dataset_path = self.dispatcher.call_sync('volume.get_dataset_path', dataset['name'])
-            shares.extend(self.dispatcher.call_sync('share.get_dependencies', dataset_path, False, False))
-
-        return shares
-
-    def get_related_containers(self, link_name):
-        containers = []
-        link = self.dispatcher.call_task_sync('replication.get_latest_link', link_name)
-        datasets = self.dispatcher.call_sync('replication.datasets_from_link', link)
-        for dataset in datasets:
-            container = self.dispatcher.call_sync('container.get_dependent', dataset['name'], False)
-            if container:
-                containers.append(container)
-
-        return containers
-
-
+@description('Provides information about replication tasks')
 class ReplicationLinkProvider(Provider):
     @query('replication-link')
     def query(self, filter=None, params=None):
@@ -208,6 +134,84 @@ class ReplicationLinkProvider(Provider):
     def link_cache_remove(self, name):
         link_cache.remove(name)
 
+    @private
+    def datasets_from_link(self, link):
+        datasets = []
+        for dataset in link['datasets']:
+            if link['recursive']:
+                try:
+                    dependencies = self.dispatcher.call_sync(
+                        'zfs.dataset.query',
+                        [('name', '~', '^{0}(/|$)'.format(dataset))],
+                    )
+                except RpcException:
+                    raise RpcException(errno.ENOENT, 'Dataset {0} not found'.format(dataset))
+
+                for dependency in dependencies:
+                    if dependency not in datasets:
+                        datasets.append(dependency)
+            else:
+                dependency = self.dispatcher.call_sync('zfs.dataset.query', [('name', '=', dataset)], {'single': True})
+                if dependency:
+                    if dependency not in datasets:
+                        datasets.append(dependency)
+                else:
+                    raise RpcException(errno.ENOENT, 'Dataset {0} not found'.format(dataset))
+
+        return datasets
+
+    @private
+    def get_reserved_shares(self, link_name):
+        shares = []
+        link = self.dispatcher.call_task_sync('replication.get_latest_link', link_name)
+        datasets = self.dispatcher.call_sync('replication.link.datasets_from_link', link)
+        for dataset in datasets:
+            dataset_path = self.dispatcher.call_sync('volume.get_dataset_path', dataset['name'])
+            shares.extend(
+                wrap(
+                    self.dispatcher.call_sync('share.get_dependencies', dataset_path, False, False)
+                ).query([('immutable', '=', True)], {})
+            )
+
+        return shares
+
+    @private
+    def get_reserved_containers(self, link_name):
+        containers = []
+        link = self.dispatcher.call_task_sync('replication.link.get_latest_link', link_name)
+        datasets = self.dispatcher.call_sync('replication.link.datasets_from_link', link)
+        for dataset in datasets:
+            containers.extend(
+                wrap(
+                    self.dispatcher.call_sync('share.get_dependencies', dataset['name'], False)
+                ).query([('immutable', '=', True)], {})
+            )
+
+        return containers
+
+    @private
+    def get_related_shares(self, link_name):
+        shares = []
+        link = self.dispatcher.call_task_sync('replication.get_latest_link', link_name)
+        datasets = self.dispatcher.call_sync('replication.link.datasets_from_link', link)
+        for dataset in datasets:
+            dataset_path = self.dispatcher.call_sync('volume.get_dataset_path', dataset['name'])
+            shares.extend(self.dispatcher.call_sync('share.get_dependencies', dataset_path, False, False))
+
+        return shares
+
+    @private
+    def get_related_containers(self, link_name):
+        containers = []
+        link = self.dispatcher.call_task_sync('replication.get_latest_link', link_name)
+        datasets = self.dispatcher.call_sync('replication.link.datasets_from_link', link)
+        for dataset in datasets:
+            container = self.dispatcher.call_sync('container.get_dependent', dataset['name'], False)
+            if container:
+                containers.append(container)
+
+        return containers
+
 
 class ReplicationBaseTask(Task):
     def get_replication_state(self, link):
@@ -250,7 +254,7 @@ class ReplicationBaseTask(Task):
 
     def check_datasets_valid(self, link):
         datasets = wrap(
-            self.dispatcher.call_sync('replication.datasets_from_link', link)
+            self.dispatcher.call_sync('replication.link.datasets_from_link', link)
         ).query(*[], **{'select': 'name'})
         is_master, remote = self.get_replication_state(link)
 
@@ -258,7 +262,7 @@ class ReplicationBaseTask(Task):
         for dataset in datasets:
             for l in links:
                 l_datasets = wrap(
-                    self.dispatcher.call_sync('replication.datasets_from_link', l)
+                    self.dispatcher.call_sync('replication.link.datasets_from_link', l)
                 ).query(*[], **{'select': 'name'})
                 l_is_master, remote = self.get_replication_state(l)
 
@@ -291,8 +295,12 @@ class ReplicationBaseTask(Task):
     )
 )
 class ReplicationCreateTask(ReplicationBaseTask):
+    @classmethod
+    def early_describe(cls):
+        return "Creating the replication link"
+
     def describe(self, link):
-        return TaskDescription("Creating the replication link {name}", name=link['name'])
+        return TaskDescription("Creating the replication link {name}", name=link.get('name', '') or '')
 
     def verify(self, link):
         partners = link['partners']
@@ -378,8 +386,12 @@ class ReplicationCreateTask(ReplicationBaseTask):
 @description("Ensures slave datasets have been created. Checks if services names are available on slave.")
 @accepts(h.ref('replication-link'))
 class ReplicationPrepareSlaveTask(ReplicationBaseTask):
+    @classmethod
+    def early_describe(cls):
+        return "Preparing slave for replication link"
+
     def describe(self, link):
-        return TaskDescription("Preparing a slave for the link {name}", name=link['name'])
+        return TaskDescription("Preparing slave for replication link {name}", name=link.get('name') or '')
 
     def verify(self, link):
         return []
@@ -407,7 +419,7 @@ class ReplicationPrepareSlaveTask(ReplicationBaseTask):
 
         if is_master:
             with self.dispatcher.get_lock('volumes'):
-                datasets_to_replicate = self.dispatcher.call_sync('replication.datasets_from_link', link)
+                datasets_to_replicate = self.dispatcher.call_sync('replication.link.datasets_from_link', link)
                 root = self.dispatcher.call_sync('volume.get_volumes_root')
 
                 for dataset in datasets_to_replicate:
@@ -563,6 +575,10 @@ class ReplicationPrepareSlaveTask(ReplicationBaseTask):
 @description("Deletes replication link")
 @accepts(str, bool)
 class ReplicationDeleteTask(ReplicationBaseTask):
+    @classmethod
+    def early_describe(cls):
+        return "Deleting the replication link"
+
     def describe(self, name, scrub=False):
         return TaskDescription("Deleting the replication link {name}", name=name)
 
@@ -589,7 +605,7 @@ class ReplicationDeleteTask(ReplicationBaseTask):
 
         if not is_master:
             for service in ['shares', 'containers']:
-                for reserved_item in self.dispatcher.call_sync('replication.get_reserved_{0}'.format(service), name):
+                for reserved_item in self.dispatcher.call_sync('replication.link.get_reserved_{0}'.format(service), name):
                     self.join_subtasks(self.run_subtask(
                         '{0}.export'.format(service),
                         reserved_item['id']
@@ -597,7 +613,7 @@ class ReplicationDeleteTask(ReplicationBaseTask):
 
             if scrub:
                 with self.dispatcher.get_lock('volumes'):
-                    datasets = reversed(self.dispatcher.call_sync('replication.datasets_from_link', link))
+                    datasets = reversed(self.dispatcher.call_sync('replication.link.datasets_from_link', link))
                     for dataset in datasets:
                         if len(dataset['name'].split('/')) == 1:
                             self.join_subtasks(self.run_subtask('volume.delete', dataset['name']))
@@ -612,6 +628,10 @@ class ReplicationDeleteTask(ReplicationBaseTask):
 @description("Update a replication link")
 @accepts(str, h.ref('replication-link'))
 class ReplicationUpdateTask(ReplicationBaseTask):
+    @classmethod
+    def early_describe(cls):
+        return "Updating the replication link"
+
     def describe(self, name, updated_fields):
         return TaskDescription("Updating the replication link {name}", name=name)
 
@@ -656,7 +676,7 @@ class ReplicationUpdateTask(ReplicationBaseTask):
             client = self.dispatcher
             if is_master:
                 client = remote_client
-            old_slave_datasets = client.call_sync('replication.datasets_from_link', link)
+            old_slave_datasets = client.call_sync('replication.link.datasets_from_link', link)
 
         link.update(updated_fields)
 
@@ -703,7 +723,7 @@ class ReplicationUpdateTask(ReplicationBaseTask):
 
         if not link['replicate_services']:
             for service in ['shares', 'containers']:
-                for reserved_item in self.dispatcher.call_sync('replication.get_reserved_{0}'.format(service), name):
+                for reserved_item in self.dispatcher.call_sync('replication.link.get_reserved_{0}'.format(service), name):
                     self.join_subtasks(self.run_subtask(
                         '{0}.export'.format(service),
                         reserved_item['id']
@@ -757,8 +777,12 @@ class ReplicationUpdateTask(ReplicationBaseTask):
 @description("Runs replication process based on saved link")
 @accepts(str, h.array(h.ref('replication-transport-plugin')))
 class ReplicationSyncTask(ReplicationBaseTask):
+    @classmethod
+    def early_describe(cls):
+        return "Synchronizing replication link"
+
     def describe(self, name, transport_plugins):
-        return TaskDescription("Synchronizing the replication link {name}", name=name)
+        return TaskDescription("Synchronizing replication link {name}", name=name)
 
     def verify(self, name, transport_plugins):
         if not self.datastore.exists('replication.links', ('name', '=', name)):
@@ -779,14 +803,24 @@ class ReplicationSyncTask(ReplicationBaseTask):
             remote_client = get_replication_client(self.dispatcher, remote)
             if is_master:
                 with self.dispatcher.get_lock('volumes'):
-                    datasets_to_replicate = self.dispatcher.call_sync('replication.datasets_from_link', link)
-                    for dataset in datasets_to_replicate:
+                    datasets_to_replicate = wrap(
+                        self.dispatcher.call_sync('replication.link.datasets_from_link', link)
+                    ).query(*[], **{'select': 'name'})
+                    len_sorted_datasets = sorted(datasets_to_replicate, key=lambda item: (len(item), item))
+                    parent_datasets = []
+                    for parent_dataset in len_sorted_datasets:
+                        parent_datasets.append(parent_dataset)
+                        for dataset in datasets_to_replicate:
+                            if dataset.startswith(parent_dataset + '/'):
+                                len_sorted_datasets.remove(dataset)
+
+                    for dataset in parent_datasets:
                         result = self.join_subtasks(self.run_subtask(
                             'replication.replicate_dataset',
-                            dataset['name'],
+                            dataset,
                             {
                                 'remote': remote,
-                                'remote_dataset': dataset['name'],
+                                'remote_dataset': dataset,
                                 'recursive': link['recursive']
                             },
                             transport_plugins
@@ -832,8 +866,12 @@ class ReplicationSyncTask(ReplicationBaseTask):
 @description("Creates name reservation for services subject to replication")
 @accepts(str)
 class ReplicationReserveServicesTask(ReplicationBaseTask):
+    @classmethod
+    def early_describe(cls):
+        return "Reserving services for replication link"
+
     def describe(self, name):
-        return TaskDescription("Reserving services for the replication link {name}", name=name)
+        return TaskDescription("Reserving services for replication link {name}", name=name)
 
     def verify(self, name):
         if not self.datastore.exists('replication.links', ('name', '=', name)):
@@ -852,7 +890,7 @@ class ReplicationReserveServicesTask(ReplicationBaseTask):
         else:
             if link['replicate_services']:
                 for type in service_types:
-                    services = remote_client.call_sync('replication.get_related_{0}'.format(type), name)
+                    services = remote_client.call_sync('replication.link.get_related_{0}'.format(type), name)
                     for service in services:
                         service['immutable'] = True
                         service['enabled'] = False
@@ -878,11 +916,16 @@ class ReplicationReserveServicesTask(ReplicationBaseTask):
         remote_client.disconnect()
 
 
+@description('Creates a snapshot of selected dataset')
 @accepts(str, str, bool, int, str, bool)
 @returns(str)
 class SnapshotDatasetTask(Task):
+    @classmethod
+    def early_describe(cls):
+        return "Creating a snapshot of ZFS dataset"
+
     def describe(self, dataset, recursive, lifetime, prefix='auto', replicable=False):
-        return TaskDescription("Creating a snapshot of {name}", name=dataset)
+        return TaskDescription("Creating a snapshot of {name} ZFS dataset", name=dataset)
 
     def verify(self, dataset, recursive, lifetime, prefix='auto', replicable=False):
         if not self.dispatcher.call_sync('zfs.dataset.query', [('name', '=', dataset)], {'single': True}):
@@ -925,7 +968,12 @@ class SnapshotDatasetTask(Task):
         ))
 
 
+@description('Calculates replication delta between datasets')
 class CalculateReplicationDeltaTask(Task):
+    @classmethod
+    def early_describe(cls):
+        return "Calculating replication delta"
+
     def describe(self, localds, remoteds, snapshots, recursive=False, followdelete=False):
         return TaskDescription(
             "Calculating replication delta between the {name} and the {remoteds}",
@@ -1079,7 +1127,7 @@ class CalculateReplicationDeltaTask(Task):
         return actions, total_send_size
 
 
-@description("Runs a replication task with the specified arguments")
+@description("Runs a dataset replication with the specified arguments")
 class ReplicateDatasetTask(ProgressTask):
     def __init__(self, dispatcher, datastore):
         super(ReplicateDatasetTask, self).__init__(dispatcher, datastore)
@@ -1087,8 +1135,12 @@ class ReplicateDatasetTask(ProgressTask):
         self.wr_fd = None
         self.aborted = False
 
+    @classmethod
+    def early_describe(cls):
+        return "Replicating dataset"
+
     def describe(self, localds, options, transport_plugins=None, dry_run=False):
-        return TaskDescription("Replicating the dataset {name}", name=localds)
+        return TaskDescription("Replicating dataset {name}", name=localds)
 
     def verify(self, localds, options, transport_plugins=None, dry_run=False):
         return ['zfs:{0}'.format(localds)]
@@ -1246,8 +1298,12 @@ class ReplicateDatasetTask(ProgressTask):
 @accepts(str)
 @returns(h.ref('replication-link'))
 class ReplicationGetLatestLinkTask(ReplicationBaseTask):
+    @classmethod
+    def early_describe(cls):
+        return "Fetching latest replication link"
+
     def describe(self, name):
-        return TaskDescription("Fetching the latest link {name}", name=name)
+        return TaskDescription("Fetching latest replication link {name}", name=name)
 
     def verify(self, name):
         if not self.datastore.exists('replication.links', ('name', '=', name)):
@@ -1295,8 +1351,12 @@ class ReplicationGetLatestLinkTask(ReplicationBaseTask):
 @description("Updates local replication link entry if provided remote entry is newer")
 @accepts(h.ref('replication-link'))
 class ReplicationUpdateLinkTask(Task):
+    @classmethod
+    def early_describe(cls):
+        return "Updating replication link"
+
     def describe(self, remote_link):
-        return TaskDescription("Updating the replication link {name}", name=remote_link['name'])
+        return TaskDescription("Updating replication link {name}", name=remote_link['name'])
 
     def verify(self, remote_link):
         if not self.datastore.exists('replication.links', ('name', '=', remote_link['name'])):
@@ -1328,8 +1388,12 @@ class ReplicationUpdateLinkTask(Task):
 @description("Performs synchronization of actual role (master/slave) with replication link state")
 @accepts(str)
 class ReplicationRoleUpdateTask(ReplicationBaseTask):
+    @classmethod
+    def early_describe(cls):
+        return "Synchronizing replication link role with it's desired state"
+
     def describe(self, name):
-        return TaskDescription("Synchronizing the replication {name} role with it's desired state", name=name)
+        return TaskDescription("Synchronizing replication link {name} role with it's desired state", name=name)
 
     def verify(self, name):
         if not self.datastore.exists('replication.links', ('name', '=', name)):
@@ -1353,7 +1417,7 @@ class ReplicationRoleUpdateTask(ReplicationBaseTask):
                 self.join_subtasks(self.run_subtask('zfs.{0}'.format(mount), dataset['name']))
 
             for service in ['shares', 'containers']:
-                for reserved_item in self.dispatcher.call_sync('replication.get_{0}_{1}'.format(relation_type, service), name):
+                for reserved_item in self.dispatcher.call_sync('replication.link.get_{0}_{1}'.format(relation_type, service), name):
                     self.join_subtasks(self.run_subtask(
                         '{0}.immutable.set'.format(service[:-1]),
                         reserved_item['id'],
@@ -1365,7 +1429,7 @@ class ReplicationRoleUpdateTask(ReplicationBaseTask):
             return
 
         is_master, remote = self.get_replication_state(link)
-        datasets = self.dispatcher.call_sync('replication.datasets_from_link', link)
+        datasets = self.dispatcher.call_sync('replication.link.datasets_from_link', link)
         current_readonly = self.dispatcher.call_sync(
             'zfs.dataset.query',
             [('name', '=', datasets[0]['name'])],
@@ -1383,8 +1447,12 @@ class ReplicationRoleUpdateTask(ReplicationBaseTask):
 @description("Checks if provided replication link would not conflict with other links")
 @accepts(h.ref('replication-link'))
 class ReplicationCheckDatasetsTask(ReplicationBaseTask):
+    @classmethod
+    def early_describe(cls):
+        return "Checking for conflicts with replication link"
+
     def describe(self, link):
-        return TaskDescription("Checking for conflicts with the replication link {name}", name=link['name'])
+        return TaskDescription("Checking for conflicts with replication link {name}", name=link['name'])
 
     def verify(self, link):
         if not self.datastore.exists('replication.links', ('name', '=', link['name'])):
@@ -1463,7 +1531,6 @@ def _init(dispatcher, plugin):
     })
 
     dispatcher.register_resource(Resource('replication'))
-    plugin.register_provider('replication', ReplicationProvider)
     plugin.register_provider('replication.link', ReplicationLinkProvider)
     plugin.register_task_handler('volume.snapshot_dataset', SnapshotDatasetTask)
     plugin.register_task_handler('replication.calculate_delta', CalculateReplicationDeltaTask)

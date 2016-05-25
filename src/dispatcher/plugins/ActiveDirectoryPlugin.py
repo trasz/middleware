@@ -26,20 +26,20 @@
 #####################################################################
 
 import logging
-
 from freenas.dispatcher.rpc import (
     accepts,
     description,
     returns,
     SchemaHelper as h
 )
-
 from task import (
     Provider,
-    Task
+    Task,
+    TaskDescription
 )
 
 logger = logging.getLogger('ActiveDirectoryPlugin')
+
 
 @description("Provides access to Active Directory configuration")
 class ActiveDirectoryProvider(Provider):
@@ -53,10 +53,19 @@ class ActiveDirectoryProvider(Provider):
         }
 
 
-
 @description("Updates Active Directory settings")
 @accepts(h.ref('activedirectory-config'))
 class ActiveDirectoryConfigureTask(Task):
+    @classmethod
+    def early_describe(cls):
+        return "Updating Active Directory settings"
+
+    def describe(self, config):
+        return TaskDescription(
+            "Updating Active Directory domain {name} settings",
+            name=config.get('domain', '') if config else ''
+        )
+
     def verify(self, config):
         logger.debug("XXX: ActiveDirectory.verify")
         return ['system'] 
@@ -77,5 +86,4 @@ def _init(dispatcher, plugin):
 
     plugin.register_provider('directoryservice.activedirectory', ActiveDirectoryProvider)
 
-    plugin.register_task_handler('directoryservice.activedirectory.update',
-        ActiveDirectoryConfigureTask)
+    plugin.register_task_handler('directoryservice.activedirectory.update', ActiveDirectoryConfigureTask)

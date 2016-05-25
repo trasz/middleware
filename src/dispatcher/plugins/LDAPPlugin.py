@@ -36,10 +36,12 @@ from freenas.dispatcher.rpc import (
 
 from task import (
     Provider,
-    Task
+    Task,
+    TaskDescription
 )
 
 logger = logging.getLogger('LDAPPlugin')
+
 
 @description("Provides access to LDAP configuration")
 class LDAPProvider(Provider):
@@ -52,6 +54,12 @@ class LDAPProvider(Provider):
 @description("Updates LDAP settings")
 @accepts(h.ref('ldap-config'))
 class LDAPConfigureTask(Task):
+    @classmethod
+    def early_describe(cls):
+        return 'Updating LDAP settings'
+
+    def describe(self, config):
+        return TaskDescription('Updating LDAP settings')
 
     def verify(self, config):
         return ['system'] 

@@ -48,6 +48,7 @@ import select
 import tempfile
 import ipaddress
 import pf
+from bsd import kld, sysctl
 from gevent.queue import Queue, Channel
 from gevent.event import Event
 from geventwebsocket import WebSocketServer, WebSocketApplication, Resource
@@ -71,7 +72,7 @@ MGMT_INTERFACE = 'mgmt0'
 NAT_ADDR = ipaddress.ip_interface('172.21.0.1/16')
 NAT_INTERFACE = 'nat0'
 DEFAULT_CONFIGFILE = '/usr/local/etc/middleware.conf'
-SCROLLBACK_SIZE = 65536
+SCROLLBACK_SIZE = 20 * 1024
 
 
 class VirtualMachineState(enum.Enum):
@@ -85,7 +86,7 @@ class BinaryRingBuffer(object):
         self.data = bytearray(size)
 
     def push(self, data):
-        #del self.data[0:len(data)]
+        del self.data[0:len(data)]
         self.data += data
 
     def read(self):
@@ -122,8 +123,14 @@ class VirtualMachine(object):
 
         for i in self.devices:
             if i['type'] == 'DISK':
+                drivermap = {
+                    'AHCI': 'ahci-hd',
+                    'VIRTIO': 'virtio-blk'
+                }
+
+                driver = drivermap.get(i['properties'].get('mode', 'AHCI'))
                 path = self.context.client.call_sync('container.get_disk_path', self.id, i['name'])
-                args += ['-s', '{0}:0,ahci-hd,{1}'.format(index, path)]
+                args += ['-s', '{0}:0,{1},{2}'.format(index, driver, path)]
                 index += 1
 
             if i['type'] == 'CDROM':
@@ -194,9 +201,9 @@ class VirtualMachine(object):
         self.console_thread = gevent.spawn(self.console_worker)
 
     def stop(self, force=False):
-        self.logger.info('Stopping container {0} ({1})'.format(self.name, self.id))
+        self.logger.info('Stopping VM {0}'.format(self.name))
         if self.state == VirtualMachineState.STOPPED:
-            raise RuntimeError()
+            raise RuntimeError('Already stopped')
 
         for i in self.tap_interfaces:
             self.cleanup_tap(i)
@@ -528,6 +535,7 @@ class Main(object):
         self.configstore = None
         self.config = None
         self.mgmt = None
+        self.nat = None
         self.vm_started = Event()
         self.containers = {}
         self.tokens = {}
@@ -582,8 +590,15 @@ class Main(object):
 
     def init_mgmt(self):
         self.mgmt = ManagementNetwork(self, MGMT_INTERFACE, MGMT_ADDR)
-        self.mgmt.up()
+        self.mgmt.up(False)
         self.mgmt.bridge_if.add_address(netif.InterfaceAddress(
+            netif.AddressFamily.INET,
+            ipaddress.ip_interface('169.254.169.254/32')
+        ))
+
+        self.nat = ManagementNetwork(self, NAT_INTERFACE, NAT_ADDR)
+        self.nat.up()
+        self.nat.bridge_if.add_address(netif.InterfaceAddress(
             netif.AddressFamily.INET,
             ipaddress.ip_interface('169.254.169.254/32')
         ))
@@ -596,30 +611,40 @@ class Main(object):
 
         p = pf.PF()
 
-        # Try to find and remove existing NAT rules for the same subnet
-        oldrule = first_or_default(
-            lambda r: r.src.address.address == MGMT_ADDR.network.network_address,
-            p.get_rules('nat')
-        )
+        for addr in (MGMT_ADDR, NAT_ADDR):
+            # Try to find and remove existing NAT rules for the same subnet
+            oldrule = first_or_default(
+                lambda r: r.src.address.address == addr.network.network_address,
+                p.get_rules('nat')
+            )
 
-        if oldrule:
-            p.delete_rule('nat', oldrule.index)
+            if oldrule:
+                p.delete_rule('nat', oldrule.index)
 
-        rule = pf.Rule()
-        rule.src.address.address = MGMT_ADDR.network.network_address
-        rule.src.address.netmask = MGMT_ADDR.netmask
-        rule.action = pf.RuleAction.NAT
-        rule.af = socket.AF_INET
-        rule.ifname = default_if
-        rule.redirect_pool.append(pf.Address(ifname=default_if))
-        rule.proxy_ports = [50001, 65535]
-        p.append_rule('nat', rule)
+            rule = pf.Rule()
+            rule.src.address.address = addr.network.network_address
+            rule.src.address.netmask = addr.netmask
+            rule.action = pf.RuleAction.NAT
+            rule.af = socket.AF_INET
+            rule.ifname = default_if
+            rule.redirect_pool.append(pf.Address(ifname=default_if))
+            rule.proxy_ports = [50001, 65535]
+            p.append_rule('nat', rule)
 
         try:
             p.enable()
         except OSError as err:
             if err.errno != errno.EEXIST:
                 raise err
+
+        # Last, but not least, enable IP forwarding in kernel
+        try:
+            sysctl.sysctlbyname('net.inet.ip.forwarding', 1)
+        except OSError as err:
+            raise err
+
+    def init_dhcp(self):
+        pass
 
     def init_ec2(self):
         self.ec2 = EC2MetadataServer(self)
@@ -662,6 +687,14 @@ class Main(object):
 
         gevent.signal(signal.SIGTERM, self.die)
         gevent.signal(signal.SIGQUIT, self.die)
+
+        # Load pf kernel module
+        try:
+            kld.kldload('/boot/kernel/pf.ko')
+        except OSError as err:
+            if err.errno != errno.EEXIST:
+                self.logger.error('Cannot load PF module: %s', str(err))
+                self.logger.error('NAT unavailable')
 
         self.config = args.c
         self.init_datastore()

@@ -125,6 +125,7 @@ class VolumeProvider(Provider):
                             pass
 
                 vol.update({
+                    'rname': 'zpool:{0}'.format(vol['id']),
                     'description': None,
                     'mountpoint': None,
                     'upgraded': None,
@@ -405,6 +406,7 @@ class VolumeProvider(Provider):
         }
 
 
+@description('Provides information about datasets')
 class DatasetProvider(Provider):
     @query('volume-dataset')
     @generator
@@ -412,6 +414,7 @@ class DatasetProvider(Provider):
         return datasets.query(*(filter or []), **(params or {}))
 
 
+@description('Provides information about snapshots')
 class SnapshotProvider(Provider):
     @query('volume-snapshot')
     @generator
@@ -419,7 +422,7 @@ class SnapshotProvider(Provider):
         return snapshots.query(*(filter or []), **(params or {}))
 
 
-@description("Creates new volume")
+@description("Creating a volume")
 @accepts(
     h.all_of(
         h.ref('volume'),
@@ -428,8 +431,12 @@ class SnapshotProvider(Provider):
     h.one_of(str, None)
 )
 class VolumeCreateTask(ProgressTask):
+    @classmethod
+    def early_describe(cls):
+        return "Creating a volume"
+
     def describe(self, volume, password=None):
-        return TaskDescription("Creating the volume {name}", name=volume['id'])
+        return TaskDescription("Creating volume {name}", name=volume['id'])
 
     def verify(self, volume, password=None):
         if self.datastore.exists('volumes', ('id', '=', volume['id'])):
@@ -551,6 +558,10 @@ class VolumeCreateTask(ProgressTask):
 @description("Creates new volume and automatically guesses disks layout")
 @accepts(str, str, str, h.array(str), h.array(str), h.array(str), h.one_of(bool, None), h.one_of(str, None))
 class VolumeAutoCreateTask(Task):
+    @classmethod
+    def early_describe(cls):
+        return "Creating a volume"
+
     def describe(self, name, type, layout, disks, cache_disks=None, log_disks=None, encryption=False, password=None):
         return TaskDescription("Creating the volume {name}", name=name)
 
@@ -616,6 +627,10 @@ class VolumeAutoCreateTask(Task):
 @description("Destroys active volume")
 @accepts(str)
 class VolumeDestroyTask(Task):
+    @classmethod
+    def early_describe(cls):
+        return "Deleting volume"
+
     def describe(self, id):
         return TaskDescription("Deleting the volume {name}", name=id)
 
@@ -633,7 +648,7 @@ class VolumeDestroyTask(Task):
     def run(self, id):
         vol = self.datastore.get_by_id('volumes', id)
         if not vol:
-             raise TaskException(errno.ENOENT, 'Volume {0} not found'.format(id))
+            raise TaskException(errno.ENOENT, 'Volume {0} not found'.format(id))
 
         encryption = vol.get('encryption', {})
         config = self.dispatcher.call_sync('zfs.pool.query', [('id', '=', id)], {'single': True})
@@ -682,6 +697,10 @@ class VolumeDestroyTask(Task):
 @description("Updates configuration of existing volume")
 @accepts(str, h.ref('volume'), h.one_of(str, None))
 class VolumeUpdateTask(Task):
+    @classmethod
+    def early_describe(cls):
+        return "Updating a volume"
+
     def describe(self, id, updated_params, password=None):
         return TaskDescription("Updating the volume {name}", name=id)
 
@@ -788,7 +807,7 @@ class VolumeUpdateTask(Task):
 
                     if new_vdev['type'] == 'mirror':
                         for i in vdev['children']:
-                            if not first_or_default(lambda v: v['guid'] == i['guid'], new_vdev['children']):
+                            if not first_or_default(lambda v: v.get('guid') == i['guid'], new_vdev['children']):
                                 removed_vdevs.append(i['guid'])
 
             for group, vdevs in list(updated_params['topology'].items()):
@@ -951,6 +970,10 @@ class VolumeUpdateTask(Task):
 @description("Imports previously exported volume")
 @accepts(str, str, h.object(), h.ref('volume-import-params'), h.one_of(str, None))
 class VolumeImportTask(Task):
+    @classmethod
+    def early_describe(cls):
+        return "Importing a volume"
+
     def describe(self, id, new_name, params=None, enc_params=None, password=None):
         return TaskDescription("Importing the volume {name}", name=id)
 
@@ -1040,6 +1063,10 @@ class VolumeImportTask(Task):
 @description("Imports non-ZFS disk contents into existing volume")
 @accepts(str, str, str)
 class VolumeDiskImportTask(ProgressTask):
+    @classmethod
+    def early_describe(cls):
+        return "Importing disk into volume"
+
     def describe(self, src, dest_path, fstype=None):
         return TaskDescription("Importing disk {src} into {dst} path", src=src, dst=dest_path)
 
@@ -1096,6 +1123,10 @@ class VolumeDiskImportTask(ProgressTask):
 @description("Exports active volume")
 @accepts(str)
 class VolumeDetachTask(Task):
+    @classmethod
+    def early_describe(cls):
+        return "Detaching a volume"
+
     def describe(self, id):
         return TaskDescription("Detaching the volume {name}", name=id)
 
@@ -1137,6 +1168,10 @@ class VolumeDetachTask(Task):
 @description("Upgrades volume to newest ZFS version")
 @accepts(str)
 class VolumeUpgradeTask(Task):
+    @classmethod
+    def early_describe(cls):
+        return "Upgrading a volume"
+
     def describe(self, id):
         return TaskDescription("Upgrading the volume {name}", name=id)
 
@@ -1159,8 +1194,13 @@ class VolumeUpgradeTask(Task):
         })
 
 
+@description('Replaces failed disk in active volume')
 @accepts(str, h.ref('zfs-vdev'), h.one_of(str, None))
 class VolumeAutoReplaceTask(Task):
+    @classmethod
+    def early_describe(cls):
+        return "Replacing failed disk in a volume"
+
     def describe(self, id, failed_vdev, password=None):
         return TaskDescription("Replacing the failed disk {vdev} in the volume {name}", name=id, vdev=failed_vdev)
 
@@ -1222,6 +1262,10 @@ class VolumeAutoReplaceTask(Task):
 @description("Locks encrypted ZFS volume")
 @accepts(str)
 class VolumeLockTask(Task):
+    @classmethod
+    def early_describe(cls):
+        return "Locking encrypted volume"
+
     def describe(self, id):
         return TaskDescription("Locking the encrypted volume {name}", name=id)
 
@@ -1279,6 +1323,10 @@ class VolumeLockTask(Task):
     h.enum(str, ['all', 'containers', 'shares', 'system'])
 )
 class VolumeAutoImportTask(Task):
+    @classmethod
+    def early_describe(cls):
+        return "Importing services from a volume"
+
     def describe(self, volume, scope):
         return TaskDescription("Importing {scope} services from the volume {name}", name=volume, scope=scope)
 
@@ -1421,6 +1469,10 @@ class VolumeAutoImportTask(Task):
 @description("Unlocks encrypted ZFS volume")
 @accepts(str, h.one_of(str, None), h.object())
 class VolumeUnlockTask(Task):
+    @classmethod
+    def early_describe(cls):
+        return "Unlocking encrypted volume"
+
     def describe(self, id, password=None, params=None):
         return TaskDescription("Unlocking the encrypted volume {name}", name=id)
 
@@ -1496,8 +1548,12 @@ class VolumeUnlockTask(Task):
 @description("Generates and sets new key for encrypted ZFS volume")
 @accepts(str, h.one_of(str, None))
 class VolumeRekeyTask(Task):
+    @classmethod
+    def early_describe(cls):
+        return "Regenerating the keys of encrypted volume"
+
     def describe(self, id, password=None):
-        return TaskDescription("Regenerating the keys for the encrypted volume {name}", name=id)
+        return TaskDescription("Regenerating the keys of the encrypted volume {name}", name=id)
 
     def verify(self, id, password=None):
         if not self.datastore.exists('volumes', ('id', '=', id)):
@@ -1566,6 +1622,10 @@ class VolumeRekeyTask(Task):
 @description("Creates a backup file of Master Keys of encrypted volume")
 @accepts(str, str)
 class VolumeBackupKeysTask(Task):
+    @classmethod
+    def early_describe(cls):
+        return "Creating a backup of the keys of encrypted volume"
+
     def describe(self, id, out_path=None):
         return TaskDescription("Creating a backup of the keys of the encrypted volume {name}", name=id)
 
@@ -1614,6 +1674,10 @@ class VolumeBackupKeysTask(Task):
 @description("Loads a backup file of Master Keys of encrypted volume")
 @accepts(str, h.one_of(str, None), str)
 class VolumeRestoreKeysTask(Task):
+    @classmethod
+    def early_describe(cls):
+        return "Uploading the keys from backup to encrypted volume"
+
     def describe(self, id, password=None, in_path=None):
         return TaskDescription("Uploading the keys from backup to the encrypted volume {name}", name=id)
 
@@ -1668,6 +1732,10 @@ class VolumeRestoreKeysTask(Task):
 @description("Scrubs the volume")
 @accepts(str)
 class VolumeScrubTask(MasterProgressTask):
+    @classmethod
+    def early_describe(cls):
+        return "Performing a scrub of a volume"
+
     def describe(self, id):
         return TaskDescription("Performing a scrub of the volume {name}", name=id)
 
@@ -1696,6 +1764,10 @@ class VolumeScrubTask(MasterProgressTask):
 @description("Makes vdev in a volume offline")
 @accepts(str, str)
 class VolumeOfflineVdevTask(Task):
+    @classmethod
+    def early_describe(cls):
+        return "Turning offline a disk of a volume"
+
     def describe(self, id, vdev_guid):
         try:
             config = self.dispatcher.call_sync('disk.get_disk_config_by_id', vdev_guid)
@@ -1726,6 +1798,10 @@ class VolumeOfflineVdevTask(Task):
 @description("Makes vdev in a volume online")
 @accepts(str, str)
 class VolumeOnlineVdevTask(Task):
+    @classmethod
+    def early_describe(cls):
+        return "Turning online a disk of a volume"
+
     def describe(self, id, vdev_guid):
         try:
             config = self.dispatcher.call_sync('disk.get_disk_config_by_id', vdev_guid)
@@ -1759,6 +1835,10 @@ class VolumeOnlineVdevTask(Task):
     h.required('id', 'volume')
 ))
 class DatasetCreateTask(Task):
+    @classmethod
+    def early_describe(cls):
+        return "Creating a dataset"
+
     def describe(self, dataset):
         return TaskDescription("Creating the dataset {name}", name=dataset['id'])
 
@@ -1813,6 +1893,10 @@ class DatasetCreateTask(Task):
 @description("Deletes an existing Dataset from a Volume")
 @accepts(str)
 class DatasetDeleteTask(Task):
+    @classmethod
+    def early_describe(cls):
+        return "Deleting a dataset"
+
     def describe(self, id):
         return TaskDescription("Deleting the dataset {name}", name=id)
 
@@ -1861,6 +1945,10 @@ class DatasetDeleteTask(Task):
 @description("Configures/Updates an existing Dataset's properties")
 @accepts(str, h.ref('volume-dataset'))
 class DatasetConfigureTask(Task):
+    @classmethod
+    def early_describe(cls):
+        return "Configuring a dataset"
+
     def describe(self, id, updated_params):
         return TaskDescription("Configuring the dataset {name}", name=id)
 
@@ -1934,12 +2022,14 @@ class DatasetConfigureTask(Task):
     h.forbidden('id')
 ))
 class SnapshotCreateTask(Task):
+    @classmethod
+    def early_describe(cls):
+        return "Creating a snapshot"
+
     def describe(self, snapshot):
         return TaskDescription("Creating the snapshot {name}", name=snapshot['name'])
 
     def verify(self, snapshot):
-        if not self.dispatcher.call_sync('zfs.dataset.query', [('name', '=', snapshot['dataset'])], {'single': True}):
-            raise VerifyException(errno.ENOENT, 'Dataset {0} does not exist.'.format(snapshot['dataset']))
         return ['zfs:{0}'.format(snapshot['dataset'])]
 
     def run(self, snapshot, recursive=False):
@@ -1964,6 +2054,10 @@ class SnapshotCreateTask(Task):
 @description("Deletes the specified snapshot")
 @accepts(str)
 class SnapshotDeleteTask(Task):
+    @classmethod
+    def early_describe(cls):
+        return "Deleting a snapshot"
+
     def describe(self, id):
         return TaskDescription("Deleting the snapshot {name}", name=id)
 
@@ -1985,6 +2079,10 @@ class SnapshotDeleteTask(Task):
     h.ref('volume-snapshot')
 ))
 class SnapshotConfigureTask(Task):
+    @classmethod
+    def early_describe(cls):
+        return "Configuring a snapshot"
+
     def describe(self, id, updated_params):
         return TaskDescription("Configuring the snapshot {name}", name=id)
 
@@ -2169,6 +2267,7 @@ def _init(dispatcher, plugin):
         return {
             'id': ds['name'],
             'name': ds['name'],
+            'rname': 'zfs:{0}'.format(ds['id']),
             'volume': ds['pool'],
             'type': ds['type'],
             'mountpoint': ds.get('properties.mountpoint.value'),
@@ -2285,6 +2384,7 @@ def _init(dispatcher, plugin):
                 'type': 'string',
                 'enum': ['zfs']
             },
+            'rname': {'type': 'string'},
             'topology': {'$ref': 'zfs-topology'},
             'scan': {'$ref': 'zfs-scan'},
             'encrypted': {'type': 'boolean'},
@@ -2328,7 +2428,9 @@ def _init(dispatcher, plugin):
         'type': 'object',
         'additionalProperties': True,
         'properties': {
-            'value': {'pattern': '^on$|^off$|^lzjb$|^zle$|^lz4$|^gzip($|-[1-9]$)'}
+            'value': {'enum': ['on', 'off', 'lzjb', 'zle', 'lz4', 'gzip', 'gzip-1',
+                               'gzip-2', 'gzip-3', 'gzip-4', 'gzip-5', 'gzip-6',
+                               'gzip-7', 'gzip-8', 'gzip-9']}
         }
     })
 
@@ -2336,7 +2438,9 @@ def _init(dispatcher, plugin):
         'type': 'object',
         'additionalProperties': True,
         'properties': {
-            'value': {'pattern': '^on$|^off$|^verify$|^sha(256|512)(,verify)?$|^skein(,verify)?$|^edonr,verify$'}
+            'value': {'enum': ['on', 'off', 'verify', 'sha256', 'sha256,verify',
+                               'sha512', 'sha512,verify', 'skein', 'skein,verify',
+                               'edonr,verify']}
         }
     })
 
@@ -2345,6 +2449,14 @@ def _init(dispatcher, plugin):
         'additionalProperties': True,
         'properties': {
             'value': {'enum': ['sensitive', 'insensitive', 'mixed']}
+        }
+    })
+
+    plugin.register_schema_definition('volume-dataset-atime-property', {
+        'type': 'object',
+        'additionalProperties': True,
+        'properties': {
+            'value': {'enum': ['on', 'off']}
         }
     })
 
@@ -2386,6 +2498,7 @@ def _init(dispatcher, plugin):
         'properties': {
             'id': {'type': 'string'},
             'name': {'type': 'string'},
+            'rname': {'type': 'string'},
             'volume': {'type': 'string'},
             'mountpoint': {'type': 'string'},
             'mounted': {'type': 'boolean'},
@@ -2413,7 +2526,10 @@ def _init(dispatcher, plugin):
                 {'$ref': 'volume-property'},
                 {'$ref': 'volume-dataset-compression-property'}
                 ]},
-            'atime': {'$ref': 'volume-property'},
+            'atime': {'allOf': [
+                {'$ref': 'volume-property'},
+                {'$ref': 'volume-dataset-atime-property'}
+                ]},
             'dedup': {'allOf': [
                 {'$ref': 'volume-property'},
                 {'$ref': 'volume-dataset-dedup-property'}

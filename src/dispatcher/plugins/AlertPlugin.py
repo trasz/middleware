@@ -55,7 +55,7 @@ class AlertsProvider(Provider):
 
     @private
     @accepts(str, str)
-    @returns(h.one_of(int, None))
+    @returns(h.one_of(h.ref('alert'), None))
     def get_active_alert(self, cls, target):
         return self.datastore.query(
             'alerts',
@@ -166,8 +166,12 @@ class AlertsFiltersProvider(Provider):
     h.required('id')
 ))
 class AlertFilterCreateTask(Task):
+    @classmethod
+    def early_describe(cls):
+        return 'Creating alert filter'
+
     def describe(self, alertfilter):
-        return TaskDescription('Creating alert filter {name}', name=alertfilter['name'])
+        return TaskDescription('Creating alert filter {name}', name=alertfilter.get('name', '') if alertfilter else '')
 
     def verify(self, alertfilter):
         return []
@@ -184,9 +188,13 @@ class AlertFilterCreateTask(Task):
 @description("Deletes the specified Alert Filter")
 @accepts(str)
 class AlertFilterDeleteTask(Task):
+    @classmethod
+    def early_describe(cls):
+        return 'Deleting alert filter'
+
     def describe(self, id):
         alertfilter = self.datastore.get_by_id('alert.filters', id)
-        return TaskDescription('Deleting alert filter {name}', name=alertfilter['name'] if alertfilter else id)
+        return TaskDescription('Deleting alert filter {name}', name=alertfilter.get('name', id) if alertfilter else id)
 
     def verify(self, id):
 
@@ -217,9 +225,13 @@ class AlertFilterDeleteTask(Task):
 @description("Updates the specified Alert Filter")
 @accepts(str, h.ref('alert-filter'))
 class AlertFilterUpdateTask(Task):
+    @classmethod
+    def early_describe(cls):
+        return 'Updating alert filter'
+
     def describe(self, id, updated_fields):
         alertfilter = self.datastore.get_by_id('alert.filters', id)
-        return TaskDescription('Updating alert filter {name}', name=alertfilter['id'] if alertfilter else None)
+        return TaskDescription('Updating alert filter {name}', name=alertfilter.get('name', id) if alertfilter else id)
 
     def verify(self, id, updated_fields):
         return []
@@ -242,7 +254,15 @@ class AlertFilterUpdateTask(Task):
 
 
 @accepts(str, h.ref('alert-severity'))
+@description('Sends user alerts')
 class SendAlertTask(Task):
+    @classmethod
+    def early_describe(cls):
+        return 'Sending user alert'
+
+    def describe(self, message, priority=None):
+        return TaskDescription('Sending user alert')
+
     def verify(self, message, priority=None):
         return []
 

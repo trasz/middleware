@@ -29,7 +29,7 @@ import os
 import bsd
 import pwd
 import signal
-from task import Task, TaskWarning, TaskStatus, Provider, TaskException
+from task import Task, TaskWarning, Provider, TaskDescription
 from freenas.dispatcher.rpc import description, accepts, private
 from freenas.dispatcher.rpc import SchemaHelper as h
 from freenas.utils import first_or_default, normalize
@@ -87,11 +87,15 @@ class AFPSharesProvider(Provider):
 
 
 @private
-@description("Adds new AFP share")
 @accepts(h.ref('share'))
+@description("Adds new AFP share")
 class CreateAFPShareTask(Task):
+    @classmethod
+    def early_describe(cls):
+        return "Creating AFP share"
+
     def describe(self, share):
-        return "Creating AFP share {0}".format(share['name'])
+        return TaskDescription("Creating AFP share {name}", name=share.get('name', '') if share else '')
 
     def verify(self, share):
         return ['service:afp']
@@ -112,12 +116,15 @@ class CreateAFPShareTask(Task):
             'groups_allow': None,
             'groups_deny': None,
             'hosts_allow': None,
-            'hosts_deny': None
+            'hosts_deny': None,
+            'default_file_perms': None,
+            'default_directory_perms': None,
+            'default_umask': None
         })
 
         id = self.datastore.insert('shares', share)
         self.dispatcher.call_sync('etcd.generation.generate_group', 'afp')
-        self.dispatcher.call_sync('service.reload', 'afp')
+        self.dispatcher.call_sync('service.reload', 'afp', timeout=60)
         self.dispatcher.dispatch_event('share.afp.changed', {
             'operation': 'create',
             'ids': [id]
@@ -127,11 +134,16 @@ class CreateAFPShareTask(Task):
 
 
 @private
-@description("Updates existing AFP share")
 @accepts(str, h.ref('share'))
+@description("Updates existing AFP share")
 class UpdateAFPShareTask(Task):
+    @classmethod
+    def early_describe(cls):
+        return "Updating AFP share"
+
     def describe(self, id, updated_fields):
-        return "Updating AFP share {0}".format(id)
+        share = self.datastore.get_by_id('shares', id)
+        return TaskDescription("Updating AFP share {name}", name=share.get('name', id) if share else id)
 
     def verify(self, id, updated_fields):
         return ['service:afp']
@@ -141,7 +153,7 @@ class UpdateAFPShareTask(Task):
         share.update(updated_fields)
         self.datastore.update('shares', id, share)
         self.dispatcher.call_sync('etcd.generation.generate_group', 'afp')
-        self.dispatcher.call_sync('service.reload', 'afp')
+        self.dispatcher.call_sync('service.reload', 'afp', timeout=60)
         self.dispatcher.dispatch_event('share.afp.changed', {
             'operation': 'update',
             'ids': [id]
@@ -149,11 +161,16 @@ class UpdateAFPShareTask(Task):
 
 
 @private
-@description("Removes AFP share")
 @accepts(str)
+@description("Removes AFP share")
 class DeleteAFPShareTask(Task):
-    def describe(self, name):
-        return "Deleting AFP share {0}".format(name)
+    @classmethod
+    def early_describe(cls):
+        return "Deleting AFP share"
+
+    def describe(self, id):
+        share = self.datastore.get_by_id('shares', id)
+        return TaskDescription("Deleting AFP share {name}", name=share.get('name', id) if share else id)
 
     def verify(self, id):
         return ['service:afp']
@@ -166,7 +183,7 @@ class DeleteAFPShareTask(Task):
 
         self.datastore.delete('shares', id)
         self.dispatcher.call_sync('etcd.generation.generate_group', 'afp')
-        self.dispatcher.call_sync('service.reload', 'afp')
+        self.dispatcher.call_sync('service.reload', 'afp', timeout=60)
         self.dispatcher.dispatch_event('share.afp.changed', {
             'operation': 'delete',
             'ids': [id]
@@ -174,11 +191,15 @@ class DeleteAFPShareTask(Task):
 
 
 @private
-@description("Imports existing AFP share")
 @accepts(h.ref('share'))
+@description("Imports existing AFP share")
 class ImportAFPShareTask(CreateAFPShareTask):
+    @classmethod
+    def early_describe(cls):
+        return "Importing AFP share"
+
     def describe(self, share):
-        return "Importing AFP share {0}".format(share['name'])
+        return TaskDescription("Importing AFP share {name}", name=share.get('name', '') if share else '')
 
     def verify(self, share):
         return super(ImportAFPShareTask, self).verify(share)
@@ -187,7 +208,15 @@ class ImportAFPShareTask(CreateAFPShareTask):
         return super(ImportAFPShareTask, self).run(share)
 
 
+@description('Terminates AFP connection')
 class TerminateAFPConnectionTask(Task):
+    @classmethod
+    def early_describe(cls):
+        return 'Terminating AFP connection'
+
+    def describe(self, address):
+        return TaskDescription('Terminating AFP connection from {name}', name=address)
+
     def verify(self, address):
         return ['system']
 
@@ -234,9 +263,15 @@ def _init(dispatcher, plugin):
             'zero_dev_numbers': {'type': 'boolean'},
             'no_stat': {'type': 'boolean'},
             'afp3_privileges': {'type': 'boolean'},
-            'default_file_perms': {'$ref': 'unix-permissions'},
-            'default_directory_perms': {'$ref': 'unix-permissions'},
-            'default_umask': {'$ref': 'unix-permissions'},
+            'default_file_perms': {
+                'oneOf': [{'$ref': 'unix-permissions'}, {'type': 'null'}]
+            },
+            'default_directory_perms': {
+                'oneOf': [{'$ref': 'unix-permissions'}, {'type': 'null'}]
+            },
+            'default_umask': {
+                'oneOf': [{'$ref': 'unix-permissions'}, {'type': 'null'}]
+            },
             'ro_users': {
                 'type': ['array', 'null'],
                 'items': {'type': 'string'}

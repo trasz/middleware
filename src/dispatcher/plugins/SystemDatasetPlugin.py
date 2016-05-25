@@ -36,7 +36,7 @@ import tempfile
 import libzfs
 from freenas.dispatcher.rpc import RpcException, accepts, returns, description, private
 from freenas.dispatcher.rpc import SchemaHelper as h
-from task import Task, Provider, VerifyException
+from task import Task, Provider, VerifyException, TaskDescription
 from freenas.utils.copytree import copytree
 
 
@@ -193,6 +193,7 @@ def import_system_dataset(dispatcher, services, src_pool, old_pool, old_id):
     return id
 
 
+@description('Provides information about System Dataset')
 class SystemDatasetProvider(Provider):
     @private
     @description("Initializes the .system dataset")
@@ -231,6 +232,13 @@ class SystemDatasetProvider(Provider):
 @description("Updates .system dataset configuration")
 @accepts(str)
 class SystemDatasetConfigure(Task):
+    @classmethod
+    def early_describe(cls):
+        return 'Updating .system dataset configuration'
+
+    def describe(self, pool):
+        return TaskDescription('Updating .system dataset configuration')
+
     def verify(self, pool):
         return ['system']
 
@@ -257,6 +265,13 @@ class SystemDatasetConfigure(Task):
 @description("Imports .system dataset from a volume")
 @accepts(str)
 class SystemDatasetImport(Task):
+    @classmethod
+    def early_describe(cls):
+        return 'Importing .system dataset from volume'
+
+    def describe(self, pool):
+        return TaskDescription('Importing .system dataset from volume {name}', name=pool)
+
     def verify(self, pool):
         if not self.dispatcher.call_sync('zfs.dataset.query', [('pool', '=', pool), ('name', '~', '.system')], {'single': True}):
             raise VerifyException('System dataset not found on pool {0}'.format(pool))

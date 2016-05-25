@@ -29,7 +29,7 @@ import json
 import logging
 import requests
 import simplejson
-from task import Task, Provider, TaskException
+from task import Task, Provider, TaskException, TaskDescription
 from freenas.dispatcher.rpc import RpcException, accepts, description, returns
 from freenas.dispatcher.rpc import SchemaHelper as h
 
@@ -72,8 +72,12 @@ class SupportProvider(Provider):
 @description("Submits a new support ticket")
 @accepts(h.ref('support-ticket'))
 class SupportSubmitTask(Task):
-    def describe(self, ticket):
+    @classmethod
+    def early_describe(cls):
         return 'Submitting ticket'
+
+    def describe(self, ticket):
+        return TaskDescription('Submitting ticket')
 
     def verify(self, ticket):
         return ['system']

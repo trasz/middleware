@@ -34,7 +34,7 @@ from datastore.config import ConfigNode
 from freenas.dispatcher.rpc import RpcException, SchemaHelper as h, description, accepts, returns, private
 from lib.system import system, SubprocessException
 from lib.freebsd import get_sysctl
-from task import Task, Provider, TaskException, ValidationException
+from task import Task, Provider, TaskException, ValidationException, TaskDescription
 from debug import AttachFile, AttachCommandOutput
 from freenas.utils.permissions import get_unix_permissions, get_integer, perm_to_oct_string
 
@@ -74,8 +74,12 @@ class SMBProvider(Provider):
 @description('Configure SMB service')
 @accepts(h.ref('service-smb'))
 class SMBConfigureTask(Task):
-    def describe(self, smb):
+    @classmethod
+    def early_describe(cls):
         return 'Configuring SMB service'
+
+    def describe(self, smb):
+        return TaskDescription('Configuring SMB service')
 
     def verify(self, smb):
         errors = ValidationException()

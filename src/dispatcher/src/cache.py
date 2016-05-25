@@ -28,6 +28,7 @@
 from gevent.event import Event
 from gevent.lock import RLock
 from freenas.utils.query import wrap
+from sortedcontainers import SortedDict
 
 
 class CacheStore(object):
@@ -36,9 +37,9 @@ class CacheStore(object):
             self.valid = Event()
             self.data = None
 
-    def __init__(self):
+    def __init__(self, key=None):
         self.lock = RLock()
-        self.store = {}
+        self.store = SortedDict(key)
 
     def __getitem__(self, item):
         return self.get(item)
@@ -118,8 +119,8 @@ class CacheStore(object):
 
 
 class EventCacheStore(CacheStore):
-    def __init__(self, dispatcher, name):
-        super(EventCacheStore, self).__init__()
+    def __init__(self, dispatcher, name, key=None):
+        super(EventCacheStore, self).__init__(key=key)
         self.dispatcher = dispatcher
         self.ready = False
         self.name = name

@@ -32,6 +32,7 @@ from task import Provider, Task, TaskException, query, TaskDescription
 from lib.system import system, SubprocessException
 
 
+@description('Provides information about calendar tasks')
 class CalendarTasksProvider(Provider):
     @query('calendar-task')
     def query(self, filter=None, params=None):
@@ -45,7 +46,12 @@ class CalendarTasksProvider(Provider):
     )
 )
 @returns(str)
+@description('Creates a calendar task')
 class CreateCalendarTask(Task):
+    @classmethod
+    def early_describe(cls):
+        return "Creating calendar task"
+
     def describe(self, task):
         return TaskDescription("Creating calendar task {name}", name=task['name'])
 
@@ -71,7 +77,12 @@ class CreateCalendarTask(Task):
         h.no(h.required('status'))
     )
 )
+@description('Updates a calendar task')
 class UpdateCalendarTask(Task):
+    @classmethod
+    def early_describe(cls):
+        return "Updating calendar task"
+
     def describe(self, id, updated_params):
         return TaskDescription("Updating calendar task {name}", name=id)
 
@@ -91,9 +102,14 @@ class UpdateCalendarTask(Task):
 
 
 @accepts(str)
+@description('Deletes a calendar task')
 class DeleteCalendarTask(Task):
+    @classmethod
+    def early_describe(cls):
+        return "Deleting calendar task"
+
     def describe(self, id):
-        return TaskDescription("Updating calendar task {name}", name=id)
+        return TaskDescription("Deleting calendar task {name}", name=id)
 
     def verify(self, id):
         return ['system']
@@ -113,6 +129,10 @@ class DeleteCalendarTask(Task):
 @accepts(str)
 @description("Runs the calendar task specified by the given id")
 class RunCalendarTask(Task):
+    @classmethod
+    def early_describe(cls):
+        return "Starting calendar task"
+
     def describe(self, id):
         return TaskDescription("Starting calendar task {name}", name=id)
 
@@ -127,7 +147,12 @@ class RunCalendarTask(Task):
 
 
 @accepts(str, str)
+@description('Runs a shell command as a specified user')
 class CommandTask(Task):
+    @classmethod
+    def early_describe(cls):
+        return "Starting shell command"
+
     def describe(self, user, command):
         return TaskDescription("Starting command {name} as {user}", name=command, user=user)
 

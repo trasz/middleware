@@ -452,6 +452,10 @@ class UpdateProvider(Provider):
 @description("Set the System Updater Cofiguration Settings")
 @accepts(h.ref('update'))
 class UpdateConfigureTask(Task):
+    @classmethod
+    def early_describe(cls):
+        return "Configuring updates"
+
     def describe(self, props):
         return TaskDescription("Configuring updates")
 
@@ -492,6 +496,10 @@ class UpdateConfigureTask(Task):
 ))
 @accepts(h.object(properties={'check_now': bool}))
 class CheckUpdateTask(Task):
+    @classmethod
+    def early_describe(cls):
+        return "Checking for updates"
+
     def describe(self, conditions=None):
         return TaskDescription("Checking for updates")
 
@@ -525,6 +533,10 @@ class CheckUpdateTask(Task):
 @description("Downloads Updates for the current system update train")
 @accepts()
 class DownloadUpdateTask(ProgressTask):
+    @classmethod
+    def early_describe(cls):
+        return "Downloading updates"
+
     def describe(self):
         return TaskDescription("Downloading updates")
 
@@ -604,6 +616,10 @@ class DownloadUpdateTask(ProgressTask):
 @description("Apply a manual update file")
 @accepts(str, str)
 class UpdateManualTask(ProgressTask):
+    @classmethod
+    def early_describe(cls):
+        return 'Updating from a file'
+
     def describe(self, path, sha256):
         return TaskDescription("Updating from a file ({name})".format(name=path))
 
@@ -684,6 +700,10 @@ class UpdateManualTask(ProgressTask):
 @accepts(bool)
 @description("Applies cached updates")
 class UpdateApplyTask(ProgressTask):
+    @classmethod
+    def early_describe(cls):
+        return "Applying updates"
+
     def describe(self, reboot_post_install=False):
         return TaskDescription("Applying updates")
 
@@ -742,6 +762,10 @@ class UpdateApplyTask(ProgressTask):
 @description("Verify installation integrity")
 @accepts()
 class UpdateVerifyTask(ProgressTask):
+    @classmethod
+    def early_describe(cls):
+        return "Verifying installation integrity"
+
     def describe(self):
         return TaskDescription("Verifying installation integrity")
 
@@ -776,6 +800,10 @@ class UpdateVerifyTask(ProgressTask):
 ))
 @returns(bool)
 class CheckFetchUpdateTask(MasterProgressTask):
+    @classmethod
+    def early_describe(cls):
+        return "Checking for updates"
+
     def describe(self, mail=False):
         return TaskDescription("Checking for updates")
 
@@ -820,6 +848,12 @@ class CheckFetchUpdateTask(MasterProgressTask):
 @description("Checks for new updates, fetches if available, installs new/or downloaded updates")
 @accepts(bool)
 class UpdateNowTask(MasterProgressTask):
+    @classmethod
+    def early_describe(cls):
+        return "Checking for updates and updating"
+
+    def describe(self, reboot_post_install=False):
+        return TaskDescription("Checking for updates and updating")
 
     def verify(self, reboot_post_install=False):
         return ['root']

@@ -30,7 +30,7 @@ import logging
 
 from datastore.config import ConfigNode
 from freenas.dispatcher.rpc import RpcException, SchemaHelper as h, description, accepts, returns, private
-from task import Task, Provider, TaskException, ValidationException
+from task import Task, Provider, TaskException, ValidationException, TaskDescription
 
 logger = logging.getLogger('WebDAVPlugin')
 
@@ -48,8 +48,12 @@ class WebDAVProvider(Provider):
 @description('Configure WebDAV service')
 @accepts(h.ref('service-webdav'))
 class WebDAVConfigureTask(Task):
-    def describe(self, share):
+    @classmethod
+    def early_describe(cls):
         return 'Configuring WebDAV service'
+
+    def describe(self, webdav):
+        return TaskDescription('Configuring WebDAV service')
 
     def verify(self, webdav):
         errors = ValidationException()

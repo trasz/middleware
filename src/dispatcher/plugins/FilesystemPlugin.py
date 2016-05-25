@@ -37,7 +37,7 @@ from freenas.dispatcher.rpc import (
     RpcException, description, accepts, returns, pass_sender, private
 )
 from freenas.dispatcher.rpc import SchemaHelper as h
-from task import Provider, Task, TaskStatus, TaskWarning, VerifyException, TaskException
+from task import Provider, Task, TaskStatus, TaskWarning, VerifyException, TaskException, TaskDescription
 from auth import FileToken
 from freenas.utils.permissions import modes_to_oct, get_type
 
@@ -182,7 +182,15 @@ class FilesystemProvider(Provider):
 
 @accepts(str)
 @private
+@description('Downloads a file')
 class DownloadFileTask(Task):
+    @classmethod
+    def early_describe(cls):
+        return 'Downloading file'
+
+    def describe(self, connection):
+        return TaskDescription('Downloading file')
+
     def verify(self, connection):
         return []
 
@@ -200,7 +208,15 @@ class DownloadFileTask(Task):
 
 @accepts(str)
 @private
+@description('Uploads a file')
 class UploadFileTask(Task):
+    @classmethod
+    def early_describe(cls):
+        return 'Uploading file'
+
+    def describe(self, connection):
+        return TaskDescription('Uploading file')
+
     def verify(self, connection):
         return []
 
@@ -217,7 +233,15 @@ class UploadFileTask(Task):
 
 
 @accepts(str, h.ref('permissions'), bool)
+@description('Sets permissions')
 class SetPermissionsTask(Task):
+    @classmethod
+    def early_describe(cls):
+        return 'Setting permissions'
+
+    def describe(self, path, permissions, recursive=False):
+        return TaskDescription('Setting permissions on path {name}', name=path)
+
     def verify(self, path, permissions, recursive=False):
         if not os.path.exists(path):
             raise VerifyException(errno.ENOENT, 'Path {0} does not exist'.format(path))

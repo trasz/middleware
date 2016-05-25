@@ -329,7 +329,7 @@ class Task(object):
             "finished_at": self.finished_at,
             "user": self.user,
             "resources": self.resources,
-            "description": self.get_description(),
+            "description": self.get_description().__getstate__(),
             "session": self.session_id,
             "name": self.name,
             "parent": self.parent.id if self.parent else None,
@@ -420,12 +420,15 @@ class Task(object):
 
     def get_description(self):
         if not self.description:
-            return None
+            if not self.clazz:
+                return TaskDescription(self.name)
+
+            return TaskDescription(self.clazz.early_describe())
 
         if isinstance(self.description, TaskDescription):
-            return self.description.__getstate__()
+            return self.description
 
-        return TaskDescription(str(self.description)).__getstate__()
+        return TaskDescription(str(self.description))
 
     def progress_watcher(self):
         while True:
@@ -474,7 +477,7 @@ class Balancer(object):
         # states to 'FAILED' since they are no longer running
         # in this instance of the dispatcher
         for stale_task in dispatcher.datastore.query('tasks', ('state', 'in', ['EXECUTING', 'WAITING', 'CREATED'])):
-            self.logger.info('Stale Task ID: {0} Name: {1} being set to FAILED'.format(
+            self.logger.info('Stale task ID: {0}, name: {1} being set to FAILED'.format(
                 stale_task['id'],
                 stale_task['name']
             ))
@@ -587,7 +590,7 @@ class Balancer(object):
         for i in tasks:
             i.join()
 
-    def abort(self, id):
+    def abort(self, id, error=None):
         task = self.get_task(id)
         if not task:
             self.logger.warning("Cannot abort task: unknown task id %d", id)
@@ -606,27 +609,42 @@ class Balancer(object):
                 pass
         if success:
             task.ended.set()
-            task.set_state(TaskState.ABORTED, TaskStatus(0, "Aborted"))
-            self.logger.debug("Task ID: %d, Name: %s aborted by user", task.id, task.name)
+            if error:
+                task.set_state(TaskState.FAILED, TaskStatus(0), serialize_error(error))
+                self.logger.debug("Task ID: %d, name: %s aborted with error", task.id, task.name)
+            else:
+                task.set_state(TaskState.ABORTED, TaskStatus(0, "Aborted"))
+                self.logger.debug("Task ID: %d, name: %s aborted by user", task.id, task.name)
 
     def task_exited(self, task):
         self.resource_graph.release(*task.resources)
-        self.schedule_tasks()
+        self.schedule_tasks(True)
 
-    def schedule_tasks(self):
+    def schedule_tasks(self, exit=False):
         """
         This function is called when:
         1) any new task is submitted to any of the queues
         2) any task exists
-
-        :return:
         """
-        for task in [t for t in self.task_list if t.state == TaskState.WAITING]:
+        started = 0
+        executing_tasks = [t for t in self.task_list if t.state == TaskState.EXECUTING]
+        waiting_tasks = [t for t in self.task_list if t.state == TaskState.WAITING]
+
+        for task in waiting_tasks:
             if not self.resource_graph.can_acquire(*task.resources):
                 continue
 
             self.resource_graph.acquire(*task.resources)
             self.threads.append(task.start())
+            started += 1
+
+        if not started and not executing_tasks and (exit or len(waiting_tasks) == 1):
+            for task in waiting_tasks:
+                # Check whether or not task waits on nonexistent resources. If it does,
+                # abort it 'cause there's no chance anymore that missing resources will appear.
+                if any(self.resource_graph.get_resource(res) is None for res in task.resources):
+                    self.logger.warning('Aborting task {0}: deadlock'.format(task.id))
+                    self.abort(task.id, VerifyException(errno.EBUSY, 'Resource deadlock avoided'))
 
     def distribution_thread(self):
         while True:
@@ -696,7 +714,8 @@ class Balancer(object):
         return [x for x in self.task_list if x.state in (
             TaskState.CREATED,
             TaskState.WAITING,
-            TaskState.EXECUTING)]
+            TaskState.EXECUTING
+        )]
 
     def get_tasks(self, type=None):
         if type is None:

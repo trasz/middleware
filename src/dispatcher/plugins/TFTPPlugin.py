@@ -29,7 +29,7 @@ import logging
 
 from datastore.config import ConfigNode
 from freenas.dispatcher.rpc import RpcException, SchemaHelper as h, description, accepts, returns, private
-from task import Task, Provider, TaskException, ValidationException
+from task import Task, Provider, TaskException, ValidationException, TaskDescription
 from freenas.utils.permissions import get_unix_permissions, get_integer
 
 logger = logging.getLogger('TFTPPlugin')
@@ -50,8 +50,12 @@ class TFTPProvider(Provider):
 @description('Configure TFTP service')
 @accepts(h.ref('service-tftpd'))
 class TFTPConfigureTask(Task):
-    def describe(self, share):
+    @classmethod
+    def early_describe(cls):
         return 'Configuring TFTP service'
+
+    def describe(self, tftp):
+        return TaskDescription('Configuring TFTP service')
 
     def verify(self, tftp):
         errors = []

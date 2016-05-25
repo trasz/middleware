@@ -181,9 +181,9 @@ class RoutingSocketEventSource(threading.Thread):
             except OSError as err:
                 # Apparently interface doesn't exist anymore
                 if err.errno == errno.ENXIO:
-                    del self.mtu_cache[i.name]
-                    del self.flags_cache[i.name]
-                    del self.link_state_cache[i.name]
+                    self.mtu_cache.pop(i.name, None)
+                    self.flags_cache.pop(i.name, None)
+                    self.link_state_cache.pop(i.name, None)
                 else:
                     self.context.logger.warn('Building interface cache for {0} failed: {1}'.format(i.name, str(err)))
 
@@ -576,111 +576,115 @@ class ConfigurationService(RpcService):
             self.logger.info('Interface {0} is disabled'.format(name))
             return
 
-        # If it's VLAN, configure parent and tag
-        if entity.get('type') == 'VLAN':
-            vlan = entity.get('vlan')
-            if vlan:
-                parent = vlan.get('parent')
-                tag = vlan.get('tag')
+        try:
+            # If it's VLAN, configure parent and tag
+            if entity.get('type') == 'VLAN':
+                vlan = entity.get('vlan')
+                if vlan:
+                    parent = vlan.get('parent')
+                    tag = vlan.get('tag')
 
-                if parent and tag:
-                    try:
-                        tag = int(tag)
-                        iface.unconfigure()
-                        iface.configure(parent, tag)
-                    except Exception as e:
-                        self.logger.warn('Failed to configure VLAN interface {0}: {1}'.format(name, str(e)))
+                    if parent and tag:
+                        try:
+                            tag = int(tag)
+                            iface.unconfigure()
+                            iface.configure(parent, tag)
+                        except Exception as e:
+                            self.logger.warn('Failed to configure VLAN interface {0}: {1}'.format(name, str(e)))
+                            raise
 
-        # Configure protocol and member ports for a LAGG
-        if entity.get('type') == 'LAGG':
-            lagg = entity.get('lagg')
-            if lagg:
-                iface.protocol = getattr(netif.AggregationProtocol, lagg.get('protocol', 'FAILOVER'))
-                old_ports = set(p[0] for p in iface.ports)
-                new_ports = set(lagg['ports'])
+            # Configure protocol and member ports for a LAGG
+            if entity.get('type') == 'LAGG':
+                lagg = entity.get('lagg')
+                if lagg:
+                    iface.protocol = getattr(netif.AggregationProtocol, lagg.get('protocol', 'FAILOVER'))
+                    old_ports = set(p[0] for p in iface.ports)
+                    new_ports = set(lagg['ports'])
 
-                for port in old_ports - new_ports:
-                    iface.delete_port(port)
+                    for port in old_ports - new_ports:
+                        iface.delete_port(port)
 
-                for port in new_ports - old_ports:
-                    iface.add_port(port)
+                    for port in new_ports - old_ports:
+                        iface.add_port(port)
 
-        # Configure member interfaces for a bridge
-        if entity.get('type') == 'BRIDGE':
-            bridge = entity.get('bridge')
-            if bridge:
-                old_members = set(iface.members)
-                new_members = set(bridge['members'])
+            # Configure member interfaces for a bridge
+            if entity.get('type') == 'BRIDGE':
+                bridge = entity.get('bridge')
+                if bridge:
+                    old_members = set(iface.members)
+                    new_members = set(bridge['members'])
 
-                for port in old_members - new_members:
-                    iface.delete_member(port)
+                    for port in old_members - new_members:
+                        iface.delete_member(port)
 
-                for port in new_members - old_members:
-                    iface.add_member(port)
+                    for port in new_members - old_members:
+                        iface.add_member(port)
 
-        if entity.get('dhcp'):
-            if name in self.context.dhcp_clients:
-                self.logger.info('Interface {0} already configured using DHCP'.format(name))
+            if entity.get('dhcp'):
+                if self.context.dhclient_running(name):
+                    self.logger.info('Interface {0} already configured using DHCP'.format(name))
+                else:
+                    # Remove all existing aliases
+                    for i in iface.addresses:
+                        iface.remove_address(i)
+
+                    self.logger.info('Trying to acquire DHCP lease on interface {0}...'.format(name))
+                    if not self.context.configure_dhcp(name):
+                        self.logger.warn('Failed to configure interface {0} using DHCP'.format(name))
             else:
-                # Remove all existing aliases
-                for i in iface.addresses:
+                addresses = set(convert_aliases(entity))
+                existing_addresses = set([a for a in iface.addresses if a.af != netif.AddressFamily.LINK])
+
+                # Remove orphaned addresses
+                for i in existing_addresses - addresses:
+                    if i.af == netif.AddressFamily.INET6 and str(i.address).startswith('fe80::'):
+                        # skip link-local IPv6 addresses
+                        continue
+
+                    self.logger.info('Removing address from interface {0}: {1}'.format(name, i))
                     iface.remove_address(i)
 
-                self.logger.info('Trying to acquire DHCP lease on interface {0}...'.format(name))
-                if not self.context.configure_dhcp(name):
-                    self.logger.warn('Failed to configure interface {0} using DHCP'.format(name))
-        else:
-            addresses = set(convert_aliases(entity))
-            existing_addresses = set([a for a in iface.addresses if a.af != netif.AddressFamily.LINK])
+                # Add new or changed addresses
+                for i in addresses - existing_addresses:
+                    self.logger.info('Adding new address to interface {0}: {1}'.format(name, i))
+                    iface.add_address(i)
 
-            # Remove orphaned addresses
-            for i in existing_addresses - addresses:
-                if i.af == netif.AddressFamily.INET6 and str(i.address).startswith('fe80::'):
-                    # skip link-local IPv6 addresses
-                    continue
+            # nd6 stuff
+            if entity.get('rtadv', False):
+                iface.nd6_flags = iface.nd6_flags | {netif.NeighborDiscoveryFlags.ACCEPT_RTADV}
+                if restart_rtsold:
+                    self.client.call_sync('service.restart', 'rtsold')
+            else:
+                iface.nd6_flags = iface.nd6_flags - {netif.NeighborDiscoveryFlags.ACCEPT_RTADV}
 
-                self.logger.info('Removing address from interface {0}: {1}'.format(name, i))
-                iface.remove_address(i)
+            if entity.get('noipv6', False):
+                iface.nd6_flags = iface.nd6_flags | {netif.NeighborDiscoveryFlags.IFDISABLED}
+                iface.nd6_flags = iface.nd6_flags - {netif.NeighborDiscoveryFlags.AUTO_LINKLOCAL}
+            else:
+                iface.nd6_flags = iface.nd6_flags - {netif.NeighborDiscoveryFlags.IFDISABLED}
+                iface.nd6_flags = iface.nd6_flags | {netif.NeighborDiscoveryFlags.AUTO_LINKLOCAL}
 
-            # Add new or changed addresses
-            for i in addresses - existing_addresses:
-                self.logger.info('Adding new address to interface {0}: {1}'.format(name, i))
-                iface.add_address(i)
+            if entity.get('mtu'):
+                iface.mtu = entity['mtu']
 
-        # nd6 stuff
-        if entity.get('rtadv', False):
-            iface.nd6_flags = iface.nd6_flags | {netif.NeighborDiscoveryFlags.ACCEPT_RTADV}
-            if restart_rtsold:
-                self.client.call_sync('service.restart', 'rtsold')
-        else:
-            iface.nd6_flags = iface.nd6_flags - {netif.NeighborDiscoveryFlags.ACCEPT_RTADV}
+            if entity.get('media'):
+                iface.media_subtype = entity['media']
 
-        if entity.get('noipv6', False):
-            iface.nd6_flags = iface.nd6_flags | {netif.NeighborDiscoveryFlags.IFDISABLED}
-            iface.nd6_flags = iface.nd6_flags - {netif.NeighborDiscoveryFlags.AUTO_LINKLOCAL}
-        else:
-            iface.nd6_flags = iface.nd6_flags - {netif.NeighborDiscoveryFlags.IFDISABLED}
-            iface.nd6_flags = iface.nd6_flags | {netif.NeighborDiscoveryFlags.AUTO_LINKLOCAL}
+            if entity.get('capabilities'):
+                caps = iface.capabilities
+                for c in entity['capabilities'].get('add'):
+                    caps.add(getattr(netif.InterfaceCapability, c))
 
-        if entity.get('mtu'):
-            iface.mtu = entity['mtu']
+                for c in entity['capabilities'].get('del'):
+                    caps.remove(getattr(netif.InterfaceCapability, c))
 
-        if entity.get('media'):
-            iface.media_subtype = entity['media']
+                iface.capabilities = caps
 
-        if entity.get('capabilities'):
-            caps = iface.capabilities
-            for c in entity['capabilities'].get('add'):
-                caps.add(getattr(netif.InterfaceCapability, c))
-
-            for c in entity['capabilities'].get('del'):
-                caps.remove(getattr(netif.InterfaceCapability, c))
-
-            iface.capabilities = caps
-
-        if netif.InterfaceFlags.UP not in iface.flags:
-            self.logger.info('Bringing interface {0} up'.format(name))
-            iface.up()
+            if netif.InterfaceFlags.UP not in iface.flags:
+                self.logger.info('Bringing interface {0} up'.format(name))
+                iface.up()
+        except OSError as err:
+            raise RpcException(err.errno, err.strerror)
 
         self.client.emit_event('network.interface.configured', {
             'interface': name,

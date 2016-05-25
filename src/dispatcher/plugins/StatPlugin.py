@@ -27,8 +27,8 @@
 
 import re
 import errno
-from freenas.dispatcher.rpc import accepts, returns, SchemaHelper as h
-from task import Provider, Task, VerifyException, query
+from freenas.dispatcher.rpc import accepts, description, returns, SchemaHelper as h
+from task import Provider, Task, VerifyException, query, TaskDescription
 from freenas.utils.query import wrap
 
 
@@ -71,6 +71,7 @@ UNITS = {
 }
 
 
+@description('Provides information about statistics')
 class StatProvider(Provider):
     @query('statistic')
     def query(self, filter=None, params=None):
@@ -93,6 +94,7 @@ class StatProvider(Provider):
         return normalize(name, value)
 
 
+@description('Provides information about CPU statistics')
 class CpuStatProvider(Provider):
     @query('statistic')
     def query(self, filter=None, params=None):
@@ -110,6 +112,7 @@ class CpuStatProvider(Provider):
         return wrap(stats).query(*(filter or []), **(params or {}))
 
 
+@description('Provides information about disk statistics')
 class DiskStatProvider(Provider):
     @query('statistic')
     def query(self, filter=None, params=None):
@@ -126,6 +129,7 @@ class DiskStatProvider(Provider):
         return wrap(stats).query(*(filter or []), **(params or {}))
 
 
+@description('Provides information about network statistics')
 class NetworkStatProvider(Provider):
     @query('statistic')
     def query(self, filter=None, params=None):
@@ -142,6 +146,7 @@ class NetworkStatProvider(Provider):
         return wrap(stats).query(*(filter or []), **(params or {}))
 
 
+@description('Provides information about system statistics')
 class SystemStatProvider(Provider):
     @query('statistic')
     def query(self, filter=None, params=None):
@@ -170,7 +175,15 @@ class SystemStatProvider(Provider):
 
 
 @accepts(str, h.ref('statistic'))
+@description('Updates alert levels on a given statistic')
 class UpdateAlertTask(Task):
+    @classmethod
+    def early_describe(cls):
+        return 'Updating alert levels of statistic'
+
+    def describe(self, name, stat):
+        return TaskDescription('Updating alert levels of statistic {name}', name=name)
+
     def verify(self, name, stat):
         if name not in self.dispatcher.call_sync('statd.output.get_data_sources'):
             raise VerifyException(errno.ENOENT, 'Statistic {0} not found.'.format(name))

@@ -229,19 +229,19 @@ class ServiceInfoProvider(Provider):
 
         if node['enable'].value and state != 'RUNNING':
             logger.info('Starting service {0}'.format(service))
-            self.dispatcher.call_sync('service.ensure_started', service)
+            self.dispatcher.call_sync('service.ensure_started', service, timeout=120)
 
         elif not node['enable'].value and state != 'STOPPED':
             logger.info('Stopping service {0}'.format(service))
-            self.dispatcher.call_sync('service.ensure_stopped', service)
+            self.dispatcher.call_sync('service.ensure_stopped', service, timeout=120)
 
         else:
             if restart:
                 logger.info('Restarting service {0}'.format(service))
-                self.dispatcher.call_sync('service.restart', service)
+                self.dispatcher.call_sync('service.restart', service, timeout=120)
             elif reload:
                 logger.info('Reloading service {0}'.format(service))
-                self.dispatcher.call_sync('service.reload', service)
+                self.dispatcher.call_sync('service.reload', service, timeout=120)
 
 
 @description("Provides functionality to start, stop, restart or reload service")
@@ -250,6 +250,10 @@ class ServiceInfoProvider(Provider):
     h.enum(str, ['start', 'stop', 'restart', 'reload'])
 )
 class ServiceManageTask(Task):
+    @classmethod
+    def early_describe(cls):
+        return 'Changing service state'
+
     def describe(self, id, action):
         svc = self.datastore.get_by_id('service_definitions', id)
         return TaskDescription("{action}ing service {name}", action=action.title(), name=svc['name'])
@@ -301,6 +305,10 @@ class ServiceManageTask(Task):
     h.forbidden('id', 'name', 'builtin', 'pid', 'state')
 ))
 class UpdateServiceConfigTask(Task):
+    @classmethod
+    def early_describe(cls):
+        return 'Updating service configuration'
+
     def describe(self, id, updated_fields):
         svc = self.datastore.get_by_id('service_definitions', id)
         return TaskDescription("Updating configuration of service {name}", name=svc['name'])
@@ -380,7 +388,7 @@ class UpdateServiceConfigTask(Task):
                             break
 
         self.dispatcher.call_sync('etcd.generation.generate_group', 'services')
-        self.dispatcher.call_sync('service.apply_state', service_def['name'], restart, reload, timeout=30)
+        self.dispatcher.call_sync('service.apply_state', service_def['name'], restart, reload, timeout=120)
         self.dispatcher.dispatch_event('service.changed', {
             'operation': 'update',
             'ids': [service_def['id']]

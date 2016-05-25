@@ -28,12 +28,24 @@
 import os
 import errno
 import socket
-from task import Provider, Task, ProgressTask, TaskException
+from task import Task, ProgressTask, TaskException, TaskDescription
+from freenas.dispatcher.rpc import description
 from paramiko import transport, sftp_client, ssh_exception, rsakey, dsskey
 from freenas.utils import normalize
 
 
+@description('Lists information about a specific SSH backup')
 class BackupSSHListTask(Task):
+    @classmethod
+    def early_describe(cls):
+        return 'Listing information about SSH backup'
+
+    def describe(self, backup):
+        return TaskDescription(
+            'Listing information about SSH backup {name}',
+            name=backup.get('hostport', '') if backup else ''
+        )
+
     def verify(self, backup):
         return []
 
@@ -58,7 +70,15 @@ class BackupSSHListTask(Task):
         return result
 
 
+@description('Initializes a SSH backup')
 class BackupSSHInitTask(Task):
+    @classmethod
+    def early_describe(cls):
+        return 'Initializing SSH backup'
+
+    def describe(self, backup):
+        return TaskDescription('Initializing SSH backup {name}', name=backup.get('hostport', '') if backup else '')
+
     def verify(self, backup):
         return []
 
@@ -71,7 +91,15 @@ class BackupSSHInitTask(Task):
         return backup['properties']
 
 
+@description('Puts new data onto SSH backup')
 class BackupSSHPutTask(ProgressTask):
+    @classmethod
+    def early_describe(cls):
+        return 'Putting new data onto SSH backup'
+
+    def describe(self, backup, name, fd):
+        return TaskDescription('Putting new data onto SSH backup {name}', name=name)
+
     def verify(self, backup, name, fd):
         return []
 
@@ -89,7 +117,15 @@ class BackupSSHPutTask(ProgressTask):
             conn.close()
 
 
+@description('Gets data from SSH backup')
 class BackupSSHGetTask(Task):
+    @classmethod
+    def early_describe(cls):
+        return 'Getting data from SSH backup'
+
+    def describe(self, backup, name, fd):
+        return TaskDescription('Getting data from SSH backup {name}', name=name)
+
     def verify(self, backup, name, fd):
         return []
 
@@ -107,7 +143,15 @@ class BackupSSHGetTask(Task):
             conn.close()
 
 
+@description('Deletes SSH backup task')
 class BackupSSHDeleteTask(Task):
+    @classmethod
+    def early_describe(cls):
+        return 'Deleting SSH backup task'
+
+    def describe(self, backup, name):
+        return TaskDescription('Deleting SSH backup task {name}', name=name)
+
     def verify(self, backup, name):
         pass
 
@@ -124,12 +168,12 @@ class BackupSSHDeleteTask(Task):
             conn.close()
 
 
-def split_hostport(str):
-    if ':' in str:
-        parts = str.split(':')
+def split_hostport(string):
+    if ':' in string:
+        parts = string.split(':')
         return parts[0], int(parts[1])
     else:
-        return str, 22
+        return string, 22
 
 
 def try_key_auth(session, backup):

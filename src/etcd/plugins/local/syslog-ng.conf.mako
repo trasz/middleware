@@ -1,4 +1,4 @@
-@version:3.6
+@version:3.7
 
 #
 # This sample configuration file is essentially equilivent to the stock
@@ -22,7 +22,9 @@ options {
 source src {
     unix-dgram("/var/run/log");
     unix-dgram("/var/run/logpriv" perm(0600));
-    udp(localport(1031)); internal(); file("/dev/klog");
+    udp(localport(1031));
+    internal();
+    file("/dev/klog" follow-freq(0) program-override("kernel") flags(no-parse));
 };
 
 #
