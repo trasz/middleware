@@ -176,7 +176,7 @@ class BootAttachDisk(ProgressTask):
             'target_guid': guid,
             'vdev': {
                 'type': 'disk',
-                'path': os.path.join('/dev', disk)
+                'path': os.path.join('/dev', disk + 'p2')
             }
         }]))
 
