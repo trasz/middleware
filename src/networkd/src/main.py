@@ -814,7 +814,7 @@ class Main(object):
         if interface not in self.dhcp_clients:
             raise RpcException(errno.ENXIO, 'Interface {0} is not configured for DHCP'.format(interface))
 
-        self.dhcp_clients[interface].renew(timeout=30)
+        self.dhcp_clients[interface].request(renew=True, timeout=30)
 
     def interface_detached(self, name):
         self.logger.warn('Interface {0} detached from the system'.format(name))
