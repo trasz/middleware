@@ -621,7 +621,7 @@ class ConfigurationService(RpcService):
                         iface.add_member(port)
 
             if entity.get('dhcp'):
-                if self.context.dhclient_running(name):
+                if name in self.context.dhcp_clients:
                     self.logger.info('Interface {0} already configured using DHCP'.format(name))
                 else:
                     # Remove all existing aliases
@@ -714,13 +714,7 @@ class ConfigurationService(RpcService):
 
     def renew_lease(self, name):
         self.logger.info('Renewing IP lease on {0}'.format(name))
-        if self.context.dhclient_running(name):
-            pid = self.context.dhclient_pid(name)
-            os.kill(pid, signal.SIGTERM)
-            self.logger.info('Killed dhclient with pid {0}'.format(pid))
-
-        time.sleep(1)
-        return self.configure_interface(name)
+        return self.context.renew_dhcp(name)
 
 
 class Main(object):
@@ -757,26 +751,70 @@ class Main(object):
             return False
 
     def configure_dhcp(self, interface):
-        # Check if dhclient is running
         if interface in self.dhcp_clients:
             self.logger.info('Interface {0} already configured by DHCP'.format(interface))
             return True
 
-        def bind(lease):
-            self.logger.info('Assigning IP address {0} to interface {1}'.format(lease.client_ip, interface))
-            alias = lease.client_interface
-            iface = netif.get_interface(interface)
-            iface.add_address(netif.InterfaceAddress(netif.AddressFamily.INET, alias))
+        def bind(old_lease, lease):
+            self.logger.info('{0} DHCP lease on {1} from {2}, valid for {3} seconds'.format(
+                'Renewed' if old_lease else 'Acquired',
+                interface,
+                client.server_address,
+                lease.lifetime,
+                interface
+            ))
+
+            if old_lease is None or lease.client_ip != old_lease.client_ip:
+                self.logger.info('Assigning IP address {0} to interface {1}'.format(lease.client_ip, interface))
+                alias = lease.client_interface
+                try:
+                    iface = netif.get_interface(interface)
+                    iface.add_address(netif.InterfaceAddress(netif.AddressFamily.INET, alias))
+                except OSError as err:
+                    self.logger.error('Cannot add alias to {0}: {1}'.format(interface, err.strerror))
 
             if lease.router:
-                self.logger.info('Adding default route via {0}'.format(lease.router))
-                rtable = netif.RoutingTable()
-                rtable.add(default_route(lease.router))
+                try:
+                    rtable = netif.RoutingTable()
+                    newroute = default_route(lease.router)
+                    if rtable.default_route_ipv4 != newroute:
+                        if rtable.default_route_ipv4:
+                            self.logger.info('DHCP default route changed from {0} to {1}'.format(
+                                rtable.default_route_ipv4,
+                                newroute
+                            ))
+                            rtable.delete(rtable.default_route_ipv4)
+                            rtable.add(default_route(lease.router))
+                        else:
+                            self.logger.info('Adding default route via {0}'.format(lease.router))
+                            rtable.add(default_route(lease.router))
+                except OSError as err:
+                    self.logger.error('Cannot configure default route: {0}'.format(err.strerror))
+
+            if lease.dns_addresses:
+                pass
+
+        def unbind(lease, reason):
+            reasons = {
+                dhcp.client.UnbindReason.EXPIRE: 'expired',
+                dhcp.client.UnbindReason.REVOKE: 'revoked'
+            }
+
+            self.logger.info(''.format(
+                'DHCP lease on {0} {1}'.format(interface, reasons.get(reason, 'revoked'))
+            ))
 
         client = dhcp.client.Client(interface, socket.gethostname())
         client.on_bind = bind
+        client.on_unbind = unbind
         client.start()
         self.dhcp_clients[interface] = client
+
+    def renew_dhcp(self, interface):
+        if interface not in self.dhcp_clients:
+            raise RpcException(errno.ENXIO, 'Interface {0} is not configured for DHCP'.format(interface))
+
+        self.dhcp_clients[interface].renew(timeout=30)
 
     def interface_detached(self, name):
         self.logger.warn('Interface {0} detached from the system'.format(name))
