@@ -217,7 +217,7 @@ class CertificateCreateTask(Task):
                 cert.set_issuer(cacert.get_subject())
 
                 cert.add_extensions([
-                    crypto.X509Extension("subjectKeyIdentifier", False, "hash", subject=cert),
+                    crypto.X509Extension("subjectKeyIdentifier".encode('utf-8'), False, "hash".encode('utf-8'), subject=cert),
                 ])
                 cert.set_serial_number(signing_cert['serial'])
                 cert.sign(signkey, str(certificate['digest_algorithm']))
@@ -254,9 +254,9 @@ class CertificateCreateTask(Task):
                 cert = create_certificate(certificate)
                 cert.set_pubkey(key)
                 cert.add_extensions([
-                    crypto.X509Extension("basicConstraints", True, "CA:TRUE, pathlen:0"),
-                    crypto.X509Extension("keyUsage", True, "keyCertSign, cRLSign"),
-                    crypto.X509Extension("subjectKeyIdentifier", False, "hash", subject=cert),
+                    crypto.X509Extension("basicConstraints".encode('utf-8'), True, "CA:TRUE, pathlen:0".encode('utf-8')),
+                    crypto.X509Extension("keyUsage".encode('utf-8'), True, "keyCertSign, cRLSign".encode('utf-8')),
+                    crypto.X509Extension("subjectKeyIdentifier".encode('utf-8'), False, "hash".encode('utf-8'), subject=cert),
                 ])
                 cert.set_serial_number(1)
                 cert.sign(key, str(certificate['digest_algorithm']))
@@ -276,9 +276,9 @@ class CertificateCreateTask(Task):
                 cert = create_certificate(certificate)
                 cert.set_pubkey(key)
                 cert.add_extensions([
-                    crypto.X509Extension("basicConstraints", True, "CA:TRUE, pathlen:0"),
-                    crypto.X509Extension("keyUsage", True, "keyCertSign, cRLSign"),
-                    crypto.X509Extension("subjectKeyIdentifier", False, "hash", subject=cert),
+                    crypto.X509Extension("basicConstraints".encode('utf-8'), True, "CA:TRUE, pathlen:0".encode('utf-8')),
+                    crypto.X509Extension("keyUsage".encode('utf-8'), True, "keyCertSign, cRLSign".encode('utf-8')),
+                    crypto.X509Extension("subjectKeyIdentifier".encode('utf-8'), False, "hash".encode('utf-8'), subject=cert),
                 ])
                 cert.set_serial_number(signing_cert['serial'])
                 cert.sign(signkey, str(certificate['digest_algorithm']))
