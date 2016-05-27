@@ -177,7 +177,7 @@ class CertificateCreateTask(Task):
             if self.datastore.exists('crypto.certificates', ('name', '=', certificate['name'])):
                 errors.add((0, 'name'), 'Certificate with given name already exists', code=errno.EEXIST)
 
-            if not self.datastore.exists('crypto.certificates', ('id', '=', certificate['signedby'])):
+            if not self.datastore.exists('crypto.certificates', ('name', '=', certificate['signedby'])):
                 errors.add((0, 'signedby'), 'Signing certificate does not exist', code=errno.EEXIST)
 
             if '"' in certificate['name']:
@@ -187,7 +187,7 @@ class CertificateCreateTask(Task):
                 )
 
         if certificate['type'] in ('CERT_INTERNAL', 'CA_INTERMEDIATE'):
-            if 'signedby' not in certificate or not self.datastore.exists('crypto.certificates', ('id', '=', certificate['signedby'])):
+            if 'signedby' not in certificate or not self.datastore.exists('crypto.certificates', ('name', '=', certificate['signedby'])):
                 errors.add((0, 'signedby'), 'Signing Certificate does not exist', code=errno.EEXIST)
 
         if errors:
@@ -206,7 +206,7 @@ class CertificateCreateTask(Task):
 
             if certificate['type'] == 'CERT_INTERNAL':
 
-                signing_cert = self.datastore.get_by_id('crypto.certificates', certificate['signedby'])
+                signing_cert = self.datastore.get_one('crypto.certificates', ('name', '=', certificate['signedby']))
 
                 signkey = load_privatekey(signing_cert['privatekey'])
 
