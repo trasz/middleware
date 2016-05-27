@@ -632,6 +632,10 @@ class ConfigurationService(RpcService):
                     if not self.context.configure_dhcp(name):
                         self.logger.warn('Failed to configure interface {0} using DHCP'.format(name))
             else:
+                if name in self.context.dhcp_clients:
+                    self.logger.info('Stopping DHCP client on interface {0}'.format(name))
+                    self.deconfigure_dhcp(name)
+
                 addresses = set(convert_aliases(entity))
                 existing_addresses = set([a for a in iface.addresses if a.af != netif.AddressFamily.LINK])
 
@@ -792,7 +796,19 @@ class Main(object):
                     self.logger.error('Cannot configure default route: {0}'.format(err.strerror))
 
             if lease.dns_addresses:
-                pass
+                inp = []
+                proc = subprocess.Popen(
+                    ['/sbin/resolvconf', '-a', interface],
+                    stdout=subprocess.PIPE,
+                    stdin=subprocess.PIPE
+                )
+
+                for i in lease.dns_addresses:
+                    inp.append('nameserver {0}'.format(i))
+
+                proc.communicate('\n'.join(inp).encode('ascii'))
+                proc.wait()
+                self.logger.info('Updated DNS configuration')
 
         def unbind(lease, reason):
             reasons = {
@@ -804,11 +820,20 @@ class Main(object):
                 'DHCP lease on {0} {1}'.format(interface, reasons.get(reason, 'revoked'))
             ))
 
+        def state_change(state):
+            self.client.emit_event('network.interface.changed', interface)
+
         client = dhcp.client.Client(interface, socket.gethostname())
         client.on_bind = bind
         client.on_unbind = unbind
+        client.on_state_change = state_change
         client.start()
         self.dhcp_clients[interface] = client
+
+    def deconfigure_dhcp(self, interface):
+        client = self.dhcp_clients[interface]
+        client.release()
+        del self.dhcp_clients[interface]
 
     def renew_dhcp(self, interface):
         if interface not in self.dhcp_clients:
