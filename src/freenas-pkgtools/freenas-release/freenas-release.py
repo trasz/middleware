@@ -2,8 +2,8 @@
 import os
 import sys
 import getopt
-import stat
 import fcntl
+import configparser
 
 sys.path.append("/usr/local/lib")
 
@@ -45,16 +45,19 @@ debugsql = False
 # should change.
 database_version = 1
 
+
 class DatabaseException(Exception):
     pass
+
 
 class DatabaseIncompatibleVersionException(DatabaseException):
     pass
 
+
 def DebugSQL(sql, parms):
     if debugsql:
         print("sql = %s, parms = %s" % (sql, parms), file=sys.stderr)
-        
+
 CONFIG_KEYFILE_KEY = "keyfile"
 CONFIG_DBPATH_KEY = "db"
 CONFIG_ARCHIVE_KEY = "archive"
@@ -63,7 +66,8 @@ CONFIG_FILE_DEFAULT = "/usr/local/etc/freenas-release-default.conf"
 CONFIG_FILE_SYSTEM = "/usr/local/etc/freenas-release.conf"
 CONFIG_FILE_USER = os.path.expanduser("~/.freenas-release.conf")
 
-def SetConfiguration(path, project, arg_dict = {}):
+
+def SetConfiguration(path, project, arg_dict={}):
     """
     Set configuration files for the configuration file at
     path.  If path doesn't exist, it will attempt to create
@@ -74,7 +78,6 @@ def SetConfiguration(path, project, arg_dict = {}):
     If project does not exist as a section in the file, then
     it is created; it may be an empty section.
     """
-    import configparser
 
     # Just a raw config parser so we do no interpolation.
     cfp = configparser.RawConfigParser()
@@ -99,7 +102,7 @@ def SetConfiguration(path, project, arg_dict = {}):
         cfp.set(project, key, value)
         if value == "":
             cfp.remove_option(project, key)
-            
+
     # Now save the object
     try:
         fp = open(path, "w")
@@ -110,7 +113,8 @@ def SetConfiguration(path, project, arg_dict = {}):
         cfp.write(fp)
 
     return True
-        
+
+
 def GetConfiguration(path, project):
     """
     Load the configuration file at path, and
@@ -123,9 +127,8 @@ def GetConfiguration(path, project):
     for environment variables and ~expansion.
     This uses the default config file.
     """
-    import configparser
     # This file is only used in this one function.
-    
+
     retval = None
 
     cfp = configparser.SafeConfigParser()
@@ -157,7 +160,7 @@ def GetConfiguration(path, project):
             os.environ["PROJECT"] = old_env
         else:
             os.environ.pop("PROJECT")
-            
+
     return retval
 
 # Obtain a lock for an archive.
@@ -168,12 +171,13 @@ def GetConfiguration(path, project):
 # a lock, otherwise it will return None if it
 # can't get the lock.
 is_locked = False
-def LockArchive(archive, reason, wait = False):
+
+
+def LockArchive(archive, reason, wait=False):
     global is_locked
-    
+
     class Locker(object):
-        def __init__(self, wait = False):
-            import fcntl
+        def __init__(self, wait=False):
             # Do thrown an exception if we can't get the lock
             self._lock_file = open(os.path.join(archive, ".lock"), "wb+")
             flags = fcntl.LOCK_EX
@@ -184,6 +188,7 @@ def LockArchive(archive, reason, wait = False):
             except (IOError, Exception) as e:
                 print("Unable to obtain lock for archive %s: %s" % (archive, str(e)), file=sys.stderr)
                 return None
+
         def close(self):
             global is_locked
             if self._lock_file:
@@ -191,14 +196,15 @@ def LockArchive(archive, reason, wait = False):
                 is_locked = False
             else:
                 raise Exception("Lock isn't locked!")
-                
+
     print("LockArchive(%s, %s): %s" % (archive, wait, reason), file=sys.stderr)
     if is_locked:
         print("Recursive lock!??!?!", file=sys.stderr)
         raise Exception("Recursive lock?!?!?!")
-    lock_file = Locker(wait = wait)
+    lock_file = Locker(wait=wait)
     is_locked = True
     return lock_file
+
 
 class ReleaseDB(object):
     """
@@ -209,7 +215,7 @@ class ReleaseDB(object):
     """
     global debug, verbose
 
-    def __init__(self, use_transactions = False, initialize = False):
+    def __init__(self, use_transactions=False, initialize=False):
         self._connection = None
         self._use_transactions = use_transactions
 
@@ -219,7 +225,7 @@ class ReleaseDB(object):
     def abort(self):
         pass
 
-    def close(self, commit = True):
+    def close(self, commit=True):
         if commit:
             self.commit()
         self._connection = None
@@ -227,7 +233,7 @@ class ReleaseDB(object):
     def AddRelease(self, manifest):
         pass
 
-    def PackageForSequence(self, sequence, name = None):
+    def PackageForSequence(self, sequence, name=None):
         """
         Return the package for the given sequence.  If
         name is None, it will return all packages for the
@@ -243,7 +249,7 @@ class ReleaseDB(object):
         """
         return None
 
-    def RecentPackageVersionsForTrain(self, pkg, train, count = 5):
+    def RecentPackageVersionsForTrain(self, pkg, train, count=5):
         """
         Return the <count> most recent packages for the given train.
         If count is 0, return them all.
@@ -261,16 +267,18 @@ class ReleaseDB(object):
         AND Manifests.Pkg = Packages.indx
         GROUP BY PkgVersion
         """
-    def RecentSequencesForTrain(self, train, count = 5, oldest_first = False):
+
+    def RecentSequencesForTrain(self, train, count=5, oldest_first=False):
         """
         Return the last <count> sequences for the given train.
         If count is 0, it returns them all.  Returns an
         empty array if no match.
         """
-        if debug:  print("ReleaseDB::RecentSequencesForTrain(%s, %d)" % (train, count), file=sys.stderr)
+        if debug:
+            print("ReleaseDB::RecentSequencesForTrain(%s, %d)" % (train, count), file=sys.stderr)
         return []
 
-    def AddPakageUpdate(self, Pkg, OldPkg, DeltaChecksum = None):
+    def AddPakageUpdate(self, Pkg, OldPkg, DeltaChecksum=None):
         """
         Add an update, with optional checksum, for Pkg.
         """
@@ -283,8 +291,8 @@ class ReleaseDB(object):
         returns a dictionary.
         """
         pass
-    
-    def UpdatesForPackage(self, Pkg, count = 5):
+
+    def UpdatesForPackage(self, Pkg, count=5):
         """
         Return an array of updates for the given package.
         If count is 0, it returns all known updates.
@@ -306,13 +314,14 @@ class ReleaseDB(object):
     def NoticeForSequence(self, sequence):
         return None
 
+
 class SQLiteReleaseDB(object):
     """
     SQLite subclass for ReleaseDB
     """
     global debug, verbose
 
-    def __init__(self, initialize = False, dbfile = None):
+    def __init__(self, initialize=False, dbfile=None):
         global debug
         import sqlite3
         if dbfile is None:
@@ -327,8 +336,8 @@ class SQLiteReleaseDB(object):
             # If it doesn't exist, we act as if we've been asked to initialize
             if not os.path.exists(self._dbfile):
                 initialize = True
-                
-        self._connection = sqlite3.connect(self._dbfile, isolation_level = None)
+
+        self._connection = sqlite3.connect(self._dbfile, isolation_level=None)
         if self._connection is None:
             raise Exception("Could not connect to sqlie db file %s" % dbfile)
 
@@ -353,7 +362,7 @@ class SQLiteReleaseDB(object):
             self._cursor.execute("INSERT INTO Version(dumb_text, Version) VALUES(?, ?)", ("version", database_version))
             self._connection.commit()
             self._cursor = self._connection.cursor()
-            
+
         # The Packages table consists of the package names, package version, optional checksum.
         # The indx value is used to determine which versions are newer, and also as a foreign
         # key to create the Releases table below.
@@ -384,7 +393,7 @@ class SQLiteReleaseDB(object):
         # only one, and it is kept in the manifest, not downloaded
         # separately.
         self._cursor.execute("CREATE TABLE IF NOT EXISTS Notices(Notice TEXT NOT NULL, Sequence NOT NULL UNIQUE, indx INTEGER PRIMARY KEY ASC AUTOINCREMENT, CONSTRAINT notices_constraint FOREIGN KEY(Sequence) REFERENCES Sequences(indx))")
- 
+
         # The Manifests table.
         # A manifest consists of a reference to an entry in Sequences for the sequence number,
         # and a package reference.  A manifest file is built by selecting the packages for
@@ -439,7 +448,7 @@ class SQLiteReleaseDB(object):
 	CREATE TABLE IF NOT EXISTS SequenceValidationScripts(Sequence NOT NULL,
     		Script NOT NULL,
 		indx INTEGER PRIMARY KEY ASC AUTOINCREMENT,
-		CONSTRAINT sequence_scripts_constraint FOREIGN KEY(Sequence) REFERENCES Sequences(indx),        
+		CONSTRAINT sequence_scripts_constraint FOREIGN KEY(Sequence) REFERENCES Sequences(indx),
 		CONSTRAINT sequence_scripts_script_constraint FOREIGN KEY(Script) REFERENCES ValidationScripts(indx),
         	CONSTRAINT sequence_script_unique UNIQUE(Sequence, Script) ON CONFLICT IGNORE)
         """)
@@ -451,14 +460,14 @@ class SQLiteReleaseDB(object):
             self._cursor = self._connection.cursor()
         else:
             print("Commit attempted with no cursor", file=sys.stderr)
-            
+
     def cursor(self):
         if self._cursor is None:
             print("Cursor was none, so getting a new one", file=sys.stderr)
             self._cursor = self._connection.cursor()
         return self._cursor
 
-    def close(self, commit = True):
+    def close(self, commit=True):
         if commit:
             print("Committing the transaciton", file=sys.stderr)
             self.commit()
@@ -491,7 +500,7 @@ class SQLiteReleaseDB(object):
         for m in self.cursor().fetchall():
             print("m = %s" % m, file=sys.stderr)
             raise Exception("Damnit")
-        
+
         return
 
     def DeleteSequence(self, sequence):
@@ -511,9 +520,9 @@ class SQLiteReleaseDB(object):
         for m in self.cursor().fetchall():
             print("This shouldn't happen:  %s" % str(m), file=sys.stderr)
             raise Exception("This should not have happened")
-        
+
         return
-    
+
     def NoticesDeleteSequence(self, sequence):
         sql = """
         DELETE FROM Notices WHERE Sequence IN
@@ -524,9 +533,9 @@ class SQLiteReleaseDB(object):
         DebugSQL(sql, parms)
         self.cursor().execute(sql, parms)
         return
-    
+
     def AddRelease(self, manifest):
-        #    def AddRelease(self, sequence, train, packages, name = None, notes = None, notice = None):
+        # def AddRelease(self, sequence, train, packages, name = None, notes = None, notice = None):
 
         """
         Add the release into the database.  This inserts values into
@@ -584,25 +593,22 @@ class SQLiteReleaseDB(object):
             """
             parms = (manifest.Sequence(), pkg.Name(), pkg.Version())
             DebugSQL(sql, parms)
-                
+
             self.cursor().execute(sql, parms)
-            
+
         # Validation program, if any
         for vprog in manifest.ValidationProgramList():
             print("vprog = %s" % vprog)
-            self.AddValidator(vprog["Name"],
-                            vprog["Checksum"],
-                            vprog["Kind"],
-                            manifest.Sequence())
-            
+            self.AddValidator(vprog["Name"], vprog["Checksum"], vprog["Kind"], manifest.Sequence())
+
         # I haven't implemented this at all
         # if manifest.Name():
-        #self.cursor().execute("""
-        #INSERT INTO ReleaseNames(Name, Sequence)
-        #SELECT ?, Sequences.indx
-        #FROM Sequences
-        #WHERE Sequences.Sequence = ?
-        #""", (name, sequence))
+        # self.cursor().execute("""
+        # INSERT INTO ReleaseNames(Name, Sequence)
+        # SELECT ?, Sequences.indx
+        # FROM Sequences
+        # WHERE Sequences.Sequence = ?
+        # """, (name, sequence))
 
         self.commit()
 
@@ -632,8 +638,8 @@ class SQLiteReleaseDB(object):
         if len(rv) == 0:
             return None
         return rv
-    
-    def PackageForSequence(self, sequence, name = None):
+
+    def PackageForSequence(self, sequence, name=None):
         """
         For a given sequence, return the package for it.
         If name is None, then return all the packages for
@@ -663,7 +669,8 @@ class SQLiteReleaseDB(object):
         packages = self.cursor().fetchall()
         rv = []
         for pkg in packages:
-            if debug:  print("Found package %s-%s" % (pkg['PkgName'], pkg['PkgVersion']), file=sys.stderr)
+            if debug:
+                print("Found package %s-%s" % (pkg['PkgName'], pkg['PkgVersion']), file=sys.stderr)
             p = Package.Package(pkg["PkgName"], pkg["PkgVersion"], pkg["Checksum"])
             p.SetRequiresReboot(bool(pkg["RequiresReboot"]))
             rv.append(p)
@@ -694,7 +701,7 @@ class SQLiteReleaseDB(object):
             return None
         return seq["Train"]
 
-    def RecentPackageVersionsForTrain(self, pkg, train, count = 5):
+    def RecentPackageVersionsForTrain(self, pkg, train, count=5):
         """
         Return the <count> most recent packages for the given train.
         If count is 0, return them all.
@@ -723,13 +730,14 @@ class SQLiteReleaseDB(object):
         self.cursor().execute(sql, parms)
         rv = []
         for entry in self.cursor():
-            if debug: print("\t%s" % entry['PkgVersion'], file=sys.stderr)
+            if debug:
+                print("\t%s" % entry['PkgVersion'], file=sys.stderr)
             p = Package.Package(pkg.Name(), entry['PkgVersion'], entry['Checksum'])
             p.SetRequiresReboot(bool(entry['RequiresReboot']))
             rv.append(p)
         return rv
-    
-    def RecentSequencesForTrain(self, train, count = 5, oldest_first = False):
+
+    def RecentSequencesForTrain(self, train, count=5, oldest_first=False):
         """
         Get the most recent (ordered by indx desc, limit count)
         sequences for the given train.  If train is None, then
@@ -758,7 +766,8 @@ class SQLiteReleaseDB(object):
         self.cursor().execute(sql, parms)
         rv = []
         for entry in self.cursor():
-            if debug:  print("\t%s" % entry['Sequence'], file=sys.stderr)
+            if debug:
+                print("\t%s" % entry['Sequence'], file=sys.stderr)
             rv.append( entry['Sequence'] )
 
         return rv
@@ -771,7 +780,7 @@ class SQLiteReleaseDB(object):
         parms = (Pkg.Name(), Pkg.Version(), Pkg.RequiresReboot(), Pkg.Checksum())
         DebugSQL(sql, parms)
         self.cursor().execute(sql, parms)
-    
+
     def FindPackage(self, Pkg):
         sql = """
         SELECT PkgName, PkgVersion, RequiresReboot, Checksum
@@ -787,7 +796,7 @@ class SQLiteReleaseDB(object):
         retval = Package.Package(row["PkgName"], row["PkgVersion"], row["Checksum"])
         retval.SetRequiresReboot(row["RequiresReboot"])
         return retval
-        
+
     def PackageUpdatesDeleteUpdate(self, Pkg, base):
         sql = """
         DELETE
@@ -801,7 +810,7 @@ class SQLiteReleaseDB(object):
         parms = (Pkg.Name(), Pkg.Version(), Pkg.Name(), base)
         DebugSQL(sql, parms)
         self.cursor().execute(sql, parms)
-        
+
     def PackageUpdatesDeletePkg(self, Pkg):
         sql = """
         DELETE
@@ -813,12 +822,12 @@ class SQLiteReleaseDB(object):
         parms = (Pkg.Name(), Pkg.Version())
         DebugSQL(sql, parms)
         self.cursor().execute(sql, parms)
-        
-    def AddPackageUpdate(self, Pkg, OldVersion, DeltaChecksum = None, RequiresReboot = True):
-        import pdb
+
+    def AddPackageUpdate(self, Pkg, OldVersion, DeltaChecksum=None, RequiresReboot=True):
         global debug
 
-        if debug or verbose:  print("SQLiteReleaseDB:AddPackageUpdate(%s, %s, %s, %s, %s)" % (Pkg.Name(), Pkg.Version(), OldVersion, DeltaChecksum, RequiresReboot), file=sys.stderr)
+        if debug or verbose:
+            print("SQLiteReleaseDB:AddPackageUpdate(%s, %s, %s, %s, %s)" % (Pkg.Name(), Pkg.Version(), OldVersion, DeltaChecksum, RequiresReboot), file=sys.stderr)
 
         sql = """
         INSERT INTO PackageUpdates(Pkg, PkgBase, RequiresReboot, Checksum)
@@ -865,14 +874,15 @@ class SQLiteReleaseDB(object):
         rv = None
         rows = self.cursor().fetchone()
         if rows:
-            if debug or verbose: print("rows[RequiresReboot] = %s, rows[Checksum] = %s" % (bool(rows['RequiresReboot']), rows['Checksum']), file=sys.stderr)
+            if debug or verbose:
+                print("rows[RequiresReboot] = %s, rows[Checksum] = %s" % (bool(rows['RequiresReboot']), rows['Checksum']), file=sys.stderr)
             rv = {
-                Package.REBOOT_KEY : bool(rows["RequiresReboot"]),
-                Package.CHECKSUM_KEY : rows["Checksum"]
-                }
+                Package.REBOOT_KEY: bool(rows["RequiresReboot"]),
+                Package.CHECKSUM_KEY: rows["Checksum"]
+            }
         return rv
-        
-    def UpdatesFromPackage(self, Pkg, count = 5):
+
+    def UpdatesFromPackage(self, Pkg, count=5):
         # Return an array of package updates from Pkg.
         # That is, entries in the PackageUpdates table
         # where Pkg is the PkgBase version.
@@ -902,16 +912,16 @@ class SQLiteReleaseDB(object):
         if len(rv) == 0:
             return None
         return rv
-    
-    def UpdatesForPackage(self, Pkg, count = 5):
+
+    def UpdatesForPackage(self, Pkg, count=5):
         # Return an array of package updates for Pkg.
         # That is, entries in the Updates table where
         # Pkg is the new version, it returns the PkgBase,
         # RequiresReboot, and Checksum fields.
         sql = """
         SELECT Packages.PkgVersion AS PkgOldVersion,
-        	PackageUpdates.Checksum AS Checksum,
-		PackageUpdates.RequiresReboot AS RequiresReboot
+        PackageUpdates.Checksum AS Checksum,
+        PackageUpdates.RequiresReboot AS RequiresReboot
         FROM PackageUpdates
         JOIN Packages
         JOIN Packages as New
@@ -923,7 +933,7 @@ class SQLiteReleaseDB(object):
         ORDER By PackageUpdates.indx DESC
         """
         parms = (Pkg.Name(), Pkg.Version())
-        
+
         if count:
             sql += "LIMIT ?"
             parms += (count,)
@@ -932,8 +942,9 @@ class SQLiteReleaseDB(object):
         rows = self.cursor().fetchall()
         rv = []
         for pkgRow in rows:
-            if debug:  print("Found Update %s for package %s-%s" % (pkgRow["PkgOldVersion"], Pkg.Name(), Pkg.Version()), file=sys.stderr)
-            p = ( pkgRow['PkgOldVersion'] ,  pkgRow['Checksum'], bool(pkgRow['RequiresReboot']) )
+            if debug:
+                print("Found Update %s for package %s-%s" % (pkgRow["PkgOldVersion"], Pkg.Name(), Pkg.Version()), file=sys.stderr)
+            p = (pkgRow['PkgOldVersion'], pkgRow['Checksum'], bool(pkgRow['RequiresReboot']))
             rv.append(p)
         return rv
 
@@ -950,7 +961,7 @@ class SQLiteReleaseDB(object):
     def NotesForSequence(self, sequence):
         sql = """
         SELECT ReleaseNotes.NoteName AS Name,
-        	ReleaseNotes.NoteFile AS File
+        ReleaseNotes.NoteFile AS File
         FROM ReleaseNotes
         JOIN Sequences
         WHERE ReleaseNotes.Sequence = Sequences.indx
@@ -958,7 +969,7 @@ class SQLiteReleaseDB(object):
         """
         parms = (sequence,)
         DebugSQL(sql, parms)
-        self.cursor().execute(sql,parms)
+        self.cursor().execute(sql, parms)
         rv = {}
         for row in self.cursor().fetchall():
             n = row["Name"]
@@ -984,7 +995,7 @@ class SQLiteReleaseDB(object):
         parms = (sequence,)
         DebugSQL(sql, parms)
         self.cursor().execute(sql, parms)
-        
+
     def NoticeForSequence(self, sequence):
         sql = """
         SELECT Notice
@@ -1004,7 +1015,7 @@ class SQLiteReleaseDB(object):
         sql = """
         INSERT INTO PackageDeltaScripts(Pkg, ScriptName, Checksum)
         SELECT Packages.indx, ?, ?
-        FROM Packages 
+        FROM Packages
         WHERE Packages.PkgName = ? AND Packages.PkgVersion = ?
         """
         if script == "reboot":
@@ -1015,7 +1026,7 @@ class SQLiteReleaseDB(object):
         self.cursor().execute(sql, parms)
         self.commit()
 
-    def ScriptsDeleteForPackage(self, pkg, name = None):
+    def ScriptsDeleteForPackage(self, pkg, name=None):
         """
         Remove the given update script for the given package;
         if name is None, then remove them all.  This is only
@@ -1037,8 +1048,8 @@ class SQLiteReleaseDB(object):
         DebugSQL(sql, parms)
         self.cursor().execute(sql, parms)
         return
-    
-    def ServiceRestartDeleteForPackage(self, pkg, name = None):
+
+    def ServiceRestartDeleteForPackage(self, pkg, name=None):
         sql = """
         DELETE FROM PackageServiceRestart
         WHERE
@@ -1050,7 +1061,7 @@ class SQLiteReleaseDB(object):
             parms += (name, )
         DebugSQL(sql, parms)
         self.cursor().execute(sql, parms)
-        
+
     def AddServiceForPackageUpdate(self, pkg, name, restart):
         sql = """
         INSERT INTO PackageServiceRestart(Pkg, ServiceName, ServiceRestart)
@@ -1062,7 +1073,7 @@ class SQLiteReleaseDB(object):
         DebugSQL(sql, parms)
         self.cursor().execute(sql, parms)
         return
-    
+
     def ServicesForPackageUpdate(self, pkg):
         """
         Return a dictionary of services to be restarted for
@@ -1085,8 +1096,8 @@ class SQLiteReleaseDB(object):
             retval[svc["Name"]] = bool(svc["Restart"])
 
         return retval
-    
-    def ScriptForPackage(self, pkg, name = None):
+
+    def ScriptForPackage(self, pkg, name=None):
         """
         Get the update scripts for a particular package version.
         This resturns a dictionary, keyed by the name, with the
@@ -1119,12 +1130,12 @@ class SQLiteReleaseDB(object):
             n = s["Name"]
             h = s["Hash"]
             if s == "reboot" or h == "-":
-                return { "reboot" : "reboot" }
+                return {"reboot": "reboot"}
             rv[n] = h
         if len(rv) == 0:
             return None
         return rv
-    
+
     def FindValidatorsForSequence(self, sequence, kind=None):
         """
         Find the validators (if any) for the given sequence.
@@ -1151,10 +1162,10 @@ class SQLiteReleaseDB(object):
         rows = self.cursor().fetchall()
         for r in rows:
             tdict = {
-                "Name" : r["Name"],
-                "Checksum" : r["Checksum"],
-                "Kind" : r["Kind"]
-                }
+                "Name": r["Name"],
+                "Checksum": r["Checksum"],
+                "Kind": r["Kind"]
+            }
             rv[r["Sequence"]] = tdict
             if debug or verbose:
                 print("Found validation script %s (%s, hash %s) for sequence %s" % (r["Name"], r["Kind"], r["Checksum"], r["Sequence"]), file=sys.stderr)
@@ -1183,7 +1194,7 @@ class SQLiteReleaseDB(object):
         for r in rows:
             rv.append(r["Sequence"])
         return rv
-        
+
     def FindValidators(self, checksum, kind=None):
         """
         Find the script.  Return an array of dictionaries: { "Name" : name, "Checksum" : checksum, "Kind" : kind }
@@ -1206,13 +1217,13 @@ class SQLiteReleaseDB(object):
         if rows:
             for r in rows:
                 t = {
-                    "Name" : r["Name"],
-                    "Checksum" : r["Hash"],
-                    "Kind" : r["Kind"]
+                    "Name": r["Name"],
+                    "Checksum": r["Hash"],
+                    "Kind": r["Kind"]
                 }
                 rv.append(t)
         return rv
-    
+
     def RemoveValidator(self, checksum, kind=None):
         """
         Remove the validator given by the checksum.  If kind is set, it specifies that.
@@ -1230,7 +1241,7 @@ class SQLiteReleaseDB(object):
         self.cursor().execute(sql, parms)
         self.commit()
         return
-    
+
     def RemoveValidatorForSequence(self, sequence, kind=None):
         """
         Remove the validation script for the sequence.  If kind is defined, only that particular
@@ -1258,7 +1269,7 @@ class SQLiteReleaseDB(object):
         scripts = self.FindValidatorsForSequence(sequence, kind)
         if scripts is None:
             return
-        
+
         DebugSQL(sql, parms)
         self.cursor().execute(sql, parms)
         # Remove any dangling valdation entries
@@ -1273,7 +1284,7 @@ class SQLiteReleaseDB(object):
                 self.RemoveValidator(checksum=v["Checksum"], kind=v["Kind"])
                 rv.append(v["Name"])
         return rv
-        
+
     def AddValidator(self, name, checksum, kind=Manifest.VALIDATE_UPDATE, sequence=None):
         """
         Add the script to the database.  Optionally, if sequence is set, enter it for that
@@ -1290,22 +1301,24 @@ class SQLiteReleaseDB(object):
         if sequence:
             sql = """
             INSERT INTO SequenceValidationScripts(Sequence, Script)
-            	SELECT Sequences.indx, ValidationScripts.indx
-            	FROM Sequences
-            	JOIN ValidationScripts
-            	WHERE Sequences.Sequence = ?
-            	AND ValidationScripts.Checksum = ?
-		AND ValidationScripts.Kind = ?
+            SELECT Sequences.indx, ValidationScripts.indx
+            FROM Sequences
+            JOIN ValidationScripts
+            WHERE Sequences.Sequence = ?
+            AND ValidationScripts.Checksum = ?
+            AND ValidationScripts.Kind = ?
             """
             parms = (sequence, checksum, kind)
             DebugSQL(sql, parms)
             self.cursor().execute(sql, parms)
-            
+
+
 def ChecksumFile(path):
     import hashlib
     global debug, verbose
 
-    if debug: print("ChecksumFile(%s)" % path, file=sys.stderr)
+    if debug:
+        print("ChecksumFile(%s)" % path, file=sys.stderr)
     kBufSize = 4 * 1024 * 1024
     sum = hashlib.sha256()
 
@@ -1317,7 +1330,8 @@ def ChecksumFile(path):
             else:
                 break
 
-    if debug:  print("sum.hexdigest = %s" % sum.hexdigest(), file=sys.stderr)
+    if debug:
+        print("sum.hexdigest = %s" % sum.hexdigest(), file=sys.stderr)
     return sum.hexdigest()
 
 def usage():
@@ -1335,7 +1349,8 @@ def usage():
 """ % sys.argv[0], file=sys.stderr)
     sys.exit(1)
 
-def UpgradeScriptsForPackage(archive, db, pkg, sequences = None):
+
+def UpgradeScriptsForPackage(archive, db, pkg, sequences=None):
     """
     Return the update scripts for the given packages, for the
     given sequences.
@@ -1357,7 +1372,7 @@ def UpgradeScriptsForPackage(archive, db, pkg, sequences = None):
     else:
         for sequence in sequences:
             pkg_list += (db.PackageForSequence(sequence, pkg.Name()),)
-            
+
     for current_pkg in pkg_list:
         # Let's see if there is are any update scripts
         pkg_scripts = db.ScriptForPackage(current_pkg)
@@ -1386,6 +1401,7 @@ def UpgradeScriptsForPackage(archive, db, pkg, sequences = None):
                 rv[script_name] += script_content
     return rv
 
+
 def AddValidationScript(db, archive, manifest, path, kind=Manifest.VALIDATE_UPDATE):
     """
     Add the validation program at path to the manifest.
@@ -1409,7 +1425,7 @@ def AddValidationScript(db, archive, manifest, path, kind=Manifest.VALIDATE_UPDA
             os.makedirs(os.path.join(archive, Manifest.VALIDATION_DIR))
         except:
             pass
-        
+
         progfile = tempfile.NamedTemporaryFile(suffix=".txt",
                                                dir=os.path.join(archive, Manifest.VALIDATION_DIR),
                                                prefix="%s-" % progname,
@@ -1419,14 +1435,14 @@ def AddValidationScript(db, archive, manifest, path, kind=Manifest.VALIDATE_UPDA
             os.chmod(progfile.name, 0o644)
         except:
             pass
-        
+
         progname = os.path.basename(progfile.name)
         db.AddValidator(progname, checksum, kind)
 
     manifest.AddValidationProgram(progname, checksum, kind)
 
-    
-def AddPackageUpdateScript(db, archive, pkg, name, script, lock = True):
+
+def AddPackageUpdateScript(db, archive, pkg, name, script, lock=True):
     """
     Add the given script to both the database and the archive.
     The script goes in <archive>/Packages/<pkg.name>/<pkg.version>/<name>
@@ -1435,7 +1451,7 @@ def AddPackageUpdateScript(db, archive, pkg, name, script, lock = True):
     script_dir = os.path.join(archive, "Packages", pkg.Name(), pkg.Version())
     script_path = os.path.join(script_dir, name)
     if lock:
-        a_lock = LockArchive(archive, "Add Package Update Script", wait = True)
+        a_lock = LockArchive(archive, "Add Package Update Script", wait=True)
     else:
         a_lock = None
     try:
@@ -1460,13 +1476,8 @@ def AddPackageUpdateScript(db, archive, pkg, name, script, lock = True):
     if a_lock:
         a_lock.close()
 
-def AddPackage(pkg, db = None,
-               source = None,
-               archive = None,
-               train = None,
-               scripts = None,
-               fail_on_error = True,
-               restart_services = {}):
+
+def AddPackage(pkg, db=None, source=None, archive=None, train=None, scripts=None, fail_on_error=True, restart_services={}):
     """
     THE ARCHIVE MUST BE LOCKED BY THE CALLER.
 
@@ -1508,9 +1519,9 @@ def AddPackage(pkg, db = None,
 
         if list2 is None:
             return retval
-        
+
         for (svc, val) in list2.items():
-            if not svc in retval:
+            if svc not in retval:
                 retval[svc] = val
             else:
                 # It's in the first list, so we have
@@ -1520,7 +1531,7 @@ def AddPackage(pkg, db = None,
                         retval[svc] = val
                     # Do nothing if it's false
         return retval
-    
+
     def PackageFromDB(package):
         """
         Given the package, we want to get all the information for it from
@@ -1534,7 +1545,7 @@ def AddPackage(pkg, db = None,
             # This package isn't in the database
             return None
         # Set count to one more than usual
-        previous_versions = db.RecentPackageVersionsForTrain(package, train, count = 6)
+        previous_versions = db.RecentPackageVersionsForTrain(package, train, count=6)
         if previous_versions:
             if previous_versions[0].Version() == package.Version():
                 # This means that the package is already in the database.
@@ -1554,7 +1565,7 @@ def AddPackage(pkg, db = None,
             else:
                 raise Exception("We should not be here")
             # Should also get the list of services from the package file.
-            package_services = PackageFile.GetPackageServices(path = pkgfile)
+            package_services = PackageFile.GetPackageServices(path=pkgfile)
 
             if package_services:
                 if "Restart" in package_services:
@@ -1564,7 +1575,7 @@ def AddPackage(pkg, db = None,
                         tlist.append(svc)
                     if tlist:
                         pkg.SetRestartServices(tlist)
-                    
+
         # Now we want to get the updates from previous_versions to this version
         updates = db.UpdatesForPackage(retval)
         print("\tFound updates %s" % updates, file=sys.stderr)
@@ -1576,21 +1587,18 @@ def AddPackage(pkg, db = None,
                 size = os.stat(delta_path).st_size
             else:
                 size = None
-            upd = retval.AddUpdate(base,
-                                   hash,
-                                   size = size,
-                                   RequiresReboot = rr)
+            upd = retval.AddUpdate(base, hash, size=size, RequiresReboot=rr)
             # Get any service restarts for this update
             svcs = db.ServicesForPackageUpdate(Package.Package(retval.Name(), base))
             if len(svcs) > 0:
                 upd.SetRestartServices(svcs)
-                
+
         return retval
-    
+
     print("AddPackage(%s-%s, db = %s, source = %s, archive = %s, train = %s, scripts = %s, fail_on_error = %s, restart_services = %s)" % (pkg.Name(), pkg.Version(), db, source, archive, train, scripts, fail_on_error, restart_services), file=sys.stderr)
-    
+
     add_pkg_to_db = True
-    
+
     if source:
         pkg_file = os.path.join(source, pkg.FileName())
 
@@ -1626,7 +1634,7 @@ def AddPackage(pkg, db = None,
                 if scripts:
                     print("******* Package %s-%s already exists, can't specify delta scripts! ********" % (pkg.Name(), pkg.Version()), file=sys.stderr)
                     print("\tTHEY WILL BE IGNORED", file=sys.stderr)
-                    
+
             else:
                 # Copy pkg_file to pkg_dest_file
                 # Also get previous version for pkg for train from database.
@@ -1654,7 +1662,7 @@ def AddPackage(pkg, db = None,
                 # Find out if there are any services listed for this package.
                 package_services = PackageFile.GetPackageServices(path = pkg_file)
                 print("\t**** package_services = %s" % package_services, file=sys.stderr)
-                
+
                 pkg_svc_list = None
                 pkg_restart_list = None
                 service_list = None
@@ -1672,14 +1680,14 @@ def AddPackage(pkg, db = None,
                         pkg_restart_list = package_services["Restart"]
                     except:
                         pkg_restart_list = {}
-                        
+
                     # We want to remove anything from restart_services that
                     # isn't listed in pkg_svc_list
                     if restart_services:
                         restart_services = restart_services.copy()
                         for svc in list(restart_services.keys()):
                             print("\t%s" % svc, file=sys.stderr)
-                            if not svc in pkg_svc_list:
+                            if svc not in pkg_svc_list:
                                 restart_services.pop(svc)
                         # And now let's get rid of anything that simply
                         # duplicates the defaults
@@ -1688,7 +1696,7 @@ def AddPackage(pkg, db = None,
                                 if svc in pkg_restart_list and \
                                    pkg_restart_list[svc] == restart_services[svc]:
                                     restart_services.pop(svc)
-                                    
+
                             # Just in case this ends up being the same
                             if restart_services == pkg_restart_list:
                                 restart_services = None
@@ -1699,20 +1707,20 @@ def AddPackage(pkg, db = None,
                 if restart_services:
                     service_list = restart_services.copy()
                 print("After rpuning: restart_services = %s" % restart_services, file=sys.stderr)
-                
+
                 # Note that we are doing this before adding the new package to
                 # the database, although that's not strictly necessary.  (But
                 # not doing so means we don't have to remove it later if
                 # we downgrade.)
                 for v in previous_versions:
                     print("\t%s" % v.Version(), file=sys.stderr)
-                
+
                 if previous_versions:
                     most_recent_pkg = previous_versions[0]
                     if most_recent_pkg.Version() == pkg.Version():
                         print("Most recent version is the same as version being added?!?!", file=sys.stderr)
                         raise Exception("That's not right")
-                    
+
                     # This gets us the most recent version of the package
                     # for this train.  Since we created the package file, we
                     # don't have to look for a delta package file.
@@ -1720,7 +1728,9 @@ def AddPackage(pkg, db = None,
                     if os.path.exists(previous_pkgfile):
                         delta_pkgfile = os.path.join(archive, "Packages", pkg.FileName(most_recent_pkg.Version()))
                         print("Attempting to create delta package %s version %s -> %s" % (pkg.Name(), most_recent_pkg.Version(), pkg.Version()), file=sys.stderr)
-                        diffs = PackageFile.DiffPackageFiles(previous_pkgfile, pkg_dest_file, delta_pkgfile, scripts = scripts)
+                        diffs = PackageFile.DiffPackageFiles(
+                            previous_pkgfile, pkg_dest_file, delta_pkgfile, scripts=scripts
+                        )
                         if diffs is None:
                             print("No differences between new package %s-%s and %s-%s" % (pkg.Name(), pkg.Version(), most_recent_pkg.Name(), most_recent_pkg.Version()), file=sys.stderr)
                             print("Downgrading to previous package version", file=sys.stderr)
@@ -1743,7 +1753,7 @@ def AddPackage(pkg, db = None,
                             # it's the default set of restarts for the packge, which
                             # we need if there is no entry for the package.
                             print("########### pkg_restart_list = %s, restart_services = %s" % (pkg_restart_list, restart_services), file=sys.stderr)
-                                
+
                             rr = None
                             if scripts:
                                 if "reboot" in scripts:
@@ -1757,12 +1767,14 @@ def AddPackage(pkg, db = None,
                                     rr = True
                                 else:
                                     rr = False
-                                
-                            upd = pkg.AddUpdate(most_recent_pkg.Version(),
-                                                delta_checksum,
-                                                size = os.lstat(delta_pkgfile).st_size,
-                                                RequiresReboot = rr)
-                            
+
+                            upd = pkg.AddUpdate(
+                                most_recent_pkg.Version(),
+                                delta_checksum,
+                                size=os.lstat(delta_pkgfile).st_size,
+                                RequiresReboot=rr
+                            )
+
                             print("\t*** restart_services = %s" % restart_services, file=sys.stderr)
                             print("\t\tpkg_restart_list = %s" % pkg_restart_list, file=sys.stderr)
                             upd.SetRestartServices(restart_services)
@@ -1794,7 +1806,7 @@ def AddPackage(pkg, db = None,
                                             delta_scripts[script] += update_scripts[script]
                                     else:
                                         delta_scripts[script] = update_scripts[script]
-                            
+
                             # Note that we go through this most-recent to oldest
                             # This is important for the delta script creation
                             for older_pkg in previous_versions[1:]:
@@ -1840,7 +1852,7 @@ def AddPackage(pkg, db = None,
                                         else:
                                             delta_scripts[script] = update_scripts[script]
                                 if "reboot" in delta_scripts:
-                                    delta_scripts = { "reboot" : "reboot" }
+                                    delta_scripts = {"reboot": "reboot"}
                                 print("\tdelta_scripts = %s" % delta_scripts, file=sys.stderr)
                                 # Now we've got the update scripts from older_pkg to the current version.
                                 # So let's create a delta package file
@@ -1848,11 +1860,13 @@ def AddPackage(pkg, db = None,
                                 if os.path.exists(previous_pkgfile):
                                     delta_pkgfile = os.path.join(archive, "Packages", pkg.FileName(older_pkg.Version()))
                                     print("Creating (forced) delta package file version %s -> %s" % (older_pkg.Version(), pkg.Version()), file=sys.stderr)
-                                    PackageFile.DiffPackageFiles(previous_pkgfile,
-                                                                 pkg_dest_file,
-                                                                 delta_pkgfile,
-                                                                 scripts = None if "reboot" in delta_scripts else delta_scripts,
-                                                                 force_output = True)
+                                    PackageFile.DiffPackageFiles(
+                                        previous_pkgfile,
+                                        pkg_dest_file,
+                                        delta_pkgfile,
+                                        scripts=None if "reboot" in delta_scripts else delta_scripts,
+                                        force_output=True
+                                    )
                                     if (not delta_scripts) and (not restart_services):
                                         # Use the package default
                                         rr = None
@@ -1869,10 +1883,12 @@ def AddPackage(pkg, db = None,
                                     # service restart list for this update, then we have
                                     # to reboot.
                                     print("Package %s, second update:  RequiresReboot = %s, rr = %s, tmp_restart_list = %s" % (pkg.Name(), older_pkg.RequiresReboot(), rr, tmp_restart_list), file=sys.stderr)
-                                    upd = pkg.AddUpdate(older_pkg.Version(),
-                                                        ChecksumFile(delta_pkgfile),
-                                                        size = os.lstat(delta_pkgfile).st_size,
-                                                        RequiresReboot = rr)
+                                    upd = pkg.AddUpdate(
+                                        older_pkg.Version(),
+                                        ChecksumFile(delta_pkgfile),
+                                        size=os.lstat(delta_pkgfile).st_size,
+                                        RequiresReboot=rr
+                                    )
                                     if restart_services:
                                         upd.SetRestartServices(restart_services)
                                     print("\t#### second one:  restart_services = %s" % restart_services, file=sys.stderr)
@@ -1906,10 +1922,11 @@ def AddPackage(pkg, db = None,
             service_list = restart_services
         else:
             service_list = None
-            
+
         # So first let's see if the package is already in the database.
         if db.FindPackage(pkg):
-            if debug or verbose:  print("\tPackage is already in database", file=sys.stderr)
+            if debug or verbose:
+                print("\tPackage is already in database", file=sys.stderr)
             add_pkg_to_db = False
         else:
             # Okay, it's not in the database, so we'll want to
@@ -1926,18 +1943,18 @@ def AddPackage(pkg, db = None,
                 if len(scripts) == 0:
                     scripts = None
                 if scripts and "reboot" in scripts:
-                    scripts = { "reboot" : "reboot" }
+                    scripts = {"reboot": "reboot"}
                 if scripts:
                     print("Delta scripts: %s" % scripts, file=sys.stderr)
     else:
         raise Exception("No source or archive, don't know what to do")
-    
+
     # Should the package be added to the database _here_?
     # All the updates would be added here as well, of so.
     # Let's add the package to the database
     if restart_services and not add_pkg_to_db:
         print("Restart services = %s, but not adding package %s-%s to database.  Problem?" % \
-            (restart_services, pkg.Name(), pkg.Version()), file=sys.stderr)
+              (restart_services, pkg.Name(), pkg.Version()), file=sys.stderr)
     if add_pkg_to_db:
         if debug or verbose:  print("\tAdding to database", file=sys.stderr)
         db.AddPackage(pkg)
@@ -1966,11 +1983,11 @@ def AddPackage(pkg, db = None,
             if "reboot" in scripts:
                 # Force a reboot for this update
                 rr = True
-                AddPackageUpdateScript(db, archive, pkg, "reboot", "reboot", lock = False)
+                AddPackageUpdateScript(db, archive, pkg, "reboot", "reboot", lock=False)
             else:
                 rr = False
                 for script in scripts:
-                    AddPackageUpdateScript(db, archive, pkg, script, scripts[script], lock = False)
+                    AddPackageUpdateScript(db, archive, pkg, script, scripts[script], lock=False)
         # Now add the updates to the database as well
         for update in pkg.Updates():
             o_vers = update.Version()
@@ -1980,16 +1997,12 @@ def AddPackage(pkg, db = None,
             else:
                 o_reboot = update.RequiresReboot()
             print("\tAdding update to database %s -> %s" % (o_vers, pkg.Version()), file=sys.stderr)
-            db.AddPackageUpdate(pkg, o_vers, DeltaChecksum = o_cksum, RequiresReboot = o_reboot)
-            
+            db.AddPackageUpdate(pkg, o_vers, DeltaChecksum=o_cksum, RequiresReboot=o_reboot)
+
     return pkg
 
-def ProcessRelease(source, archive,
-                   db = None,
-                   sign = False,
-                   project = "FreeNAS",
-                   key_data = None,
-                   changelog = None):
+
+def ProcessRelease(source, archive, db=None, sign=False, project="FreeNAS", key_data=None, changelog=None):
     """
     Process a directory containing the output from a freenas build.
     We're looking for source/${project}-MANIFEST, which will tell us
@@ -1998,8 +2011,9 @@ def ProcessRelease(source, archive,
     global debug, verbose
 
     force_reboot = None
-    
-    if debug:  print("Processelease(%s, %s, %s, %s)" % (source, archive, db, sign), file=sys.stderr)
+
+    if debug:
+        print("Processelease(%s, %s, %s, %s)" % (source, archive, db, sign), file=sys.stderr)
 
     if db is None:
         raise Exception("Invalid db")
@@ -2025,13 +2039,13 @@ def ProcessRelease(source, archive,
                 notes[note_name] = f.read()
         except:
             pass
-    
+
     # Add any validation scripts
     for (name, kind) in [("ValidateInstall", Manifest.VALIDATE_INSTALL),
                          ("ValidateUpdate", Manifest.VALIDATE_UPDATE)]:
         if os.path.exists(os.path.join(source, name)):
             AddValidationScript(db, archive, manifest, os.path.join(source, name), kind)
-    
+
     try:
         service_file = open(os.path.join(source, "RESTART"), "r")
         service_list = service_file.read().strip()
@@ -2051,7 +2065,7 @@ def ProcessRelease(source, archive,
         # have no services to list
         services = {}
     print("******************* services = %s" % services, file=sys.stderr)
-    
+
     try:
         reboot_str = open(os.path.join(source, "FORCEREBOOT"), "r").read().strip()
         if reboot_str in ("YES", "yes", "Yes", "True", "TRUE"):
@@ -2060,7 +2074,7 @@ def ProcessRelease(source, archive,
             force_reboot = False
     except:
         pass
-    
+
     # Everything goes into the archive, and
     # most is relative to the name of the train.
     try:
@@ -2072,7 +2086,7 @@ def ProcessRelease(source, archive,
     # Then loop until we're done
     suffix = None
     name = manifest.Sequence()
-    lock = LockArchive(archive, "Creating manifest file", wait = True)
+    lock = LockArchive(archive, "Creating manifest file", wait=True)
     while True:
         if suffix is not None:
             name = "%s-%d" % (manifest.Sequence(), suffix)
@@ -2110,7 +2124,7 @@ def ProcessRelease(source, archive,
     pkg_list = []
     delta_scripts = {}
     for pkg in manifest.Packages():
-        lock = LockArchive(archive, "Processing package %s-%s" % (pkg.Name(), pkg.Version()), wait = True)
+        lock = LockArchive(archive, "Processing package %s-%s" % (pkg.Name(), pkg.Version()), wait=True)
         print("Package %s, version %s, filename %s" % (pkg.Name(), pkg.Version(), pkg.FileName()), file=sys.stderr)
         # Some setup for the AddPackage function
         script_path = os.path.join(pkg_source_dir, pkg.Name())
@@ -2120,19 +2134,21 @@ def ProcessRelease(source, archive,
                 scripts[script_name] = open(os.path.join(script_path, script_name), "r").read()
         if len(scripts) == 0:
             scripts = None
-        pkg = AddPackage(pkg, db,
-                         source = pkg_source_dir,
-                         archive = archive,
-                         train = manifest.Train(),
-                         scripts = scripts,
-                         fail_on_error = False,
-                         restart_services = services,
-                         )
+        pkg = AddPackage(
+            pkg,
+            db,
+            source=pkg_source_dir,
+            archive=archive,
+            train=manifest.Train(),
+            scripts=scripts,
+            fail_on_error=False,
+            restart_services=services,
+        )
 
         # Unlock the archive now
         lock.close()
         pkg_list.append(pkg)
-        
+
     # Now let's go over the possible notes.
     # Right now, we only support three:
     # ReleaseNotes, ChangeLog, and NOTICE.
@@ -2148,7 +2164,7 @@ def ProcessRelease(source, archive,
     for note_name in list(notes.keys()):
         import tempfile
         note_dir = "%s/%s/Notes" % (archive, manifest.Train())
-        lock = LockArchive(archive, "Creating note file", wait = True)
+        lock = LockArchive(archive, "Creating note file", wait=True)
         try:
             os.makedirs(note_dir)
         except:
@@ -2160,10 +2176,9 @@ def ProcessRelease(source, archive,
             # <name> : <name>-<random>.txt
             # which the library code will use to
             # fetch over the network.
-            note_file = tempfile.NamedTemporaryFile(suffix=".txt",
-                                                    dir=note_dir,
-                                                    prefix="%s-" % note_name,
-                                                    delete = False)
+            note_file = tempfile.NamedTemporaryFile(
+                suffix=".txt", dir=note_dir, prefix="%s-" % note_name, delete=False
+            )
             if debug or verbose:
                 print("Created notes file %s for note %s" % (note_file.name, note_name), file=sys.stderr)
             note_file.write(notes[note_name])
@@ -2176,7 +2191,7 @@ def ProcessRelease(source, archive,
     manifest.SetPackages(pkg_list)
 
     manifest.SetReboot(force_reboot)
-        
+
     # If we're given a key file, let's sign it
     if key_data:
         try:
@@ -2190,14 +2205,14 @@ def ProcessRelease(source, archive,
                 pass
             return
 
-    lock = LockArchive(archive, "Saving manifest file", wait = True)
+    lock = LockArchive(archive, "Saving manifest file", wait=True)
     manifest.StorePath(mani_file.name)
     mani_file.close()
     lock.close()
-    lock = LockArchive(archive, "Creating LATEST symlink", wait = True)
+    lock = LockArchive(archive, "Creating LATEST symlink", wait=True)
     MakeLATEST(archive, project, manifest.Train(), manifest.Sequence())
     lock.close()
-    
+
     if changelog:
         changefile = "%s/%s/ChangeLog.txt" % (archive, manifest.Train())
         change_input = None
@@ -2210,7 +2225,7 @@ def ProcessRelease(source, archive,
             except:
                 print("Unable to open input change log %s" % changelog, file=sys.stderr)
         if change_input:
-            lock = LockArchive(archive, "Modifying ChangeLog", wait = True)
+            lock = LockArchive(archive, "Modifying ChangeLog", wait=True)
             try:
                 cfile = open(changefile, "ab", 0o664)
             except:
@@ -2221,12 +2236,13 @@ def ProcessRelease(source, archive,
                 cfile.write("\n### END %s\n" % manifest.Sequence())
                 cfile.close()
             lock.close()
-            
+
     if db is not None:
         # Why would it ever be none?
         db.AddRelease(manifest)
 
-def Check(archive, db, project = "FreeNAS", args = []):
+
+def Check(archive, db, project="FreeNAS", args=[]):
     """
     Given an archive location -- the target of ProcessRelease -- compare
     the database contents with the filesystem layout.  We're looking for
@@ -2283,7 +2299,7 @@ def Check(archive, db, project = "FreeNAS", args = []):
             found_validator_files[vfile] = ChecksumFile(os.path.join(vdir, vfile))
     except:
         pass
-    
+
     # First check is we make sure all of the sequence
     # files are there, as expected.  And that nothing
     # unexpected is there.
@@ -2291,7 +2307,7 @@ def Check(archive, db, project = "FreeNAS", args = []):
     # of the archive directory.  The only entries in it
     # should be the list of train names, and Packages.
     # Each entry should be a directory.
-    expected_contents = { "Packages" : True }
+    expected_contents = {"Packages": True}
     for t in trains:
         expected_contents[t] = True
 
@@ -2343,7 +2359,8 @@ def Check(archive, db, project = "FreeNAS", args = []):
                 continue
             found_contents[entry] = True
 
-        if debug:  print("Directory entries for Train %s:  %s" % (t, list(found_contents.keys())), file=sys.stderr)
+        if debug:
+            print("Directory entries for Train %s:  %s" % (t, list(found_contents.keys())), file=sys.stderr)
         # Go thorugh the manifest files for this train.
         # Load each manifest, and get the set of packages from it.
         # Figure out the path for each package, and update, and add
@@ -2360,7 +2377,7 @@ def Check(archive, db, project = "FreeNAS", args = []):
             if not os.path.isfile(mani_path):
                 print("Expected manifest file %s does not exist" % mani_path, file=sys.stderr)
                 continue
-                
+
             temp_mani = Manifest.Manifest()
             temp_mani.LoadPath(mani_path)
 
@@ -2368,12 +2385,13 @@ def Check(archive, db, project = "FreeNAS", args = []):
                 if pkg.FileName() in expected_packages:
                     if expected_packages[pkg.FileName()] != pkg.Checksum():
                         print("Package %s, version %s, already found with different checksum" \
-                            % (pkg.Name(), pkg.Version()), file=sys.stderr)
+                              % (pkg.Name(), pkg.Version()), file=sys.stderr)
                         print("Found again in sequence %s in train %s" % (sequence_file, t), file=sys.stderr)
                         continue
                 else:
                     expected_packages[pkg.FileName()] = pkg.Checksum()
-                    if debug:  print("%s/%s:  %s: %s" % (t, sequence_file, pkg.FileName(), pkg.Checksum()), file=sys.stderr)
+                    if debug:
+                        print("%s/%s:  %s: %s" % (t, sequence_file, pkg.FileName(), pkg.Checksum()), file=sys.stderr)
                     pathname = os.path.join(archive, "Packages", pkg.FileName())
                     if not os.path.exists(pathname):
                         print("Expected package file %s for %s %s does not exist" % (pathname, pkg.Name(), pkg.Version()), file=sys.stderr)
@@ -2387,7 +2405,7 @@ def Check(archive, db, project = "FreeNAS", args = []):
                     if o_vers in expected_packages:
                         if expected_packages[o_vers] != o_sum:
                             print("Package update %s %s->%s, already found with different checksum" \
-                                % (pkg.Name(), upd.Version(), Pkg.Version()), file=sys.stderr)
+                                  % (pkg.Name(), upd.Version(), Pkg.Version()), file=sys.stderr)
                             print("Found again in sequence %s in train %s" % (sequence_File, t), file=sys.stderr)
                             continue
                     else:
@@ -2395,12 +2413,12 @@ def Check(archive, db, project = "FreeNAS", args = []):
                         pathname = os.path.join(archive, "Packages", o_vers)
                         if not os.path.exists(pathname):
                             print("Expected package update file %s for %s %s %s does not exist" % (pathname, pkg.Name(), upd.Version(), pkg.Version()), file=sys.stderr)
-                            
+
                     if o_vers not in sequences_for_packages:
                         sequences_for_packages[o_vers] = []
                     sequences_for_packages[o_vers].append(sequence_file)
             if sequence_file != "LATEST":
-                notes_dict = temp_mani.Notes(raw = True)
+                notes_dict = temp_mani.Notes(raw=True)
                 if notes_dict:
                     for note in notes_dict:
                         if note == "NOTICE":
@@ -2412,7 +2430,8 @@ def Check(archive, db, project = "FreeNAS", args = []):
                             if debug:
                                 print("\tTrain %s, Sequence %s has the duplicate" % (temp_mani.Train(), temp_mani.Sequence()), file=sys.stderr)
                         expected_notes[note_file] = True
-                        if debug:  print("Found Note %s in Train %s Sequence %s" % (note_file, temp_mani.Train(), temp_mani.Sequence()), file=sys.stderr)
+                        if debug:
+                            print("Found Note %s in Train %s Sequence %s" % (note_file, temp_mani.Train(), temp_mani.Sequence()), file=sys.stderr)
                 for validator in temp_mani.ValidationProgramList():
                     expected_validator[validator["Name"], validator["Kind"]] = validator["Checksum"]
                 # Now check against the database
@@ -2425,7 +2444,7 @@ def Check(archive, db, project = "FreeNAS", args = []):
                         print("Found %s validator %s in database, but not in manifest for sequence %s" % (k, n, seq), file=sys.stderr)
                     elif v[n, k] != expected_validator[n, k]:
                         print("%s validator has different checksum in database and manifest for sequence %s" % (k, n, seq), file=sys.stderr)
-                    
+
         # Now let's check the found_contents and expected_contents dictionaries
         if expected_contents != found_contents:
             print("Sequences for train %s inconsistency found" % t, file=sys.stderr)
@@ -2485,12 +2504,15 @@ def Check(archive, db, project = "FreeNAS", args = []):
 
         if len(found_notes) > 0:
             print("Unexpectedly found notes files:")
-            for n in found_notes:  print("\t%s" % n)
+            for n in found_notes:
+                print("\t%s" % n)
         if len(expected_notes) > 0:
             print("Missing notes files:")
-            for n in expected_notes: print("\t%s" % n)
-            
-def Dump(archive, db, project = "FreeNAS", args = []):
+            for n in expected_notes:
+                print("\t%s" % n)
+
+
+def Dump(archive, db, project="FreeNAS", args=[]):
     """
     Dump out, in a somewhat human readable form, the releases.
     This principally dumps the sequences in temporal order.  
@@ -2502,16 +2524,16 @@ def Dump(archive, db, project = "FreeNAS", args = []):
     def DumpUsage():
         print("Usage: %s [-T|--train train]" % sys.argv[0], file=sys.stderr)
         usage()
-        
+
     train = None
     short_options = "T:"
-    long_options = [ "train=" ]
+    long_options = ["train="]
     try:
         opts, arguments = getopt.getopt(args, short_options, long_options)
     except getopt.GetoptError as err:
         print(str(err), file=sys.stderr)
         DumpUsage()
-        
+
     for o, a in opts:
         if o in ("-T", "--train"):
             train = a
@@ -2519,7 +2541,7 @@ def Dump(archive, db, project = "FreeNAS", args = []):
             DumpUsage()
 
     # Now we get all the sequences
-    sequences = db.RecentSequencesForTrain(train, count = 0, oldest_first = True)
+    sequences = db.RecentSequencesForTrain(train, count=0, oldest_first=True)
     for seq in sequences:
         t = db.TrainForSequence(seq)
         # For each sequence, we need to get the package
@@ -2534,7 +2556,8 @@ def Dump(archive, db, project = "FreeNAS", args = []):
 
     return 0
 
-def Rebuild(archive, dbfile, project = "FreeNAS", key = None, args = []):
+
+def Rebuild(archive, dbfile, project="FreeNAS", key=None, args=[]):
     """
     Given an archive, rebuild the database by examining the
     manifests.
@@ -2552,8 +2575,8 @@ def Rebuild(archive, dbfile, project = "FreeNAS", key = None, args = []):
     copy = None
     verify = False
     ifneeded = False
-    
-    long_options = [ "copy=", "verify", "ifneeded" ]
+
+    long_options = ["copy=", "verify", "ifneeded"]
     try:
         opts, args = getopt.getopt(args, None, long_options)
     except getopt.GetoptError as err:
@@ -2575,13 +2598,13 @@ def Rebuild(archive, dbfile, project = "FreeNAS", key = None, args = []):
         usage()
 
     try:
-        db = SQLiteReleaseDB(dbfile = dbfile)
+        db = SQLiteReleaseDB(dbfile=dbfile)
         if ifneeded:
             print("Database rebuild not needed due to compatible versions", file=sys.stderr)
             return
     except DatabaseIncompatibleVersionException:
-        db = SQLiteReleaseDB(dbfile = dbfile, initialize = True)
-        
+        db = SQLiteReleaseDB(dbfile=dbfile, initialize=True)
+
     for train_name in os.listdir(archive):
         if train_name == "Packages":
             continue
@@ -2594,13 +2617,18 @@ def Rebuild(archive, dbfile, project = "FreeNAS", key = None, args = []):
                     continue
                 if os.path.isfile(mname):
                     found_manifests.append(mname)
+
     def my_sort(left, right):
-        if os.stat(left).st_mtime < os.stat(right).st_mtime: return -1
-        if os.stat(left).st_mtime > os.stat(right).st_mtime: return 1
-        if left < right: return -1
-        if left > right: return 1
+        if os.stat(left).st_mtime < os.stat(right).st_mtime:
+            return -1
+        if os.stat(left).st_mtime > os.stat(right).st_mtime:
+            return 1
+        if left < right:
+            return -1
+        if left > right:
+            return 1
         return 0
-    sorted_manifests = sorted(found_manifests, cmp = my_sort)
+    sorted_manifests = sorted(found_manifests, cmp=my_sort)
 
     for manifest in sorted_manifests:
         # Process them somehow
@@ -2614,7 +2642,7 @@ def Rebuild(archive, dbfile, project = "FreeNAS", key = None, args = []):
         except BaseException as e:
             print("Got exception %s trying to load %s, skipping" % (str(e), manifest), file=sys.stderr)
             continue
-        
+
         pkg_list = []
         for pkg in m.Packages():
             import json
@@ -2626,11 +2654,10 @@ def Rebuild(archive, dbfile, project = "FreeNAS", key = None, args = []):
                     svc_list = json.load(open(svc_list_filename, "r"))
                 except:
                     svc_list = {}
-                lock = LockArchive(copy, "Copying package file %s-%s" % (pkg.Name(), pkg.Version()), wait = True)
-                pkg = AddPackage(pkg, db, source = pkg_directory,
-                                 archive = copy,
-                                 train = m.Train(),
-                                 restart_services = svc_list)
+                lock = LockArchive(copy, "Copying package file %s-%s" % (pkg.Name(), pkg.Version()), wait=True)
+                pkg = AddPackage(
+                    pkg, db, source=pkg_directory, archive=copy, train=m.Train(), restart_services=svc_list
+                )
                 lock.close()
             else:
                 svc_list_filename = os.path.join(pkg_directory, pkg.Name(), pkg.Version(), "Services")
@@ -2640,10 +2667,9 @@ def Rebuild(archive, dbfile, project = "FreeNAS", key = None, args = []):
                     print("\tsvc_list = %s" % svc_list, file=sys.stderr)
                 except:
                     svc_list = {}
-                pkg = AddPackage(pkg, db, source = None,
-                                 archive = archive,
-                                 train = m.Train(),
-                                 restart_services = svc_list)
+                pkg = AddPackage(
+                    pkg, db, source=None, archive=archive, train=m.Train(), restart_services=svc_list
+                )
 
             pkg_list.append(pkg)
 
@@ -2698,6 +2724,7 @@ def Rebuild(archive, dbfile, project = "FreeNAS", key = None, args = []):
 
     return
 
+
 def MakeLATEST(archive, project, train, sequence):
     """
     THE ARCHIVE MUST BE LOCKED BY THE CALLER.
@@ -2712,7 +2739,8 @@ def MakeLATEST(archive, project, train, sequence):
     os.symlink("%s-%s" % (project, sequence), latest)
     return
 
-def RemovePackageUpdate(archive, db, pkg, base, dbonly = False, shlist = None):
+
+def RemovePackageUpdate(archive, db, pkg, base, dbonly=False, shlist=None):
     """
     Remove a package update from the database and archive.
     Note that we don't actually keep track of who uses an update, so all this will
@@ -2723,7 +2751,7 @@ def RemovePackageUpdate(archive, db, pkg, base, dbonly = False, shlist = None):
     except BaseException as e:
         print("Unable to delete %s %s->%s from db: %s" % (pkg.Name(), base, pkg.Version(), str(e)), file=sys.stderr)
         return
-    
+
     if not dbonly:
         update_fname = os.path.join(archive, "Packages", pkg.FileName(base))
         try:
@@ -2732,8 +2760,9 @@ def RemovePackageUpdate(archive, db, pkg, base, dbonly = False, shlist = None):
             print("Could not remove %s due to %s" % (update_fname, str(e)), file=sys.stderr)
         if shlist is not None:
             shlist.append("rm -f %s" % update_fname)
-            
-def RemovePackage(archive, db, pkg, dbonly = False, shlist = None):
+
+
+def RemovePackage(archive, db, pkg, dbonly=False, shlist=None):
     """
     Remove a package from the database, and archive.
     Removing a package requires that nobody else reference the package,
@@ -2761,7 +2790,7 @@ def RemovePackage(archive, db, pkg, dbonly = False, shlist = None):
     # any updates that reference it, because we want it to show up
     # for delta package creation.)
     packages_dir = os.path.join(archive, "Packages")
-    updates = db.UpdatesForPackage(pkg, count = 0)
+    updates = db.UpdatesForPackage(pkg, count=0)
     if updates:
         # We're going to delete the delta package files
         # that have this package as the new version
@@ -2777,7 +2806,7 @@ def RemovePackage(archive, db, pkg, dbonly = False, shlist = None):
             except:
                 pass
         db.PackageUpdatesDeletePkg(pkg)
-                
+
     # Now we look for updates _from_ this version.
     updates = db.UpdatesFromPackage(pkg)
     if updates:
@@ -2834,7 +2863,8 @@ def RemovePackage(archive, db, pkg, dbonly = False, shlist = None):
 # Need to also ensure there are no updates to or from it, however.
 #
 
-def RemoveRelease(archive, db, project, sequence, dbonly = False, shlist = None):
+
+def RemoveRelease(archive, db, project, sequence, dbonly=False, shlist=None):
     """
     THE ARCHIVE MUST BE LOCKED BY THE CALLER.
     Remove a given release, given its sequence.
@@ -2861,7 +2891,7 @@ def RemoveRelease(archive, db, project, sequence, dbonly = False, shlist = None)
     train = db.TrainForSequence(sequence)
     if train is None:
         raise Exception("Could not find train for sequence %s" % sequence)
-    
+
     pkgs = db.PackageForSequence(sequence)
     notes = db.NotesForSequence(sequence)
     # At this point, we want to remove the sequence from Manifests.
@@ -2877,7 +2907,7 @@ def RemoveRelease(archive, db, project, sequence, dbonly = False, shlist = None)
         # So let's get the filename part of it
         note_path_index = notes[note].find("/Notes/")
         if note_path_index:
-            note_file = os.path.join(archive, train, notes[note][note_path_index+1:])
+            note_file = os.path.join(archive, train, notes[note][note_path_index + 1:])
         else:
             note_file = os.path.join(archive, train, notes[note])
         try:
@@ -2890,7 +2920,7 @@ def RemoveRelease(archive, db, project, sequence, dbonly = False, shlist = None)
         db.NotesDeleteNoteFile(notes[note])
 
     if debug or verbose:
-        print("Deleting notice for sequence %s" % sequence, file=sys.stderr)    
+        print("Deleting notice for sequence %s" % sequence, file=sys.stderr)
     db.NoticesDeleteSequence(sequence)
 
     # Next do the validation scripts
@@ -2939,7 +2969,7 @@ def RemoveRelease(archive, db, project, sequence, dbonly = False, shlist = None)
         # any updates that reference it, because we want it to show up
         # for delta package creation.)
 	packages_dir = os.path.join(archive, "Packages")
-        updates = db.UpdatesForPackage(pkg, count = 0)
+        updates = db.UpdatesForPackage(pkg, count=0)
         if updates:
             # We're going to delete the delta package files
             # that have this package as the new version
@@ -2955,7 +2985,7 @@ def RemoveRelease(archive, db, project, sequence, dbonly = False, shlist = None)
                 except:
                     pass
             db.PackageUpdatesDeletePkg(pkg)
-                
+
         # Now we look for updates _from_ this version.
         updates = db.UpdatesFromPackage(pkg)
         if updates:
@@ -3024,7 +3054,8 @@ def RemoveRelease(archive, db, project, sequence, dbonly = False, shlist = None)
     print("shlist = %s" % shlist, file=sys.stderr)
     return
 
-def Delete(archive, db, project, args = []):
+
+def Delete(archive, db, project, args=[]):
     """
     Remove the given releases from both the database and filesystem.
     """
@@ -3039,7 +3070,7 @@ Usage: %s [args] delete sequence <sequence> [...] -- delete sequences
     if args[0] == "sequence":
         for sequence in args[1:]:
             msg = "Removing sequence %s" % sequence
-            lock = LockArchive(archive, msg, wait = True)
+            lock = LockArchive(archive, msg, wait=True)
             if debug or verbose:
                 print(msg, file=sys.stderr)
             RemoveRelease(archive, db, project, sequence)
@@ -3063,8 +3094,9 @@ Usage: %s [args] delete sequence <sequence> [...] -- delete sequences
             RemovePackageUpdate(archive, db, pkg, pkg_base)
     else:
         func_usage()
-        
-def Prune(archive, db, project, args = []):
+
+
+def Prune(archive, db, project, args=[]):
     """
     For the given train, prune the oldest releases.
     The train is given on the command line as an argument;
@@ -3073,14 +3105,14 @@ def Prune(archive, db, project, args = []):
     def func_usage():
         print("Usage:  %s [args] prune [-K|--keep num] train" % sys.argv[0], file=sys.stderr)
         usage()
-        
+
     keep = 10
     short_options = "-K:"
     long_options = ["--keep="]
     train = None
     try:
         opts, arguments = getopt.getopt(args, short_options, long_options)
-    except getopt.GetoptError as err:
+    except getopt.GetoptError:
         func_usage()
 
     for o, a in opts:
@@ -3095,23 +3127,25 @@ def Prune(archive, db, project, args = []):
 
     train = arguments[0]
 
-    old_sequences = db.RecentSequencesForTrain(train, count = 0, oldest_first = True)
+    old_sequences = db.RecentSequencesForTrain(train, count=0, oldest_first=True)
     if old_sequences is None:
         print("Unknown train %s" % train, file=sys.stderr)
         return 1
     if len(old_sequences) <= keep:
-        print("Not enough sequences for train %s to prune (%d exist, want to keep %d)" % (train, len(old_sequences), keep), file=sys.stderr)
+        print("Not enough sequences for train %s to prune (%d exist, want to keep %d)" %
+              (train, len(old_sequences), keep), file=sys.stderr)
         return 1
 
     for sequence in old_sequences[0:-keep]:
         msg = "Removing old sequence %s" % sequence
-        lock = LockArchive(archive, msg, wait = True)
+        lock = LockArchive(archive, msg, wait=True)
         if debug or verbose:
             print(msg, file=sys.stderr)
         RemoveRelease(archive, db, project, sequence)
         lock.close()
-        
-def Rollback(archive, db, project = "FreeNAS", args = []):
+
+
+def Rollback(archive, db, project="FreeNAS", args=[]):
     """
     For the given train, roll back the most recent update.
     The train must be given as argument.  -C / --count to
@@ -3124,7 +3158,7 @@ def Rollback(archive, db, project = "FreeNAS", args = []):
     count = 1
     short_options = "C:"
     train = None
-    long_options = ["--count=" ]
+    long_options = ["--count="]
     try:
         opts, arguments = getopt.getopt(args, short_options, long_options)
     except getopt.GetoptError as err:
@@ -3138,7 +3172,7 @@ def Rollback(archive, db, project = "FreeNAS", args = []):
         else:
             print("Unknown option %s" % o, file=sys.stderr)
             usage()
-            
+
     if len(arguments) != 1:
         print("rollback must have train name", file=sys.stderr)
         usage()
@@ -3146,10 +3180,10 @@ def Rollback(archive, db, project = "FreeNAS", args = []):
     train = arguments[0]
 
     # First, lock the archive
-    lock = LockArchive(archive, "Rolling back train %s" % train, wait = True)
-    
+    lock = LockArchive(archive, "Rolling back train %s" % train, wait=True)
+
     # Next, let's get the most recent count+1 sequences for the train
-    sequences = db.RecentSequencesForTrain(train, count = count + 1)
+    sequences = db.RecentSequencesForTrain(train, count=count + 1)
     if sequences is None or len(sequences) == 0:
         print("Unable to find sequences for train %s" % train, file=sys.stderr)
         lock.close()
@@ -3165,12 +3199,12 @@ def Rollback(archive, db, project = "FreeNAS", args = []):
     else:
         last_sequence = sequences[-1]
         removed_sequences = sequences[:-1]
-        
+
     for sequence in removed_sequences:
         shlist = []
-        RemoveRelease(archive, db, project, sequence, shlist = shlist)
+        RemoveRelease(archive, db, project, sequence, shlist=shlist)
         print(shlist, file=sys.stderr)
-        
+
     # At this point, we need to either remove or remake the
     # LATEST symlink.
     latest = os.path.join(archive, train, "LATEST")
@@ -3178,14 +3212,15 @@ def Rollback(archive, db, project = "FreeNAS", args = []):
         os.remove(latest)
     except BaseException as e:
         print("Couldn't remove symlink %s: %s" % (latest, str(e)), file=sys.stderr)
-        
+
     if last_sequence:
         MakeLATEST(archive, project, train, last_sequence)
     lock.close()
-    
+
     return
 
-def Project(config_file, args = None):
+
+def Project(config_file, args=None):
     """
     Manipulate the configuration file config_file.
     This can be used to create an initial config file,
@@ -3211,7 +3246,7 @@ Use no options to simply create a project using the default
 values.
 """, file=sys.stderr)
         usage()
-        
+
     propt = None
     long_options = ["archive=",
                     "database=",
@@ -3224,7 +3259,7 @@ values.
         project_usage()
     else:
         project = args[0]
-        
+
     try:
         opts, args = getopt.getopt(args[1:], None, long_options)
     except getopt.GetoptError as err:
@@ -3233,7 +3268,7 @@ values.
 
     arg_dict = {}
     del_project = None
-    
+
     for o, a in opts:
         if o in ("--archive"):
             arg_dict[CONFIG_ARCHIVE_KEY] = a
@@ -3254,7 +3289,6 @@ values.
 
     if del_project:
         # Just do the work here
-        import configparser
         cfp = configparser.RawConfigParser()
         try:
             fp = open(config_file, "r")
@@ -3298,7 +3332,8 @@ values.
                 print("%s=\"%s\"" % (k, v))
     return
 
-def Extract(archive, db, project = "FreeNAS", key = None, args = []):
+
+def Extract(archive, db, project="FreeNAS", key=None, args=[]):
     """
     This is used to extract a release from the archive.
     That is, for a given sequence, and a target, it will
@@ -3310,7 +3345,7 @@ def Extract(archive, db, project = "FreeNAS", key = None, args = []):
     def Extract_usage():
         print("Usage:  %s extract [--full] [--dest dest] sequence" % sys.argv[0], file=sys.stderr)
         usage()
-        
+
     sequence = None
     dest = None
     full = False
@@ -3339,7 +3374,6 @@ def Extract(archive, db, project = "FreeNAS", key = None, args = []):
         Extract_usage()
 
     sequence = args[0]
-    
 
     # This allows "extract FreeNAS-9.3-Nightlies/LATEST" to work.
     if "/" in sequence:
@@ -3354,8 +3388,8 @@ def Extract(archive, db, project = "FreeNAS", key = None, args = []):
         if train is None:
             print("Sequence %s does not seem to exist" % sequence, file=sys.stderr)
             sys.exit(1)
-        manifest_file = os.path.join(archive, train, project + "-" +  sequence)
-    
+        manifest_file = os.path.join(archive, train, project + "-" + sequence)
+
     man = Manifest.Manifest()
     try:
         man.LoadPath(manifest_file)
@@ -3367,7 +3401,7 @@ def Extract(archive, db, project = "FreeNAS", key = None, args = []):
     pkg_files = []
     update_scripts = {}
     svc_list = {}
-    notes_dict = man.Notes(raw = True)
+    notes_dict = man.Notes(raw=True)
     notice = man.Notice()
     validator_list = list(man.ValidationProgramList())
 
@@ -3378,7 +3412,7 @@ def Extract(archive, db, project = "FreeNAS", key = None, args = []):
                 notes_dict[note] = open(note_file).read()
             except:
                 notes_dict.pop(note)
-                
+
     for pkg in pkgs:
         pkg.SetUpdates(None)
         pkg_files.append(os.path.join(archive, "Packages", pkg.FileName()))
@@ -3405,21 +3439,21 @@ def Extract(archive, db, project = "FreeNAS", key = None, args = []):
                     svc_list[k] = v
             except:
                 pass
-            
+
     man.SetPackages(pkgs)
     man.SetNotes(None)
     man.SetNotice(None)
     man.SignWithKey(key)
-    
+
     if dest is None:
         dest = os.path.join("/tmp", man.Sequence())
-        
+
     try:
         os.makedirs(os.path.join(dest, "Packages"))
     except BaseException as e:
         print("Cannot create destination bundle directory %s" % dest, file=sys.stderr)
         sys.exit(1)
-        
+
     for pkg_file in pkg_files:
         import shutil
         try:
@@ -3429,7 +3463,7 @@ def Extract(archive, db, project = "FreeNAS", key = None, args = []):
         except BaseException as e:
             print("Unable to copy package file %s: %s" % (os.path.basename(pkg_file), str(e)), file=sys.stderr)
             sys.exit(1)
-            
+
     for validator in validator_list:
         in_path = os.path.join(archive, Manifest.VALIDATION_DIR, validator["Name"])
         out_path = os.path.join(dest, validator["Kind"])
@@ -3441,7 +3475,7 @@ def Extract(archive, db, project = "FreeNAS", key = None, args = []):
         except BaseExcption as e:
             print("Unable to copy validation file %s: %s" % (in_path, str(e)), file=sys.stderr)
             sys.exit(1)
-            
+
     if notice:
         try:
             notice_path = os.path.join(dest, "NOTICE")
@@ -3469,7 +3503,7 @@ def Extract(archive, db, project = "FreeNAS", key = None, args = []):
         except BaseException as e:
             print("Unable to write RESTART file: %s" % str(e), file=sys.stderr)
             sys.exit(1)
-    
+
     if update_scripts:
         for pkg_name, d in update_scripts.items():
             try:
@@ -3478,7 +3512,7 @@ def Extract(archive, db, project = "FreeNAS", key = None, args = []):
             except BaseException as e:
                 print("Unable to create script directory for package %s: %s" % (pkg_name, str(e)), file=sys.stderr)
                 sys.exit(1)
-                
+
             for n, s in d.items():
                 try:
                     p = os.path.join(script_path, n)
@@ -3486,9 +3520,10 @@ def Extract(archive, db, project = "FreeNAS", key = None, args = []):
                 except BaseException as e:
                     print("Unable to create update script %s for package %s: %s" % (n, pkg_name, str(e)), file=sys.stderr)
                     sys.exit(1)
-                    
+
     man.StorePath(os.path.join(dest, "%s-MANIFEST" % project))
-    
+
+
 def main():
     global debug, verbose
     # Variables set via getopt
@@ -3512,13 +3547,17 @@ def main():
     db = None
 
     options = "a:C:D:dK:P:v"
-    long_options = ["archive=", "config=", "destination=",
-                    "database=",
-                    "key=",
-                    "project=",
-                    "changelog=",
-                    "debug", "verbose",
-                ]
+    long_options = [
+        "archive=",
+        "config=",
+        "destination=",
+        "database=",
+        "key=",
+        "project=",
+        "changelog=",
+        "debug",
+        "verbose",
+    ]
 
     try:
         opts, args = getopt.getopt(sys.argv[1:], options, long_options)
@@ -3556,7 +3595,7 @@ def main():
             key_file = cs[CONFIG_KEYFILE_KEY]
         if CONFIG_DBPATH_KEY in cs and Database is None:
             Database = cs[CONFIG_DBPATH_KEY]
-            
+
     if archive is None and args[0] != "project":
         print("For now, archive directory must be specified", file=sys.stderr)
         usage()
@@ -3571,7 +3610,7 @@ def main():
     if Database and Database.startswith("sqlite:"):
         # Holdover from old implementations.
         Database = Database[len("sqlite:"):]
-        
+
     if Database is not None:
         # rebuild may recreate the database, or it
         # may not depending on options.  So it gets
@@ -3579,7 +3618,7 @@ def main():
         # itself.
         if cmd != "rebuild":
             try:
-                db = SQLiteReleaseDB(dbfile = Database)
+                db = SQLiteReleaseDB(dbfile=Database)
             except BaseException as e:
                 print("Could not use database %s: %s" % (Database, str(e)), file=sys.stderr)
                 sys.exit(1)
@@ -3598,14 +3637,14 @@ def main():
             print("No source directories specified", file=sys.stderr)
             usage()
         for source in args:
-            ProcessRelease(source, archive, db, project = project_name, key_data = key_data, changelog = changelog)
+            ProcessRelease(source, archive, db, project=project_name, key_data=key_data, changelog=changelog)
     elif cmd == "check":
-        Check(archive, db, project = project_name, args = args)
+        Check(archive, db, project=project_name, args=args)
     elif cmd == "rebuild":
         st = None
         if os.path.exists(Database):
             st = os.lstat(Database)
-        Rebuild(archive, dbfile = Database, project = project_name, key = key_data, args = args)
+        Rebuild(archive, dbfile=Database, project=project_name, key=key_data, args=args)
         if st and os.path.exists(Database):
             # Change ownership/group
             st = os.lstat(Database)
@@ -3621,18 +3660,18 @@ def main():
             except:
                 pass
     elif cmd == "dump":
-        Dump(archive, db, args = args)
+        Dump(archive, db, args=args)
     elif cmd == "rollback":
-        Rollback(archive, db, project = project_name, args = args)
+        Rollback(archive, db, project=project_name, args=args)
         db.close()
     elif cmd == "prune":
-        Prune(archive, db, project = project_name, args = args)
+        Prune(archive, db, project=project_name, args=args)
     elif cmd == "delete":
-        Delete(archive, db, project = project_name, args = args)
+        Delete(archive, db, project=project_name, args=args)
     elif cmd == "extract":
-        Extract(archive, db, project = project_name, key = key_data, args = args)
+        Extract(archive, db, project=project_name, key=key_data, args=args)
     elif cmd == "project":
-        Project(config_file, args = args)
+        Project(config_file, args=args)
     else:
         print("Unknown command %s" % cmd, file=sys.stderr)
         usage()

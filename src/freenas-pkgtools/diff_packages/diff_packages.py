@@ -1,7 +1,6 @@
 #!/usr/local/bin/python3 -R
 
-import os, sys
-import getopt
+import sys
 import tarfile
 import json
 import io
@@ -16,14 +15,18 @@ kPkgDeltaKey = "delta-version"
 kPkgFlatSizeKey = "flatsize"
 kPkgDeltaStyleKey = "style"
 
+
 class DiffException(Exception):
     pass
+
 
 def PackageName(m):
     return m[kPkgNameKey] if kPkgNameKey in m else None
 
+
 def PackageVersion(m):
     return m[kPkgVersionKey] if kPkgVersionKey in m else None
+
 
 def FindManifest(tf):
     # Find the file named "+MANIFEST".
@@ -42,7 +45,7 @@ def FindManifest(tf):
             print("retval = %s" % retval)
     return (retval, entry)
 
-#
+
 # Given two manifests, come up with a set of
 # new or changed files/directories.  Also come
 # up with a list of removed files and directories.
@@ -69,7 +72,6 @@ def CompareManifests(m1, m2):
     if kPkgDirsKey in m2_dirs:
         m2_dirs = m2[kPkgDirsKey].copy()
 
-    retval = {}
     removed_files = []
     removed_dirs = []
     modified_files = {}
@@ -100,17 +102,21 @@ def CompareManifests(m1, m2):
     for dir in list(m2_dirs.keys()):
         modified_dirs[dir] = m2_dirs[dir]
 
-    return { kPkgRemovedFilesKey : removed_files,
-             kPkgRemovedDirsKey : removed_dirs,
-             kPkgFilesKey : modified_files,
-             kPkgDirsKey : modified_dirs }
-    
+    return {
+        kPkgRemovedFilesKey: removed_files,
+        kPkgRemovedDirsKey: removed_dirs,
+        kPkgFilesKey: modified_files,
+        kPkgDirsKey: modified_dirs
+    }
+
+
 def usage():
     print("Usage: %s <pkg1> <pkg2> [<delta_pg>]" % sys.argv[0], file=sys.stderr)
     print("\tOutput file defaults to <pkg_name>-<old_version>-<new_version>.tgz", file=sys.stderr)
     sys.exit(1)
 
-def DiffPackageFiles(pkg1, pkg2, output_file = None):
+
+def DiffPackageFiles(pkg1, pkg2, output_file=None):
     pkg1_tarfile = tarfile.open(pkg1, "r")
     (pkg1_manifest, dc) = FindManifest(pkg1_tarfile)
 
@@ -133,11 +139,13 @@ def DiffPackageFiles(pkg1, pkg2, output_file = None):
     new_manifest = pkg2_manifest.copy()
 
     for key in [kPkgFlatSizeKey, kPkgFilesKey, kPkgDirsKey, kPkgDeltaKey]:
-        if key in new_manifest:  new_manifest.pop(key)
+        if key in new_manifest:
+            new_manifest.pop(key)
 
-    new_manifest[kPkgDeltaKey] = { kPkgVersionKey: PackageVersion(pkg1_manifest),
-                                   kPkgDeltaStyleKey : "file"
-                                   }
+    new_manifest[kPkgDeltaKey] = {
+        kPkgVersionKey: PackageVersion(pkg1_manifest),
+        kPkgDeltaStyleKey: "file"
+    }
 
     diffs = CompareManifests(pkg1_manifest, pkg2_manifest)
 
@@ -157,20 +165,25 @@ def DiffPackageFiles(pkg1, pkg2, output_file = None):
             break
 
     if empty is True:
-        print("No diffs between package version %s and %s; no file created" \
-            % (PackageName(pkg1_manifest), PackageVersion(pkg1_manifest), PackageVersion(pkg1_manifest)), file=sys.stderr)
+        print(
+            "No diffs between package version {0} and {1}; no file created".format(
+                PackageName(pkg1_manifest), PackageVersion(pkg1_manifest)
+            ),
+            file=sys.stderr
+        )
         return None
 
-    new_manifest_string = json.dumps(new_manifest, sort_keys=True,
-                                 indent=4, separators=(',', ': '))
+    new_manifest_string = json.dumps(
+        new_manifest, sort_keys=True, indent=4, separators=(',', ': ')
+    )
 
     if output_file is None:
         output_file = "%s-%s-%s.tgz" % (PackageName(pkg1_manifest),
                                         PackageVersion(pkg1_manifest),
                                         PackageVersion(pkg2_manifest))
 
-    new_tf = tarfile.open(output_file, "w:gz", format = tarfile.PAX_FORMAT)
-    mani_file_info = tarfile.TarInfo(name = "+MANIFEST")
+    new_tf = tarfile.open(output_file, "w:gz", format=tarfile.PAX_FORMAT)
+    mani_file_info = tarfile.TarInfo(name="+MANIFEST")
     mani_file_info.size = len(new_manifest_string)
     mani_file_info.mode = 0o600
     mani_file_info.type = tarfile.REGTYPE
@@ -185,14 +198,14 @@ def DiffPackageFiles(pkg1, pkg2, output_file = None):
         fname = member.name if member.name in search_dict else "/" + member.name
         if fname in search_dict:
             if member.issym() or member.islnk():
-            # A link
+                # A link
                 new_tf.addfile(member)
             elif member.isreg():
-            # A regular file.  Copy
+                # A regular file.  Copy
                 data = pkg2_tarfile.extractfile(member)
                 new_tf.addfile(member, data)
             elif member.isdir():
-            # A directory.  Just enter it
+                # A directory.  Just enter it
                 new_tf.addfile(member)
             else:
                 print("Unknown file type for member %s" % member.name, file=sys.stderr)
@@ -204,6 +217,7 @@ def DiffPackageFiles(pkg1, pkg2, output_file = None):
     new_tf.close()
     return output_file
 
+
 def main():
     # No options I can think of, yet anyway
     args = sys.argv[1:]
@@ -213,7 +227,7 @@ def main():
 
     pkg1 = args[0]
     pkg2 = args[1]
-                           
+
     if len(args) == 3:
         output_file = args[2]
     else:
@@ -228,6 +242,6 @@ def main():
 
     return 0
 
-            
+
 if __name__ == "__main__":
     sys.exit(main())
