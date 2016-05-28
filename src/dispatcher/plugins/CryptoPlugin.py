@@ -87,7 +87,7 @@ def load_certificate(buf):
     cert_info['common'] = cert.get_subject().CN
     cert_info['email'] = cert.get_subject().emailAddress
 
-    signature_algorithm = cert.get_signature_algorithm()
+    signature_algorithm = cert.get_signature_algorithm().decode('utf-8')
     m = re.match('^(.+)[Ww]ith', signature_algorithm)
     if m:
         cert_info['digest_algorithm'] = m.group(1).upper()
