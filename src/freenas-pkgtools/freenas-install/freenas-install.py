@@ -6,7 +6,6 @@ import getopt
 sys.path.append("/usr/local/lib")
 
 import freenasOS.Manifest as Manifest
-import freenasOS.Package as Package
 import freenasOS.Configuration as Configuration
 import freenasOS.Installer as Installer
 
