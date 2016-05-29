@@ -228,7 +228,7 @@ class ContainerBaseTask(Task):
                 self.join_subtasks(self.run_subtask(
                     'container.file.install',
                     container['template']['name'],
-                    res['source'],
+                    res['properties']['source'],
                     os.path.join('/dev/zvol', ds_name),
                 ))
 
