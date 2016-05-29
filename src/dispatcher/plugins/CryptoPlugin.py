@@ -269,7 +269,7 @@ class CertificateCreateTask(Task):
 
             if certificate['type'] == 'CA_INTERMEDIATE':
 
-                signing_cert = self.datastore.get_by_id('crypto.certificates', certificate['signedby'])
+                signing_cert = self.datastore.get_one('crypto.certificates', ('name', '=', certificate['signedby']))
 
                 signkey = load_privatekey(signing_cert['privatekey'])
 
