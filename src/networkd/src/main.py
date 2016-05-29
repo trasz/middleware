@@ -821,7 +821,10 @@ class Main(object):
             ))
 
         def state_change(state):
-            self.client.emit_event('network.interface.changed', interface)
+            self.client.emit_event('network.interface.changed', {
+                'operation': 'update',
+                'ids': [interface]
+            })
 
         client = dhcp.client.Client(interface, socket.gethostname())
         client.on_bind = bind
