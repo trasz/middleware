@@ -206,7 +206,7 @@ class ContainerBaseTask(Task):
                             'container.file.install',
                             container['template']['name'],
                             f['name'],
-                            os.path.join(files_root, f['dest'])
+                            files_root if f['dest'] == '.' else os.path.join(files_root, f['dest'])
                         ))
 
     def create_device(self, container, res):
