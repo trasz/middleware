@@ -327,9 +327,9 @@ class ContainerCreateTask(ContainerBaseTask):
         self.join_subtasks(self.run_subtask('container.cache.update', container['template']['name']))
 
         self.init_dataset(container)
-        self.init_files(container)
         for res in container['devices']:
             self.create_device(container, res)
+        self.init_files(container)
 
         id = self.datastore.insert('containers', container)
         self.dispatcher.dispatch_event('container.changed', {
