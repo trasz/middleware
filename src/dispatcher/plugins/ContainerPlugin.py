@@ -766,7 +766,7 @@ class InstallFileTask(Task):
         if not file_path:
             raise TaskException(errno.ENOENT, 'File {0} not found'.format(files_path))
 
-        if files_path.endswith('tar.gz'):
+        if file_path.endswith('tar.gz'):
             shutil.unpack_archive(file_path, destination)
         else:
             if os.path.isdir(destination):
