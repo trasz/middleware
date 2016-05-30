@@ -36,6 +36,7 @@ import errno
 import time
 import string
 import random
+import threading
 import gevent
 import gevent.os
 import gevent.monkey
@@ -404,7 +405,9 @@ class ManagementService(RpcService):
                 os.path.join(container['target'], 'vm', container['name'], 'files')
             )
             vm.start()
-            self.context.containers[id] = vm
+            with self.context.cv:
+                self.context.containers[id] = vm
+                self.context.cv.notify_all()
 
     @private
     def stop_container(self, id, force=False):
@@ -417,7 +420,9 @@ class ManagementService(RpcService):
                 return
 
             vm.stop(force)
-            del self.context.containers[id]
+            with self.context.cv:
+                del self.context.containers[id]
+                self.context.cv.notify_all()
 
     @private
     def request_console(self, id):
@@ -521,7 +526,12 @@ class ConsoleConnection(WebSocketApplication, EventEmitter):
                 return
 
             self.authenticated = True
-            self.vm = self.context.containers[cid]
+
+            with self.context.cv:
+                if not self.context.cv.wait_for(lambda: cid in self.context.containers, timeout=30):
+                    return
+                self.vm = self.context.containers[cid]
+
             self.console_queue = self.vm.console_register()
             self.ws.send(json.dumps({'status': 'ok'}))
             self.ws.send(self.vm.scrollback.read())
@@ -549,6 +559,7 @@ class Main(object):
         self.logger = logging.getLogger('containerd')
         self.bridge_interface = None
         self.used_nmdms = []
+        self.cv = threading.Condition()
 
     def init_datastore(self):
         try:
@@ -679,7 +690,7 @@ class Main(object):
         sys.exit(0)
 
     def generate_id(self):
-        return ''.join([random.choice(string.ascii_letters + string.digits) for n in range(32)])
+        return ''.join([random.choice(string.ascii_letters + string.digits) for _ in range(32)])
 
     def dispatcher_error(self, error):
         self.die()
