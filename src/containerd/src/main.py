@@ -75,6 +75,9 @@ DEFAULT_CONFIGFILE = '/usr/local/etc/middleware.conf'
 SCROLLBACK_SIZE = 20 * 1024
 
 
+vtx_enabled = False
+
+
 class VirtualMachineState(enum.Enum):
     STOPPED = 1
     BOOTLOADER = 2
@@ -385,6 +388,9 @@ class ManagementService(RpcService):
 
     @private
     def start_container(self, id):
+        if not vtx_enabled:
+            raise RpcException(errno.EINVAL, 'Cannot start VM - Intel VT-x instruction support not available.')
+
         container = self.context.datastore.get_by_id('containers', id)
 
         if container['type'] == 'VM':
@@ -696,6 +702,13 @@ class Main(object):
             if err.errno != errno.EEXIST:
                 self.logger.error('Cannot load PF module: %s', str(err))
                 self.logger.error('NAT unavailable')
+
+        global vtx_enabled
+        try:
+            if sysctl.sysctlbyname('hw.vmm.vmx.initialized'):
+                vtx_enabled = True
+        except OSError:
+            pass
 
         self.config = args.c
         self.init_datastore()
