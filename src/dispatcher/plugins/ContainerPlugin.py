@@ -191,7 +191,7 @@ class ContainerBaseTask(Task):
                     name, ext = os.path.splitext(f)
                     if ext == '.in':
                         process_template(os.path.join(root, f), os.path.join(files_root, r, name), **{
-                            'VM_ROOT': files_root
+                            'VM_ROOT': dest_root
                         })
                     else:
                         shutil.copy(os.path.join(root, f), os.path.join(files_root, r, f))
@@ -229,7 +229,7 @@ class ContainerBaseTask(Task):
                     'container.file.install',
                     container['template']['name'],
                     res['properties']['source'],
-                    os.path.join('/dev/zvol', ds_name),
+                    os.path.join('/dev/zvol', ds_name)
                 ))
 
         if res['type'] == 'NIC':
@@ -255,10 +255,19 @@ class ContainerBaseTask(Task):
 
             if properties['type'] == 'VT9P':
                 if properties.get('auto'):
+                    ds_name = os.path.join(container_ds, res['name'])
                     self.join_subtasks(self.run_subtask('volume.dataset.create', {
                         'volume': container['target'],
-                        'id': os.path.join(container_ds, res['name'])
+                        'id': ds_name
                     }))
+
+                    if properties.get('source'):
+                        self.join_subtasks(self.run_subtask(
+                            'container.file.install',
+                            container['template']['name'],
+                            properties['source'],
+                            self.dispatcher.call_sync('volume.get_dataset_path', ds_name)
+                        ))
 
     def update_device(self, container, old_res, new_res):
         if new_res['type'] == 'DISK':
