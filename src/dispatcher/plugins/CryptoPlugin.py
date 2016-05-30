@@ -87,7 +87,7 @@ def load_certificate(buf):
     cert_info['common'] = cert.get_subject().CN
     cert_info['email'] = cert.get_subject().emailAddress
 
-    signature_algorithm = cert.get_signature_algorithm()
+    signature_algorithm = cert.get_signature_algorithm().decode('utf-8')
     m = re.match('^(.+)[Ww]ith', signature_algorithm)
     if m:
         cert_info['digest_algorithm'] = m.group(1).upper()
@@ -177,7 +177,7 @@ class CertificateCreateTask(Task):
             if self.datastore.exists('crypto.certificates', ('name', '=', certificate['name'])):
                 errors.add((0, 'name'), 'Certificate with given name already exists', code=errno.EEXIST)
 
-            if not self.datastore.exists('crypto.certificates', ('id', '=', certificate['signedby'])):
+            if not self.datastore.exists('crypto.certificates', ('name', '=', certificate['signedby'])):
                 errors.add((0, 'signedby'), 'Signing certificate does not exist', code=errno.EEXIST)
 
             if '"' in certificate['name']:
@@ -187,7 +187,7 @@ class CertificateCreateTask(Task):
                 )
 
         if certificate['type'] in ('CERT_INTERNAL', 'CA_INTERMEDIATE'):
-            if 'signedby' not in certificate or not self.datastore.exists('crypto.certificates', ('id', '=', certificate['signedby'])):
+            if 'signedby' not in certificate or not self.datastore.exists('crypto.certificates', ('name', '=', certificate['signedby'])):
                 errors.add((0, 'signedby'), 'Signing Certificate does not exist', code=errno.EEXIST)
 
         if errors:
@@ -206,7 +206,7 @@ class CertificateCreateTask(Task):
 
             if certificate['type'] == 'CERT_INTERNAL':
 
-                signing_cert = self.datastore.get_by_id('crypto.certificates', certificate['signedby'])
+                signing_cert = self.datastore.get_one('crypto.certificates', ('name', '=', certificate['signedby']))
 
                 signkey = load_privatekey(signing_cert['privatekey'])
 
@@ -217,7 +217,7 @@ class CertificateCreateTask(Task):
                 cert.set_issuer(cacert.get_subject())
 
                 cert.add_extensions([
-                    crypto.X509Extension("subjectKeyIdentifier", False, "hash", subject=cert),
+                    crypto.X509Extension("subjectKeyIdentifier".encode('utf-8'), False, "hash".encode('utf-8'), subject=cert),
                 ])
                 cert.set_serial_number(signing_cert['serial'])
                 cert.sign(signkey, str(certificate['digest_algorithm']))
@@ -254,9 +254,9 @@ class CertificateCreateTask(Task):
                 cert = create_certificate(certificate)
                 cert.set_pubkey(key)
                 cert.add_extensions([
-                    crypto.X509Extension("basicConstraints", True, "CA:TRUE, pathlen:0"),
-                    crypto.X509Extension("keyUsage", True, "keyCertSign, cRLSign"),
-                    crypto.X509Extension("subjectKeyIdentifier", False, "hash", subject=cert),
+                    crypto.X509Extension("basicConstraints".encode('utf-8'), True, "CA:TRUE, pathlen:0".encode('utf-8')),
+                    crypto.X509Extension("keyUsage".encode('utf-8'), True, "keyCertSign, cRLSign".encode('utf-8')),
+                    crypto.X509Extension("subjectKeyIdentifier".encode('utf-8'), False, "hash".encode('utf-8'), subject=cert),
                 ])
                 cert.set_serial_number(1)
                 cert.sign(key, str(certificate['digest_algorithm']))
@@ -269,16 +269,16 @@ class CertificateCreateTask(Task):
 
             if certificate['type'] == 'CA_INTERMEDIATE':
 
-                signing_cert = self.datastore.get_by_id('crypto.certificates', certificate['signedby'])
+                signing_cert = self.datastore.get_one('crypto.certificates', ('name', '=', certificate['signedby']))
 
                 signkey = load_privatekey(signing_cert['privatekey'])
 
                 cert = create_certificate(certificate)
                 cert.set_pubkey(key)
                 cert.add_extensions([
-                    crypto.X509Extension("basicConstraints", True, "CA:TRUE, pathlen:0"),
-                    crypto.X509Extension("keyUsage", True, "keyCertSign, cRLSign"),
-                    crypto.X509Extension("subjectKeyIdentifier", False, "hash", subject=cert),
+                    crypto.X509Extension("basicConstraints".encode('utf-8'), True, "CA:TRUE, pathlen:0".encode('utf-8')),
+                    crypto.X509Extension("keyUsage".encode('utf-8'), True, "keyCertSign, cRLSign".encode('utf-8')),
+                    crypto.X509Extension("subjectKeyIdentifier".encode('utf-8'), False, "hash".encode('utf-8'), subject=cert),
                 ])
                 cert.set_serial_number(signing_cert['serial'])
                 cert.sign(signkey, str(certificate['digest_algorithm']))

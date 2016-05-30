@@ -37,6 +37,7 @@ import urllib.request
 import urllib.parse
 import urllib.error
 import shutil
+from resources import Resource
 from task import Provider, Task, ProgressTask, VerifyException, TaskException, query, TaskWarning, TaskDescription
 from freenas.dispatcher.rpc import RpcException
 from freenas.dispatcher.rpc import SchemaHelper as h, description, accepts
@@ -191,7 +192,7 @@ class ContainerBaseTask(Task):
                     name, ext = os.path.splitext(f)
                     if ext == '.in':
                         process_template(os.path.join(root, f), os.path.join(files_root, r, name), **{
-                            'VM_ROOT': files_root
+                            'VM_ROOT': dest_root
                         })
                     else:
                         shutil.copy(os.path.join(root, f), os.path.join(files_root, r, f))
@@ -201,7 +202,13 @@ class ContainerBaseTask(Task):
 
             if template.get('fetch'):
                 for f in template['fetch']:
-                    urllib.request.urlretrieve(f['url'], os.path.join(files_root, f['dest']))
+                    if f.get('dest'):
+                        self.join_subtasks(self.run_subtask(
+                            'container.file.install',
+                            container['template']['name'],
+                            f['name'],
+                            files_root if f['dest'] == '.' else os.path.join(files_root, f['dest'])
+                        ))
 
     def create_device(self, container, res):
         if res['type'] == 'DISK':
@@ -220,9 +227,9 @@ class ContainerBaseTask(Task):
 
             if res['properties'].get('source'):
                 self.join_subtasks(self.run_subtask(
-                    'container.image.install',
+                    'container.file.install',
                     container['template']['name'],
-                    res['name'],
+                    res['properties']['source'],
                     os.path.join('/dev/zvol', ds_name)
                 ))
 
@@ -249,10 +256,19 @@ class ContainerBaseTask(Task):
 
             if properties['type'] == 'VT9P':
                 if properties.get('auto'):
+                    ds_name = os.path.join(container_ds, res['name'])
                     self.join_subtasks(self.run_subtask('volume.dataset.create', {
                         'volume': container['target'],
-                        'id': os.path.join(container_ds, res['name'])
+                        'id': ds_name
                     }))
+
+                    if properties.get('source'):
+                        self.join_subtasks(self.run_subtask(
+                            'container.file.install',
+                            container['template']['name'],
+                            properties['source'],
+                            self.dispatcher.call_sync('volume.get_dataset_path', ds_name)
+                        ))
 
     def update_device(self, container, old_res, new_res):
         if new_res['type'] == 'DISK':
@@ -282,7 +298,7 @@ class ContainerCreateTask(ContainerBaseTask):
         if not self.dispatcher.call_sync('volume.query', [('id', '=', container['target'])], {'single': True}):
             raise VerifyException(errno.ENXIO, 'Volume {0} doesn\'t exist'.format(container['target']))
 
-        return ['zpool:{0}'.format(container['target']), 'system']
+        return ['zpool:{0}'.format(container['target']), 'vm-templates']
 
     def run(self, container):
         if container.get('template'):
@@ -321,9 +337,9 @@ class ContainerCreateTask(ContainerBaseTask):
         self.join_subtasks(self.run_subtask('container.cache.update', container['template']['name']))
 
         self.init_dataset(container)
-        self.init_files(container)
         for res in container['devices']:
             self.create_device(container, res)
+        self.init_files(container)
 
         id = self.datastore.insert('containers', container)
         self.dispatcher.dispatch_event('container.changed', {
@@ -522,7 +538,10 @@ class ContainerDeleteTask(Task):
         root_ds = os.path.join(pool, 'vm')
         container_ds = os.path.join(root_ds, container['name'])
 
-        self.join_subtasks(self.run_subtask('container.stop', id, True))
+        try:
+            self.join_subtasks(self.run_subtask('container.stop', id, True))
+        except RuntimeError:
+            pass
 
         try:
             self.join_subtasks(self.run_subtask('volume.dataset.delete', container_ds))
@@ -629,17 +648,17 @@ class ContainerRebootTask(Task):
 
 
 @accepts(str)
-@description('Caches container images')
-class CacheImagesTask(ProgressTask):
+@description('Caches container files')
+class CacheFilesTask(ProgressTask):
     @classmethod
     def early_describe(cls):
-        return 'Caching container images'
+        return 'Caching container files'
 
     def describe(self, name):
-        return TaskDescription('Caching container images {name}', name=name or '')
+        return TaskDescription('Caching container files {name}', name=name or '')
 
     def verify(self, name):
-        return ['system']
+        return ['vm-templates']
 
     def run(self, name):
         cache_dir = self.dispatcher.call_sync('system_dataset.request_directory', 'container_image_cache')
@@ -652,49 +671,46 @@ class CacheImagesTask(ProgressTask):
             raise TaskException(errno.ENOENT, 'Template of container {0} does not exist'.format(name))
 
         self.set_progress(0, 'Caching images')
-        res_cnt = len(template['devices'])
+        res_cnt = len(template['template']['fetch'])
 
-        for idx, res in enumerate(template['devices']):
-            self.set_progress(int(idx / res_cnt), 'Caching images')
-            if res['type'] == 'DISK':
-                res_name = res['name']
-                if res['properties'].get('source'):
-                    source = res['properties']['source']
-                    url = source['url']
-                    sha256 = source['sha256']
+        for idx, res in enumerate(template['template']['fetch']):
+            self.set_progress(int(idx / res_cnt), 'Caching files')
+            url = res['url']
+            res_name = res['name']
+            destination = os.path.join(cache_dir, name, res_name)
+            sha256 = res['sha256']
 
-                    destination = os.path.join(cache_dir, name, res_name)
-                    sha256_path = os.path.join(destination, 'sha256')
-                    if os.path.isdir(destination):
-                        if os.path.exists(sha256_path):
-                            with open(sha256_path) as sha256_file:
-                                if sha256_file.read() == sha256:
-                                    continue
-                    else:
-                        os.makedirs(destination)
+            sha256_path = os.path.join(destination, 'sha256')
+            if os.path.isdir(destination):
+                if os.path.exists(sha256_path):
+                    with open(sha256_path) as sha256_file:
+                        if sha256_file.read() == sha256:
+                            continue
+            else:
+                os.makedirs(destination)
 
-                    self.join_subtasks(self.run_subtask(
-                        'container.image.download',
-                        url,
-                        sha256,
-                        destination
-                    ))
+            self.join_subtasks(self.run_subtask(
+                'container.file.download',
+                url,
+                sha256,
+                destination
+            ))
 
         self.set_progress(100, 'Cached images')
 
 
 @accepts(str)
-@description('Deletes cached container images')
-class DeleteImagesTask(Task):
+@description('Deletes cached container files')
+class DeleteFilesTask(Task):
     @classmethod
     def early_describe(cls):
-        return 'Deleting cached container images'
+        return 'Deleting cached container files'
 
     def describe(self, name):
-        return TaskDescription('Deleting cached container {name} images', name=name)
+        return TaskDescription('Deleting cached container {name} files', name=name)
 
     def verify(self, name):
-        return ['system']
+        return ['vm-templates']
 
     def run(self, name):
         cache_dir = self.dispatcher.call_sync('system_dataset.request_directory', 'container_image_cache')
@@ -703,31 +719,31 @@ class DeleteImagesTask(Task):
 
 
 @accepts(str, str, str)
-@description('Downloads container image')
-class DownloadImageTask(ProgressTask):
+@description('Downloads container file')
+class DownloadFileTask(ProgressTask):
     @classmethod
     def early_describe(cls):
-        return 'Downloading container image'
+        return 'Downloading container file'
 
     def describe(self, url, sha256, destination):
-        return TaskDescription('Downloading container image {name}', name=url or '')
+        return TaskDescription('Downloading container file {name}', name=url or '')
 
     def verify(self, url, sha256, destination):
-        return ['system']
+        return ['vm-templates']
 
     def run(self, url, sha256, destination):
         def progress_hook(nblocks, blocksize, totalsize):
             self.set_progress((nblocks * blocksize) / float(totalsize) * 100)
 
-        image_path = os.path.join(destination, 'img.gz')
+        file_path = os.path.join(destination, url.split('/')[-1])
         sha256_path = os.path.join(destination, 'sha256')
 
-        self.set_progress(0, 'Downloading image')
-        urllib.request.urlretrieve(url, image_path, progress_hook)
+        self.set_progress(0, 'Downloading file')
+        urllib.request.urlretrieve(url, file_path, progress_hook)
         hasher = hashlib.sha256()
 
         self.set_progress(100, 'Verifying checksum')
-        with open(image_path, 'rb') as f:
+        with open(file_path, 'rb') as f:
             for chunk in iter(lambda: f.read(BLOCKSIZE), b""):
                 hasher.update(chunk)
 
@@ -739,28 +755,47 @@ class DownloadImageTask(ProgressTask):
 
 
 @accepts(str, str, str)
-@description('Installs container image')
-class InstallImageTask(Task):
+@description('Installs container file')
+class InstallFileTask(Task):
     @classmethod
     def early_describe(cls):
-        return 'Installing container image'
+        return 'Installing container file'
 
     def describe(self, name, res, destination):
         return TaskDescription(
-            'Installing container image {name} in {destination}',
+            'Installing container file {name} in {destination}',
             name=os.path.join(name, res) or '',
             destination=destination or ''
         )
 
     def verify(self, name, res, destination):
-        return ['system']
+        return ['vm-templates']
 
     def run(self, name, res, destination):
         cache_dir = self.dispatcher.call_sync('system_dataset.request_directory', 'container_image_cache')
-        image_path = os.path.join(cache_dir, name, res, 'img.gz')
+        files_path = os.path.join(cache_dir, name, res)
+        file_path = self.get_archive_path(files_path)
 
+        if not file_path:
+            raise TaskException(errno.ENOENT, 'File {0} not found'.format(files_path))
+
+        if file_path.endswith('tar.gz'):
+            shutil.unpack_archive(file_path, destination)
+        else:
+            if os.path.isdir(destination):
+                destination = os.path.join(destination, res)
+            self.unpack_gzip(file_path, destination)
+
+    def get_archive_path(self, files_path):
+        archive_path = None
+        for file in os.listdir(files_path):
+            if file.endswith('.gz'):
+                archive_path = os.path.join(files_path, file)
+        return archive_path
+
+    def unpack_gzip(self, path, destination):
         with open(destination, 'wb') as dst:
-            with gzip.open(image_path, 'rb') as src:
+            with gzip.open(path, 'rb') as src:
                 for chunk in iter(lambda: src.read(BLOCKSIZE), b""):
                     done = 0
                     total = len(chunk)
@@ -768,7 +803,7 @@ class InstallImageTask(Task):
                     while done < total:
                         ret = os.write(dst.fileno(), chunk[done:])
                         if ret == 0:
-                            raise TaskException(errno.ENOSPC, 'Image is too large to fit in zvol')
+                            raise TaskException(errno.ENOSPC, 'Image is too large to fit in destination')
 
                         done += ret
 
@@ -783,7 +818,7 @@ class ContainerTemplateFetchTask(ProgressTask):
         return TaskDescription('Downloading container templates')
 
     def verify(self):
-        return []
+        return ['vm-templates']
 
     def run(self):
         def clean_clone(url, path):
@@ -978,13 +1013,15 @@ def _init(dispatcher, plugin):
     plugin.register_task_handler('container.stop', ContainerStopTask)
     plugin.register_task_handler('container.reboot', ContainerRebootTask)
     plugin.register_task_handler('container.immutable.set', ContainerSetImmutableTask)
-    plugin.register_task_handler('container.image.install', InstallImageTask)
-    plugin.register_task_handler('container.image.download', DownloadImageTask)
-    plugin.register_task_handler('container.cache.update', CacheImagesTask)
-    plugin.register_task_handler('container.cache.delete', DeleteImagesTask)
+    plugin.register_task_handler('container.file.install', InstallFileTask)
+    plugin.register_task_handler('container.file.download', DownloadFileTask)
+    plugin.register_task_handler('container.cache.update', CacheFilesTask)
+    plugin.register_task_handler('container.cache.delete', DeleteFilesTask)
     plugin.register_task_handler('container.template.fetch', ContainerTemplateFetchTask)
 
     plugin.attach_hook('volume.pre_destroy', volume_pre_destroy)
     plugin.attach_hook('volume.pre_detach', volume_pre_detach)
 
     plugin.register_event_type('container.changed')
+
+    dispatcher.register_resource(Resource('vm-templates'))
