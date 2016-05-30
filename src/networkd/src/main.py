@@ -634,7 +634,7 @@ class ConfigurationService(RpcService):
             else:
                 if name in self.context.dhcp_clients:
                     self.logger.info('Stopping DHCP client on interface {0}'.format(name))
-                    self.deconfigure_dhcp(name)
+                    self.context.deconfigure_dhcp(name)
 
                 addresses = set(convert_aliases(entity))
                 existing_addresses = set([a for a in iface.addresses if a.af != netif.AddressFamily.LINK])
