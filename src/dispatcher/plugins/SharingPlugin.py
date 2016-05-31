@@ -79,7 +79,7 @@ class SharesProvider(Provider):
         return self.dispatcher.call_sync('share.{0}.get_connected_clients'.format(share['type']), id)
 
     @description("Get shares dependent on provided filesystem path")
-    @accepts(str)
+    @accepts(str, bool, bool)
     @returns(h.array(h.ref('share')))
     def get_dependencies(self, path, enabled_only=True, recursive=True):
         result = []
