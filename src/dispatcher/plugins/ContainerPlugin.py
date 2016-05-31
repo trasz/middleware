@@ -540,7 +540,7 @@ class ContainerDeleteTask(Task):
 
         try:
             self.join_subtasks(self.run_subtask('container.stop', id, True))
-        except RuntimeError:
+        except RpcException:
             pass
 
         try:

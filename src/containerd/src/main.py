@@ -206,8 +206,6 @@ class VirtualMachine(object):
 
     def stop(self, force=False):
         self.logger.info('Stopping VM {0}'.format(self.name))
-        if self.state == VirtualMachineState.STOPPED:
-            raise RuntimeError('Already stopped')
 
         for i in self.tap_interfaces:
             self.cleanup_tap(i)
@@ -418,6 +416,9 @@ class ManagementService(RpcService):
             vm = self.context.containers.get(id)
             if not vm:
                 return
+
+            if vm.state == VirtualMachineState.STOPPED:
+                raise RpcException(errno.EACCES, 'Container {0} is already stopped'.format(container['name']))
 
             vm.stop(force)
             with self.context.cv:
