@@ -56,6 +56,11 @@ class ContainerProvider(Provider):
     def query(self, filter=None, params=None):
         def extend(obj):
             obj['status'] = self.dispatcher.call_sync('containerd.management.get_status', obj['id'])
+            root = self.dispatcher.call_sync('container.get_container_root', obj['id'])
+            readme = get_readme(root)
+            if readme:
+                with open(readme, 'r') as readme_file:
+                    obj['template']['readme'] = readme_file.read()
             return obj
 
         return self.datastore.query('containers', *(filter or []), callback=extend, **(params or {}))
@@ -138,6 +143,10 @@ class ContainerTemplateProvider(Provider):
                 with open(os.path.join(root, 'template.json'), encoding='utf-8') as template_file:
                     try:
                         template = json.loads(template_file.read())
+                        readme = get_readme(root)
+                        if readme:
+                            with open(readme, 'r') as readme_file:
+                                template['template']['readme'] = readme_file.read()
                         template['template']['path'] = root
                         template['template']['cached'] = False
                         if os.path.isdir(os.path.join(cache_dir, template['template']['name'])):
@@ -182,6 +191,11 @@ class ContainerBaseTask(Task):
             source_root = os.path.join(template['path'], 'files')
             dest_root = self.dispatcher.call_sync('volume.get_dataset_path', self.container_ds)
             files_root = os.path.join(dest_root, 'files')
+
+            try:
+                shutil.copyfile(os.path.join(template['path'], 'README.md'), dest_root)
+            except OSError:
+                pass
 
             os.mkdir(files_root)
 
@@ -471,6 +485,13 @@ class ContainerUpdateTask(ContainerBaseTask):
             )
         except (RpcException, OSError):
             pass
+
+        if 'template' in updated_params:
+            readme = updated_params['template'].pop('readme')
+            if readme:
+                root = self.dispatcher.call_sync('container.get_container_root', container['id'])
+                with open(os.path.join(root, 'README.md'), 'w') as readme_file:
+                    readme_file.write(readme)
 
         if 'devices' in updated_params:
             self.join_subtasks(self.run_subtask('container.cache.update', container['template']['name']))
@@ -878,6 +899,15 @@ class ContainerTemplateFetchTask(ProgressTask):
                 self.set_progress(progress + progress_per_source, 'Finished operation for {0}'.format(source['id']))
 
         self.set_progress(100, 'Templates downloaded')
+
+
+def get_readme(path):
+    file_path = None
+    for file in os.listdir(path):
+        if file == 'README.md':
+            file_path = os.path.join(path, file)
+
+    return file_path
 
 
 def _depends():
