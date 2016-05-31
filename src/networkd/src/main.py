@@ -53,6 +53,7 @@ from functools import reduce
 
 
 DEFAULT_CONFIGFILE = '/usr/local/etc/middleware.conf'
+INITIAL_DHCP_TIMEOUT = 30
 
 
 def cidr_to_netmask(cidr):
@@ -415,7 +416,9 @@ class ConfigurationService(RpcService):
                     continue
 
                 self.logger.info('Trying to acquire DHCP lease on interface {0}...'.format(i.name))
-                if self.context.configure_dhcp(i.name):
+                i.up()
+
+                if self.context.configure_dhcp(i.name, True, INITIAL_DHCP_TIMEOUT):
                     entity.update({
                         'enabled': True,
                         'dhcp': True
@@ -426,6 +429,8 @@ class ConfigurationService(RpcService):
                     self.config.set('container.default_nic', i.name)
                     self.logger.info('Successfully configured interface {0}'.format(i.name))
                     return
+                else:
+                    i.down()
 
             self.logger.warn('Failed to configure any network interface')
             return
@@ -754,7 +759,7 @@ class Main(object):
         except OSError:
             return False
 
-    def configure_dhcp(self, interface):
+    def configure_dhcp(self, interface, block=False, timeout=None):
         if interface in self.dhcp_clients:
             self.logger.info('Interface {0} already configured by DHCP'.format(interface))
             return True
@@ -839,6 +844,9 @@ class Main(object):
         client.on_state_change = state_change
         client.start()
         self.dhcp_clients[interface] = client
+
+        if block:
+            return client.wait_for_bind(timeout) is not None
 
     def deconfigure_dhcp(self, interface):
         client = self.dhcp_clients[interface]
