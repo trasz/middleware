@@ -806,6 +806,9 @@ class Main(object):
                 for i in lease.dns_addresses:
                     inp.append('nameserver {0}'.format(i))
 
+                if lease.domain_name:
+                    inp.append('search {0}'.format(lease.domain_name))
+
                 proc.communicate('\n'.join(inp).encode('ascii'))
                 proc.wait()
                 self.logger.info('Updated DNS configuration')
