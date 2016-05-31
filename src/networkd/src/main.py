@@ -876,6 +876,9 @@ class Main(object):
             if i.cloned:
                 continue
 
+            if i.name in ('mgmt0', 'nat0'):
+                continue
+
             if not self.datastore.exists('network.interfaces', ('id', '=', i.name)):
                 self.logger.info('Found new interface {0} ({1})'.format(i.name, i.type.name))
                 self.datastore.insert('network.interfaces', {
