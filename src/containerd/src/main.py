@@ -609,7 +609,7 @@ class Main(object):
 
     def init_mgmt(self):
         self.mgmt = ManagementNetwork(self, MGMT_INTERFACE, MGMT_ADDR)
-        self.mgmt.up(False)
+        self.mgmt.up()
         self.mgmt.bridge_if.add_address(netif.InterfaceAddress(
             netif.AddressFamily.INET,
             ipaddress.ip_interface('169.254.169.254/32')
