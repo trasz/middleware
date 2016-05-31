@@ -804,6 +804,10 @@ class Main(object):
                 )
 
                 for i in lease.dns_addresses:
+                    # Filter out bougus DNS server addresses
+                    if i in ('127.0.0.1', '0.0.0.0', '255.255.255.255'):
+                        continue
+
                     inp.append('nameserver {0}'.format(i))
 
                 if lease.domain_name:
