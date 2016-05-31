@@ -415,6 +415,9 @@ class ConfigurationService(RpcService):
                 if i.type == netif.InterfaceType.LOOP:
                     continue
 
+                if i.name in ('mgmt0', 'nat0'):
+                    continue
+
                 self.logger.info('Trying to acquire DHCP lease on interface {0}...'.format(i.name))
                 i.up()
 
