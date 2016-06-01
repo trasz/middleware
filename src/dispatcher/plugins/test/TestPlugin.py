@@ -29,9 +29,10 @@ import os
 import threading
 import uuid
 import errno
-from task import Task, TaskDescription, TaskWarning
-from freenas.dispatcher.rpc import description
+import time
+from task import Task, TaskDescription, TaskWarning, ProgressTask, MasterProgressTask
 from freenas.dispatcher.fd import FileDescriptor
+from freenas.dispatcher.rpc import accepts, description
 
 
 @description('Downloads tests')
@@ -71,9 +72,56 @@ class TestWarningsTask(Task):
     def run(self):
         self.add_warning(TaskWarning(errno.EBUSY, 'Warning 1'))
         self.add_warning(TaskWarning(errno.ENXIO, 'Warning 2'))
-        self.add_warning(TaskWarning(errno.EINVAL, 'Warning 3 with extra payload', extra={'hello': 'world'}))
+        self.add_warning(
+            TaskWarning(errno.EINVAL, 'Warning 3 with extra payload', extra={'hello': 'world'})
+        )
+
+
+@accepts()
+@description("Dummy Progress Task to test shit 1")
+class ProgressChildTask1(ProgressTask):
+
+    def verify(self):
+        return ['system']
+
+    def run(self):
+        self.message = "Execution {0} Task...".format(self.__class__.__name__)
+        for i in range(10):
+            time.sleep(1)
+            self.set_progress((i + 1) * 10)
+
+
+@accepts()
+@description("Dummy Progress Task to test shit 2")
+class ProgressChildTask2(ProgressTask):
+
+    def verify(self):
+        return ['system']
+
+    def run(self):
+        self.message = "Execution {0} Task...".format(self.__class__.__name__)
+        for i in range(10):
+            time.sleep(1)
+            self.set_progress((i + 1) * 10)
+
+
+@accepts()
+@description("Dummy Progess Master Task to test shit")
+class ProgressMasterTask(MasterProgressTask):
+
+    def verify(self):
+        return ['system']
+
+    def run(self):
+        self.set_progress(0, 'Starting Master Progress Test Task...')
+        self.run_and_join_progress_subtask('system.pchildtest1', weight=0.5)
+        self.set_progress(50)
+        self.run_and_join_progress_subtask('system.pchildtest2', weight=0.5)
 
 
 def _init(dispatcher, plugin):
     plugin.register_task_handler('test.test_download', TestDownloadTask)
     plugin.register_task_handler('test.test_warnings', TestWarningsTask)
+    plugin.register_task_handler("test.pchildtest1", ProgressChildTask1)
+    plugin.register_task_handler("test.pchildtest2", ProgressChildTask2)
+    plugin.register_task_handler("test.dummy", ProgressMasterTask)
