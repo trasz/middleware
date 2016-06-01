@@ -68,7 +68,7 @@ def export_privatekey(buf, passphrase=None):
         crypto.FILETYPE_PEM,
         key,
         passphrase=str(passphrase) if passphrase else None
-    )
+    ).decode('utf-8')
 
 
 def generate_key(key_length):
@@ -139,7 +139,7 @@ class CertificateProvider(Provider):
                 # Load and dump private key to make sure its in desired format
                 # This is code ported from 9.3 and must be reviewed as it may very well be useless
                 cert = crypto.load_certificate(crypto.FILETYPE_PEM, certificate['certificate'])
-                certificate['certificate'] = crypto.dump_certificate(crypto.FILETYPE_PEM, cert)
+                certificate['certificate'] = crypto.dump_certificate(crypto.FILETYPE_PEM, cert).decode('utf-8')
 
             if certificate.get('privatekey'):
                 certificate['privatekey_path'] = os.path.join(
@@ -224,8 +224,8 @@ class CertificateCreateTask(Task):
                     cert.set_issuer(cert.get_subject())
                     cert.sign(key, str(certificate['digest_algorithm']))
 
-                certificate['certificate'] = crypto.dump_certificate(crypto.FILETYPE_PEM, cert)
-                certificate['privatekey'] = crypto.dump_privatekey(crypto.FILETYPE_PEM, key)
+                certificate['certificate'] = crypto.dump_certificate(crypto.FILETYPE_PEM, cert).decode('utf-8')
+                certificate['privatekey'] = crypto.dump_privatekey(crypto.FILETYPE_PEM, key).decode('utf-8')
                 certificate['serial'] = cert.get_serial_number()
 
                 pkey = self.datastore.insert('crypto.certificates', certificate)
@@ -243,8 +243,8 @@ class CertificateCreateTask(Task):
                 req.set_pubkey(key)
                 req.sign(key, str(certificate['digest_algorithm']))
 
-                certificate['csr'] = crypto.dump_certificate_request(crypto.FILETYPE_PEM, req)
-                certificate['privatekey'] = crypto.dump_privatekey(crypto.FILETYPE_PEM, key)
+                certificate['csr'] = crypto.dump_certificate_request(crypto.FILETYPE_PEM, req).decode('utf-8')
+                certificate['privatekey'] = crypto.dump_privatekey(crypto.FILETYPE_PEM, key).decode('utf-8')
 
                 pkey = self.datastore.insert('crypto.certificates', certificate)
 
@@ -260,8 +260,8 @@ class CertificateCreateTask(Task):
                 cert.set_issuer(cert.get_subject())
                 cert.sign(key, str(certificate['digest_algorithm']))
 
-                certificate['certificate'] = crypto.dump_certificate(crypto.FILETYPE_PEM, cert)
-                certificate['privatekey'] = crypto.dump_privatekey(crypto.FILETYPE_PEM, key)
+                certificate['certificate'] = crypto.dump_certificate(crypto.FILETYPE_PEM, cert).decode('utf-8')
+                certificate['privatekey'] = crypto.dump_privatekey(crypto.FILETYPE_PEM, key).decode('utf-8')
                 certificate['serial'] = cert.get_serial_number()
 
                 pkey = self.datastore.insert('crypto.certificates', certificate)
@@ -281,8 +281,8 @@ class CertificateCreateTask(Task):
                 cert.set_issuer(cacert.get_subject())
                 cert.sign(signkey, str(certificate['digest_algorithm']))
 
-                certificate['certificate'] = crypto.dump_certificate(crypto.FILETYPE_PEM, cert)
-                certificate['privatekey'] = crypto.dump_privatekey(crypto.FILETYPE_PEM, key)
+                certificate['certificate'] = crypto.dump_certificate(crypto.FILETYPE_PEM, cert).decode('utf-8')
+                certificate['privatekey'] = crypto.dump_privatekey(crypto.FILETYPE_PEM, key).decode('utf-8')
                 certificate['serial'] = cert.get_serial_number()
 
                 pkey = self.datastore.insert('crypto.certificates', certificate)
