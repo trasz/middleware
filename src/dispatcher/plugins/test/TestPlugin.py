@@ -145,9 +145,8 @@ class ProgressMasterTask(MasterProgressTask):
 
     def run(self):
         self.set_progress(0, 'Starting Master Progress Test Task...')
-        self.run_and_join_progress_subtask('system.pchildtest1', weight=0.5)
-        self.set_progress(50)
-        self.run_and_join_progress_subtask('system.pchildtest2', weight=0.5)
+        self.join_subtasks(self.run_subtask('test.pchildtest1', weight=0.5))
+        self.join_subtasks(self.run_subtask('test.pchildtest2', weight=0.5))
 
 
 def _init(dispatcher, plugin):
@@ -155,4 +154,4 @@ def _init(dispatcher, plugin):
     plugin.register_task_handler('test.test_warnings', TestWarningsTask)
     plugin.register_task_handler("test.pchildtest1", ProgressChildTask1)
     plugin.register_task_handler("test.pchildtest2", ProgressChildTask2)
-    plugin.register_task_handler("test.dummy", ProgressMasterTask)
+    plugin.register_task_handler("test.masterprogresstask", ProgressMasterTask)
