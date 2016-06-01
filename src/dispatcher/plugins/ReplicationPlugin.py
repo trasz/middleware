@@ -244,6 +244,28 @@ class ReplicationBaseTask(Task):
                     {'readonly': {'value': 'on' if readonly else 'off'}}
                 ))
 
+    def set_datasets_mount(self, datasets, mount, client=None):
+        for dataset in datasets:
+            if client:
+                call_task_and_check_state(
+                    client,
+                    'zfs.{0}mount'.format('' if mount else 'u'),
+                    dataset['name']
+                )
+            else:
+                self.join_subtasks(self.run_subtask(
+                    'zfs.{0}mount'.format('' if mount else 'u'),
+                    dataset['name']
+                ))
+
+    def set_datasets_mount_ro(self, datasets, readonly, client=None):
+        if readonly:
+            self.set_datasets_mount(datasets, False, client)
+            self.set_datasets_readonly(datasets, True, client)
+        else:
+            self.set_datasets_readonly(datasets, False, client)
+            self.set_datasets_mount(datasets, True, client)
+
     def remove_datastore_timestamps(self, link):
         out_link = {}
         for key in link:
@@ -564,7 +586,7 @@ class ReplicationPrepareSlaveTask(ReplicationBaseTask):
                 else:
                     for dataset in datasets_to_replicate:
                         call_task_and_check_state(remote_client, 'zfs.umount', dataset['name'])
-                self.set_datasets_readonly(datasets_to_replicate, True, remote_client)
+                self.set_datasets_mount_ro(datasets_to_replicate, True, remote_client)
 
         else:
             call_task_and_check_state(remote_client, 'replication.prepare_slave', link)
@@ -730,7 +752,7 @@ class ReplicationUpdateTask(ReplicationBaseTask):
                     ))
 
         if 'datasets' in updated_fields:
-            self.set_datasets_readonly(
+            self.set_datasets_mount_ro(
                 old_slave_datasets,
                 False,
                 remote_client if is_master else None
@@ -739,7 +761,7 @@ class ReplicationUpdateTask(ReplicationBaseTask):
             try:
                 self.join_subtasks(self.run_subtask('replication.prepare_slave', link))
             except RpcException:
-                self.set_datasets_readonly(
+                self.set_datasets_mount_ro(
                     old_slave_datasets,
                     True,
                     remote_client if is_master else None
@@ -821,7 +843,8 @@ class ReplicationSyncTask(ReplicationBaseTask):
                             {
                                 'remote': remote,
                                 'remote_dataset': dataset,
-                                'recursive': link['recursive']
+                                'recursive': link['recursive'],
+                                'nomount': True
                             },
                             transport_plugins
                         ))
@@ -1406,7 +1429,7 @@ class ReplicationRoleUpdateTask(ReplicationBaseTask):
 
     def run(self, name):
         def update_role(currently_master):
-            self.set_datasets_readonly(datasets, currently_master)
+            self.set_datasets_mount_ro(datasets, currently_master)
             if currently_master:
                 mount = 'umount'
                 relation_type = 'related'
