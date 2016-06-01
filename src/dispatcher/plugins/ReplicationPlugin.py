@@ -34,7 +34,7 @@ import time
 import logging
 from cache import CacheStore
 from resources import Resource
-from paramiko import RSAKey
+from paramiko import RSAKey, SSHException
 from datetime import datetime
 from dateutil.parser import parse as parse_datetime
 from task import Provider, Task, ProgressTask, VerifyException, TaskException, TaskWarning, query, TaskDescription
@@ -613,17 +613,15 @@ class ReplicationDeleteTask(ReplicationBaseTask):
     def run(self, name, scrub=False):
         link = self.join_subtasks(self.run_subtask('replication.get_latest_link', name))[0]
         is_master, remote = self.get_replication_state(link)
+        remote_client = None
 
-        self.datastore.delete('replication.links', link['id'])
-        self.dispatcher.call_sync('replication.link.link_cache_remove', link['name'])
-        self.dispatcher.unregister_resource('replication:{0}'.format(link['name']))
-
-        self.dispatcher.dispatch_event('replication.link.changed', {
-            'operation': 'delete',
-            'ids': [link['id']]
-        })
-
-        remote_client = get_replication_client(self.dispatcher, remote)
+        try:
+            remote_client = get_replication_client(self.dispatcher, remote)
+        except (SSHException, OSError) as e:
+            self.add_warning(TaskWarning(
+                e.code,
+                'Remote is unreachable. Delete operation is being performed only locally.'
+            ))
 
         if not is_master:
             for service in ['shares', 'containers']:
@@ -642,9 +640,19 @@ class ReplicationDeleteTask(ReplicationBaseTask):
                         else:
                             self.join_subtasks(self.run_subtask('volume.dataset.delete', dataset['name']))
 
-        if remote_client.call_sync('replication.link.get_one_local', name):
-            call_task_and_check_state(remote_client, 'replication.delete', name)
-        remote_client.disconnect()
+        if remote_client:
+            if remote_client.call_sync('replication.link.get_one_local', name):
+                call_task_and_check_state(remote_client, 'replication.delete', name)
+            remote_client.disconnect()
+
+        self.datastore.delete('replication.links', link['id'])
+        self.dispatcher.call_sync('replication.link.link_cache_remove', link['name'])
+        self.dispatcher.unregister_resource('replication:{0}'.format(link['name']))
+
+        self.dispatcher.dispatch_event('replication.link.changed', {
+            'operation': 'delete',
+            'ids': [link['id']]
+        })
 
 
 @description("Update a replication link")
