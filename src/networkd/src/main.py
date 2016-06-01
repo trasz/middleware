@@ -785,7 +785,7 @@ class Main(object):
                 except OSError as err:
                     self.logger.error('Cannot add alias to {0}: {1}'.format(interface, err.strerror))
 
-            if lease.router:
+            if lease.router and self.configstore.get('network.dhcp.assign_gateway'):
                 try:
                     rtable = netif.RoutingTable()
                     newroute = default_route(lease.router)
@@ -803,7 +803,7 @@ class Main(object):
                 except OSError as err:
                     self.logger.error('Cannot configure default route: {0}'.format(err.strerror))
 
-            if lease.dns_addresses:
+            if lease.dns_addresses and self.configstore.get('network.dhcp.assign_dns'):
                 inp = []
                 proc = subprocess.Popen(
                     ['/sbin/resolvconf', '-a', interface],
