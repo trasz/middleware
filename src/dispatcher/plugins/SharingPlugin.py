@@ -431,23 +431,14 @@ class ShareSetImmutableTask(Task):
         return ['system']
 
     def run(self, id, immutable):
-        if not immutable:
-            share = self.datastore.get_by_id('shares', id)
-            share['immutable'] = immutable
-            self.datastore.update('shares', id, share)
-            self.dispatcher.dispatch_event('share.changed', {
-                'operation': 'update',
-                'ids': [share['id']]
-            })
-
-        self.join_subtasks(self.run_subtask(
-            'share.update',
-            id,
-            {
-                'enabled': not immutable,
-                'immutable': immutable
-            }
-        ))
+        share = self.datastore.get_by_id('shares', id)
+        share['immutable'] = immutable
+        share['enabled'] = not immutable
+        self.datastore.update('shares', id, share)
+        self.dispatcher.dispatch_event('share.changed', {
+            'operation': 'update',
+            'ids': [share['id']]
+        })
 
 
 @description("Deletes share")
