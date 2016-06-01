@@ -586,7 +586,7 @@ class ReplicationPrepareSlaveTask(ReplicationBaseTask):
                 else:
                     for dataset in datasets_to_replicate:
                         call_task_and_check_state(remote_client, 'zfs.umount', dataset['name'])
-                self.set_datasets_mount_ro(datasets_to_replicate, True, remote_client)
+                self.set_datasets_readonly(datasets_to_replicate, True, remote_client)
 
         else:
             call_task_and_check_state(remote_client, 'replication.prepare_slave', link)
