@@ -310,19 +310,25 @@ class ReplicationBaseTask(Task):
         return True
 
     def get_parent_datasets(self, link):
-        datasets_to_replicate = wrap(
-            self.dispatcher.call_sync('replication.link.datasets_from_link', link)
-        ).query(*[], **{'select': 'name'})
-        len_sorted_datasets = sorted(datasets_to_replicate, key=lambda item: (len(item), item))
+        datasets_to_replicate = self.dispatcher.call_sync('replication.link.datasets_from_link', link)
+        if not link['recursive']:
+            return datasets_to_replicate
+
+        datasets_names = wrap(datasets_to_replicate).query(*[], **{'select': 'name'})
+        len_sorted_datasets = sorted(datasets_names, key=lambda item: (len(item), item))
 
         parent_datasets = []
         for parent_dataset in len_sorted_datasets:
             parent_datasets.append(parent_dataset)
-            for dataset in datasets_to_replicate:
+            for dataset in datasets_names:
                 if dataset.startswith(parent_dataset + '/'):
                     len_sorted_datasets.remove(dataset)
 
-        return parent_datasets
+        result = []
+        for dataset in parent_datasets:
+            result.append(wrap(datasets_to_replicate).query(*[('name', '=', dataset)], **{'single': True}))
+
+        return result
 
 
 @description("Sets up a replication link")
@@ -853,10 +859,10 @@ class ReplicationSyncTask(ReplicationBaseTask):
                     for dataset in parent_datasets:
                         result = self.join_subtasks(self.run_subtask(
                             'replication.replicate_dataset',
-                            dataset,
+                            dataset['name'],
                             {
                                 'remote': remote,
-                                'remote_dataset': dataset,
+                                'remote_dataset': dataset['name'],
                                 'recursive': link['recursive'],
                                 'nomount': True
                             },
