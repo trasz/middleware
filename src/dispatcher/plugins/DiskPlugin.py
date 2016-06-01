@@ -337,6 +337,10 @@ class DiskEraseTask(Task):
         disk = disk_by_id(self.dispatcher, id)
         try:
             system('/sbin/zpool', 'labelclear', '-f', disk['path'])
+        except SubprocessException:
+            pass
+
+        try:
             self.dispatcher.call_sync('disk.update_disk_cache', disk['path'], timeout=120)
             diskinfo = self.dispatcher.call_sync('disk.get_disk_config', disk['path'])
             if diskinfo.get('partitions'):
