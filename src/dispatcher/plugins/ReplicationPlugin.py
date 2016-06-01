@@ -640,11 +640,6 @@ class ReplicationDeleteTask(ReplicationBaseTask):
                         else:
                             self.join_subtasks(self.run_subtask('volume.dataset.delete', dataset['name']))
 
-        if remote_client:
-            if remote_client.call_sync('replication.link.get_one_local', name):
-                call_task_and_check_state(remote_client, 'replication.delete', name)
-            remote_client.disconnect()
-
         self.datastore.delete('replication.links', link['id'])
         self.dispatcher.call_sync('replication.link.link_cache_remove', link['name'])
         self.dispatcher.unregister_resource('replication:{0}'.format(link['name']))
@@ -653,6 +648,11 @@ class ReplicationDeleteTask(ReplicationBaseTask):
             'operation': 'delete',
             'ids': [link['id']]
         })
+
+        if remote_client:
+            if remote_client.call_sync('replication.link.get_one_local', name):
+                call_task_and_check_state(remote_client, 'replication.delete', name)
+            remote_client.disconnect()
 
 
 @description("Update a replication link")
