@@ -208,7 +208,7 @@ class ReplicationLinkProvider(Provider):
         for dataset in datasets:
             container = self.dispatcher.call_sync('container.get_dependent', dataset['name'], False)
             if container:
-                containers.append(container)
+                containers.extend(container)
 
         return containers
 
