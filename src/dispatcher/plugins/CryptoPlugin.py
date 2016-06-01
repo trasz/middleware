@@ -28,12 +28,17 @@
 import errno
 import os
 import re
+import time
 from datastore import DatastoreException
 from freenas.dispatcher.rpc import RpcException, description, accepts
 from freenas.dispatcher.rpc import SchemaHelper as h
 from task import Provider, Task, TaskException, ValidationException, VerifyException, query, TaskDescription
 
 from OpenSSL import crypto
+
+
+def get_next_x509_serial_number():
+    return int(time.time())
 
 
 def create_certificate(cert_info):
@@ -44,15 +49,11 @@ def create_certificate(cert_info):
     cert.get_subject().O = cert_info['organization']
     cert.get_subject().CN = cert_info['common']
     cert.get_subject().emailAddress = cert_info['email']
-
-    serial = cert_info.get('serial')
-    if serial is not None:
-        cert.set_serial_number(serial)
-
+    if not cert_info.get('serial'):
+        cert.set_serial_number(get_next_x509_serial_number())
     cert.gmtime_adj_notBefore(0)
     cert.gmtime_adj_notAfter(cert_info['lifetime'] * (60 * 60 * 24))
 
-    cert.set_issuer(cert.get_subject())
     return cert
 
 
@@ -170,15 +171,15 @@ class CertificateCreateTask(Task):
         return TaskDescription("Creating certificate {name}", name=certificate['name'])
 
     def verify(self, certificate):
-
         errors = ValidationException()
 
         if certificate['type'] == 'CERT_INTERNAL':
             if self.datastore.exists('crypto.certificates', ('name', '=', certificate['name'])):
                 errors.add((0, 'name'), 'Certificate with given name already exists', code=errno.EEXIST)
 
-            if not self.datastore.exists('crypto.certificates', ('name', '=', certificate['signedby'])):
-                errors.add((0, 'signedby'), 'Signing certificate does not exist', code=errno.EEXIST)
+            if certificate['signedby'] != 'selfsigned':
+                if not self.datastore.exists('crypto.certificates', ('name', '=', certificate['signedby'])):
+                    errors.add((0, 'signedby'), 'Signing certificate does not exist', code=errno.EEXIST)
 
             if '"' in certificate['name']:
                 errors.add((
@@ -187,8 +188,9 @@ class CertificateCreateTask(Task):
                 )
 
         if certificate['type'] in ('CERT_INTERNAL', 'CA_INTERMEDIATE'):
-            if 'signedby' not in certificate or not self.datastore.exists('crypto.certificates', ('name', '=', certificate['signedby'])):
-                errors.add((0, 'signedby'), 'Signing Certificate does not exist', code=errno.EEXIST)
+            if certificate['signedby'] != 'selfsigned':
+                if 'signedby' not in certificate or not self.datastore.exists('crypto.certificates', ('name', '=', certificate['signedby'])):
+                    errors.add((0, 'signedby'), 'Signing Certificate does not exist', code=errno.EEXIST)
 
         if errors:
             raise errors
@@ -196,7 +198,6 @@ class CertificateCreateTask(Task):
         return ['system']
 
     def run(self, certificate):
-
         try:
             certificate['key_length'] = certificate.get('key_length', 2048)
             certificate['digest_algorithm'] = certificate.get('digest_algorithm', 'SHA256')
@@ -206,30 +207,28 @@ class CertificateCreateTask(Task):
 
             if certificate['type'] == 'CERT_INTERNAL':
 
-                signing_cert = self.datastore.get_one('crypto.certificates', ('name', '=', certificate['signedby']))
-
-                signkey = load_privatekey(signing_cert['privatekey'])
-
                 cert = create_certificate(certificate)
                 cert.set_pubkey(key)
-                cacert = crypto.load_certificate(crypto.FILETYPE_PEM, signing_cert['certificate'])
-
-                cert.set_issuer(cacert.get_subject())
-
                 cert.add_extensions([
-                    crypto.X509Extension("subjectKeyIdentifier".encode('utf-8'), False, "hash".encode('utf-8'), subject=cert),
+                    crypto.X509Extension("subjectKeyIdentifier".encode('utf-8'), False, "hash".encode('utf-8'),
+                                         subject=cert)
                 ])
-                cert.set_serial_number(signing_cert['serial'])
-                cert.sign(signkey, str(certificate['digest_algorithm']))
 
-                certificate['type'] = 'CERT_INTERNAL'
+                if certificate['signedby'] != 'selfsigned':
+                    signing_cert = self.datastore.get_one('crypto.certificates', ('name', '=', certificate['signedby']))
+                    signkey = load_privatekey(signing_cert['privatekey'])
+                    cacert = crypto.load_certificate(crypto.FILETYPE_PEM, signing_cert['certificate'])
+                    cert.set_issuer(cacert.get_subject())
+                    cert.sign(signkey, str(certificate['digest_algorithm']))
+                else:
+                    cert.set_issuer(cert.get_subject())
+                    cert.sign(key, str(certificate['digest_algorithm']))
+
                 certificate['certificate'] = crypto.dump_certificate(crypto.FILETYPE_PEM, cert)
                 certificate['privatekey'] = crypto.dump_privatekey(crypto.FILETYPE_PEM, key)
+                certificate['serial'] = cert.get_serial_number()
 
                 pkey = self.datastore.insert('crypto.certificates', certificate)
-
-                signing_cert['serial'] += 1
-                self.datastore.update('crypto.certificates', signing_cert['id'], signing_cert)
 
             if certificate['type'] == 'CERT_CSR':
 
@@ -254,42 +253,40 @@ class CertificateCreateTask(Task):
                 cert = create_certificate(certificate)
                 cert.set_pubkey(key)
                 cert.add_extensions([
-                    crypto.X509Extension("basicConstraints".encode('utf-8'), True, "CA:TRUE, pathlen:0".encode('utf-8')),
+                    crypto.X509Extension("basicConstraints".encode('utf-8'), True, "CA:TRUE".encode('utf-8')),
                     crypto.X509Extension("keyUsage".encode('utf-8'), True, "keyCertSign, cRLSign".encode('utf-8')),
                     crypto.X509Extension("subjectKeyIdentifier".encode('utf-8'), False, "hash".encode('utf-8'), subject=cert),
                 ])
-                cert.set_serial_number(1)
+                cert.set_issuer(cert.get_subject())
                 cert.sign(key, str(certificate['digest_algorithm']))
 
                 certificate['certificate'] = crypto.dump_certificate(crypto.FILETYPE_PEM, cert)
                 certificate['privatekey'] = crypto.dump_privatekey(crypto.FILETYPE_PEM, key)
-                certificate['serial'] = 1
+                certificate['serial'] = cert.get_serial_number()
 
                 pkey = self.datastore.insert('crypto.certificates', certificate)
 
             if certificate['type'] == 'CA_INTERMEDIATE':
 
                 signing_cert = self.datastore.get_one('crypto.certificates', ('name', '=', certificate['signedby']))
-
                 signkey = load_privatekey(signing_cert['privatekey'])
-
                 cert = create_certificate(certificate)
                 cert.set_pubkey(key)
                 cert.add_extensions([
-                    crypto.X509Extension("basicConstraints".encode('utf-8'), True, "CA:TRUE, pathlen:0".encode('utf-8')),
+                    crypto.X509Extension("basicConstraints".encode('utf-8'), True, "CA:TRUE".encode('utf-8')),
                     crypto.X509Extension("keyUsage".encode('utf-8'), True, "keyCertSign, cRLSign".encode('utf-8')),
                     crypto.X509Extension("subjectKeyIdentifier".encode('utf-8'), False, "hash".encode('utf-8'), subject=cert),
                 ])
-                cert.set_serial_number(signing_cert['serial'])
+                cacert = crypto.load_certificate(crypto.FILETYPE_PEM, signing_cert['certificate'])
+                cert.set_issuer(cacert.get_subject())
                 cert.sign(signkey, str(certificate['digest_algorithm']))
 
                 certificate['certificate'] = crypto.dump_certificate(crypto.FILETYPE_PEM, cert)
                 certificate['privatekey'] = crypto.dump_privatekey(crypto.FILETYPE_PEM, key)
+                certificate['serial'] = cert.get_serial_number()
 
                 pkey = self.datastore.insert('crypto.certificates', certificate)
 
-                signing_cert['serial'] += 1
-                self.datastore.update('crypto.certificates', signing_cert['id'], signing_cert)
             self.dispatcher.call_sync('etcd.generation.generate_group', 'crypto')
 
         except DatastoreException as e:
