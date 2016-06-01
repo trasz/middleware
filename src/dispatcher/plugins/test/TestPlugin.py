@@ -66,6 +66,14 @@ class TestDownloadTask(Task):
 
 
 class TestWarningsTask(Task):
+
+    @classmethod
+    def early_describe(cls):
+        return 'Task Warning Tests'
+
+    def describe(self):
+        return TaskDescription('Testing Task Warnings')
+
     def verify(self):
         return []
 
@@ -81,6 +89,13 @@ class TestWarningsTask(Task):
 @description("Dummy Progress Task to test shit 1")
 class ProgressChildTask1(ProgressTask):
 
+    @classmethod
+    def early_describe(cls):
+        return 'Dummy Progress Task'
+
+    def describe(self):
+        return TaskDescription('Dummy time.sleep based progress task (10 secs)')
+
     def verify(self):
         return ['system']
 
@@ -95,12 +110,19 @@ class ProgressChildTask1(ProgressTask):
 @description("Dummy Progress Task to test shit 2")
 class ProgressChildTask2(ProgressTask):
 
+    @classmethod
+    def early_describe(cls):
+        return 'Dummy Progress Task'
+
+    def describe(self):
+        return TaskDescription('Dummy time.sleep based progress task (20 secs)')
+
     def verify(self):
         return ['system']
 
     def run(self):
         self.message = "Execution {0} Task...".format(self.__class__.__name__)
-        for i in range(10):
+        for i in range(20):
             time.sleep(1)
             self.set_progress((i + 1) * 10)
 
@@ -108,6 +130,15 @@ class ProgressChildTask2(ProgressTask):
 @accepts()
 @description("Dummy Progess Master Task to test shit")
 class ProgressMasterTask(MasterProgressTask):
+
+    @classmethod
+    def early_describe(cls):
+        return 'Dummy Master Progress Task'
+
+    def describe(self):
+        return TaskDescription(
+            'Dummy MasterProgress Task that executes test.pchildtest1 & test.pchildtest2'
+        )
 
     def verify(self):
         return ['system']
