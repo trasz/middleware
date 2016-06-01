@@ -1151,6 +1151,8 @@ class ReplicateDatasetTask(ProgressTask):
         followdelete = options.get('followdelete', False)
         recursive = options.get('recursive', False)
         lifetime = options.get('lifetime', 365 * 24 * 60 * 60)
+        force = options.get('force', True)
+        nomount = options.get('nomount', False)
 
         self.join_subtasks(self.run_subtask(
             'volume.snapshot_dataset',
@@ -1263,7 +1265,8 @@ class ReplicateDatasetTask(ProgressTask):
                             'transport_plugins': transport_plugins,
                             'receive_properties': {
                                 'name': action['remotefs'],
-                                'force': True
+                                'force': force,
+                                'nomount': nomount
                             },
                             'estimated_size': send_size
                         }
