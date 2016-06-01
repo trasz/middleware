@@ -57,10 +57,11 @@ class ContainerProvider(Provider):
         def extend(obj):
             obj['status'] = self.dispatcher.call_sync('containerd.management.get_status', obj['id'])
             root = self.dispatcher.call_sync('container.get_container_root', obj['id'])
-            readme = get_readme(root)
-            if readme:
-                with open(readme, 'r') as readme_file:
-                    obj['template']['readme'] = readme_file.read()
+            if os.path.isdir(root):
+                readme = get_readme(root)
+                if readme:
+                    with open(readme, 'r') as readme_file:
+                        obj['template']['readme'] = readme_file.read()
             return obj
 
         return self.datastore.query('containers', *(filter or []), callback=extend, **(params or {}))
