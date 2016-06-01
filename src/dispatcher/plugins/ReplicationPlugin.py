@@ -31,6 +31,7 @@ import io
 import os
 import errno
 import time
+import copy
 import logging
 from cache import CacheStore
 from resources import Resource
@@ -244,27 +245,31 @@ class ReplicationBaseTask(Task):
                     {'readonly': {'value': 'on' if readonly else 'off'}}
                 ))
 
-    def set_datasets_mount(self, datasets, mount, client=None):
+    def set_datasets_mount(self, datasets, mount, recursive=False, client=None):
         for dataset in datasets:
             if client:
                 call_task_and_check_state(
                     client,
                     'zfs.{0}mount'.format('' if mount else 'u'),
-                    dataset['name']
+                    dataset['name'],
+                    recursive
                 )
             else:
                 self.join_subtasks(self.run_subtask(
                     'zfs.{0}mount'.format('' if mount else 'u'),
-                    dataset['name']
+                    dataset['name'],
+                    recursive
                 ))
 
-    def set_datasets_mount_ro(self, datasets, readonly, client=None):
+    def set_datasets_mount_ro(self, link, readonly, client=None):
+        all_datasets = self.dispatcher.call_sync('replication.link.datasets_from_link', link)
+        parent_datasets = self.get_parent_datasets(link)
         if readonly:
-            self.set_datasets_mount(datasets, False, client)
-            self.set_datasets_readonly(datasets, True, client)
+            self.set_datasets_mount(parent_datasets, False, link['recursive'], client)
+            self.set_datasets_readonly(all_datasets, True, client)
         else:
-            self.set_datasets_readonly(datasets, False, client)
-            self.set_datasets_mount(datasets, True, client)
+            self.set_datasets_readonly(all_datasets, False, client)
+            self.set_datasets_mount(parent_datasets, True, link['recursive'], client)
 
     def remove_datastore_timestamps(self, link):
         out_link = {}
@@ -601,13 +606,8 @@ class ReplicationPrepareSlaveTask(ReplicationBaseTask):
                                             ),
                                             stacktrace=e.stacktrace
                                         )
-                if link['recursive']:
-                    for dataset in sorted(link['datasets']):
-                        call_task_and_check_state(remote_client, 'zfs.umount', dataset, True)
-                else:
-                    for dataset in datasets_to_replicate:
-                        call_task_and_check_state(remote_client, 'zfs.umount', dataset['name'])
-                self.set_datasets_readonly(datasets_to_replicate, True, remote_client)
+
+                self.set_datasets_mount_ro(link, True, remote_client)
 
         else:
             call_task_and_check_state(remote_client, 'replication.prepare_slave', link)
@@ -702,6 +702,7 @@ class ReplicationUpdateTask(ReplicationBaseTask):
 
     def run(self, name, updated_fields):
         link = self.join_subtasks(self.run_subtask('replication.get_latest_link', name))[0]
+        original_link = copy.deepcopy(link)
         old_name = link['name']
         is_master, remote = self.get_replication_state(link)
         remote_available = True
@@ -715,7 +716,6 @@ class ReplicationUpdateTask(ReplicationBaseTask):
                 'Remote {0} is unreachable. Update is being performed only locally.'.format(remote)
             ))
 
-        old_slave_datasets = []
         updated_fields['update_date'] = str(datetime.utcnow())
 
         if 'datasets' in updated_fields:
@@ -724,10 +724,6 @@ class ReplicationUpdateTask(ReplicationBaseTask):
                     errno.EACCES,
                     'Cannot modify datasets, because remote {0} is unreachable'.format(remote)
                 )
-            client = self.dispatcher
-            if is_master:
-                client = remote_client
-            old_slave_datasets = client.call_sync('replication.link.datasets_from_link', link)
 
         link.update(updated_fields)
 
@@ -782,7 +778,7 @@ class ReplicationUpdateTask(ReplicationBaseTask):
 
         if 'datasets' in updated_fields:
             self.set_datasets_mount_ro(
-                old_slave_datasets,
+                original_link,
                 False,
                 remote_client if is_master else None
             )
@@ -791,7 +787,7 @@ class ReplicationUpdateTask(ReplicationBaseTask):
                 self.join_subtasks(self.run_subtask('replication.prepare_slave', link))
             except RpcException:
                 self.set_datasets_mount_ro(
-                    old_slave_datasets,
+                    original_link,
                     True,
                     remote_client if is_master else None
                 )
@@ -1448,28 +1444,6 @@ class ReplicationRoleUpdateTask(ReplicationBaseTask):
         return ['replication:{0}'.format(name)]
 
     def run(self, name):
-        def update_role(currently_master):
-            self.set_datasets_mount_ro(datasets, currently_master)
-            if currently_master:
-                mount = 'umount'
-                relation_type = 'related'
-                action_type = True
-            else:
-                mount = 'mount'
-                relation_type = 'reserved'
-                action_type = False
-
-            for dataset in datasets:
-                self.join_subtasks(self.run_subtask('zfs.{0}'.format(mount), dataset['name']))
-
-            for service in ['shares', 'containers']:
-                for reserved_item in self.dispatcher.call_sync('replication.link.get_{0}_{1}'.format(relation_type, service), name):
-                    self.join_subtasks(self.run_subtask(
-                        '{0}.immutable.set'.format(service[:-1]),
-                        reserved_item['id'],
-                        action_type
-                    ))
-
         link = self.join_subtasks(self.run_subtask('replication.get_latest_link', name))[0]
         if not link['bidirectional']:
             return
@@ -1482,12 +1456,22 @@ class ReplicationRoleUpdateTask(ReplicationBaseTask):
             {'single': True, 'select': 'properties.readonly.value'}
         )
 
-        if is_master:
+        if (is_master and current_readonly) or (not is_master and not current_readonly):
+            self.set_datasets_mount_ro(link, not current_readonly)
             if current_readonly:
-                update_role(False)
-        else:
-            if not current_readonly:
-                update_role(True)
+                relation_type = 'reserved'
+                action_type = False
+            else:
+                relation_type = 'related'
+                action_type = True
+
+            for service in ['shares', 'containers']:
+                for reserved_item in self.dispatcher.call_sync('replication.link.get_{0}_{1}'.format(relation_type, service), name):
+                    self.join_subtasks(self.run_subtask(
+                        '{0}.immutable.set'.format(service[:-1]),
+                        reserved_item['id'],
+                        action_type
+                    ))
 
 
 @description("Checks if provided replication link would not conflict with other links")
