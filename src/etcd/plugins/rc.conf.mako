@@ -223,3 +223,8 @@ ix_diagnose_enable="YES"
 % if adv_config.get('powerd'):
 powerd_enable="YES"
 % endif
+
+% if config.get("service.openvpn.enable"):
+openvpn_enable="YES"
+openvpn_configfile="/usr/local/etc/openvpn/openvpn.conf"
+% endif

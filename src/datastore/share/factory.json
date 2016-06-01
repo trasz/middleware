@@ -890,6 +890,28 @@
             "service.sshd.port": 22,
             "service.sshd.enable": true,
             "service.sshd.auxiliary": null,
+            "service.openvpn.enable": false,
+            "service.openvpn.dev": "tap",
+            "service.openvpn.ca": "",
+            "service.openvpn.port" : 1194,
+            "service.openvpn.cert": "",
+            "service.openvpn.key": "",
+            "service.openvpn.dh" : "",
+            "service.openvpn.tls-auth": null,
+            "service.openvpn.cipher": "BF-CBC",
+            "service.openvpn.server-bridge": true,
+            "service.openvpn.max-clients": 20,
+            "service.openvpn.crl-verify": null,
+            "service.openvpn.keepalive": [30, 180],
+            "service.openvpn.user": "nobody",
+            "service.openvpn.group": "nogroup",
+            "service.openvpn.port" : 1194,
+            "service.openvpn.proto": "udp",
+            "service.openvpn.comp-lzo" : true,
+            "service.openvpn.verb" : 3,
+            "service.openvpn.auxiliary" : null,
+            "service.openvpn.persist-key" : true,
+            "service.openvpn.persist-tun" : true,
             "service.nginx.http.redirect_https": false,
             "service.nginx.http.port": 80,
             "service.nginx.http.enable": true,
@@ -1183,6 +1205,15 @@
                 ],
                 "name": "replication"
             },
+	    "4F8F208C-046D-41D0-9628-D0699A4E4CDB":{
+ 	       "dependencies": [
+                    "group:services",
+                    "plugin:openvpn",
+                    "plugin:openvpn_client"
+                ],
+                "name": "openvpn"
+	    },
+
             "FF61A205-7EFA-11E5-BBEC-005056826348": {
                 "dependencies": [
                     "file:rc.conf"
@@ -1608,7 +1639,18 @@
                 "dependencies": [
                     "793867C5-BF29-4464-B7F1-7B77A9E2B97C"
                 ]
+            },
+		   "0A4792B5-E670-456A-A714-6806DE235DEA": {
+                "rcng": {
+                    "rc-scripts": "openvpn"
+                },
+                "pidfile": "/var/run/openvpn.pid",
+                "builtin": false,
+                "task": "service.openvpn.update",
+                "get_config_rpc": "service.openvpn.get_config",
+                "name": "openvpn"
             }
+
         },
         "metadata": {
             "attributes": {
