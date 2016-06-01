@@ -1455,6 +1455,7 @@ class ReplicationRoleUpdateTask(ReplicationBaseTask):
             [('name', '=', datasets[0]['name'])],
             {'single': True, 'select': 'properties.readonly.value'}
         )
+        current_readonly = True if current_readonly == 'on' else False
 
         if (is_master and current_readonly) or (not is_master and not current_readonly):
             self.set_datasets_mount_ro(link, not current_readonly)
