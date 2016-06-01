@@ -322,6 +322,7 @@ class ContainerCreateTask(ContainerBaseTask):
                 [('template.name', '=', container['template'].get('name'))],
                 {'single': True}
             )
+            template['template'].pop('readme')
 
             if template is None:
                 raise TaskException(errno.ENOENT, 'Template {0} not found'.format(container['template'].get('name')))
