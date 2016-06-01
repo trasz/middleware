@@ -178,7 +178,7 @@ class ReplicationLinkProvider(Provider):
     @private
     def get_reserved_containers(self, link_name):
         containers = []
-        link = self.dispatcher.call_task_sync('replication.link.get_latest_link', link_name)
+        link = self.dispatcher.call_task_sync('replication.get_latest_link', link_name)
         datasets = self.dispatcher.call_sync('replication.link.datasets_from_link', link)
         for dataset in datasets:
             containers.extend(
