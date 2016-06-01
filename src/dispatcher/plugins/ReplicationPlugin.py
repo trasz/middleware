@@ -309,6 +309,21 @@ class ReplicationBaseTask(Task):
                         )
         return True
 
+    def get_parent_datasets(self, link):
+        datasets_to_replicate = wrap(
+            self.dispatcher.call_sync('replication.link.datasets_from_link', link)
+        ).query(*[], **{'select': 'name'})
+        len_sorted_datasets = sorted(datasets_to_replicate, key=lambda item: (len(item), item))
+
+        parent_datasets = []
+        for parent_dataset in len_sorted_datasets:
+            parent_datasets.append(parent_dataset)
+            for dataset in datasets_to_replicate:
+                if dataset.startswith(parent_dataset + '/'):
+                    len_sorted_datasets.remove(dataset)
+
+        return parent_datasets
+
 
 @description("Sets up a replication link")
 @accepts(h.all_of(
@@ -833,16 +848,7 @@ class ReplicationSyncTask(ReplicationBaseTask):
             remote_client = get_replication_client(self.dispatcher, remote)
             if is_master:
                 with self.dispatcher.get_lock('volumes'):
-                    datasets_to_replicate = wrap(
-                        self.dispatcher.call_sync('replication.link.datasets_from_link', link)
-                    ).query(*[], **{'select': 'name'})
-                    len_sorted_datasets = sorted(datasets_to_replicate, key=lambda item: (len(item), item))
-                    parent_datasets = []
-                    for parent_dataset in len_sorted_datasets:
-                        parent_datasets.append(parent_dataset)
-                        for dataset in datasets_to_replicate:
-                            if dataset.startswith(parent_dataset + '/'):
-                                len_sorted_datasets.remove(dataset)
+                    parent_datasets = self.get_parent_datasets(link)
 
                     for dataset in parent_datasets:
                         result = self.join_subtasks(self.run_subtask(
