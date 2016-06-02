@@ -85,46 +85,29 @@ class TestWarningsTask(Task):
         )
 
 
-@accepts()
+@accepts(int)
 @description("Dummy Progress Task to test shit 1")
-class ProgressChildTask1(ProgressTask):
+class ProgressChildTask(ProgressTask):
 
     @classmethod
     def early_describe(cls):
         return 'Dummy Progress Task'
 
-    def describe(self):
-        return TaskDescription('Dummy time.sleep based progress task (10 secs)')
+    def describe(self, duration):
+        return TaskDescription('Dummy time.sleep based progress task ({0} secs)'.format(duration))
 
-    def verify(self):
+    def verify(self, duration):
         return ['system']
 
-    def run(self):
-        self.message = "Execution {0} Task...".format(self.__class__.__name__)
-        for i in range(10):
+    def run(self, duration):
+        self.message = "Executing {0} Task with duration of {1}...".format(
+            self.__class__.__name__,
+            duration
+        )
+        multiplier = 100.0 / duration
+        for i in range(duration):
             time.sleep(1)
-            self.set_progress((i + 1) * 10)
-
-
-@accepts()
-@description("Dummy Progress Task to test shit 2")
-class ProgressChildTask2(ProgressTask):
-
-    @classmethod
-    def early_describe(cls):
-        return 'Dummy Progress Task'
-
-    def describe(self):
-        return TaskDescription('Dummy time.sleep based progress task (20 secs)')
-
-    def verify(self):
-        return ['system']
-
-    def run(self):
-        self.message = "Execution {0} Task...".format(self.__class__.__name__)
-        for i in range(20):
-            time.sleep(1)
-            self.set_progress((i + 1) * 10)
+            self.set_progress((i + 1) * multiplier)
 
 
 @accepts()
@@ -137,7 +120,7 @@ class ProgressMasterTask(MasterProgressTask):
 
     def describe(self):
         return TaskDescription(
-            'Dummy MasterProgress Task that executes test.pchildtest1 & test.pchildtest2'
+            'Dummy MasterProgress Task that executes test.pchildtest twice with 5 second durations'
         )
 
     def verify(self):
@@ -145,13 +128,35 @@ class ProgressMasterTask(MasterProgressTask):
 
     def run(self):
         self.set_progress(0, 'Starting Master Progress Test Task...')
-        self.join_subtasks(self.run_subtask('test.pchildtest1', weight=0.5))
-        self.join_subtasks(self.run_subtask('test.pchildtest2', weight=0.5))
+        self.join_subtasks(self.run_subtask('test.pchildtest', 1, weight=0.2))
+        self.join_subtasks(self.run_subtask('test.pchildtest', 4, weight=0.8))
+
+
+@accepts()
+@description("Dummy Progess Master Task to test shit")
+class NestedProgressMasterTask(MasterProgressTask):
+
+    @classmethod
+    def early_describe(cls):
+        return 'Dummy Master Progress Nested Task'
+
+    def describe(self):
+        return TaskDescription(
+            'Dummy NestedMasterProgress Task that executes test.masterprogresstask & test.pchildtest'
+        )
+
+    def verify(self):
+        return ['system']
+
+    def run(self):
+        self.set_progress(0, 'Starting Master Progress Test Task...')
+        self.join_subtasks(self.run_subtask('test.masterprogresstask', weight=0.5))
+        self.join_subtasks(self.run_subtask('test.pchildtest', 5, weight=0.5))
 
 
 def _init(dispatcher, plugin):
     plugin.register_task_handler('test.test_download', TestDownloadTask)
     plugin.register_task_handler('test.test_warnings', TestWarningsTask)
-    plugin.register_task_handler("test.pchildtest1", ProgressChildTask1)
-    plugin.register_task_handler("test.pchildtest2", ProgressChildTask2)
-    plugin.register_task_handler("test.masterprogresstask", ProgressMasterTask)
+    plugin.register_task_handler('test.pchildtest', ProgressChildTask)
+    plugin.register_task_handler('test.masterprogresstask', ProgressMasterTask)
+    plugin.register_task_handler('test.nestedmasterprogresstask', NestedProgressMasterTask)
