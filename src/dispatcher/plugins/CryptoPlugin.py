@@ -177,9 +177,9 @@ class CertificateCreateTask(Task):
             if self.datastore.exists('crypto.certificates', ('name', '=', certificate['name'])):
                 errors.add((0, 'name'), 'Certificate with given name already exists', code=errno.EEXIST)
 
-            if certificate['signedby'] != 'selfsigned':
-                if not self.datastore.exists('crypto.certificates', ('name', '=', certificate['signedby'])):
-                    errors.add((0, 'signedby'), 'Signing certificate does not exist', code=errno.EEXIST)
+            if certificate['signing_ca_name'] != 'selfsigned':
+                if not self.datastore.exists('crypto.certificates', ('name', '=', certificate['signing_ca_name'])):
+                    errors.add((0, 'signing_ca_name'), 'Signing certificate does not exist', code=errno.EEXIST)
 
             if '"' in certificate['name']:
                 errors.add((
@@ -188,9 +188,9 @@ class CertificateCreateTask(Task):
                 )
 
         if certificate['type'] in ('CERT_INTERNAL', 'CA_INTERMEDIATE'):
-            if certificate['signedby'] != 'selfsigned':
-                if 'signedby' not in certificate or not self.datastore.exists('crypto.certificates', ('name', '=', certificate['signedby'])):
-                    errors.add((0, 'signedby'), 'Signing Certificate does not exist', code=errno.EEXIST)
+            if certificate['signing_ca_name'] != 'selfsigned':
+                if 'signing_ca_name' not in certificate or not self.datastore.exists('crypto.certificates', ('name', '=', certificate['signing_ca_name'])):
+                    errors.add((0, 'signing_ca_name'), 'Signing Certificate does not exist', code=errno.EEXIST)
 
         if errors:
             raise errors
@@ -214,9 +214,10 @@ class CertificateCreateTask(Task):
                                          subject=cert)
                 ])
 
-                if certificate['signedby'] != 'selfsigned':
-                    signing_cert = self.datastore.get_one('crypto.certificates', ('name', '=', certificate['signedby']))
+                if certificate['signing_ca_name'] != 'selfsigned':
+                    signing_cert = self.datastore.get_one('crypto.certificates', ('name', '=', certificate['signing_ca_name']))
                     signkey = load_privatekey(signing_cert['privatekey'])
+                    certificate['signing_ca_id'] = signing_cert['id']
                     cacert = crypto.load_certificate(crypto.FILETYPE_PEM, signing_cert['certificate'])
                     cert.set_issuer(cacert.get_subject())
                     cert.sign(signkey, str(certificate['digest_algorithm']))
@@ -268,7 +269,7 @@ class CertificateCreateTask(Task):
 
             if certificate['type'] == 'CA_INTERMEDIATE':
 
-                signing_cert = self.datastore.get_one('crypto.certificates', ('name', '=', certificate['signedby']))
+                signing_cert = self.datastore.get_one('crypto.certificates', ('name', '=', certificate['signing_ca_name']))
                 signkey = load_privatekey(signing_cert['privatekey'])
                 cert = create_certificate(certificate)
                 cert.set_pubkey(key)
@@ -284,6 +285,7 @@ class CertificateCreateTask(Task):
                 certificate['certificate'] = crypto.dump_certificate(crypto.FILETYPE_PEM, cert).decode('utf-8')
                 certificate['privatekey'] = crypto.dump_privatekey(crypto.FILETYPE_PEM, key).decode('utf-8')
                 certificate['serial'] = cert.get_serial_number()
+                certificate['signing_ca_id'] = signing_cert['id']
 
                 pkey = self.datastore.insert('crypto.certificates', certificate)
 
@@ -454,8 +456,10 @@ class CertificateDeleteTask(Task):
         return ['system']
 
     def run(self, id):
+        ids = [id]
         try:
-            for i in self.datastore.query('crypto.certificates', ('signedby', '=', id)):
+            for i in self.datastore.query('crypto.certificates', ('signing_ca_id', '=', id)):
+                ids.append(i['id'])
                 self.datastore.delete('crypto.certificates', i['id'])
 
             self.datastore.delete('crypto.certificates', id)
@@ -467,7 +471,7 @@ class CertificateDeleteTask(Task):
 
         self.dispatcher.dispatch_event('crypto.certificate.changed', {
             'operation': 'delete',
-            'ids': [id]
+            'ids': ids
         })
 
 
@@ -504,7 +508,8 @@ def _init(dispatcher, plugin):
             'email': {'type': 'string'},
             'common': {'type': 'string'},
             'serial': {'type': 'integer'},
-            'signedby': {'type': 'string'},
+            'signing_ca_name': {'type': 'string'},
+            'signing_ca_id': {'type': 'string'},
             'dn': {'type': 'string', 'readOnly': True},
             'valid_from': {'type': ['string', 'null'], 'readOnly': True},
             'valid_until': {'type': ['string', 'null'], 'readOnly': True},
