@@ -481,7 +481,7 @@ class ReplicationPrepareSlaveTask(ReplicationBaseTask):
                             if remote_share:
                                 raise TaskException(
                                     errno.EEXIST,
-                                    'Share {0} already exists on {1}'.format(share['name'], remote.split('@', 1)[1])
+                                    'Share {0} already exists on {1}'.format(share['name'], remote)
                                 )
 
                         container = self.dispatcher.call_sync('container.get_dependent', dataset['name'])
@@ -494,7 +494,7 @@ class ReplicationPrepareSlaveTask(ReplicationBaseTask):
                             if remote_container:
                                 raise TaskException(
                                     errno.EEXIST,
-                                    'Container {0} already exists on {1}'.format(container['name'], remote.split('@', 1)[1])
+                                    'Container {0} already exists on {1}'.format(container['name'], remote)
                                 )
 
                     sp_dataset = dataset['name'].split('/', 1)
