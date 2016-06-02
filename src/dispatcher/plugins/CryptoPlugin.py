@@ -171,29 +171,23 @@ class CertificateCreateTask(Task):
         return TaskDescription("Creating certificate {name}", name=certificate['name'])
 
     def verify(self, certificate):
-        errors = ValidationException()
-
         if certificate['type'] == 'CERT_INTERNAL':
             if self.datastore.exists('crypto.certificates', ('name', '=', certificate['name'])):
-                errors.add((0, 'name'), 'Certificate with given name already exists', code=errno.EEXIST)
+                raise VerifyException(errno.EEXIST, 'Certificate named "{0}" already exists'.format(certificate['name']))
 
             if certificate['signing_ca_name'] != 'selfsigned':
                 if not self.datastore.exists('crypto.certificates', ('name', '=', certificate['signing_ca_name'])):
-                    errors.add((0, 'signing_ca_name'), 'Signing certificate does not exist', code=errno.EEXIST)
+                    raise VerifyException(errno.ENOENT,
+                                          'Signing certificate "{0}" not found'.format(certificate['signing_ca_name']))
 
             if '"' in certificate['name']:
-                errors.add((
-                    (0, 'name'),
-                    'You cannot issue a certificate with a `"` in its name')
-                )
+                raise VerifyException(errno.EINVAL, 'Provide certificate name without : `"`')
 
         if certificate['type'] in ('CERT_INTERNAL', 'CA_INTERMEDIATE'):
             if certificate['signing_ca_name'] != 'selfsigned':
                 if 'signing_ca_name' not in certificate or not self.datastore.exists('crypto.certificates', ('name', '=', certificate['signing_ca_name'])):
-                    errors.add((0, 'signing_ca_name'), 'Signing Certificate does not exist', code=errno.EEXIST)
-
-        if errors:
-            raise errors
+                    raise VerifyException(errno.ENOENT,
+                                          'Signing certificate "{0}" not found'.format(certificate['signing_ca_name']))
 
         return ['system']
 
@@ -320,25 +314,14 @@ class CertificateImportTask(Task):
     def verify(self, certificate):
 
         if self.datastore.exists('crypto.certificates', ('name', '=', certificate['name'])):
-            raise VerifyException(errno.EEXIST, 'Certificate with given name already exists')
+            raise VerifyException(errno.EEXIST, 'Certificate named "{0}" already exists'.format(certificate['name']))
 
         if certificate['type'] not in ('CERT_EXISTING', 'CA_EXISTING'):
             raise VerifyException(errno.EINVAL, 'Invalid certificate type')
 
-        errors = ValidationException()
-        for i in ('country', 'state', 'city', 'organization', 'email', 'common'):
-            if i in certificate:
-                errors.add((0, i), '{0} is not valid in certificate import'.format(i))
-        if errors:
-            raise errors
-
-        if certificate['type'] == 'CERT_EXISTING' and (
-            'privatekey' not in certificate or
-            'passphrase' not in certificate
-        ):
-            raise VerifyException(
-                errno.EINVAL, 'privatekey and passphrase required to import certificate'
-            )
+        if certificate['type'] == 'CERT_EXISTING':
+            if 'privatekey' not in certificate or 'passphrase' not in certificate:
+                raise VerifyException(errno.EINVAL, 'privatekey and passphrase required to import certificate')
 
         try:
             if 'privatekey' in certificate:
