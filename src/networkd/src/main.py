@@ -1015,7 +1015,7 @@ class Main(object):
                 'INIT',
                 'SELECTING',
                 'REQUESTING',
-                'INIT-REBOOT',
+                'INIT_REBOOT',
                 'REBOOTING',
                 'BOUND',
                 'RENEWING',
