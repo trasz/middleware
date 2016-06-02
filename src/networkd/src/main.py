@@ -824,6 +824,9 @@ class Main(object):
                 proc.communicate('\n'.join(inp).encode('ascii'))
                 proc.wait()
                 self.logger.info('Updated DNS configuration')
+            else:
+                subprocess.call(['/sbin/resolvconf', '-d', interface])
+                self.logger.info('Deleted DNS configuration')
 
         def unbind(lease, reason):
             reasons = {
