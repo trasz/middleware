@@ -1006,6 +1006,20 @@ class Main(object):
             ]
         })
 
+        self.client.register_schema('network-interface-dhcp-state', {
+            'type': 'string',
+            'enum': [
+                'INIT',
+                'SELECTING',
+                'REQUESTING',
+                'INIT-REBOOT',
+                'REBOOTING',
+                'BOUND',
+                'RENEWING',
+                'REBINDING'
+            ]
+        })
+
         self.client.register_schema('network-interface-status', {
             'type': 'object',
             'properties': {
