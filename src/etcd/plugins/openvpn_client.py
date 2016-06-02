@@ -92,7 +92,7 @@ def run(context):
     openvpn_client_conf = process_config(context, openvpn_conf)
 
     with open('{0}/openvpn_client_config'.format(OPENVPN_DIR), 'w') as f:
-        f.write(CONFIG_MESSAGE.format(openvpn_conf['ca']))
+        f.write(CONFIG_MESSAGE.format(openvpn_client_conf['ca'].split('.')[0]))
 
         for k, v in openvpn_client_conf.items():
              f.write('{0} {1}\n'.format(k, v))     
