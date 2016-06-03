@@ -31,12 +31,12 @@ import logging
 import ipaddress
 
 from datastore.config import ConfigNode
-from task import Task, Provider, VerifyException, TaskException
+from task import Task, Provider, VerifyException, TaskException, TaskDescription
 from lib.system import system, SubprocessException
 from freenas.dispatcher.rpc import RpcException, SchemaHelper as h, accepts, returns, description
 
 
-logger = logging.getLogger('OpenVpnPLugin')
+logger = logging.getLogger(__name__)
 
 
 @description('Provides OpenVPN service configuration')
@@ -78,6 +78,13 @@ class OpenVPNClientConfigProvider(Provider):
         h.required('dev', 'ca', 'cert', 'key', 'cipher', 'port', 'proto')
     ))
 class OpenVpnConfigureTask(Task):
+    @classmethod
+    def early_describe(cls):
+        return 'Configuring OpenVPN service'
+
+    def describe(self, openvpn):
+        return TaskDescription('Configuring OpenVPN service')
+
     def verify(self, openvpn):
         interface_pattern = '(tap|tun)[0-9]'
         node = ConfigNode('service.openvpn', self.configstore).__getstate__()
@@ -144,7 +151,7 @@ class OpenVpnConfigureTask(Task):
 			
             self.dispatcher.call_sync('etcd.generation.generate_group', 'openvpn')
             self.dispatcher.dispatch_event('service.openvpn.changed', {
-                'operation': 'updated',
+                'operation': 'update',
                 'ids': None,
             })
 
@@ -162,6 +169,13 @@ class OpenVPNGenerateKeys(Task):
         Generation of 2048 bit dh parameters can take a long time.
         Maybe this task should be ProgressTask type? - need consultation on that 
     '''
+    @classmethod
+    def early_describe(cls):
+        return 'Generating OpenVPN cryptographic parameters'
+
+    def describe(self, key_type, key_length):
+        return TaskDescription('Generating {0} OpenVPN cryptographic values'.format(key_type))
+
     def verify(self, key_type, key_length):
         if key_type not in ['dh-parameters', 'tls-auth-key']:
             raise VerifyException(errno.EINVAL, 'Type dh-parameters or tls-auth-key')
@@ -181,7 +195,7 @@ class OpenVPNGenerateKeys(Task):
                 self.configstore.set('service.openvpn.dh', dhparams)
                 self.dispatcher.call_sync('etcd.generation.generate_group', 'openvpn')
                 self.dispatcher.dispatch_event('service.openvpn.changed', {
-                    'operation': 'updated',
+                    'operation': 'update',
                     'ids': None,
                  })
 
@@ -191,7 +205,7 @@ class OpenVPNGenerateKeys(Task):
                 self.configstore.set('service.openvpn.tls-auth',tls_auth_key)
                 self.dispatcher.call_sync('etcd.generation.generate_group', 'openvpn')
                 self.dispatcher.dispatch_event('service.openvpn.changed', {
-                    'operation': 'updated',
+                    'operation': 'update',
                     'ids': None,
                  })
 
@@ -200,8 +214,6 @@ class OpenVPNGenerateKeys(Task):
                                 'Cannot reconfigure OpenVPN: {0}'.format(str(e)))
             
         except SubprocessException as e:
-            logger.warning('Cannont create requested key - '
-                           'check your system setup {0}'.format(e))
             raise TaskException(errno.ENOENT,
                                 'Cannont create requested key - check your system setup {0}'.format(e))
 
@@ -213,6 +225,13 @@ class BridgeOpenVPNtoLocalNetwork(Task):
     ''' This is acctually all wrong. This interfere with containterd and should be managed by networkd.
         Look at it as a PoC of my approach. 
     '''
+    @classmethod
+    def early_describe(cls):
+        return 'Bridging OpenVPN to main interface'
+
+    def describe(self, enabled):
+        return TaskDescription('Bridging OpenVPN to main interface')
+
     def verify(self, bridge_enable=False):
         vpn_interface = self.configstore.get('service.openvpn.dev')
         if bridge_enable:
