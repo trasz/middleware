@@ -128,8 +128,8 @@ class ProgressMasterTask(MasterProgressTask):
 
     def run(self):
         self.set_progress(0, 'Starting Master Progress Test Task...')
-        self.join_subtasks(self.run_subtask('test.pchildtest', 1, weight=0.2))
-        self.join_subtasks(self.run_subtask('test.pchildtest', 4, weight=0.8))
+        self.join_subtasks(self.run_subtask('test.pchildtest', 1, weight=0.5))
+        self.join_subtasks(self.run_subtask('test.pchildtest', 1, weight=0.5))
 
 
 @accepts()
@@ -150,8 +150,8 @@ class NestedProgressMasterTask(MasterProgressTask):
 
     def run(self):
         self.set_progress(0, 'Starting Master Progress Test Task...')
-        self.join_subtasks(self.run_subtask('test.masterprogresstask', weight=0.5))
-        self.join_subtasks(self.run_subtask('test.pchildtest', 5, weight=0.5))
+        self.join_subtasks(self.run_subtask('test.masterprogresstask', weight=0.67))
+        self.join_subtasks(self.run_subtask('test.pchildtest', 1, weight=0.33))
 
 
 def _init(dispatcher, plugin):

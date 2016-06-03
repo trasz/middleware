@@ -78,6 +78,7 @@ class TaskExecutor(object):
         self.exiting = False
         self.task_started = Event()
         self.thread = gevent.spawn(self.executor)
+        self.status_lock = RLock()
 
     def checkin(self, conn):
         self.balancer.logger.debug('Check-in of worker #{0} (key {1})'.format(self.index, self.key))
@@ -86,85 +87,87 @@ class TaskExecutor(object):
         self.checked_in.set()
 
     def get_status(self):
-        if not self.conn:
-            return None
+        with self.status_lock:
+            if not self.conn:
+                return None
 
-        self.task_started.wait()
-        try:
-            st = TaskStatus(0)
-            if issubclass(self.task.clazz, MasterProgressTask):
-                progress_subtask_info = self.conn.call_client_sync(
-                    'taskproxy.get_master_progress_info'
-                )
-                if progress_subtask_info['increment_progress'] != 0:
-                    progress_subtask_info['progress'] += progress_subtask_info['increment_progress']
-                    progress_subtask_info['increment_progress'] = 0
-                    self.conn.call_client_sync(
-                        'taskproxy.set_master_progress_detail',
-                        {
-                            'progress': progress_subtask_info['progress'],
-                            'increment_progress': progress_subtask_info['increment_progress']
-                        }
+            self.task_started.wait()
+            try:
+                st = TaskStatus(0)
+                if issubclass(self.task.clazz, MasterProgressTask):
+                    progress_subtask_info = self.conn.call_client_sync(
+                        'taskproxy.get_master_progress_info'
                     )
-                if progress_subtask_info['active_tids']:
-                    progress_to_increment = 0
-                    concurent_weight = progress_subtask_info['concurent_subtask_detail']['average_weight']
-                    for tid in progress_subtask_info['concurent_subtask_detail']['tids']:
-                        subtask_status = self.balancer.get_task(tid).executor.get_status()
-                        progress_to_increment += subtask_status.percentage * concurent_weight * \
-                            progress_subtask_info['subtask_weights'][str(tid)]
-                    for tid in set(progress_subtask_info['active_tids']).symmetric_difference(
-                        set(progress_subtask_info['concurent_subtask_detail']['tids'])
-                    ):
-                        subtask_status = self.balancer.get_task(tid).executor.get_status()
-                        progress_to_increment += subtask_status.percentage * \
-                            progress_subtask_info['subtask_weights'][str(tid)]
-                    progress_subtask_info['progress'] += int(progress_to_increment)
-                    if progress_subtask_info['pass_subtask_details']:
-                        progress_subtask_info['message'] = subtask_status.message
-                st = TaskStatus(
-                    progress_subtask_info['progress'], progress_subtask_info['message']
-                )
-            else:
-                st.__setstate__(self.conn.call_client_sync('taskproxy.get_status'))
-            return st
+                    if progress_subtask_info['increment_progress'] != 0:
+                        progress_subtask_info['progress'] += progress_subtask_info['increment_progress']
+                        progress_subtask_info['increment_progress'] = 0
+                        self.conn.call_client_sync(
+                            'taskproxy.set_master_progress_detail',
+                            {
+                                'progress': progress_subtask_info['progress'],
+                                'increment_progress': progress_subtask_info['increment_progress']
+                            }
+                        )
+                    if progress_subtask_info['active_tids']:
+                        progress_to_increment = 0
+                        concurent_weight = progress_subtask_info['concurent_subtask_detail']['average_weight']
+                        for tid in progress_subtask_info['concurent_subtask_detail']['tids']:
+                            subtask_status = self.balancer.get_task(tid).executor.get_status()
+                            progress_to_increment += subtask_status.percentage * concurent_weight * \
+                                progress_subtask_info['subtask_weights'][str(tid)]
+                        for tid in set(progress_subtask_info['active_tids']).symmetric_difference(
+                            set(progress_subtask_info['concurent_subtask_detail']['tids'])
+                        ):
+                            subtask_status = self.balancer.get_task(tid).executor.get_status()
+                            progress_to_increment += subtask_status.percentage * \
+                                progress_subtask_info['subtask_weights'][str(tid)]
+                        progress_subtask_info['progress'] += int(progress_to_increment)
+                        if progress_subtask_info['pass_subtask_details']:
+                            progress_subtask_info['message'] = subtask_status.message
+                    st = TaskStatus(
+                        progress_subtask_info['progress'], progress_subtask_info['message']
+                    )
+                else:
+                    st.__setstate__(self.conn.call_client_sync('taskproxy.get_status'))
+                return st
 
-        except RpcException as err:
-            self.balancer.logger.error(
-                "Cannot obtain status from task #{0}: {1}".format(self.task.id, str(err))
-            )
-            self.proc.terminate()
+            except RpcException as err:
+                self.balancer.logger.error(
+                    "Cannot obtain status from task #{0}: {1}".format(self.task.id, str(err))
+                )
+                self.proc.terminate()
 
     def put_status(self, status):
-        # Try to collect rusage at this point, when process is still alive
-        try:
-            kinfo = bsd.kinfo_getproc(self.pid)
-            self.task.rusage = kinfo.rusage
-        except LookupError:
-            pass
+        with self.status_lock:
+            # Try to collect rusage at this point, when process is still alive
+            try:
+                kinfo = bsd.kinfo_getproc(self.pid)
+                self.task.rusage = kinfo.rusage
+            except LookupError:
+                pass
 
-        if status['status'] == 'ROLLBACK':
-            self.task.set_state(TaskState.ROLLBACK)
+            if status['status'] == 'ROLLBACK':
+                self.task.set_state(TaskState.ROLLBACK)
 
-        if status['status'] == 'FINISHED':
-            self.result.set(status['result'])
+            if status['status'] == 'FINISHED':
+                self.result.set(status['result'])
 
-        if status['status'] == 'FAILED':
-            error = status['error']
-            cls = TaskException
+            if status['status'] == 'FAILED':
+                error = status['error']
+                cls = TaskException
 
-            if error['type'] == 'task.TaskAbortException':
-                cls = TaskAbortException
+                if error['type'] == 'task.TaskAbortException':
+                    cls = TaskAbortException
 
-            if error['type'] == 'ValidationException':
-                cls = ValidationException
+                if error['type'] == 'ValidationException':
+                    cls = ValidationException
 
-            self.result.set_exception(cls(
-                code=error['code'],
-                message=error['message'],
-                stacktrace=error['stacktrace'],
-                extra=error.get('extra')
-            ))
+                self.result.set_exception(cls(
+                    code=error['code'],
+                    message=error['message'],
+                    stacktrace=error['stacktrace'],
+                    extra=error.get('extra')
+                ))
 
     def put_warning(self, warning):
         self.task.add_warning(warning)
