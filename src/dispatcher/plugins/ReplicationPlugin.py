@@ -171,7 +171,7 @@ class ReplicationLinkProvider(Provider):
             shares.extend(
                 wrap(
                     self.dispatcher.call_sync('share.get_dependencies', dataset_path, False, False)
-                ).query(*[('immutable', '=', True)], **{})
+                ).query(('immutable', '=', True))
             )
 
         return shares
@@ -185,7 +185,7 @@ class ReplicationLinkProvider(Provider):
             containers.extend(
                 wrap(
                     self.dispatcher.call_sync('share.get_dependencies', dataset['name'], False)
-                ).query(*[('immutable', '=', True)], **{})
+                ).query(('immutable', '=', True))
             )
 
         return containers
