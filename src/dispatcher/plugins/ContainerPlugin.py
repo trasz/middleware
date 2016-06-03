@@ -106,9 +106,9 @@ class ContainerProvider(Provider):
     def get_dependent(self, dataset, extend=True):
         path_parts = dataset.split('/')
         if len(path_parts) != 3:
-            return None
+            return []
         if path_parts[1] != 'vm':
-            return None
+            return []
 
         arguments = (
             [('name', '=', path_parts[2]), ('target', '=', path_parts[0])],
