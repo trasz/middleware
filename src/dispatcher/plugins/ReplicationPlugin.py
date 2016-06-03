@@ -184,7 +184,7 @@ class ReplicationLinkProvider(Provider):
         for dataset in datasets:
             containers.extend(
                 wrap(
-                    self.dispatcher.call_sync('container.get_dependent', dataset['name'], False)
+                    self.dispatcher.call_sync('container.get_dependent', dataset['name'])
                 ).query(('immutable', '=', True))
             )
 
@@ -207,7 +207,7 @@ class ReplicationLinkProvider(Provider):
         link = self.dispatcher.call_task_sync('replication.get_latest_link', link_name)
         datasets = self.dispatcher.call_sync('replication.link.datasets_from_link', link)
         for dataset in datasets:
-            container = self.dispatcher.call_sync('container.get_dependent', dataset['name'], False)
+            container = self.dispatcher.call_sync('container.get_dependent', dataset['name'])
             if container:
                 containers.extend(container)
 
@@ -484,7 +484,7 @@ class ReplicationPrepareSlaveTask(ReplicationBaseTask):
                                     'Share {0} already exists on {1}'.format(share['name'], remote)
                                 )
 
-                        container = self.dispatcher.call_sync('container.get_dependent', dataset['name'])
+                        container = self.dispatcher.call_sync('container.get_dependent', dataset['name'])[0]
                         if container:
                             remote_container = remote_client.call_sync(
                                 'container.query',
