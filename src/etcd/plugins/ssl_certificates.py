@@ -25,23 +25,60 @@
 #
 #####################################################################
 import os
-
-
-def generate_file(context, path, content):
-    if not os.path.exists(os.path.dirname(path)):
-        os.makedirs(os.path.dirname(path), 0o755)
-
-    with open(path, 'w') as f:
-        f.write(content)
-
-    context.emit_event('etcd.file_generated', {
-        'filename': path
-    })
+import glob
 
 
 def run(context):
+    cert_files_names_and_paths = get_cert_files_short_names_and_abs_paths()
+    cert_files_names = set(e.get('short_name') for e in cert_files_names_and_paths)
 
-    for cert in context.client.call_sync('crypto.certificate.query'):
+    datastore_certs = context.client.call_sync('crypto.certificate.query')
+    datastore_certs_names = set(e.get('name') for e in datastore_certs)
+
+    cert_file_names_to_delete = cert_files_names - datastore_certs_names
+    cert_file_names_to_create = datastore_certs_names - cert_files_names
+
+    cert_files_to_delete = [e for e in cert_files_names_and_paths if e.get('short_name') in cert_file_names_to_delete]
+    datastore_certs_to_create = [e for e in datastore_certs if e.get('name') in cert_file_names_to_create]
+
+    if cert_files_to_delete:
+        delete_cert_files(context, cert_files_to_delete)
+
+    if datastore_certs_to_create:
+        generate_cert_files(context, datastore_certs_to_create)
+
+
+def get_cert_files_short_names_and_abs_paths():
+    """Returns array of dicts where each dict describes short name (without suffix) of cert file and it's path"""
+    file_names_and_paths = []
+    for name in get_cert_files_fully_qualified_names():
+        (path, filename) = os.path.split(name)
+        (file_shortname, file_extension) = os.path.splitext(filename)
+        file_names_and_paths.append({'short_name': file_shortname, 'abs_path': path})
+
+    return file_names_and_paths
+
+
+def get_cert_files_fully_qualified_names():
+    """Returns array of fully qualified names of certificate files"""
+    def flatten_nested_array(nested_arr):
+        return [e for arr in nested_arr for e in arr]
+
+    cert_files = [glob.glob(os.path.join(path, '*.crt')) for path in get_cert_dirs_paths()]
+
+    return flatten_nested_array(cert_files)
+
+
+def get_cert_dirs_paths():
+    """Returns array of absolute paths to directories containing certificates"""
+    certs_path = '/etc/certificates'
+    cacerts_path = '/etc/certificates/CA'
+
+    return [certs_path, cacerts_path]
+
+
+def generate_cert_files(context, certs_to_create):
+    for cert in certs_to_create:
 
         certificate = cert.get('certificate')
         if certificate:
@@ -54,3 +91,26 @@ def run(context):
         csr = cert.get('csr')
         if csr and csr['type'] == 'CERT_CSR':
             generate_file(context, cert['csr_path'], csr)
+
+
+def generate_file(context, path, content):
+    if not os.path.exists(os.path.dirname(path)):
+        os.makedirs(os.path.dirname(path), 0o755)
+
+    with open(path, 'w') as f:
+        f.write(content)
+    context.emit_event('etcd.file_generated', {'filename': path})
+
+
+def delete_cert_files(context, certs_to_delete):
+    def get_all_cert_related_files(cert_name, cert_path):
+        return glob.glob(os.path.join(cert_path, cert_name+".*"))
+
+    for cert_file in certs_to_delete:
+        for f in get_all_cert_related_files(cert_file['short_name'], cert_file['abs_path']):
+            delete_file(context, f)
+
+
+def delete_file(context, path):
+    os.remove(path)
+    context.emit_event('etcd.file_generated', {'filename': path})
