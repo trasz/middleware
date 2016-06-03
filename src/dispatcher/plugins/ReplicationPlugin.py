@@ -800,14 +800,27 @@ class ReplicationUpdateTask(ReplicationBaseTask):
                     'replication.update_link',
                     self.remove_datastore_timestamps(link)
                 )
-            except RpcException as e:
+            except TaskException as e:
                 self.add_warning(TaskWarning(
                     e.code,
-                    'Link update at remote side failed because of: {0}'.format(e.message)
+                    'Link update at remote side failed: {0}'.format(e.message)
                 ))
 
         self.datastore.update('replication.links', link['id'], link)
         self.dispatcher.call_sync('replication.link.link_cache_put', link)
+
+        if remote_available and link['replicate_services']:
+            try:
+                call_task_and_check_state(
+                    remote_client,
+                    'replication.reserve_services',
+                    link['name']
+                )
+            except TaskException as e:
+                self.add_warning(TaskWarning(
+                    e.code,
+                    'Service reservation failed: {0}'.format(e.message)
+                ))
 
         self.dispatcher.dispatch_event('replication.link.changed', {
             'operation': 'update',
@@ -1616,10 +1629,11 @@ def _init(dispatcher, plugin):
         links = dispatcher.call_sync('replication.link.sync_query')
         # And retry failed ones over encrypted link
         for link in links:
-            status = link.get('status')
-            if status:
-                if status['status'] == 'FAILED':
-                    try:
+            try:
+                dispatcher.call_task_sync('replication.reserve_services', link['name'])
+                status = link.get('status')
+                if status:
+                    if status['status'] == 'FAILED':
                         dispatcher.call_task_sync(
                             'replication.sync',
                             link['name'],
@@ -1628,8 +1642,8 @@ def _init(dispatcher, plugin):
                                 'type': 'AES128'
                             }]
                         )
-                    except TaskException:
-                        pass
+            except TaskException:
+                pass
 
     plugin.register_event_handler('plugin.service_resume', on_etcd_resume)
     plugin.register_event_handler('replication.link.changed', on_replication_change)
