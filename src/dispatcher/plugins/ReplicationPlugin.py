@@ -184,7 +184,7 @@ class ReplicationLinkProvider(Provider):
         for dataset in datasets:
             containers.extend(
                 wrap(
-                    self.dispatcher.call_sync('share.get_dependencies', dataset['name'], False)
+                    self.dispatcher.call_sync('container.get_dependent', dataset['name'], False)
                 ).query(('immutable', '=', True))
             )
 
