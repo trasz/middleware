@@ -163,55 +163,19 @@ class ReplicationLinkProvider(Provider):
 
     @private
     def get_reserved_shares(self, link_name):
-        shares = []
-        link = self.dispatcher.call_task_sync('replication.get_latest_link', link_name)
-        datasets = self.dispatcher.call_sync('replication.link.datasets_from_link', link)
-        for dataset in datasets:
-            dataset_path = self.dispatcher.call_sync('volume.get_dataset_path', dataset['name'])
-            shares.extend(
-                wrap(
-                    self.dispatcher.call_sync('share.get_dependencies', dataset_path, False, False)
-                ).query(('immutable', '=', True))
-            )
-
-        return shares
+        return get_services(self.dispatcher, 'share', 'reserved', link_name)
 
     @private
     def get_reserved_containers(self, link_name):
-        containers = []
-        link = self.dispatcher.call_task_sync('replication.get_latest_link', link_name)
-        datasets = self.dispatcher.call_sync('replication.link.datasets_from_link', link)
-        for dataset in datasets:
-            containers.extend(
-                wrap(
-                    self.dispatcher.call_sync('container.get_dependent', dataset['name'])
-                ).query(('immutable', '=', True))
-            )
-
-        return containers
+        return get_services(self.dispatcher, 'container', 'reserved', link_name)
 
     @private
     def get_related_shares(self, link_name):
-        shares = []
-        link = self.dispatcher.call_task_sync('replication.get_latest_link', link_name)
-        datasets = self.dispatcher.call_sync('replication.link.datasets_from_link', link)
-        for dataset in datasets:
-            dataset_path = self.dispatcher.call_sync('volume.get_dataset_path', dataset['name'])
-            shares.extend(self.dispatcher.call_sync('share.get_dependencies', dataset_path, False, False))
-
-        return shares
+        return get_services(self.dispatcher, 'share', 'related', link_name)
 
     @private
     def get_related_containers(self, link_name):
-        containers = []
-        link = self.dispatcher.call_task_sync('replication.get_latest_link', link_name)
-        datasets = self.dispatcher.call_sync('replication.link.datasets_from_link', link)
-        for dataset in datasets:
-            container = self.dispatcher.call_sync('container.get_dependent', dataset['name'])
-            if container:
-                containers.extend(container)
-
-        return containers
+        return get_services(self.dispatcher, 'container', 'related', link_name)
 
 
 class ReplicationBaseTask(Task):
@@ -484,17 +448,18 @@ class ReplicationPrepareSlaveTask(ReplicationBaseTask):
                                     'Share {0} already exists on {1}'.format(share['name'], remote)
                                 )
 
-                        container = self.dispatcher.call_sync('container.get_dependent', dataset['name'])[0]
-                        if container:
+                        dataset_path = self.dispatcher.call_sync('volume.get_dataset_path', dataset['name'])
+                        containers = self.dispatcher.call_sync('container.get_dependencies', dataset_path, False, False)
+                        if containers:
                             remote_container = remote_client.call_sync(
                                 'container.query',
-                                [('name', '=', container['name'])],
+                                [('name', '=', containers[0]['name'])],
                                 {'single': True}
                             )
                             if remote_container:
                                 raise TaskException(
                                     errno.EEXIST,
-                                    'Container {0} already exists on {1}'.format(container['name'], remote)
+                                    'Container {0} already exists on {1}'.format(containers[0]['name'], remote)
                                 )
 
                     sp_dataset = dataset['name'].split('/', 1)
@@ -1506,6 +1471,20 @@ class ReplicationCheckDatasetsTask(ReplicationBaseTask):
 
     def run(self, link):
         self.check_datasets_valid(link)
+
+
+def get_services(dispatcher, service, relation, link_name):
+    services = []
+    link = dispatcher.call_task_sync('replication.get_latest_link', link_name)
+    datasets = dispatcher.call_sync('replication.link.datasets_from_link', link)
+    for dataset in datasets:
+        dataset_path = dispatcher.call_sync('volume.get_dataset_path', dataset['name'])
+        s = dispatcher.call_sync('{0}.get_dependencies'.format(service), dataset_path, False, False)
+        if relation == 'reserved':
+            s = wrap(s).query(('immutable', '=', True))
+        services.extend(s)
+
+    return services
 
 
 def _depends():

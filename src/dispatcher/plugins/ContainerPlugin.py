@@ -41,7 +41,7 @@ from resources import Resource
 from task import Provider, Task, ProgressTask, VerifyException, TaskException, query, TaskWarning, TaskDescription
 from freenas.dispatcher.rpc import RpcException
 from freenas.dispatcher.rpc import SchemaHelper as h, description, accepts
-from freenas.utils import first_or_default, normalize, deep_update, process_template
+from freenas.utils import first_or_default, normalize, deep_update, process_template, in_directory
 from utils import save_config, load_config, delete_config
 from freenas.utils.query import wrap
 
@@ -102,15 +102,25 @@ class ContainerProvider(Provider):
 
         return vol['properties']['destination']
 
-    @description('Returns container if provided dataset is its root')
-    def get_dependent(self, dataset):
-        path_parts = dataset.split('/')
-        if len(path_parts) != 3:
-            return []
-        if path_parts[1] != 'vm':
-            return []
+    @description("Get containers dependent on provided filesystem path")
+    def get_dependencies(self, path, enabled_only=True, recursive=True):
+        result = []
 
-        return self.datastore.query('containers', ('name', '=', path_parts[2]), ('target', '=', path_parts[0]))
+        if enabled_only:
+            containers = self.datastore.query('containers', ('enabled', '=', True))
+        else:
+            containers = self.datastore.query('containers')
+
+        for i in containers:
+            target_path = self.get_container_root(i['id'])
+            if recursive:
+                if in_directory(target_path, path):
+                    result.append(i)
+            else:
+                if target_path == path:
+                    result.append(i)
+
+        return result
 
     def generate_mac(self):
         return VM_OUI + ':' + ':'.join('{0:02x}'.format(random.randint(0, 255)) for _ in range(0, 3))
