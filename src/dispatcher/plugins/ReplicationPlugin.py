@@ -877,10 +877,6 @@ class ReplicationSyncTask(ReplicationBaseTask):
                     transport_plugins
                 )
 
-            self.dispatcher.dispatch_event('replication.link.changed', {
-                'operation': 'update',
-                'ids': [link['id']]
-            })
         except TaskException as e:
             status = 'FAILED'
             message = e.message
@@ -1381,9 +1377,17 @@ class ReplicationGetLatestLinkTask(ReplicationBaseTask):
 
             if local_update_date > remote_update_date:
                 call_task_and_check_state(client, 'replication.update_link', self.remove_datastore_timestamps(local_link))
+                client.emit_event('replication.link.changed', {
+                    'operation': 'update',
+                    'ids': [local_link['id']]
+                })
             elif local_update_date < remote_update_date:
                 self.join_subtasks(self.run_subtask('replication.update_link', remote_link))
                 latest_link = remote_link
+                self.dispatcher.dispatch_event('replication.link.changed', {
+                    'operation': 'update',
+                    'ids': [remote_link['id']]
+                })
 
         if client:
             client.disconnect()
@@ -1421,10 +1425,6 @@ class ReplicationUpdateLinkTask(Task):
         if parse_datetime(local_link['update_date']) < parse_datetime(remote_link['update_date']):
             self.datastore.update('replication.links', remote_link['id'], remote_link)
             self.dispatcher.call_sync('replication.link.link_cache_put', remote_link)
-            self.dispatcher.dispatch_event('replication.link.changed', {
-                'operation': 'update',
-                'ids': [remote_link['id']]
-            })
 
 
 @description("Performs synchronization of actual role (master/slave) with replication link state")
