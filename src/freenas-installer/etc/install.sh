@@ -11,6 +11,8 @@ TERM=${TERM:-cons25}
 export TERM
 GRUB_TERMINAL_OUTPUT="console serial"
 export GRUB_TERMINAL_OUTPUT
+BOOTMODE=`kenv grub.platform`
+export BOOTMODE
 
 . /etc/avatar.conf
 
@@ -225,6 +227,7 @@ EOD
 install_grub() {
 	local _disk _disks
 	local _mnt
+	local _grub_args
 
 	_mnt="$1"
 	shift
@@ -240,7 +243,22 @@ install_grub() {
 	mkdir -p /tmp/bakup
 	mv ${_mnt}/usr/local/etc/grub.d/10_ktrueos.bak /tmp/bakup
 	for _disk in ${_disks}; do
-	    chroot ${_mnt} /usr/local/sbin/grub-install --modules='zfs part_gpt' /dev/${_disk}
+	    _grub_args=""
+	    if [ "$BOOTMODE" = "efi" ] ; then
+		# EFI Mode
+		sed -i '' 's|GRUB_TERMINAL_OUTPUT=console|GRUB_TERMINAL_OUTPUT=gfxterm|g' ${_mnt}/usr/local/etc/default/grub
+#		conf/base/etc/local/default/grub
+		glabel label efibsd /dev/${_disk}p1
+		mkdir -p ${_mnt}/boot/efi
+		mount -t msdosfs /dev/${_disk}p1 ${_mnt}/boot/efi
+		_grub_args="--efi-directory=/boot/efi --removable --target=x86_64-efi"
+	        echo "chroot ${_mnt} /usr/local/sbin/grub-install ${_grub_args} /dev/${_disk}"
+	        chroot ${_mnt} /usr/local/sbin/grub-install ${_grub_args} /dev/${_disk}
+		umount -f ${_mnt}/boot/efi
+	    else
+		# BIOS Mode
+	        chroot ${_mnt} /usr/local/sbin/grub-install --modules='zfs part_gpt' ${_grub_args} /dev/${_disk}
+	    fi
 	done
 	chroot ${_mnt} /usr/local/sbin/beadm activate default
 	chroot ${_mnt} /usr/local/sbin/grub-mkconfig -o /boot/grub/grub.cfg > /dev/null 2>&1
@@ -275,13 +293,27 @@ create_partitions() {
     fi
     gpart destroy -F ${_disk} || true
     if gpart create -s GPT ${_disk}; then
-	if gpart add -t bios-boot -i 1 -s 512k ${_disk}; then
-	    if is_truenas; then
-		gpart add -t freebsd-swap -s 16g -i 3 ${_disk}
+	if [ "$BOOTMODE" = "efi" ] ; then
+	    # EFI Mode
+	    sysctl kern.geom.debugflags=16
+	    sysctl kern.geom.label.disk_ident.enable=0
+	    if gpart add -s 100m -t efi ${_disk}; then
+		if ! newfs_msdos -F 16 /dev/${_disk}p1 ; then
+		    return 1
+		fi
+		gpart set -a lenovofix /dev/${_disk}
 	    fi
-	    if gpart add -t freebsd-zfs -i 2 -a 4k ${_size} ${_disk}; then
-		return 0
+	else
+	    # BIOS mode
+	    if ! gpart add -t bios-boot -i 1 -s 512k ${_disk}; then
+		return 1
 	    fi
+	fi
+	if is_truenas; then
+	    gpart add -t freebsd-swap -s 16g -i 3 ${_disk}
+	fi
+	if gpart add -t freebsd-zfs -i 2 -a 4k ${_size} ${_disk}; then
+	    return 0
 	fi
     fi
 
@@ -292,7 +324,7 @@ get_minimum_size() {
     local _min=0
     local _disk
     local _size
-    # We use 1mbyte because the bios-boot is 512k,
+    # We use 1mbyte because the fat16 partition is 512k,
     # and there's some header space.
     # Now we use 8MBytes because gpart and some thumb drives
     # misbehave.
@@ -346,8 +378,10 @@ partition_disk() {
 	    dd if=/dev/zero of=/dev/${_disk} bs=1m count=1 >&2
 
 	    create_partitions ${_disk} ${_minsize} >&2
-	    # Make the disk active
-	    gpart set -a active ${_disk} >&2
+	    if [ "$BOOTMODE" != "efi" ] ; then
+	      # Make the disk active
+	      gpart set -a active ${_disk} >&2
+	    fi
 
 	    echo ${_disk}p2
 	done)
