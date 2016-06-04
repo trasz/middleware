@@ -903,8 +903,19 @@ class ReplicationReserveServicesTask(ReplicationBaseTask):
         else:
             if link['replicate_services']:
                 for type in service_types:
-                    services = remote_client.call_sync('replication.link.get_related_{0}'.format(type), name)
-                    for service in services:
+                    related_services = remote_client.call_sync('replication.link.get_related_{0}'.format(type), name)
+                    reserved_services = self.dispatcher.call_sync('replication.link.get_reserved_{0}'.format(type), name)
+
+                    for service in reserved_services:
+                        id = service['id']
+                        if not first_or_default(lambda s: s['id'] == id, related_services):
+                            self.datastore.delete(type, id)
+                            self.dispatcher.dispatch_event('{0}.changed'.format(type[:-1]), {
+                                'operation': 'delete',
+                                'ids': [id]
+                            })
+
+                    for service in related_services:
                         service['immutable'] = True
                         service['enabled'] = False
                         id = service['id']
