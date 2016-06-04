@@ -58,7 +58,7 @@ class OpenVPNClientConfigProvider(Provider):
     @returns(str)
     def provide_config(self):
         try:
-            with open('/usr/local/etc/openvpn/openvpn_client_config', 'r') as f:
+            with open('/usr/local/etc/openvpn/openvpn_client', 'r') as f:
                 return f.read()
 
         except FileNotFoundError:
@@ -68,7 +68,7 @@ class OpenVPNClientConfigProvider(Provider):
     @returns(str)
     def provide_tls_auth_key(self):
         node = ConfigNode('service.openvpn', self.configstore).__getstate__()	
-        return node['tls-auth']
+        return node['tls_auth']
 
 
 @description('Creates OpenVPN config file')
@@ -94,41 +94,13 @@ class OpenVpnConfigureTask(Task):
             raise VerifyException(errno.EINVAL,
                                   '{0} Bad interface name. Allowed values tap/tun[0-9].'.format(node['dev']))
 	
-        ca_cert = self.datastore.get_by_id('crypto.certificates', node['ca'])
-        if not ca_cert:
-            raise VerifyException(errno.EINVAL,
-                                  'Provided CA certificate does not exist in config database.')
-
-        server_private_key = self.datastore.get_by_id('crypto.certificates', node['key']) 		
-        if not server_private_key:
-            raise VerifyException(errno.EINVAL,
-                                  'Provided private key does not exist in config database.')
-
-        server_certyficate = self.datastore.get_by_id('crypto.certificates', node['cert'])
-        if not server_certyficate:
-            raise VerifyException(errno.EINVAL,
-                                  'Provided certificate does not exist in config database.')
-			
-        openvpn_user = self.datastore.exists('users', ('username', '=', node['user']))		
-        if not openvpn_user:
-            raise VerifyException(errno.EINVAL, 'Provided user does not exist.')
-
-        openvpn_group = self.datastore.exists('groups', ('name', '=', node['group']))
-        if not openvpn_group:
-            raise VerifyException(errno.EINVAL, 'Provided user does not exist.')
-
-        if not node['keepalive'] or (node['keepalive'][0] * 2 >= node['keepalive'][1]):
-            raise VerifyException(errno.EINVAL, 'The second parameter to keepalive must be'
-                                  'at least twice the value of the first parameter.'
-                                  'Recommended setting is keepalive 10 60.')
-
-        if isinstance(node['server-bridge'], list):
+        if node['server_bridge_extended']:
             try:
-                bridge_address = ipaddress.ip_address(node['server-bridge'][0])
-                netmask = node['server-bridge'][1]									
-                ip_range_begin = ipaddress.ip_address(node['server-bridge'][2])
-                ip_range_end = ipaddress.ip_address(node['server-bridge'][3])
-                subnet = ipaddress.ip_network('{0}/{1}'.format(bridge_address, netmask), strict=False) 
+                bridge_ip = ipaddress.ip_address(node['server_bridge_ip'])
+                netmask = node['server_bridge_netmask']									
+                ip_range_begin = ipaddress.ip_address(node['server_bridge_range_begin'])
+                ip_range_end = ipaddress.ip_address(node['server_bridge_range_end'])
+                subnet = ipaddress.ip_network('{0}/{1}'.format(bridge_ip, netmask), strict=False) 
       
             except ValueError as e:
                 raise VerifyException(errno.EINVAL, str(e))
@@ -137,14 +109,44 @@ class OpenVpnConfigureTask(Task):
                 raise VerifyException(errno.EINVAL, 
                                       'Provided range of remote client IP adresses is invalid.')			
 			
-            if (bridge_address >= ip_range_begin) and (bridge_address <= ip_range_end):
+            if (bridge_ip >= ip_range_begin) and (bridge_ip <= ip_range_end):
                 raise VerifyException(errno.EINVAL, 
                                       'Provided bridge IP address is in the client ip range.')
+
+        if (node['keepalive_ping_interval'] * 2) >= node['keepalive_peer_down']:
+            raise VerifyException(errno.EINVAL, 'The second parameter to keepalive must be'
+                                  'at least twice the value of the first parameter.'
+                                  'Recommended setting is keepalive 10 60.')
 				
         return ['system']
 
 
     def run(self, openvpn):
+        node = ConfigNode('service.openvpn', self.configstore).__getstate__()
+        node.update(openvpn)
+        ca_cert = self.datastore.get_by_id('crypto.certificates', node['ca'])
+        if not ca_cert:
+            raise TaskException(errno.EINVAL,
+                                'Provided CA certificate does not exist in config database.')
+
+        server_private_key = self.datastore.get_by_id('crypto.certificates', node['key'])
+        if not server_private_key:
+            raise TaskException(errno.EINVAL,
+                                'Provided private key does not exist in config database.')
+
+        server_certyficate = self.datastore.get_by_id('crypto.certificates', node['cert'])
+        if not server_certyficate:
+            raise TaskException(errno.EINVAL,
+                                'Provided certificate does not exist in config database.')
+
+        openvpn_user = self.datastore.exists('users', ('username', '=', node['user']))
+        if not openvpn_user:
+            raise TaskException(errno.EINVAL, 'Provided user does not exist.')
+
+        openvpn_group = self.datastore.exists('groups', ('name', '=', node['group']))
+        if not openvpn_group:
+            raise TaskException(errno.EINVAL, 'Provided user does not exist.')
+
         try:
             node = ConfigNode('service.openvpn', self.configstore)
             node.update(openvpn)
@@ -174,7 +176,7 @@ class OpenVPNGenerateKeys(Task):
         return 'Generating OpenVPN cryptographic parameters'
 
     def describe(self, key_type, key_length):
-        return TaskDescription('Generating {0} OpenVPN cryptographic values'.format(key_type))
+        return TaskDescription('Generating {key_type} OpenVPN cryptographic values', key_type=key_type)
 
     def verify(self, key_type, key_length):
         if key_type not in ['dh-parameters', 'tls-auth-key']:
@@ -202,7 +204,7 @@ class OpenVPNGenerateKeys(Task):
             else:
                 tls_auth_key = system('/usr/local/sbin/openvpn', '--genkey', '--secret', '/dev/stdout')[0]
 					
-                self.configstore.set('service.openvpn.tls-auth',tls_auth_key)
+                self.configstore.set('service.openvpn.tls_auth',tls_auth_key)
                 self.dispatcher.call_sync('etcd.generation.generate_group', 'openvpn')
                 self.dispatcher.dispatch_event('service.openvpn.changed', {
                     'operation': 'update',
@@ -253,7 +255,7 @@ class BridgeOpenVPNtoLocalNetwork(Task):
         node = ConfigNode('service.openvpn', self.configstore).__getstate__()
         interface_list = list(netif.list_interfaces().keys())
         default_interface = self.dispatcher.call_sync('networkd.configuration.get_default_interface')
-		
+
         vpn_interface = netif.get_interface(self.configstore.get('service.openvpn.dev'))	
         vpn_interface.up()
 
@@ -266,9 +268,8 @@ class BridgeOpenVPNtoLocalNetwork(Task):
             bridge_interface = netif.get_interface('VPNbridge')
 
 	
-        if not isinstance(node['server-bridge'], bool):
-            subnet = ipaddress.ip_interface('{0}/{1}'.format(node['server-bridge'][0], node['server-bridge'][1]))
-				
+        if node['server_bridge_extended']:
+            subnet = ipaddress.ip_interface('{0}/{1}'.format(node['server_bridge_ip'], bridge_values['server_bridge_netmask']))
             bridge_interface.add_address(netif.InterfaceAddress(
             netif.AddressFamily.INET,
             subnet
@@ -299,7 +300,7 @@ class BridgeOpenVPNtoLocalNetwork(Task):
 
 
 def _depends(): 
-    return ['ServiceManagePlugin'] 
+    return ['ServiceManagePlugin', 'CryptoPlugin'] 
 
 
 def _init(dispatcher, plugin):
@@ -308,7 +309,7 @@ def _init(dispatcher, plugin):
         try:
             dhparams = system('/usr/bin/openssl', 'dhparam', '1024')[0]
 
-        except Exception as e: 
+        except SubprocessException as e: 
             logger.warning('Cannot create initial dh parameters. Check openssl setup: {0}'.format(e))
 
         else:
@@ -321,31 +322,24 @@ def _init(dispatcher, plugin):
         'type': {'enum': ['service-openvpn']},
         'enable': {'type': 'boolean'},
         'dev': {'type': 'string'},
-        'persist-key': {'type': 'boolean'},
-        'persist-tun' : {'type' : 'boolean'},
+        'persist_key': {'type': 'boolean'},
+        'persist_tun' : {'type' : 'boolean'},
         'ca': {'type' : 'string'},
         'cert': {'type' : 'string'},
         'key': {'type' : 'string'},
         'dh': {'type' : 'string'},
-        'tls-auth': {'type' : ['string', 'null']},
+        'tls_auth': {'type' : ['string', 'null']},
         'cipher': {'type' : 'string', 'enum':['BF-CBC', 'AES-128-CBC', 'DES-EDE3-CBC']},
-        'server-bridge': {'anyOf' : [
-                                {'type': 'array', 'items': [ 
-                                {'type':['string', 'null']},
-                                {'type':['string', 'null']},
-                                {'type':['string', 'null']},
-                                {'type':['string', 'null']}
-                                ]},
-                                {'type': 'boolean'}
-                                ]},
-
-        'max-clients': { 'type': 'integer'},
-        'crl-verify': {'type': ['string', 'null']},
-        'keepalive': {'type': 'array', 'items': [
-                                {'type':'integer'},
-                                {'type':'integer'}
-                                ]},
-
+        'server_bridge': {'type': 'boolean'},
+        'server_bridge_extended':{'type': 'boolean'},
+        'server_bridge_range_begin':{'type': 'string'},
+        'server_bridge_range_end': {'type': 'string'},
+        'server_bridge_netmask': {'type': 'string'},
+        'server_bridge_ip': {'type': 'string', "format": "ip-address"},
+        'max_clients': { 'type': 'integer'},
+        'crl_verify': {'type': ['string', 'null']},
+        'keepalive_ping_interval': {'type': 'integer'},
+        'keepalive_peer_down': {'type': 'integer'},
         'user': {'type': 'string'},
         'group': {'type': 'string'},
         'port': {
@@ -355,7 +349,7 @@ def _init(dispatcher, plugin):
                 },
 
         'proto': {'type': 'string', 'enum':['tcp', 'udp']},
-        'comp-lzo': {'type': 'boolean'},
+        'comp_lzo': {'type': 'boolean'},
 
         'verb': {
                 'type': 'integer',

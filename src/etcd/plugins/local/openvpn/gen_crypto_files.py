@@ -42,76 +42,16 @@ def write_ta_key(ta_key):
         f.write(ta_key)
 
 
-def convert_cert_by_id(context, cert_id, cert_type):
-    cert_data = context.datastore.get_by_id('crypto.certificates', cert_id)	
-   
-    if cert_type == 'ca':
-        return "{0}/CA/{1}.crt".format(CERT_DIR, cert_data['name'])
-   
-    elif cert_type == 'key':
-        return "{0}/{1}.key".format(CERT_DIR, cert_data['name']) 
-
-    else:   
-        return "{0}/{1}.crt".format(CERT_DIR, cert_data['name'])
-
-
-def process_config(context, conf):
-
-    processed = {}
-
-    for k, v in conf.items():
-        if v == None:
-            continue
-  
-        if v == False:
-            continue
-
-        if k in ['cert', 'key', 'ca']:
-            processed[k] = convert_cert_by_id(context, v, k)
-            continue
-
-        if k == 'enable':
-            continue
-
-        if k == 'dh':
-            write_dh_parameters(v)
-            processed[k] = 'dh.pem'
-            continue
-       
-        if k == 'dev':
-            processed[k] = v + str(0)
-  
-        if k == 'auxiliary':
-            processed[v] = ''
-
-        if k == 'tls-auth': 
-            write_ta_key(v)
-            processed[k] = 'ta.key 0'
-            continue
-                    
-        if isinstance(v, list):
-            processed[k] = ' '.join(str(i) for i in v)
-            continue
-
-        if v == True:
-            processed[k] = ''
-            continue
-
-        processed[k] = v
-
-    return processed
-
-
 def run(context):
     if not os.path.isdir(OPENVPN_DIR):
         os.mkdir(OPENVPN_DIR)
 
     openvpn_conf = context.client.call_sync('service.openvpn.get_config')
-    openvpn_conf = process_config(context, openvpn_conf)
+    
+    if(openvpn_conf['tls_auth']):
+        write_ta_key(openvpn_conf['tls_auth'])
+        context.emit_event('etcd.file_generated', {'filename': '{0}/ta.key'.format(OPENVPN_DIR)})
 
-    with open('{0}/openvpn.conf'.format(OPENVPN_DIR), 'w') as f:
-        for k, v in openvpn_conf.items():
-             f.write('{0} {1}\n'.format(k, v))     
-	
-    context.emit_event('etcd.file_generated', {'filename': '{0}/openvpn.conf'.format(OPENVPN_DIR)})
 
+    write_dh_parameters(openvpn_conf['dh'])
+    context.emit_event('etcd.file_generated', {'filename': '{0}/dh.pem'.format(OPENVPN_DIR)})
