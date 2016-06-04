@@ -787,6 +787,9 @@ class ReplicationUpdateTask(ReplicationBaseTask):
                     'Service reservation failed: {0}'.format(e.message)
                 ))
 
+            if 'master' in updated_fields:
+                self.join_subtasks(self.run_subtask('replication.role_update', link['id']))
+
         self.dispatcher.dispatch_event('replication.link.changed', {
             'operation': 'update',
             'ids': [link['id']]
