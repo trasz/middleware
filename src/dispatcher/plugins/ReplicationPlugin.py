@@ -1088,7 +1088,8 @@ class CalculateReplicationDeltaTask(Task):
                     actions.append(ReplicationAction(
                         ReplicationActionType.CLEAR_SNAPSHOTS,
                         localfs,
-                        remotefs
+                        remotefs,
+                        snapshots=[snap['snapshot_name'] for snap in remote_snapshots]
                     ))
 
                     for idx in range(0, len(snapshots)):
