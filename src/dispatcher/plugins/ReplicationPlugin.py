@@ -387,7 +387,10 @@ class ReplicationCreateTask(ReplicationBaseTask):
             'ids': [id]
         })
 
-        self.dispatcher.register_resource(Resource('replication:{0}'.format(link['name'])), parents=['replication'])
+        self.dispatcher.register_resource(
+            Resource('replication:{0}'.format(link['name'])),
+            parents=get_replication_resources(link)
+        )
         remote_client.disconnect()
 
     def rollback(self, link):
@@ -771,7 +774,7 @@ class ReplicationUpdateTask(ReplicationBaseTask):
                     'Link update at remote side failed: {0}'.format(e.message)
                 ))
 
-        self.datastore.update('replication.links', link['id'], link)
+        self.join_subtasks(self.run_subtask('replication.update_link', link))
         self.dispatcher.call_sync('replication.link.link_cache_put', link)
 
         if remote_available and link['replicate_services']:
@@ -1387,37 +1390,41 @@ class ReplicationGetLatestLinkTask(ReplicationBaseTask):
         return latest_link
 
 
-@description("Updates local replication link entry if provided remote entry is newer")
+@description("Updates local replication link entry if provided entry is newer")
 @accepts(h.ref('replication-link'))
 class ReplicationUpdateLinkTask(Task):
     @classmethod
     def early_describe(cls):
         return "Updating replication link"
 
-    def describe(self, remote_link):
-        return TaskDescription("Updating replication link {name}", name=remote_link['name'])
+    def describe(self, link):
+        return TaskDescription("Updating replication link {name}", name=link['name'])
 
-    def verify(self, remote_link):
-        if not self.datastore.exists('replication.links', ('name', '=', remote_link['name'])):
-            raise VerifyException(errno.ENOENT, 'Replication link {0} do not exist.'.format(remote_link['name']))
+    def verify(self, link):
+        if not self.datastore.exists('replication.links', ('name', '=', link['name'])):
+            raise VerifyException(errno.ENOENT, 'Replication link {0} do not exist.'.format(link['name']))
 
         return []
 
-    def run(self, remote_link):
-        local_link = self.dispatcher.call_sync('replication.link.get_one_local', remote_link['name'])
+    def run(self, link):
+        local_link = self.dispatcher.call_sync('replication.link.get_one_local', link['name'])
         for partner in local_link['partners']:
-            if partner not in remote_link.get('partners', []):
+            if partner not in link.get('partners', []):
                 raise TaskException(
                     errno.EINVAL,
                     'One of remote link partners {0} do not match local link partners {1}, {2}'.format(
                         partner,
-                        *remote_link['partners']
+                        *link['partners']
                     )
                 )
 
-        if parse_datetime(local_link['update_date']) < parse_datetime(remote_link['update_date']):
-            self.datastore.update('replication.links', remote_link['id'], remote_link)
-            self.dispatcher.call_sync('replication.link.link_cache_put', remote_link)
+        if parse_datetime(local_link['update_date']) < parse_datetime(link['update_date']):
+            self.datastore.update('replication.links', link['id'], link)
+            self.dispatcher.call_sync('replication.link.link_cache_put', link)
+            self.dispatcher.update_resource(
+                'replication:{0}'.format(link['name']),
+                new_parents=get_replication_resources(link)
+            )
 
 
 @description("Performs synchronization of actual role (master/slave) with replication link state")
@@ -1500,6 +1507,20 @@ def get_services(dispatcher, service, relation, link_name):
         services.extend(s)
 
     return services
+
+
+def pools_to_lock(link):
+    pools = []
+    for dataset in link['datasets']:
+        pool, _ = dataset.split('/', 1)
+        if pool not in pools:
+            pools.append(pool)
+
+    return ['zpool:{0}'.format(p) for p in pools]
+
+
+def get_replication_resources(link):
+    return pools_to_lock(link).append('replication')
 
 
 def _depends():
@@ -1644,5 +1665,8 @@ def _init(dispatcher, plugin):
     plugin.register_event_handler('network.changed', update_link_cache)
     links = dispatcher.call_sync('replication.link.local_query')
     for link in links:
-        dispatcher.register_resource(Resource('replication:{0}'.format(link['name'])), parents=['replication'])
+        dispatcher.register_resource(
+            Resource('replication:{0}'.format(link['name'])),
+            parents=get_replication_resources(link)
+        )
         dispatcher.call_sync('replication.link.link_cache_put', link)
