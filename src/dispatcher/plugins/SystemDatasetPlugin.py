@@ -34,6 +34,7 @@ import shutil
 import time
 import tempfile
 import libzfs
+from resources import Resource
 from freenas.dispatcher.rpc import RpcException, accepts, returns, description, private
 from freenas.dispatcher.rpc import SchemaHelper as h
 from task import Task, Provider, VerifyException, TaskDescription
@@ -259,6 +260,11 @@ class SystemDatasetConfigure(Task):
             )
 
         self.configstore.set('system.dataset.pool', pool)
+        dsid = self.configstore.get('system.dataset.id')
+        self.dispatcher.update_resource(
+            'system-dataset',
+            new_parents=['{0}/.system-{1}'.format(pool, dsid)]
+        )
 
 
 @private
@@ -296,6 +302,10 @@ class SystemDatasetImport(Task):
 
             self.configstore.set('system.dataset.pool', pool)
             self.configstore.set('system.dataset.id', new_id)
+            self.dispatcher.update_resource(
+                'system-dataset',
+                new_parents=['{0}/.system-{1}'.format(pool, new_id)]
+            )
             logger.info('New system dataset ID: {0}'.format(new_id))
 
 
@@ -319,6 +329,13 @@ def _init(dispatcher, plugin):
         dsid = uuid.uuid4().hex[:8]
         dispatcher.configstore.set('system.dataset.id', dsid)
         logger.info('New system dataset ID: {0}'.format(dsid))
+
+    pool = dispatcher.configstore.get('system.dataset.pool')
+    dsid = dispatcher.configstore.get('system.dataset.id')
+    dispatcher.register_resource(
+        Resource('system-dataset'),
+        parents=['{0}/.system-{1}'.format(pool, dsid)]
+    )
 
     plugin.register_event_handler('volume.changed', on_volumes_changed)
     plugin.attach_hook('volume.pre_destroy', volume_pre_destroy)
