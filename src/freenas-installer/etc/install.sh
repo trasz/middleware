@@ -237,16 +237,16 @@ install_grub() {
 	# Install grub
 	chroot ${_mnt} /sbin/zpool set cachefile=/boot/zfs/rpool.cache freenas-boot
 	chroot ${_mnt} /etc/rc.d/ldconfig start
-	/usr/bin/sed -i.bak -e 's,^ROOTFS=.*$,ROOTFS=freenas-boot/ROOT/default,g' ${_mnt}/usr/local/sbin/beadm ${_mnt}/usr/local/etc/grub.d/10_ktrueos
+	/usr/bin/sed -i.bak -e 's,^ROOTFS=.*$,ROOTFS=freenas-boot/ROOT/default,g' ${_mnt}/usr/local/sbin/beadm ${_mnt}/conf/base/etc/local/grub.d/10_ktrueos
 	# Having 10_ktruos.bak in place causes grub-mkconfig to
 	# create two boot menu items.  So let's move it out of place
 	mkdir -p /tmp/bakup
-	mv ${_mnt}/usr/local/etc/grub.d/10_ktrueos.bak /tmp/bakup
+	mv ${_mnt}/conf/base/etc/local/grub.d/10_ktrueos.bak /tmp/bakup
 	for _disk in ${_disks}; do
 	    _grub_args=""
 	    if [ "$BOOTMODE" = "efi" ] ; then
 		# EFI Mode
-		sed -i '' 's|GRUB_TERMINAL_OUTPUT=console|GRUB_TERMINAL_OUTPUT=gfxterm|g' ${_mnt}/usr/local/etc/default/grub
+		sed -i '' 's|GRUB_TERMINAL_OUTPUT=console|GRUB_TERMINAL_OUTPUT=gfxterm|g' ${_mnt}/conf/base/etc/local/default/grub
 #		conf/base/etc/local/default/grub
 		glabel label efibsd /dev/${_disk}p1
 		mkdir -p ${_mnt}/boot/efi
@@ -264,7 +264,7 @@ install_grub() {
 	chroot ${_mnt} /usr/local/sbin/grub-mkconfig -o /boot/grub/grub.cfg > /dev/null 2>&1
 	# And now move the backup files back in place
 	mv ${_mnt}/usr/local/sbin/beadm.bak ${_mnt}/usr/local/sbin/beadm
-	mv /tmp/bakup/10_ktrueos.bak ${_mnt}/usr/local/etc/grub.d/10_ktrueos
+	mv /tmp/bakup/10_ktrueos.bak ${_mnt}/conf/base/etc/local/grub.d/10_ktrueos
 	return 0
 }
 
