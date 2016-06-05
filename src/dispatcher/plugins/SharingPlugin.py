@@ -152,7 +152,7 @@ class CreateShareTask(Task):
         return "Creating share"
 
     def describe(self, share):
-        return TaskDescription("Creating share {name}", name=share.get('name' ) if share else '')
+        return TaskDescription("Creating share {name}", name=share.get('name') if share else '')
 
     def verify(self, share):
         if not self.dispatcher.call_sync('share.supported_types').get(share['type']):
