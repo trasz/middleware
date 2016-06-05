@@ -985,7 +985,7 @@ def _init(dispatcher, plugin):
     plugin.register_event_type('update.changed')
 
     # Register reources
-    plugin.register_resource(Resource(update_resource_string), ['system'])
+    plugin.register_resource(Resource(update_resource_string), ['system', 'system-dataset'])
 
     # Get the Update Cache (if any) at system boot (and hence in init here)
     # Do this in parallel so that a failed cache generation does not take the

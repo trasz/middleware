@@ -55,7 +55,7 @@ class CreateFakeDisk(Task):
         return TaskDescription("Creating simulated disk {name}", name=disk.get('path', '') if disk else '')
 
     def verify(self, disk):
-        return ['system']
+        return ['system-dataset']
 
     def run(self, disk):
         defpath = os.path.join(self.dispatcher.call_sync('system_dataset.request_directory', 'simulator'), disk['id'])
@@ -101,7 +101,7 @@ class ConfigureFakeDisk(Task):
         if not self.datastore.exists('simulator.disks', ('id', '=', id)):
             raise VerifyException(errno.ENOENT, 'Disk {0} not found'.format(id))
 
-        return ['system']
+        return ['system-dataset']
 
     def run(self, id, updated_params):
         disk = self.datastore.get_by_id('simulator.disks', id)
@@ -126,7 +126,7 @@ class DeleteFakeDisk(Task):
         if not self.datastore.exists('simulator.disks', ('id', '=', id)):
             raise VerifyException(errno.ENOENT, 'Disk {0} not found'.format(id))
 
-        return ['system']
+        return ['system-dataset']
 
     def run(self, id):
         self.datastore.delete('simulator.disks', id)

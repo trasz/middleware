@@ -315,7 +315,7 @@ class ContainerCreateTask(ContainerBaseTask):
         if not self.dispatcher.call_sync('volume.query', [('id', '=', container['target'])], {'single': True}):
             raise VerifyException(errno.ENXIO, 'Volume {0} doesn\'t exist'.format(container['target']))
 
-        return ['zpool:{0}'.format(container['target']), 'vm-templates']
+        return ['zpool:{0}'.format(container['target']), 'system-dataset']
 
     def run(self, container):
         if container.get('template'):
@@ -683,7 +683,7 @@ class CacheFilesTask(ProgressTask):
         return TaskDescription('Caching container files {name}', name=name or '')
 
     def verify(self, name):
-        return ['vm-templates']
+        return ['system-dataset']
 
     def run(self, name):
         cache_dir = self.dispatcher.call_sync('system_dataset.request_directory', 'container_image_cache')
@@ -735,7 +735,7 @@ class DeleteFilesTask(Task):
         return TaskDescription('Deleting cached container {name} files', name=name)
 
     def verify(self, name):
-        return ['vm-templates']
+        return ['system-dataset']
 
     def run(self, name):
         cache_dir = self.dispatcher.call_sync('system_dataset.request_directory', 'container_image_cache')
@@ -754,7 +754,7 @@ class DownloadFileTask(ProgressTask):
         return TaskDescription('Downloading container file {name}', name=url or '')
 
     def verify(self, url, sha256, destination):
-        return ['vm-templates']
+        return ['system-dataset']
 
     def run(self, url, sha256, destination):
         def progress_hook(nblocks, blocksize, totalsize):
@@ -794,7 +794,7 @@ class InstallFileTask(Task):
         )
 
     def verify(self, name, res, destination):
-        return ['vm-templates']
+        return ['system-dataset']
 
     def run(self, name, res, destination):
         cache_dir = self.dispatcher.call_sync('system_dataset.request_directory', 'container_image_cache')
@@ -843,7 +843,7 @@ class ContainerTemplateFetchTask(ProgressTask):
         return TaskDescription('Downloading container templates')
 
     def verify(self):
-        return ['vm-templates']
+        return ['system-dataset']
 
     def run(self):
         def clean_clone(url, path):
@@ -1057,5 +1057,3 @@ def _init(dispatcher, plugin):
     plugin.attach_hook('volume.pre_detach', volume_pre_detach)
 
     plugin.register_event_type('container.changed')
-
-    dispatcher.register_resource(Resource('vm-templates'))
