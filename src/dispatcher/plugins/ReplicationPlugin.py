@@ -389,7 +389,7 @@ class ReplicationCreateTask(ReplicationBaseTask):
 
         self.dispatcher.register_resource(
             Resource('replication:{0}'.format(link['name'])),
-            parents=get_replication_resources(link)
+            parents=get_replication_resources(self.dispatcher, link)
         )
         remote_client.disconnect()
 
@@ -1423,7 +1423,7 @@ class ReplicationUpdateLinkTask(Task):
             self.dispatcher.call_sync('replication.link.link_cache_put', link)
             self.dispatcher.update_resource(
                 'replication:{0}'.format(link['name']),
-                new_parents=get_replication_resources(link)
+                new_parents=get_replication_resources(self.dispatcher, link)
             )
 
 
@@ -1509,18 +1509,12 @@ def get_services(dispatcher, service, relation, link_name):
     return services
 
 
-def pools_to_lock(link):
-    pools = []
-    for dataset in link['datasets']:
-        pool, _ = dataset.split('/', 1)
-        if pool not in pools:
-            pools.append(pool)
-
-    return ['zpool:{0}'.format(p) for p in pools]
-
-
-def get_replication_resources(link):
-    return pools_to_lock(link).append('replication')
+def get_replication_resources(dispatcher, link):
+    resources = ['replication']
+    datasets = wrap(dispatcher.call_sync('replication.link.datasets_from_link', link)).query(*[], **{'select': 'name'})
+    for dataset in datasets:
+        resources.append('zfs:{0}'.format(dataset))
+    return resources
 
 
 def _depends():
@@ -1660,13 +1654,25 @@ def _init(dispatcher, plugin):
             except TaskException:
                 pass
 
+    def update_resources(args):
+        links = dispatcher.call_sync('replication.link.local_query')
+        updated_pools = list(set([d.split('/', 1)[0] for d in args['ids']]))
+        for link in links:
+            related_pools = list(set([d.split('/', 1)[0] for d in link['datasets']]))
+            if any(p in related_pools for p in updated_pools):
+                dispatcher.update_resource(
+                    'replication:{0}'.format(link['name']),
+                    new_parents=get_replication_resources(dispatcher, link)
+                )
+
     plugin.register_event_handler('plugin.service_resume', on_etcd_resume)
     plugin.register_event_handler('replication.link.changed', on_replication_change)
     plugin.register_event_handler('network.changed', update_link_cache)
+    plugin.register_event_handler('zfs.dataset.changed', update_resources)
     links = dispatcher.call_sync('replication.link.local_query')
     for link in links:
         dispatcher.register_resource(
             Resource('replication:{0}'.format(link['name'])),
-            parents=get_replication_resources(link)
+            parents=get_replication_resources(dispatcher, link)
         )
         dispatcher.call_sync('replication.link.link_cache_put', link)
