@@ -37,7 +37,6 @@ import urllib.request
 import urllib.parse
 import urllib.error
 import shutil
-from resources import Resource
 from task import Provider, Task, ProgressTask, VerifyException, TaskException, query, TaskWarning, TaskDescription
 from freenas.dispatcher.rpc import RpcException
 from freenas.dispatcher.rpc import SchemaHelper as h, description, accepts
