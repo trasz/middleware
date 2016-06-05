@@ -335,6 +335,8 @@ class ContainerCreateTask(ContainerBaseTask):
                     result[key] = container[key]
             deep_update(template, result)
             container = template
+
+            self.join_subtasks(self.run_subtask('container.cache.update', container['template']['name']))
         else:
             normalize(container, {
                 'config': {},
@@ -350,8 +352,6 @@ class ContainerCreateTask(ContainerBaseTask):
             'memsize': 512,
             'ncpus': 1
         })
-
-        self.join_subtasks(self.run_subtask('container.cache.update', container['template']['name']))
 
         self.init_dataset(container)
         for res in container['devices']:
