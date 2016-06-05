@@ -311,7 +311,7 @@ def _init(dispatcher, plugin):
     def volume_pre_destroy(args):
         # Evacuate .system dataset from the pool
         if dispatcher.configstore.get('system.dataset.pool') == args['name']:
-            dispatcher.call_task_sync('system_dataset.update', 'freenas-boot')
+            dispatcher.call_task_sync('system_dataset.migrate', 'freenas-boot')
 
         return True
 
