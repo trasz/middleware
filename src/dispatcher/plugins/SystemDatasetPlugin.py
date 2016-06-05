@@ -240,7 +240,7 @@ class SystemDatasetConfigure(Task):
         return TaskDescription('Updating .system dataset configuration')
 
     def verify(self, pool):
-        return ['system']
+        return ['root']
 
     def run(self, pool):
         status = self.dispatcher.call_sync('system_dataset.status')
@@ -276,7 +276,7 @@ class SystemDatasetImport(Task):
         if not self.dispatcher.call_sync('zfs.dataset.query', [('pool', '=', pool), ('name', '~', '.system')], {'single': True}):
             raise VerifyException('System dataset not found on pool {0}'.format(pool))
 
-        return ['system']
+        return ['root']
 
     def run(self, pool):
         status = self.dispatcher.call_sync('system_dataset.status')
