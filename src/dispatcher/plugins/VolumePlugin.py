@@ -2402,8 +2402,7 @@ def _init(dispatcher, plugin):
                 'readOnly': True
             },
             'properties': {'$ref': 'volume-properties', 'readOnly': True},
-            'attributes': {'type': 'object'},
-            'params': {'type': 'object'}
+            'attributes': {'type': 'object'}
         }
     })
 
