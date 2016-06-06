@@ -387,9 +387,43 @@ def _init(dispatcher, plugin):
             },
             'id': {'type': ['string', 'null']},
             'name': {'type': ['string', 'null']},
-            'perms': {'type': 'object'},
-            'flags': {'type': 'object'},
+            'perms': {'$ref': 'acl-entry-perms'},
+            'flags': {'$ref': 'acl-entry-flags'},
             'text': {'type': ['string', 'null']}
+        }
+    })
+
+    plugin.register_schema_definition('acl-entry-perms', {
+        'type': 'object',
+        'additionalProperties': False,
+        'properties': {
+            'READ_DATA': {'type': 'boolean'},
+            'LIST_DIRECTORY': {'type': 'boolean'},
+            'WRITE_DATA': {'type': 'boolean'},
+            'ADD_FILE': {'type': 'boolean'},
+            'APPEND_DATA': {'type': 'boolean'},
+            'ADD_SUBDIRECTORY': {'type': 'boolean'},
+            'READ_NAMED_ATTRS': {'type': 'boolean'},
+            'WRITE_NAMED_ATTRS': {'type': 'boolean'},
+            'EXECUTE': {'type': 'boolean'},
+            'DELETE_CHILD': {'type': 'boolean'},
+            'READ_ATTRIBUTES': {'type': 'boolean'},
+            'WRITE_ATTRIBUTES': {'type': 'boolean'},
+            'DELETE': {'type': 'boolean'},
+            'READ_ACL': {'type': 'boolean'},
+            'WRITE_ACL': {'type': 'boolean'},
+            'SYNCHRONIZE': {'type': 'boolean'}
+        }
+    })
+
+    plugin.register_schema_definition('acl-entry-flags', {
+        'type': 'object',
+        'additionalProperties': False,
+        'properties': {
+            'FILE_INHERIT': {'type': 'boolean'},
+            'DIRECTORY_INHERIT': {'type': 'boolean'},
+            'NO_PROPAGATE_INHERIT': {'type': 'boolean'},
+            'INHERIT_ONLY': {'type': 'boolean'}
         }
     })
 
