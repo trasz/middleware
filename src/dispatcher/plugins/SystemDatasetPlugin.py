@@ -263,7 +263,7 @@ class SystemDatasetConfigure(Task):
         dsid = self.configstore.get('system.dataset.id')
         self.dispatcher.update_resource(
             'system-dataset',
-            new_parents=['{0}/.system-{1}'.format(pool, dsid)]
+            new_parents=['zfs:{0}/.system-{1}'.format(pool, dsid)]
         )
 
 
@@ -304,7 +304,7 @@ class SystemDatasetImport(Task):
             self.configstore.set('system.dataset.id', new_id)
             self.dispatcher.update_resource(
                 'system-dataset',
-                new_parents=['{0}/.system-{1}'.format(pool, new_id)]
+                new_parents=['zfs:{0}/.system-{1}'.format(pool, new_id)]
             )
             logger.info('New system dataset ID: {0}'.format(new_id))
 
@@ -334,7 +334,7 @@ def _init(dispatcher, plugin):
     dsid = dispatcher.configstore.get('system.dataset.id')
     dispatcher.register_resource(
         Resource('system-dataset'),
-        parents=['{0}/.system-{1}'.format(pool, dsid)]
+        parents=['zfs:{0}/.system-{1}'.format(pool, dsid)]
     )
 
     plugin.register_event_handler('volume.changed', on_volumes_changed)
