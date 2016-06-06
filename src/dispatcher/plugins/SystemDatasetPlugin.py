@@ -45,6 +45,9 @@ SYSTEM_DIR = '/var/db/system'
 logger = logging.getLogger('SystemDataset')
 
 
+last_sysds_name = ''
+
+
 def link_directories(dispatcher):
     for name, d in dispatcher.configstore.get('system.dataset.layout').items():
         target = dispatcher.call_sync('system_dataset.request_directory', name)
@@ -305,21 +308,26 @@ def _depends():
 
 
 def _init(dispatcher, plugin):
+    global last_sysds_name
+
     def on_volumes_changed(args):
         if args['operation'] == 'create':
             pass
 
     def on_datasets_changed(args):
+        global last_sysds_name
         for i in args['ids']:
             if '.system-' in i:
                 zfs = libzfs.ZFS()
                 for d in zfs.datasets:
                     if d.mountpoint == SYSTEM_DIR:
-                        dispatcher.update_resource(
-                            'system-dataset',
-                            new_parents=['zfs:{0}'.format(d.name)]
-                        )
-                        return
+                        if d.name != last_sysds_name:
+                            dispatcher.update_resource(
+                                'system-dataset',
+                                new_parents=['zfs:{0}'.format(d.name)]
+                            )
+                            last_sysds_name = d.name
+                            return
 
     def volume_pre_destroy(args):
         # Evacuate .system dataset from the pool
@@ -339,6 +347,7 @@ def _init(dispatcher, plugin):
         Resource('system-dataset'),
         parents=['zfs:{0}/.system-{1}'.format(pool, dsid)]
     )
+    last_sysds_name = '{0}/.system-{1}'.format(pool, dsid)
 
     plugin.register_event_handler('volume.changed', on_volumes_changed)
     plugin.register_event_handler('zfs.dataset.changed', on_datasets_changed)
