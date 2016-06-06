@@ -184,27 +184,26 @@ class UserCreateTask(Task):
         else:
             uid = user.pop('uid')
 
-        try:
-            normalize(user, {
-                'builtin': False,
-                'unixhash': None,
-                'nthash': None,
-                'password_changed_at': None,
-                'full_name': 'User &',
-                'shell': '/bin/sh',
-                'home': '/nonexistent',
-                'groups': [],
-                'uid': uid,
-                'attributes': {}
-            })
+        normalize(user, {
+            'builtin': False,
+            'unixhash': None,
+            'nthash': None,
+            'password_changed_at': None,
+            'full_name': 'User &',
+            'shell': '/bin/sh',
+            'home': '/nonexistent',
+            'groups': [],
+            'uid': uid,
+            'attributes': {}
+        })
 
-            password = user.pop('password', None)
-            if password:
-                user.update({
-                    'unixhash': crypted_password(password),
-                    'nthash': nt_password(password),
-                    'password_changed_at': datetime.utcnow()
-                })
+        password = user.pop('password', None)
+        if password:
+            user.update({
+                'unixhash': crypted_password(password),
+                'nthash': nt_password(password),
+                'password_changed_at': datetime.utcnow()
+            })
 
         if user.get('group') is None:
             try:
