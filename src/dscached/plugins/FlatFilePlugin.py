@@ -97,6 +97,9 @@ class FlatFilePlugin(DirectoryServicePlugin):
     def getpwuid(self, uid):
         return self.passwd.query(('uid', '=', uid), single=True)
 
+    def getpwuui(self, uuid):
+        return self.passwd.query(('id', '=', uuid), single=True)
+
     def getgrent(self, filter=None, params=None):
         return self.group.query(*(filter or []), **(params or {}))
 
@@ -105,6 +108,9 @@ class FlatFilePlugin(DirectoryServicePlugin):
 
     def getgrgid(self, gid):
         return self.group.query(('gid', '=', gid), single=True)
+
+    def getgruuid(self, uuid):
+        return self.group.query(('id', '=', uuid), single=True)
 
     def change_password(self, username, password):
         try:

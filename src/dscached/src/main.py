@@ -91,7 +91,7 @@ def annotate(user, directory, name_field, cache=None):
 class CacheItem(object):
     def __init__(self, id, uuid, names, value, directory, ttl):
         self.id = id
-        self.uuid = uuid
+        self.uuid = uuid.lower()
         self.names = names
         self.value = value
         self.directory = directory
@@ -141,7 +141,7 @@ class TTLCacheStore(object):
         if id is not None:
             item = self.id_store.get(id)
         elif uuid is not None:
-            item = self.uuid_store.get(uuid)
+            item = self.uuid_store.get(uuid.lower())
         elif name is not None:
             item = self.name_store.get(name)
         else:
@@ -383,7 +383,26 @@ class AccountService(RpcService):
             if user:
                 item = CacheItem(user['uid'], user['id'], user_name, copy.copy(user), d, 300)
                 self.context.users_cache.set(item)
-                return self.__annotate(d, user)
+                return item.annotated
+
+        return None
+
+    def getpwuuid(self, uuid):
+        # Try the cache first
+        item = self.context.users_cache.get(uuid=uuid)
+        if item:
+            return item.annotated
+
+        for d in self.context.get_enabled_directories():
+            try:
+                user = d.instance.getpwuuid(uuid)
+            except:
+                continue
+
+            if user:
+                item = CacheItem(user['uid'], user['id'], user['username'], copy.copy(user), d, 300)
+                self.context.users_cache.set(item)
+                return item.annotated
 
         return None
 
@@ -451,6 +470,25 @@ class GroupService(RpcService):
                 return self.__annotate(d, group)
             except:
                 continue
+
+        return None
+
+    def getgruuid(self, uuid):
+        # Try the cache first
+        item = self.context.groups_cache.get(uuid=uuid)
+        if item:
+            return item.annotated
+
+        for d in self.context.get_enabled_directories():
+            try:
+                group = d.instance.getgruuid(uuid)
+            except:
+                continue
+
+            if group:
+                item = CacheItem(group['gid'], group['id'], group['name'], copy.copy(group), d, 300)
+                self.context.groups_cache.set(item)
+                return item.annotated
 
         return None
 
