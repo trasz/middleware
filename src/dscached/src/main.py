@@ -46,7 +46,7 @@ from datetime import datetime, timedelta
 from datastore.config import ConfigStore
 from freenas.dispatcher.client import Client, ClientError
 from freenas.dispatcher.server import Server
-from freenas.dispatcher.rpc import RpcContext, RpcService, RpcException
+from freenas.dispatcher.rpc import RpcContext, RpcService, RpcException, generator
 from freenas.utils import first_or_default, configure_logging, extend
 from freenas.utils.debug import DebugService
 from freenas.utils.query import QueryDict
@@ -71,6 +71,21 @@ def my_ips():
 
 def filter_af(addresses, af):
     return [a for a in addresses if type(ipaddress.ip_address(a)) is AF_MAP[af]]
+
+
+def annotate(user, directory, name_field, cache=None):
+    name = '{0}@{1}'.format(user[name_field], directory.domain_name) \
+        if directory.domain_name \
+        else user[name_field]
+
+    return extend(user, {
+        name_field: name,
+        'origin': {
+            'directory': directory.name,
+            'cached_at': None,
+            'ttl': None
+        }
+    })
 
 
 class CacheItem(object):
@@ -322,8 +337,11 @@ class AccountService(RpcService):
 
         return None, None
 
+    @generator
     def query(self, filter=None, params=None):
-        return [i.annotated for i in self.context.users_cache.query(filter, params)]
+        for d in self.context.get_enabled_directories():
+            for user in d.instance.getpwent(filter, params):
+                yield annotate(user, d, 'username')
     
     def getpwuid(self, uid):
         # Try the cache first
@@ -390,9 +408,12 @@ class GroupService(RpcService):
     def __init__(self, context):
         self.context = context
 
+    @generator
     def query(self, filter=None, params=None):
-        return [i.annotated for i in self.context.groups_cache.query(filter, params)]
-    
+        for d in self.context.get_enabled_directories():
+            for group in d.instance.getgrent(filter, params):
+                yield annotate(group, d, 'name')
+
     def getgrnam(self, name):
         # Try the cache first
         item = self.context.groups_cache.get(name=name)
