@@ -43,6 +43,11 @@ get_image_name()
     find $(get_product_path) -name "$AVATAR_PROJECT-$AVATAR_ARCH.img.xz" -type f
 }
 
+chroot_target()
+{
+    chroot /tmp/data env LD_LIBRARY_PATH=/usr/local/lib $*
+}
+
 build_config_old()
 {
     # build_config ${_disk} ${_image} ${_config_file}
@@ -858,25 +863,25 @@ menu_install()
     
     # Create a temporary /var
     mount -t tmpfs tmpfs /tmp/data/var
-    chroot /tmp/data /usr/sbin/mtree -deUf /etc/mtree/BSD.var.dist -p /var
+    chroot_target /usr/sbin/mtree -deUf /etc/mtree/BSD.var.dist -p /var
     # Set default boot filesystem
     zpool set bootfs=freenas-boot/ROOT/default freenas-boot
 
     # Start MongoDB for dspasswd and grub_install
-    chroot /tmp/data /etc/rc.d/ldconfig start
-    chroot /tmp/data /usr/local/sbin/dsinit --start-forked
+    chroot_target /etc/rc.d/ldconfig start
+    chroot_target /usr/local/sbin/dsinit --start-forked
 
     install_grub /tmp/data ${_realdisks}
     
     if [ "${_do_upgrade}" -eq 0 ]; then
 	if [ -n "${_password}" ]; then
 		# Set the root password
-		chroot /tmp/data /usr/local/sbin/dspasswd root "${_password}"
+		chroot_target /usr/local/sbin/dspasswd root "${_password}"
 	fi
     fi
 
     # Done with MongoDB
-    chroot /tmp/data /usr/local/sbin/dsinit --stop-forked
+    chroot_target /usr/local/sbin/dsinit --stop-forked
 
     : > /tmp/data/${FIRST_INSTALL_SENTINEL}
     # Finally, before we unmount, start a srub.

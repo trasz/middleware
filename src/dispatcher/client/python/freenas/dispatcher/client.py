@@ -1,4 +1,4 @@
-#+
+#
 # Copyright 2014 iXsystems, Inc.
 # All rights reserved
 #
@@ -31,13 +31,14 @@ import enum
 import uuid
 import errno
 import time
+import logging
 from .jsonenc import dumps, loads
-from threading import RLock, Event
+from threading import RLock, Event, Condition
 from queue import Queue
 from freenas.dispatcher import rpc
 from freenas.utils.spawn_thread import spawn_thread
-from freenas.dispatcher.client_transport import ClientTransportBuilder
-from freenas.dispatcher.fd import FileDescriptor
+from freenas.dispatcher.transport import ClientTransport
+from freenas.dispatcher.fd import replace_fds, collect_fds
 from ws4py.compat import urlsplit
 
 
@@ -69,21 +70,155 @@ def debug_log(message, *args):
         _debug_log_file.flush()
 
 
-class Client(object):
-    class StreamingResultIterator(object):
-        def __init__(self, queue):
-            self.q = queue
+class StreamingResultIterator(object):
+    def __init__(self, client, call):
+        self.client = client
+        self.call = call
+        self.q = call.queue
 
-        def __iter__(self):
-            return self
+    def __iter__(self):
+        return self
 
-        def __next__(self):
-            v = self.q.get()
-            if not v:
-                raise StopIteration
+    def __next__(self):
+        with self.call.cv:
+            # Wait for initial response
+            self.call.cv.wait_for(lambda: self.call.seqno > 0)
 
-            return v
+        if self.q.empty():
+            # Request new fragment
+            self.client.call_continue(self.call.id, True)
 
+        v = self.q.get()
+        if not v:
+            raise StopIteration
+
+        return v
+
+
+class Connection(object):
+    def __init__(self):
+        self.transport = None
+        self.logger = logging.getLogger(self.__class__.__name__)
+        self.rlock = RLock()
+
+    def trace(self, msg):
+        pass
+
+    def pack(self, namespace, name, args=None, id=None):
+        fds = list(collect_fds(args))
+        try:
+            result = dumps({
+                'namespace': namespace,
+                'name': name,
+                'args': args,
+                'id': str(id if id is not None else uuid.uuid4())
+            })
+            return result, fds
+        except UnicodeEncodeError:
+            raise
+
+    def call(self, pending_call, call_type='call', custom_payload=None):
+        if custom_payload is None:
+            payload = {
+                'method': pending_call.method,
+                'args': pending_call.args,
+            }
+        else:
+            payload = custom_payload
+
+        if pending_call.streaming:
+            pending_call.queue = Queue()
+            pending_call.result = StreamingResultIterator(self, pending_call)
+
+        self.send(
+            'rpc',
+            call_type,
+            payload,
+            pending_call.id
+        )
+
+    def send_event(self, name, params):
+        self.send(
+            'events',
+            'event',
+            {'name': name, 'args': params}
+        )
+
+    def send_error(self, id, errno, msg, extra=None):
+        payload = {
+            'code': errno,
+            'message': msg
+        }
+
+        if extra is not None:
+            payload.update(extra)
+
+        self.send('rpc', 'error', id=id, args=payload)
+
+    def send_call(self, id, method, args):
+        self.send('rpc', 'call', id=id, args={'method': method, 'args': args})
+
+    def send_response(self, id, resp):
+        self.send('rpc', 'response', id=id, args=resp)
+
+    def send_fragment(self, id, seqno, fragment):
+        self.send('rpc', 'fragment', id=id, args={'seqno': seqno, 'fragment': fragment})
+
+    def send_end(self, id, seqno):
+        self.send('rpc', 'end', id=id, args=seqno)
+
+    def send_continue(self, id, seqno):
+        self.send('rpc', 'continue', id=id, args=seqno)
+
+    def send_abort(self, id):
+        self.send('rpc', 'abort', id=id)
+
+    def send(self, *args, **kwargs):
+        self.send_raw(*self.pack(*args, **kwargs))
+
+    def send_raw(self, data, fds=None):
+        if not fds:
+            fds = []
+
+        debug_log('<- {0} [{1}]', data, fds)
+        with self.rlock:
+            self.transport.send(data, fds)
+
+    def on_open(self):
+        pass
+
+    def on_close(self, reason):
+        pass
+
+    def on_message(self, message, *args, **kwargs):
+        fds = kwargs.pop('fds', [])
+        debug_log('-> {0}', str(message))
+
+        if not type(message) is bytes:
+            return
+
+        try:
+            message = loads(message.decode('utf-8'))
+        except ValueError:
+            self.send_error(None, errno.EINVAL, 'Request is not valid JSON')
+            return
+
+        replace_fds(message, fds)
+
+        if 'namespace' not in message or 'name' not in message:
+            self.send_error(None, errno.EINVAL, 'Invalid request')
+            return
+
+        try:
+            method = getattr(self, "on_{}_{}".format(message["namespace"], message["name"]))
+        except AttributeError:
+            self.send_error(None, errno.EINVAL, 'Invalid request')
+            return
+
+        method(message["id"], message["args"])
+
+
+class Client(Connection):
     class PendingCall(object):
         def __init__(self, id, method, args=None):
             self.id = id
@@ -95,6 +230,8 @@ class Client(object):
             self.callback = None
             self.streaming = False
             self.queue = None
+            self.seqno = 0
+            self.cv = Condition()
 
     class SubscribedEvent(object):
         def __init__(self, name, *filters):
@@ -110,6 +247,7 @@ class Client(object):
                 return match(args, *self.filters)
 
     def __init__(self):
+        super(Client, self).__init__()
         self.pending_calls = {}
         self.pending_events = []
         self.event_handlers = {}
@@ -130,89 +268,6 @@ class Client(object):
         self.event_cv = Event()
         self.event_thread = None
 
-    def __pack(self, namespace, name, args, id=None):
-        fds = list(self.__collect_fds(args))
-        return dumps({
-            'namespace': namespace,
-            'name': name,
-            'args': args,
-            'id': str(id if id is not None else uuid.uuid4())
-        }), fds
-
-    def __call_timeout(self, call):
-        pass
-
-    def __call(self, pending_call, call_type='call', custom_payload=None):
-        if custom_payload is None:
-            payload = {
-                'method': pending_call.method,
-                'args': pending_call.args,
-            }
-        else:
-            payload = custom_payload
-
-        if pending_call.streaming:
-            pending_call.queue = Queue()
-            pending_call.result = self.StreamingResultIterator(pending_call.queue)
-
-        self.__send(*self.__pack(
-            'rpc',
-            call_type,
-            payload,
-            pending_call.id
-        ))
-
-    def __send_event(self, name, params):
-        self.__send(*self.__pack(
-            'events',
-            'event',
-            {'name': name, 'args': params}
-        ))
-
-    def __send_event_burst(self):
-        with self.event_emission_lock:
-            self.__send(*self.__pack(
-                'events',
-                'event_burst',
-                {'events': list([{'name': t[0], 'args': t[1]} for t in self.pending_events])},
-            ))
-
-            del self.pending_events[:]
-
-    def __send_error(self, id, errno, msg, extra=None):
-        payload = {
-            'code': errno,
-            'message': msg
-        }
-
-        if extra is not None:
-            payload.update(extra)
-
-        self.__send(*self.__pack('rpc', 'error', id=id, args=payload))
-
-    def __send_response(self, id, resp):
-        self.__send(*self.__pack('rpc', 'response', id=id, args=resp))
-
-    def __send(self, data, fds=None):
-        if not fds:
-            fds = []
-
-        debug_log('<- {0} [{1}]', data, fds)
-        self.transport.send(data, fds)
-
-    def recv(self, message, fds):
-        if isinstance(message, bytes):
-            message = message.decode('utf-8')
-        debug_log('-> {0}', message)
-        try:
-            msg = loads(message)
-        except ValueError as err:
-            if self.error_callback is not None:
-                self.error_callback(ClientError.INVALID_JSON_RESPONSE, err)
-            return
-
-        self.decode(msg, fds)
-
     def __process_event(self, name, args):
         with self.event_distribution_lock:
             if name in self.event_handlers:
@@ -229,45 +284,7 @@ class Client(object):
             while len(self.pending_events) > 0:
                 time.sleep(0.1)
                 with self.event_emission_lock:
-                    self.__send_event_burst()
-
-    def __collect_fds(self, obj, start=0):
-        idx = start
-
-        if isinstance(obj, dict):
-            for k, v in list(obj.items()):
-                if isinstance(v, FileDescriptor):
-                    obj[k] = {'$fd': idx}
-                    idx += 1
-                    yield v
-                else:
-                    for x in self.__collect_fds(v, idx):
-                        yield x
-
-        if isinstance(obj, (list, tuple)):
-            for i, o in enumerate(obj):
-                if isinstance(o, FileDescriptor):
-                    obj[i] = {'$fd': idx}
-                    idx += 1
-                    yield o
-                else:
-                    for x in self.__collect_fds(o, idx):
-                        yield x
-
-    def __replace_fds(self, obj, fds):
-        if isinstance(obj, dict):
-            for k, v in list(obj.items()):
-                if isinstance(v, dict) and len(v) == 1 and '$fd' in v:
-                    obj[k] = FileDescriptor(fds[v['$fd']]) if v['$fd'] < len(fds) else None
-                else:
-                    self.__replace_fds(v, fds)
-
-        if isinstance(obj, list):
-            for i, o in enumerate(obj):
-                if isinstance(o, dict) and len(o) == 1 and '$fd' in o:
-                    obj[i] = FileDescriptor(fds[o['$fd']]) if o['$fd'] < len(fds) else None
-                else:
-                    self.__replace_fds(o, fds)
+                    self.send_event_burst()
 
     def wait_forever(self):
         while True:
@@ -283,6 +300,11 @@ class Client(object):
 
         return False
 
+    def on_close(self, reason):
+        self.drop_pending_calls()
+        if self.error_callback is not None:
+            self.error_callback(ClientError.CONNECTION_CLOSED)
+
     def drop_pending_calls(self):
         message = "Connection closed"
         for key, call in list(self.pending_calls.items()):
@@ -294,114 +316,101 @@ class Client(object):
             call.completed.set()
             del self.pending_calls[key]
 
-    def decode(self, msg, fds):
-        self.__replace_fds(msg, fds)
+    def on_events_event(self, id, data):
+        spawn_thread(self.__process_event, data['name'], data['args'], threadpool=True)
 
-        if 'namespace' not in msg:
-            self.error_callback(ClientError.INVALID_JSON_RESPONSE)
-            return
+    def on_events_event_burst(self, id, data):
+        for i in data['events']:
+            spawn_thread(self.__process_event, i['name'], i['args'], threadpool=True)
 
-        if 'name' not in msg:
-            self.error_callback(ClientError.INVALID_JSON_RESPONSE)
-            return
+    def on_events_logout(self, id, data):
+        self.error_callback(ClientError.LOGOUT)
 
-        if msg['namespace'] == 'events' and msg['name'] == 'event':
-            args = msg['args']
-            spawn_thread(self.__process_event, args['name'], args['args'], threadpool=True)
-            return
+    def on_rpc_response(self, id, data):
+        if id in self.pending_calls.keys():
+            call = self.pending_calls[id]
+            call.result = data
+            call.completed.set()
+            if call.callback is not None:
+                call.callback(data)
 
-        if msg['namespace'] == 'events' and msg['name'] == 'event_burst':
-            args = msg['args']
-            for i in args['events']:
-                spawn_thread(self.__process_event, i['name'], i['args'], threadpool=True)
-            return
+            del self.pending_calls[str(call.id)]
+        else:
+            if self.error_callback is not None:
+                self.error_callback(ClientError.SPURIOUS_RPC_RESPONSE, id)
 
-        if msg['namespace'] == 'events' and msg['name'] == 'logout':
-            self.error_callback(ClientError.LOGOUT)
-            return
+    def on_rpc_fragment(self, id, data):
+        seqno = data['seqno']
+        data = data['fragment']
 
-        if msg['namespace'] == 'rpc':
-            if msg['name'] == 'call':
-                if self.rpc is None:
-                    self.__send_error(msg['id'], errno.EINVAL, 'Server functionality is not supported')
-                    return
+        if id in self.pending_calls.keys():
+            call = self.pending_calls[id]
+            if call.streaming:
+                for i in data:
+                    call.queue.put(i)
 
-                if 'args' not in msg:
-                    self.__send_error(msg['id'], errno.EINVAL, 'Malformed request')
-                    return
+                with call.cv:
+                    call.seqno = seqno
+                    call.cv.notify()
+            else:
+                if call.result is None:
+                    call.result = []
 
-                args = msg['args']
-                if 'method' not in args or 'args' not in args:
-                    self.__send_error(msg['id'], errno.EINVAL, 'Malformed request')
-                    return
+                call.result += data
 
-                def run_async(msg, args):
-                    try:
-                        result = self.rpc.dispatch_call(args['method'], args['args'], sender=self)
-                    except rpc.RpcException as err:
-                        self.__send_error(msg['id'], err.code, err.message)
-                    else:
-                        self.__send_response(msg['id'], result)
+            if call.streaming and call.callback:
+                call.callback(data)
 
-                spawn_thread(run_async, msg, args, threadpool=True)
-                return
+    def on_rpc_end(self, id, data):
+        if id in self.pending_calls.keys():
+            call = self.pending_calls[id]
+            with call.cv:
+                call.seqno = data
+                call.cv.notify()
+            if call.streaming:
+                call.queue.put(None)
 
-            if msg['name'] == 'response':
-                if msg['id'] in self.pending_calls.keys():
-                    call = self.pending_calls[msg['id']]
-                    call.result = msg['args']
-                    call.completed.set()
-                    if call.callback is not None:
-                        call.callback(msg['args'])
-
-                    del self.pending_calls[str(call.id)]
+            if call.callback:
+                if call.streaming:
+                    call.callback(None)
                 else:
-                    if self.error_callback is not None:
-                        self.error_callback(ClientError.SPURIOUS_RPC_RESPONSE, msg['id'])
+                    call.callback(call.result)
 
-            if msg['name'] == 'response_fragment':
-                if msg['id'] in self.pending_calls.keys():
-                    call = self.pending_calls[msg['id']]
-                    if call.streaming:
-                        for i in msg['args']:
-                            call.queue.put(i)
-                    else:
-                        if call.result is None:
-                            call.result = []
+            call.completed.set()
+            del self.pending_calls[str(call.id)]
 
-                        call.result += msg['args']
+    def on_rpc_call(self, id, data):
+        if self.rpc is None:
+            self.send_error(id, errno.EINVAL, 'Server functionality is not supported')
+            return
 
-                    if call.streaming and call.callback:
-                        call.callback(msg['args'])
+        if 'method' not in data or 'args' not in data:
+            self.send_error(id, errno.EINVAL, 'Malformed request')
+            return
 
-            if msg['name'] == 'response_end':
-                if msg['id'] in self.pending_calls.keys():
-                    call = self.pending_calls[msg['id']]
-                    if call.streaming:
-                        call.queue.put(None)
+        def run_async(id, args):
+            try:
+                result = self.rpc.dispatch_call(args['method'], args['args'], sender=self)
+            except rpc.RpcException as err:
+                self.send_error(id, err.code, err.message)
+            else:
+                self.send_response(id, result)
 
-                    if call.callback:
-                        if call.streaming:
-                            call.callback(None)
-                        else:
-                            call.callback(call.result)
+        spawn_thread(run_async, id, data, threadpool=True)
 
-                    call.completed.set()
-                    del self.pending_calls[str(call.id)]
+    def on_rpc_error(self, id, data):
+        if id in self.pending_calls.keys():
+            call = self.pending_calls[id]
+            call.result = None
+            call.error = data
+            call.completed.set()
+            if call.callback is not None:
+                call.callback(rpc.RpcException(obj=call.error))
 
-            if msg['name'] == 'error':
-                if msg['id'] in self.pending_calls.keys():
-                    call = self.pending_calls[msg['id']]
-                    call.result = None
-                    call.error = msg['args']
-                    call.completed.set()
-                    if call.callback is not None:
-                        call.callback(rpc.RpcException(obj=call.error))
+            del self.pending_calls[str(call.id)]
 
-                    del self.pending_calls[str(call.id)]
-
-                if self.error_callback is not None:
-                    self.error_callback(ClientError.RPC_CALL_ERROR)
+        if self.error_callback is not None:
+            self.error_callback(ClientError.RPC_CALL_ERROR)
 
     def parse_url(self, url):
         self.parsed_url = urlsplit(url, scheme="http")
@@ -410,15 +419,14 @@ class Client(object):
     def connect(self, url, **kwargs):
         self.parse_url(url)
         if not self.scheme:
-            self.scheme = kwargs.get('scheme',"ws")
+            self.scheme = kwargs.get('scheme', "ws")
         else:
             if 'scheme' in kwargs:
                 raise ValueError('Connection scheme cannot be delared in both url and arguments.')
         if self.scheme is "http":
             self.scheme = "ws"
 
-        builder = ClientTransportBuilder()
-        self.transport = builder.create(self.scheme)
+        self.transport = ClientTransport(self.parsed_url.scheme)
         self.transport.connect(self.parsed_url, self, **kwargs)
         debug_log('Connection opened, local address {0}', self.transport.address)
 
@@ -428,7 +436,7 @@ class Client(object):
     def login_user(self, username, password, timeout=None, check_password=False, resource=None):
         call = self.PendingCall(uuid.uuid4(), 'auth')
         self.pending_calls[str(call.id)] = call
-        self.__call(call, call_type='auth', custom_payload={
+        self.call(call, call_type='auth', custom_payload={
             'username': username,
             'password': password,
             'check_password': check_password,
@@ -443,7 +451,7 @@ class Client(object):
     def login_service(self, name, timeout=None):
         call = self.PendingCall(uuid.uuid4(), 'auth')
         self.pending_calls[str(call.id)] = call
-        self.__call(call, call_type='auth_service', custom_payload={'name': name})
+        self.call(call, call_type='auth_service', custom_payload={'name': name})
         if call.error:
             raise rpc.RpcException(obj=call.error)
 
@@ -452,7 +460,7 @@ class Client(object):
     def login_token(self, token, timeout=None):
         call = self.PendingCall(uuid.uuid4(), 'auth')
         self.pending_calls[str(call.id)] = call
-        self.__call(call, call_type='auth_token', custom_payload={'token': token})
+        self.call(call, call_type='auth_token', custom_payload={'token': token})
         self.wait_for_call(call, timeout)
         if call.error:
             raise rpc.RpcException(obj=call.error)
@@ -464,8 +472,11 @@ class Client(object):
         self.drop_pending_calls()
         self.transport.close()
 
-    def enable_server(self):
-        self.rpc = rpc.RpcContext()
+    def enable_server(self, context=None):
+        self.rpc = context or rpc.RpcContext()
+        if context and isinstance(context, rpc.RpcContext):
+            for name in context.services:
+                self.call_sync('plugin.register_service', name)
 
     def on_event(self, callback):
         self.event_callback = callback
@@ -477,10 +488,10 @@ class Client(object):
         self.error_callback = callback
 
     def subscribe_events(self, *masks):
-        self.__send(*self.__pack('events', 'subscribe', masks))
+        self.send('events', 'subscribe', masks)
 
     def unsubscribe_events(self, *masks):
-        self.__send(*self.__pack('events', 'unsubscribe', masks))
+        self.send('events', 'unsubscribe', masks)
 
     def register_service(self, name, impl):
         if self.rpc is None:
@@ -519,7 +530,7 @@ class Client(object):
         call.callback = callback
         call.streaming = kwargs.pop('streaming', False)
         self.pending_calls[str(call.id)] = call
-        self.__call(call)
+        self.call(call)
         return call
 
     def call_sync(self, name, *args, **kwargs):
@@ -527,7 +538,7 @@ class Client(object):
         call = self.PendingCall(uuid.uuid4(), name, args)
         call.streaming = kwargs.pop('streaming', False)
         self.pending_calls[str(call.id)] = call
-        self.__call(call)
+        self.call(call)
 
         if call.streaming:
             return call.result
@@ -542,6 +553,14 @@ class Client(object):
             raise rpc.RpcException(obj=call.error)
 
         return call.result
+
+    def call_continue(self, id, sync=False):
+        call = self.pending_calls[str(id)]
+        if sync:
+            with call.cv:
+                seqno = call.seqno + 1
+                self.send_continue(id, seqno)
+                call.cv.wait_for(lambda: call.seqno == seqno)
 
     def call_task_sync(self, name, *args, timeout=3600):
         tid = self.call_sync('task.submit', name, list(args))
@@ -564,7 +583,7 @@ class Client(object):
 
     def emit_event(self, name, params):
         if not self.use_bursts:
-            self.__send_event(name, params)
+            self.send_event(name, params)
         else:
             self.pending_events.append((name, params))
             self.event_cv.set()

@@ -27,301 +27,184 @@
 
 import errno
 import logging
+from datastore.config import ConfigNode
+from task import TaskException
 
 from freenas.dispatcher.rpc import (
+    RpcException,
     accepts,
     description,
+    returns,
     SchemaHelper as h
 )
-
-from resources import Resource 
-
 from task import (
     query,
     Provider,
     Task,
-    VerifyException,
-    TaskDescription
+    VerifyException
 )
+
+from freenas.utils import normalize
 
 logger = logging.getLogger('DirectoryServicePlugin')
 
 
-@description('Provides information about directory services')
 class DirectoryServicesProvider(Provider):
     @query('directoryservice')
     def query(self, filter=None, params=None):
-        def extend(directoryservice):
-            return directoryservice
+        def extend(directory):
+            return directory
 
-        # XXX Not sure why this won't work
-        #return self.dispatcher.call_sync('dsd.configuration.query',
-        #    *(filter or []), callback=extend, **(params or {}))
+        return self.datastore.query('directories', *(filter or []), callback=extend, **(params or {}))
 
-        return self.datastore.query('directoryservices', *(filter or []), 
-            callback=extend, **(params or {}))
 
-    def get(self, id, what):
-        return self.dispatcher.call_sync('dsd.configuration.get_%s' % what, id)
+class DirectoryServicesConfigureTask(Task):
+    def verify(self, updated_params):
+        return ['system']
 
-    def kerberosticket(self, id):
-        self.dispatcher.call_sync('dsd.configuration.get_kerberos_ticket', id)
+    def run(self, updated_params):
+        node = ConfigNode('network', self.configstore)
+        node.update(updated_params)
 
-    def join(self, id):
-        self.dispatcher.call_sync('dsd.configuration.join_activedirectory', id)
-
-    def enable(self, id):
-        self.dispatcher.call_sync('dsd.configuration.enable', id)
-
-    def disable(self, id):
-        self.dispatcher.call_sync('dsd.configuration.disable', id)
+        try:
+            self.dispatcher.call_sync('dscached.management.reload_config')
+        except RpcException as e:
+            raise TaskException(errno.ENXIO, 'Cannot reconfigure directory services: {0}'.format(str(e)))
 
 
 @accepts(
-    h.all_of(
-        h.ref('directoryservice'),
-        h.required('name', 'domain'),
-        h.forbidden('id')
-    )
+    h.ref('directory'),
+    h.required('name', 'plugin'),
+    h.forbidden('immutable')
 )
-@description("Creates directory service")
+@returns(str)
 class DirectoryServiceCreateTask(Task):
-    @classmethod
-    def early_describe(cls):
-        return "Creating directory service"
+    def verify(self, directory):
+        return ['system']
 
-    def describe(self, directoryservice):
-        return TaskDescription("Creating directory service {name}", name=directoryservice.get('name', ''))
+    def run(self, directory):
+        try:
+            params = self.dispatcher.call_sync(
+                'dscached.management.normalize_parameters',
+                directory['plugin'],
+                directory.get('parameters', {})
+            )
+        except RpcException as err:
+            raise TaskException(err.code, err.message)
 
-    def verify(self, directoryservice):
-        dstypes = self.dispatcher.call_sync('dsd.configuration.get_supported_directories')
-        type = directoryservice['type']
-        if type not in dstypes:
-            raise VerifyException(errno.ENXIO, 'Unknown directory service type {0}'.format(directoryservice[type]))
+        normalize(directory, {
+            'enabled': False,
+            'enumerate': True,
+            'immutable': False,
+            'uid_range': None,
+            'gid_range': None,
+            'parameters': params
+        })
 
-        directoryservices = self.dispatcher.call_sync('dsd.configuration.get_directory_services')
-        for ds in directoryservices:
-            if ds['type'] == type:
-                raise VerifyException(errno.EEXIST, 'THERE CAN ONLY BE ONE!')
+        if directory['plugin'] == 'winbind':
+            normalize(directory, {
+                'uid_range': [100000, 999999],
+                'gid_range': [100000, 999999]
+            })
 
-        return ['directoryservice']
+        self.id = self.datastore.insert('directories', directory)
+        self.dispatcher.call_sync('dscached.management.configure_directory', self.id)
+        self.dispatcher.dispatch_event('directory.changed', {
+            'operation': 'create',
+            'ids': [self.id]
+        })
 
-    def run(self, directoryservice):
-        return self.dispatcher.call_sync('dsd.configuration.create', directoryservice)
+        return self.id
+
+    def rollback(self, directory):
+        if hasattr(self, 'id'):
+            self.datastore.remove('directories', self.id)
 
 
-@description("Update directory service")
+@accepts(str, h.ref('directory'))
 class DirectoryServiceUpdateTask(Task):
-    @classmethod
-    def early_describe(cls):
-        return "Updating directory service"
+    def verify(self, id, updated_params):
+        return ['system']
 
-    def describe(self, id, updated_fields):
-        service = self.datastore.get_by_id('directoryservices', id)
-        return TaskDescription("Updating directory service {name}", name=service.get('name', '') if service else '')
+    def run(self, id, updated_params):
+        directory = self.datastore.get_by_id('directories', id)
+        if directory['immutable']:
+            raise TaskException(errno.EPERM, 'Directory {0} is immutable'.format(directory['name']))
 
-    def verify(self, id, updated_fields):
-        directoryservice = self.dispatcher.call_sync('dsd.configuration.verify', id)
-        if not directoryservice:
-            raise VerifyException(errno.ENOENT, 'Directory service not found')
-        return ['directoryservice']
+        directory.update(updated_params)
+        self.datastore.update('directories', id, directory)
+        self.dispatcher.call_sync('dscached.management.configure_directory', id)
+        self.dispatcher.dispatch_event('directory.changed', {
+            'operation': 'update',
+            'ids': [id]
+        })
 
-    def run(self, id, updated_fields):
-        return self.dispatcher.call_sync('dsd.configuration.update', id, updated_fields)
 
-
-@description("Delete directory service")
+@accepts(str)
 class DirectoryServiceDeleteTask(Task):
-    @classmethod
-    def early_describe(cls):
-        return 'Deleting directory service'
-
-    def describe(self, id):
-        service = self.datastore.get_by_id('directoryservices', id)
-        return TaskDescription("Deleting directory service {name}", name=service.get('name', '') if service else '')
-
     def verify(self, id):
-        directoryservice = self.dispatcher.call_sync('dsd.configuration.verify', id)
-        if not directoryservice:
-            raise VerifyException(errno.ENOENT, 'Directory service not found')
-        return ['directoryservice']
+        pass
 
     def run(self, id):
-        return self.dispatcher.call_sync('dsd.configuration.delete', id)
+        directory = self.datastore.get_by_id('directories', id)
+        if directory['immutable']:
+            raise TaskException(errno.EPERM, 'Directory {0} is immutable'.format(directory['name']))
 
-
-@description("Enable directory service")
-class DirectoryServiceEnableTask(Task):
-    @classmethod
-    def early_describe(cls):
-        return 'Enabling directory service'
-
-    def describe(self, id):
-        service = self.datastore.get_by_id('directoryservices', id)
-        return TaskDescription("Enabling directory service {name}", name=service.get('name', '') if service else '')
-
-    def verify(self, id):
-        directoryservice = self.dispatcher.call_sync('dsd.configuration.verify', id)
-        if not directoryservice:
-            raise VerifyException(errno.ENOENT, 'Directory service not found')
-        return ['directoryservice']
-
-    def run(self, id):
-        return self.dispatcher.call_sync('dsd.configuration.enable', id)
-
-
-@description("Disable directory service")
-class DirectoryServiceDisableTask(Task):
-    @classmethod
-    def early_describe(cls):
-        return 'Disabling directory service'
-
-    def describe(self, id):
-        service = self.datastore.get_by_id('directoryservices', id)
-        return TaskDescription("Disabling directory service {name}", name=service.get('name', '') if service else '')
-
-    def verify(self, id):
-        directoryservice = self.dispatcher.call_sync('dsd.configuration.verify', id)
-        if not directoryservice:
-            raise VerifyException(errno.ENOENT, 'Directory service not found')
-        return ['directoryservice']
-
-    def run(self, id):
-        return self.dispatcher.call_sync('dsd.configuration.disable', id)
-
-
-@description("Get directory service servers")
-class DirectoryServiceGetTask(Task):
-    @classmethod
-    def early_describe(cls):
-        return 'Fetching directory service servers'
-
-    def describe(self, args):
-        service = self.datastore.get_by_id('directoryservices', args[0])
-        return TaskDescription(
-            "Fetching directory service servers {name}",
-            name=service.get('name', '') if service else ''
-        )
-
-    def verify(self, args):
-        self.logger.debug("XXX: DirectoryServiceGetTask.verify: args = %s", args)
-
-        id = args[0] 
-        what = args[1]
-
-        if what not in ['dcs', 'gcs', 'kdcs']:
-            raise VerifyException(errno.ENOENT, 'No such configuration!')
-
-        return ['directoryservice']
-
-    def run(self, args):
-        id = args[0] 
-        what = args[1]
-
-        return self.dispatcher.call_sync('dsd.configuration.get_%s' % what, id)
-  
-
-@description("Configure a directory service")
-class DirectoryServiceConfigureTask(Task):
-    @classmethod
-    def early_describe(cls):
-        return 'Configuring directory service'
-
-    def describe(self, args):
-        service = self.datastore.get_by_id('directoryservices', args[0])
-        return TaskDescription(
-            "Configuring directory service {name}",
-            name=service.get('name', '') if service else ''
-        )
-
-    def verify(self, args):
-        id = args[0] 
-        what = args[1]
-        enable = args[2]
-
-        return ['directoryservice']
-
-    def run(self, args):
-        id = args[0] 
-        what = args[1]
-        enable = args[2]
-
-        if what not in ['hostname', 'hosts', 'kerberos',
-            'nsswitch', 'openldap', 'nssldap', 'sssd',
-            'samba', 'pam', 'activedirectory', 'ldap']:
-            raise VerifyException(errno.ENOENT, 'No such configuration!')
-
-        self.dispatcher.call_sync('dsd.configuration.update_%s' % what, id, enable)
-        return ['ship']
-
-
-@description("Obtain a Kerberos ticket")
-class DirectoryServiceKerberosTicketTask(Task):
-    @classmethod
-    def early_describe(cls):
-        return 'Obtaining Kerberos ticket'
-
-    def describe(self, id):
-        return TaskDescription('Obtaining Kerberos ticket {name}', name=id)
-
-    def verify(self, id):
-        return ['directoryservice']
-
-    def run(self, id):
-
-        # XXX 
-        self.dispatcher.call_sync('dsd.configuration.get_kerberos_ticket', id)
-
-        return [ 'stack' ]
-
-
-@description("Join an Active Directory")
-class DirectoryServiceJoinActiveDirectoryTask(Task):
-    @classmethod
-    def early_describe(cls):
-        return 'Joining Active Directory'
-
-    def describe(self, id):
-        return TaskDescription('Joining Active Directory {name}', name=id)
-
-    def verify(self, id):
-        return ['directoryservice']
-
-    def run(self, id):
-
-        # XXX 
-        self.dispatcher.call_sync('dsd.configuration.join_activedirectory', id)
-
-        return [ 'soup' ]
+        self.datastore.delete('directories', id)
+        self.dispatcher.call_sync('dscached.management.configure_directory', id)
+        self.dispatcher.dispatch_event('directory.changed', {
+            'operation': 'delete',
+            'ids': [id]
+        })
 
 
 def _init(dispatcher, plugin):
-    plugin.register_schema_definition('directoryservice',  {
+    plugin.register_schema_definition('directoryservice-config', {
         'type': 'object',
         'properties': {
-            'id': { 'type': 'string' },
-            'name': { 'type': 'string' },
-            'description': { 'type': 'string' },
-            'type': { 'type': 'string' }
-
-            # Other shit goes here...
+            'search_order': {
+                'type': 'array',
+                'items': {'type': 'string'}
+            },
+            'cache_ttl': {'type': 'integer'},
+            'cache_enumerations': {'type': 'boolean'},
+            'cache_lookups': {'type': 'boolean'}
         }
     })
 
-#    dispatcher.require_collection('directoryservices')
-    dispatcher.register_resource(Resource('directoryservice'))
+    plugin.register_schema_definition('directory',  {
+        'type': 'object',
+        'properties': {
+            'id': {'type': 'string'},
+            'priority': {'type': 'integer'},
+            'plugin': {'type': 'string'},
+            'enabled': {'type': 'boolean'},
+            'enumerate': {'type': 'boolean'},
+            'uid_range': {
+                'type': ['array', 'null'],
+                'items': [
+                    {'type': 'integer'},
+                    {'type': 'integer'}
+                ]
+            },
+            'gid_range': {
+                'type': ['array', 'null'],
+                'items': [
+                    {'type': 'integer'},
+                    {'type': 'integer'}
+                ]
+            },
+            'parameters': {
+                'type': 'object'
+            },
+            'status': {
+                'type': 'object'
+            }
+        }
+    })
 
-    plugin.register_provider('directoryservices', DirectoryServicesProvider)
-
-    plugin.register_task_handler('directoryservice.create', DirectoryServiceCreateTask)
-    plugin.register_task_handler('directoryservice.update', DirectoryServiceUpdateTask)
-    plugin.register_task_handler('directoryservice.delete', DirectoryServiceDeleteTask)
-
-
-    # Should these even be tasks? to be determined...
-    plugin.register_task_handler('directoryservice.enable', DirectoryServiceEnableTask)
-    plugin.register_task_handler('directoryservice.disable', DirectoryServiceDisableTask)
-    plugin.register_task_handler('directoryservice.get', DirectoryServiceGetTask)
-    #plugin.register_task_handler('directoryservice.update', DirectoryServiceConfigureTask)
-    plugin.register_task_handler('directoryservice.kerberosticket', DirectoryServiceKerberosTicketTask)
-    plugin.register_task_handler('directoryservice.join', DirectoryServiceJoinActiveDirectoryTask)
+    plugin.register_provider('directory', DirectoryServicesProvider)
+    plugin.register_event_type('directory.changed')
+    plugin.register_task_handler('directory.create', DirectoryServiceCreateTask)
+    plugin.register_task_handler('directory.update', DirectoryServiceUpdateTask)
+    plugin.register_task_handler('directory.delete', DirectoryServiceDeleteTask)

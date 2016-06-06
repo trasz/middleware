@@ -278,6 +278,9 @@ class RpcStreamingResponse(object):
         except BaseException:
             raise RpcException(errno.EFAULT, traceback.format_exc())
 
+    def close(self):
+        self.generator.close()
+
 
 class RpcException(Exception):
     def __init__(self, code=None, message=None, extra=None, stacktrace=None, obj=None):

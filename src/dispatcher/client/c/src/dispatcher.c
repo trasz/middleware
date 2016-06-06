@@ -48,18 +48,22 @@
 #include "unix.h"
 #include "dispatcher.h"
 
+#define BUFSIZE 256
+
 struct rpc_call
 {
+	connection_t *      rc_conn;
 	const char *        rc_type;
 	const char *        rc_method;
 	json_t *            rc_id;
 	json_t *            rc_args;
 	rpc_call_status_t   rc_status;
 	json_t *            rc_result;
-	json_t *            rc_error;
-	pthread_cond_t      rc_completed;
+	pthread_cond_t      rc_cv;
 	pthread_mutex_t     rc_mtx;
+    	int                 rc_seqno;
 	rpc_callback_t *    rc_callback;
+	void *              rc_callback_arg;
 	TAILQ_ENTRY(rpc_call) rc_link;
 };
 
@@ -76,7 +80,7 @@ struct connection
 	TAILQ_HEAD(rpc_calls_head, rpc_call) conn_calls;
 };
 
-static rpc_call_t *rpc_call_alloc();
+static rpc_call_t *rpc_call_alloc(connection_t *conn);
 static json_t *dispatcher_new_id();
 static int dispatcher_call_internal(connection_t *conn, const char *type,
     struct rpc_call *call);
@@ -85,19 +89,29 @@ static json_t *dispatcher_pack_msg(const char *ns, const char *name, json_t *id,
 static int dispatcher_send_msg(connection_t *conn, json_t *msg);
 static void dispatcher_process_msg(void *conn, void *frame, size_t len,
     void *arg);
+static void dispatcher_abort(void *conn, void *arg);
 static void dispatcher_process_rpc(connection_t *conn, json_t *msg);
 static void dispatcher_process_events(connection_t *conn, json_t *msg);
+static void dispatcher_answer_call(rpc_call_t *call,
+    enum rpc_call_status status, json_t *result);
 
 connection_t *
 dispatcher_open(const char *hostname)
 {
+	char schema[BUFSIZE];
+	char netloc[BUFSIZE];
 	char *uri;
 
 	connection_t *conn = calloc(1, sizeof(connection_t));
 	TAILQ_INIT(&conn->conn_calls);
 
-	if (strncmp(hostname, "unix", sizeof("unix")) == 0) {
-		conn->conn_unix = unix_connect("/var/run/dispatcher.sock");
+	if (sscanf(hostname, "%[^:]://%[^:]", schema, netloc) < 2) {
+		free(conn);
+		return (NULL);
+	}
+
+	if (strncmp(schema, "unix", sizeof("unix")) == 0) {
+		conn->conn_unix = unix_connect(netloc);
 		if (conn->conn_unix == NULL) {
 			free(conn);
 			return (NULL);
@@ -106,6 +120,9 @@ dispatcher_open(const char *hostname)
 		conn->conn_unix->unix_message_handler =
 		    (unix_message_handler_t)dispatcher_process_msg;
 		conn->conn_unix->unix_message_handler_arg = conn;
+		conn->conn_unix->unix_close_handler =
+		    (unix_close_handler_t)dispatcher_abort;
+		conn->conn_unix->unix_close_handler_arg = conn;
 	} else {
 		asprintf(&uri, "http://%s:5000/socket", hostname);
 		conn->conn_ws = ws_connect(uri);
@@ -138,12 +155,7 @@ dispatcher_close(connection_t *conn)
 		unix_close(conn->conn_unix);
 
 	TAILQ_FOREACH_SAFE(call, &conn->conn_calls, rc_link, tmp) {
-		json_decref(call->rc_args);
-		json_decref(call->rc_id);
-		json_decref(call->rc_error);
-		json_decref(call->rc_result);
-		TAILQ_REMOVE(&conn->conn_calls, call, rc_link);
-		free(call);
+		rpc_call_free(call);
 	}
 
 	free(conn);
@@ -162,13 +174,37 @@ dispatcher_get_fd(connection_t *conn)
 }
 
 int
+dispatcher_login_user(connection_t *conn, const char *user, const char *pwd,
+    const char *resource)
+{
+	struct rpc_call *call;
+	json_t *id = dispatcher_new_id();
+	json_t *msg;
+
+	call = rpc_call_alloc(conn);
+	call->rc_id = id;
+	call->rc_type = "auth";
+	call->rc_args = json_object();
+
+	TAILQ_INSERT_TAIL(&conn->conn_calls, call, rc_link);
+
+	json_object_set(call->rc_args, "username", json_string(user));
+	json_object_set(call->rc_args, "password", json_string(pwd));
+	json_object_set(call->rc_args, "resource", json_string(resource));
+
+	dispatcher_call_internal(conn, "auth", call);
+	rpc_call_wait(call);
+	return rpc_call_status(call);
+}
+
+int
 dispatcher_login_service(connection_t *conn, const char *name)
 {
 	struct rpc_call *call;
 	json_t *id = dispatcher_new_id();
 	json_t *msg;
 
-	call = rpc_call_alloc();
+	call = rpc_call_alloc(conn);
 	call->rc_id = id;
 	call->rc_type = "auth";
 	call->rc_args = json_object();
@@ -179,14 +215,15 @@ dispatcher_login_service(connection_t *conn, const char *name)
 
 	dispatcher_call_internal(conn, "auth_service", call);
 	rpc_call_wait(call);
-	return rpc_call_success(call);
+	return rpc_call_status(call);
 }
 
 int dispatcher_subscribe_event(connection_t *conn, const char *name)
 {
 	json_t *msg;
 
-	msg = dispatcher_pack_msg("events", "subscribe", json_null(), json_pack("[s]", name));
+	msg = dispatcher_pack_msg("events", "subscribe", json_null(),
+	    json_pack("[s]", name));
 	return (dispatcher_send_msg(conn, msg));
 }
 
@@ -194,17 +231,19 @@ int dispatcher_unsubscribe_event(connection_t *conn, const char *name)
 {
 	json_t *msg;
 
-	msg = dispatcher_pack_msg("events", "unsubscribe", json_null(), json_pack("[s]", name));
+	msg = dispatcher_pack_msg("events", "unsubscribe", json_null(),
+	    json_pack("[s]", name));
 	return (dispatcher_send_msg(conn, msg));
 }
 
 int
-dispatcher_call_sync(connection_t *conn, const char *name, json_t *args, json_t **result)
+dispatcher_call_sync(connection_t *conn, const char *name, json_t *args,
+    json_t **result)
 {
 	rpc_call_t *call = dispatcher_call_async(conn, name, args, NULL, NULL);
 	rpc_call_wait(call);
 	*result = rpc_call_result(call);
-	return rpc_call_success(call);
+	return rpc_call_status(call);
 }
 
 rpc_call_t *
@@ -215,15 +254,19 @@ dispatcher_call_async(connection_t *conn, const char *name, json_t *args,
 	json_t *id = dispatcher_new_id();
 	json_t *msg;
 
-	call = rpc_call_alloc();
+	call = rpc_call_alloc(conn);
 	call->rc_id = id;
 	call->rc_type = "call";
 	call->rc_method = name;
 	call->rc_args = json_object();
+	call->rc_seqno = 0;
+	call->rc_status = RPC_CALL_IN_PROGRESS;
+	call->rc_callback = cb;
+	call->rc_callback_arg = cb_arg;
 
 	TAILQ_INSERT_TAIL(&conn->conn_calls, call, rc_link);
 
-	json_object_set(call->rc_args, "method", json_string(name));
+	json_object_set_new(call->rc_args, "method", json_string(name));
 	json_object_set(call->rc_args, "args", args);
 	dispatcher_call_internal(conn, "call", call);
 
@@ -271,34 +314,65 @@ dispatcher_on_event(connection_t *conn, event_callback_t *cb, void *arg)
 	conn->conn_event_handler_arg = arg;
 }
 
-void
+int
 rpc_call_wait(rpc_call_t *call)
 {
-	pthread_cond_wait(&call->rc_completed, &call->rc_mtx);
+	return (pthread_cond_wait(&call->rc_cv, &call->rc_mtx));
 }
 
 int
-rpc_call_success(rpc_call_t *call)
+rpc_call_timedwait(rpc_call_t *call, const struct timespec *abstime)
 {
-	return call->rc_status;
+	return (pthread_cond_timedwait(&call->rc_cv, &call->rc_mtx,
+	    abstime));
+}
+
+rpc_call_status_t
+rpc_call_status(rpc_call_t *call)
+{
+	return (call->rc_status);
 }
 
 json_t *
 rpc_call_result(rpc_call_t *call)
 {
-	return call->rc_status ==
-	    RPC_CALL_DONE ? call->rc_result : call->rc_error;
+	return (call->rc_result);
 }
 
+int
+rpc_call_continue(rpc_call_t *call)
+{
+        json_t *msg;
+
+        msg = dispatcher_pack_msg("rpc", type, call->rc_id, call->rc_args);
+        if (msg == NULL)
+                return (-1);
+}
+
+void
+rpc_call_free(rpc_call_t *call)
+{
+	json_decref(call->rc_args);
+	json_decref(call->rc_id);
+
+	if (call->rc_result != NULL)
+		json_decref(call->rc_result);
+
+	TAILQ_REMOVE(&call->rc_conn->conn_calls, call, rc_link);
+	free(call);
+}
+
+
 static rpc_call_t *
-rpc_call_alloc()
+rpc_call_alloc(connection_t *conn)
 {
 	rpc_call_t *call;
 
 	call = malloc(sizeof(rpc_call_t));
 	memset(call, 0, sizeof(rpc_call_t));
-	pthread_cond_init(&call->rc_completed, NULL);
+	pthread_cond_init(&call->rc_cv, NULL);
 	pthread_mutex_init(&call->rc_mtx, NULL);
+	call->rc_conn = conn;
 	return (call);
 }
 
@@ -333,8 +407,8 @@ dispatcher_pack_msg(const char *ns, const char *name, json_t *id, json_t *args)
 		return (NULL);
 	}
 
-	json_object_set(obj, "namespace", json_string(ns));
-	json_object_set(obj, "name", json_string(name));
+	json_object_set_new(obj, "namespace", json_string(ns));
+	json_object_set_new(obj, "name", json_string(name));
 	json_object_set(obj, "id", id);
 	json_object_set(obj, "args", args);
 
@@ -345,15 +419,20 @@ static int
 dispatcher_send_msg(connection_t *conn, json_t *msg)
 {
 	char *str = json_dumps(msg, 0);
+	int ret;
 
 	if (conn->conn_ws != NULL)
-		return (ws_send_msg(conn->conn_ws, str, strlen(str), WS_TEXT));
+		ret = ws_send_msg(conn->conn_ws, str, strlen(str), WS_TEXT);
+	else if (conn->conn_unix != NULL)
+		ret = unix_send_msg(conn->conn_unix, str, strlen(str));
+	else {
+		errno = ENXIO;
+		ret = -1;
+	}
 
-	if (conn->conn_unix != NULL)
-		return (unix_send_msg(conn->conn_unix, str, strlen(str)));
-
-	errno = ENXIO;
-	return (-1);
+	json_decref(msg);
+	free(str);
+	return (ret);
 }
 
 static void
@@ -370,6 +449,8 @@ dispatcher_process_msg(void *ctx __unused, void *frame, size_t len, void *arg)
 	framestr[len] = '\0';
 
 	msg = json_loads(framestr, 0, &err);
+	free(framestr);
+
 	if (msg == NULL) {
 		if (conn->conn_error_handler)
 			conn->conn_error_handler(conn, INVALID_JSON_RESPONSE,
@@ -380,39 +461,89 @@ dispatcher_process_msg(void *ctx __unused, void *frame, size_t len, void *arg)
 
 	ns = json_string_value(json_object_get(msg, "namespace"));
 
-	if (!strcmp(ns, "rpc"))
+	if (!strcmp(ns, "rpc")) {
 		dispatcher_process_rpc(conn, msg);
+		return;
+	}
 
-	if (!strcmp(ns, "events"))
+	if (!strcmp(ns, "events")) {
 		dispatcher_process_events(conn, msg);
+		return;
+	}
+}
 
+void
+dispatcher_abort(void *ctx, void *arg)
+{
+	connection_t *conn = (connection_t *)arg;
+	rpc_call_t *call;
+
+	TAILQ_FOREACH(call, &conn->conn_calls, rc_link) {
+		call->rc_status = RPC_CALL_ERROR;
+		call->rc_result = json_pack("{siss}", "code", ECONNABORTED,
+		    "message", "Connection reset");
+
+		if (call->rc_callback != NULL) {
+			call->rc_callback(conn, json_string_value(call->rc_id),
+ 			    call->rc_status, call->rc_result,
+                            call->rc_callback_arg);
+		}
+
+		pthread_cond_broadcast(&call->rc_cv);
+	}
 }
 
 static void
 dispatcher_process_rpc(connection_t *conn, json_t *msg)
 {
-	rpc_call_t *call;
+	rpc_call_t *call, *tmp;
+        rpc_call_status_t status;
 	const char *name;
 	const char *id;
-	bool error;
+	bool response, error, fragment, end;
+        json_t *args, *result;
+        json_int_t seqno = 1;
 
 	name = json_string_value(json_object_get(msg, "name"));
+        response = !strcmp(name, "response");
 	error = !strcmp(name, "error");
+	fragment = !strcmp(name, "fragment");
+	end = !strcmp(name, "end");
 	id = json_string_value(json_object_get(msg, "id"));
+        args = json_object_get(msg, "args");
 
-	TAILQ_FOREACH(call, &conn->conn_calls, rc_link) {
+	TAILQ_FOREACH_SAFE(call, &conn->conn_calls, rc_link, tmp) {
 		if (!strcmp(id, json_string_value(call->rc_id))) {
-			if (error) {
-				call->rc_status = RPC_CALL_ERROR;
-				call->rc_error = json_object_get(msg, "args");
-			} else {
-				call->rc_status = RPC_CALL_DONE;
-				call->rc_result = json_object_get(msg, "args");
-			}
+                        if (response) {
+                                status = RPC_CALL_DONE;
+                                result = args;
+                        }
 
-			pthread_cond_broadcast(&call->rc_completed);
+			if (error) {
+                                status = RPC_CALL_ERROR;
+                                result = args;
+                        }
+
+			if (fragment) {
+                                status = RPC_CALL_MORE_AVAILABLE;
+                                result = json_object_get(args, "fragment");
+                                seqno = json_integer_value(json_object_get(
+                                    args, "seqno"));
+                        }
+
+			if (end) {
+                                status = RPC_CALL_DONE;
+                                result = NULL;
+                        }
+
+			call->rc_result = json_object_get(msg, "args");
+			dispatcher_answer_call(call,
+			    error ? RPC_CALL_ERROR : RPC_CALL_DONE,
+			    json_object_get(msg, "args"));
 		}
 	}
+
+	json_decref(msg);
 }
 
 static void
@@ -434,6 +565,108 @@ dispatcher_process_events(connection_t *conn, json_t *msg)
 		    json_object_get(args, "args"),
 		    conn->conn_event_handler_arg);
 }
+
+static void
+dispatcher_answer_call(rpc_call_t *call, enum rpc_call_status status,
+    json_t *result)
+{
+	json_incref(result);
+        pthread_mutex_lock(&call->rc_mtx);
+
+        call->rc_status = status;
+        call->rc_result = result;
+
+	if (call->rc_callback != NULL) {
+		call->rc_callback(call->rc_conn, json_string_value(call->rc_id),
+		    call->rc_status, call->rc_result,
+		    call->rc_callback_arg);
+	}
+
+	pthread_cond_broadcast(&call->rc_cv);
+        pthread_mutex_unlock(&call->rc_mtx);
+}
+
+struct tm *
+rpc_json_to_timestamp(json_t *json)
+{
+	struct tm *timestamp;
+	const char *str;
+	json_t *val;
+
+	if (json == NULL) {
+		errno = EINVAL;
+		return (NULL);
+	}
+
+	if (!json_is_object(json)) {
+		errno = EINVAL;
+		return (NULL);
+	}
+
+	val = json_object_get(json, "$date");
+	if (val == NULL) {
+		errno = EINVAL;
+		return (NULL);
+	}
+
+	str = json_string_value(val);
+	if (str == NULL) {
+		json_decref(val);
+		errno = EINVAL;
+		return (NULL);
+	}
+
+	timestamp = calloc(1, sizeof(struct tm));
+	if (timestamp == NULL) {
+		json_decref(val);
+		errno = ENOMEM;
+		return (NULL);
+	}
+
+	if (strptime(str, "%F %T", timestamp) == NULL) {
+		free(timestamp);
+		json_decref(val);
+		errno = EINVAL;
+		return (NULL);
+	}
+
+	json_decref(val);
+	return (timestamp);
+}
+
+json_t *
+rpc_timestamp_to_json(struct tm *timestamp)
+{
+	json_t *val;
+	char str[64];
+
+	if (strftime(str, sizeof(str) - 1, "%F %T", timestamp) == 0) {
+		errno = EINVAL;
+		return (NULL);
+	}
+
+	val = json_pack("{ss}", "$date", str);
+	return (val);
+}
+
+#if 0
+static void *
+dispatcher_collect_task(void *arg)
+{
+	rpc_call_t *call;
+
+	for (;;) {
+		TAILQ_FOREACH_SAFE(call, &conn->conn_calls, rc_link, tmp) {
+			json_decref(call->rc_args);
+			json_decref(call->rc_id);
+			json_decref(call->rc_error);
+			json_decref(call->rc_result);
+			TAILQ_REMOVE(&conn->conn_calls, call, rc_link);
+			free(call);
+		}
+	}
+}
+#endif
 
 #ifdef __FreeBSD__
 static json_t *

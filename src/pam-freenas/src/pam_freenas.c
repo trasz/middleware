@@ -89,15 +89,9 @@ call_dispatcher(const char *method, json_t *args, json_t **result)
 	connection_t *conn;
 	int err;
 
-	conn = dispatcher_open("unix");
+	conn = dispatcher_open("unix:///var/run/dscached.sock");
 	if (conn == NULL) {
 		PAM_LOG("Cannot open unix domain socket connection");
-		return (-1);
-	}
-
-	if (dispatcher_login_service(conn, "pam-freenas") < 0) {
-		PAM_LOG("Cannot log in as pam-freenas");
-		dispatcher_close(conn);
 		return (-1);
 	}
 
@@ -143,7 +137,8 @@ emit_event(const char *event, json_t *args)
 }
 
 PAM_EXTERN int
-pam_sm_open_session(struct pam_handle *pamh, int flags, int argc, const char *argv[])
+pam_sm_open_session(struct pam_handle *pamh, int flags, int argc,
+    const char *argv[])
 {
 	const char *username, *tty, *service;
 	json_t *args;
@@ -174,7 +169,8 @@ pam_sm_open_session(struct pam_handle *pamh, int flags, int argc, const char *ar
 }
 
 PAM_EXTERN int
-pam_sm_close_session(struct pam_handle *pamh, int flags, int argc, const char *argv[])
+pam_sm_close_session(struct pam_handle *pamh, int flags, int argc,
+    const char *argv[])
 {
 	const char *username, *tty, *service;
 	json_t *args;
@@ -212,14 +208,16 @@ pam_sm_setcred(struct pam_handle *pamh, int flags, int argc, const char *argv[])
 }
 
 PAM_EXTERN int
-pam_sm_acct_mgmt(struct pam_handle *pamh, int flags, int argc, const char *argv[])
+pam_sm_acct_mgmt(struct pam_handle *pamh, int flags, int argc,
+    const char *argv[])
 {
 
 	return (PAM_SUCCESS);
 }
 
 PAM_EXTERN int
-pam_sm_authenticate(struct pam_handle *pamh, int flags, int argc, const char *argv[])
+pam_sm_authenticate(struct pam_handle *pamh, int flags, int argc,
+    const char *argv[])
 {
 	const char *username, *password, *realpw;
 	char *result_s;
@@ -252,8 +250,10 @@ pam_sm_authenticate(struct pam_handle *pamh, int flags, int argc, const char *ar
 		}
 
 		realpw = json_string_value(json_object_get(user, "unixhash"));
-		if (realpw == NULL) {
+		if (realpw == NULL || strcmp(realpw, "*") == 0) {
 			PAM_LOG("User %s has empty password", username);
+			if (openpam_get_option(pamh, PAM_OPT_NULLOK))
+				return (PAM_SUCCESS);
 			return (PAM_PERM_DENIED);
 		}
 
@@ -274,7 +274,8 @@ pam_sm_authenticate(struct pam_handle *pamh, int flags, int argc, const char *ar
 }
 
 PAM_EXTERN int
-pam_sm_chauthtok(struct pam_handle *pamh, int flags, int argc, const char *argv[])
+pam_sm_chauthtok(struct pam_handle *pamh, int flags, int argc,
+    const char *argv[])
 {
 	const char *username, *old_pass, *new_pass;
 	json_t *result;

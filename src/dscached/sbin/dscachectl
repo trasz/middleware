@@ -1,0 +1,145 @@
+#!/usr/local/bin/python3.4
+#
+# Copyright 2016 iXsystems, Inc.
+# All rights reserved
+#
+# Redistribution and use in source and binary forms, with or without
+# modification, are permitted providing that the following conditions
+# are met:
+# 1. Redistributions of source code must retain the above copyright
+#    notice, this list of conditions and the following disclaimer.
+# 2. Redistributions in binary form must reproduce the above copyright
+#    notice, this list of conditions and the following disclaimer in the
+#    documentation and/or other materials provided with the distribution.
+#
+# THIS SOFTWARE IS PROVIDED BY THE AUTHOR ``AS IS'' AND ANY EXPRESS OR
+# IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+# WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+# ARE DISCLAIMED.  IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY
+# DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+# DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS
+# OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
+# HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
+# STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING
+# IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+# POSSIBILITY OF SUCH DAMAGE.
+#
+#####################################################################
+
+import sys
+import argh
+import socket
+from freenas.dispatcher.client import Client
+
+
+DEFAULT_SERVER = 'unix:'
+DEFAULT_TIMEOUT = 10
+
+
+def get_user(s):
+    client = create_client()
+
+    try:
+        uid = int(s)
+        return client.call_sync('dscached.account.getpwuid', uid)
+    except ValueError:
+        pass
+
+    return client.call_sync('dscached.account.getpwnam', s)
+
+
+def get_group(s):
+    pass
+
+
+def get_host(s):
+    pass
+
+
+def stats():
+    def print_cache(name, cache):
+        print("Cache <{0}>:".format(name))
+        print("  Size: {0}".format(cache['size']))
+        print("  Hits: {0}".format(cache['hits']))
+        print("  Misses: {0}".format(cache['misses']))
+
+    client = create_client()
+    for k, v in client.call_sync('dscached.management.get_cache_stats').items():
+        print_cache(k, v)
+
+
+def directories():
+    pass
+
+
+def flush():
+    client = create_client()
+    client.call_sync('dscached.management.flush')
+    print("Caches flushed sucessfully")
+
+
+def populate():
+    pass
+
+
+def query(user=None, group=None, host=None):
+    if user:
+        o = get_user(user)
+        print("Account information:")
+        print("  User UUID: {0}".format(o['id']))
+        print("  User name: {0}".format(o['username']))
+        print("  Full name: {0}".format(o['full_name']))
+        print("  Shell: {0}".format(o['shell']))
+        print("  Home directory: {0}".format(o['home']))
+        print("  Sudo allowed: {0}".format(o['sudo']))
+
+        print("Password information:")
+        print("  UNIX password hash: {0}".format(o['unixhash']))
+        print("  NT password hash: {0}".format(o['nthash']))
+        print("  Password changed at: {0}".format(o['password_changed_at']))
+
+        print("Group membership:")
+
+    elif group:
+        o = get_group(group)
+        print("Group information:")
+        print("  Group UUID: {0}".format(o['id']))
+        print("  Group name: {0}".format(o['name']))
+        print("  Sudo allowed: {0}".format(o['sudo']))
+        return
+
+    elif host:
+        o = get_host(host)
+        print("Host information:")
+        print("  Host names: {0}")
+        return
+
+    else:
+        return
+
+    print("Directory information:")
+    print("  Directory name: {0}".format(o['origin.directory']))
+    print("  In cache since: {0}".format(o['origin.cached_at']))
+    print("  TTL: {0} seconds".format(o['origin.ttl']))
+
+
+def create_client():
+    try:
+        c = Client()
+        c.connect(DEFAULT_SERVER)
+        c.login_service('dispatcherctl', DEFAULT_TIMEOUT)
+    except socket.error as err:
+        print("Cannot connect: {0}".format(str(err)), file=sys.stderr)
+        sys.exit(1)
+
+    return c
+
+
+def main():
+    parser = argh.ArghParser()
+    parser.add_commands([stats, flush, populate, query])
+    parser.dispatch()
+
+
+if __name__ == '__main__':
+    main()

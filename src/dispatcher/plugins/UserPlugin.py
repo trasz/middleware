@@ -25,19 +25,17 @@
 #
 #####################################################################
 
-import crypt
 import copy
 import errno
 import os
-import random
-import string
 import re
-from task import Provider, Task, TaskException, TaskDescription, TaskWarning, ValidationException, VerifyException, query
+from datetime import datetime
+from task import Provider, Task, TaskException, TaskWarning, ValidationException, VerifyException, query
 from debug import AttachFile
 from freenas.dispatcher.rpc import RpcException, description, accepts, returns, SchemaHelper as h, generator
 from datastore import DuplicateKeyException, DatastoreException
 from lib.system import SubprocessException, system
-from freenas.utils import normalize
+from freenas.utils import normalize, crypted_password, nt_password
 
 
 EMAIL_REGEX = re.compile(r"\b[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]*[a-zA-Z0-9]\.[a-zA-Z]{2,4}\b")
@@ -70,29 +68,13 @@ def check_unixname(name):
         yield errno.EINVAL, 'Your name contains invalid characters ({0}).'.format(''.join(invalids))
 
 
-def crypted_password(cleartext):
-    return crypt.crypt(cleartext, '$6$' + ''.join([
-        random.choice(string.ascii_letters + string.digits) for _ in range(16)]))
-
-
 @description("Provides access to users database")
 class UserProvider(Provider):
     @description("Lists users present in the system")
     @query('user')
     @generator
     def query(self, filter=None, params=None):
-        def extend(user):
-            # If there's no 'attributes' property, put empty dict in that place
-            if 'attributes' not in user:
-                user['attributes'] = {}
-
-            # If there's no 'groups' property, put empty array in that place
-            if 'groups' not in user:
-                user['groups'] = []
-
-            return user
-
-        return self.datastore.query_stream('users', *(filter or []), callback=extend, **(params or {}))
+        return self.dispatcher.call_sync('dscached.account.query', filter, params)
 
     def get_profile_picture(self, uid):
         pass
@@ -122,17 +104,7 @@ class GroupProvider(Provider):
     @query('group')
     @generator
     def query(self, filter=None, params=None):
-        def extend(group):
-            group['members'] = [x['id'] for x in self.datastore.query(
-                'users',
-                ('or', (
-                    ('groups', 'in', group['id']),
-                    ('group', '=', group['id'])
-                ))
-            )]
-            return group
-
-        return self.datastore.query_stream('groups', *(filter or []), callback=extend, **(params or {}))
+        return self.dispatcher.call_sync('dscached.group.query', filter, params)
 
     @description("Retrieve the next GID available")
     @returns(int)
@@ -214,7 +186,9 @@ class UserCreateTask(Task):
 
         normalize(user, {
             'builtin': False,
-            'unixhash': '*',
+            'unixhash': None,
+            'nthash': None,
+            'password_changed_at': None,
             'full_name': 'User &',
             'shell': '/bin/sh',
             'home': '/nonexistent',
@@ -225,7 +199,11 @@ class UserCreateTask(Task):
 
         password = user.pop('password', None)
         if password:
-            user['unixhash'] = crypted_password(password)
+            user.update({
+                'unixhash': crypted_password(password),
+                'nthash': nt_password(password),
+                'password_changed_at': datetime.utcnow()
+            })
 
         if user.get('group') is None:
             try:
@@ -243,16 +221,6 @@ class UserCreateTask(Task):
             id = self.datastore.insert('users', user)
             self.id = id
             self.dispatcher.call_sync('etcd.generation.generate_group', 'accounts')
-
-            if password:
-                system(
-                    '/usr/local/bin/smbpasswd', '-D', '0', '-s', '-a', user['username'],
-                    stdin='{0}\n{1}\n'.format(password, password)
-                )
-
-                user['smbhash'] = system('/usr/local/bin/pdbedit', '-d', '0', '-w', user['username'])[0]
-                self.datastore.update('users', id, user)
-
         except SubprocessException as e:
             raise TaskException(
                 errno.ENXIO,
@@ -439,19 +407,14 @@ class UserUpdateTask(Task):
 
             password = user.pop('password', None)
             if password:
-                user['unixhash'] = crypted_password(password)
+                user.update({
+                    'unixhash': crypted_password(password),
+                    'nthash': nt_password(password),
+                    'password_changed_at': datetime.utcnow()
+                })
 
             self.datastore.update('users', user['id'], user)
             self.dispatcher.call_sync('etcd.generation.generate_group', 'accounts')
-
-            if password:
-                system(
-                    '/usr/local/bin/smbpasswd', '-D', '0', '-s', '-a', user['username'],
-                    stdin='{0}\n{1}\n'.format(password, password)
-                )
-                user['smbhash'] = system('/usr/local/bin/pdbedit', '-d', '0', '-w', user['username'])[0]
-                self.datastore.update('users', id, user)
-
         except SubprocessException as e:
             raise TaskException(
                 errno.ENXIO,
@@ -675,6 +638,7 @@ def _init(dispatcher, plugin):
         'type': 'object',
         'properties': {
             'id': {'type': 'string'},
+            'sid': {'type': 'string'},
             'uid': {
                 'type': 'integer',
                 'minimum': 0,
@@ -692,12 +656,14 @@ def _init(dispatcher, plugin):
             'locked': {'type': 'boolean'},
             'sudo': {'type': 'boolean'},
             'password_disabled': {'type': 'boolean'},
+            'password_changed_at': {'type': ['datetime', 'null']},
             'group': {'type': ['string', 'null']},
             'shell': {'type': 'string'},
             'home': {'type': 'string'},
             'password': {'type': ['string', 'null']},
             'unixhash': {'type': ['string', 'null']},
-            'smbhash': {'type': ['string', 'null']},
+            'lmhash': {'type': ['string', 'null']},
+            'nthash': {'type': ['string', 'null']},
             'sshpubkey': {'type': ['string', 'null']},
             'attributes': {'type': 'object'},
             'groups': {
@@ -706,6 +672,9 @@ def _init(dispatcher, plugin):
                     'type': 'string'
                 }
             },
+            'origin': {
+                'directory': {'type': 'string'},
+            }
         },
         'additionalProperties': False,
     })

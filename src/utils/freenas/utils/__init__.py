@@ -31,6 +31,11 @@ import codecs
 import logging
 import logging.handlers
 import copy
+import crypt
+import random
+import string
+import binascii
+import hashlib
 import fnmatch
 import collections
 from datetime import timedelta
@@ -91,6 +96,8 @@ def extend(d, d2):
 def normalize(d, d2):
     for k, v in list(d2.items()):
         d.setdefault(k, v)
+
+    return d
 
 
 def force_none(v):
@@ -283,6 +290,16 @@ def xrecvmsg(sock, length, anclength=None):
         ancdata += anc
 
     return message, ancdata
+
+
+def crypted_password(cleartext):
+    return crypt.crypt(cleartext, '$6$' + ''.join([
+        random.choice(string.ascii_letters + string.digits) for _ in range(16)]))
+
+
+def nt_password(cleartext):
+    nthash = hashlib.new('md4', cleartext.encode('utf-16le')).digest()
+    return binascii.hexlify(nthash).decode('utf-8').upper()
 
 
 class FaultTolerantLogHandler(logging.handlers.WatchedFileHandler):

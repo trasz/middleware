@@ -25,9 +25,27 @@
 #
 #####################################################################
 
+from freenas.dispatcher.rpc import convert_schema
+
+
+def params(sch):
+    def wrapped(fn):
+        fn.params_schema = convert_schema(sch)
+        return fn
+
+    return wrapped
+
+
+def status(sch):
+    def wrapped(fn):
+        fn.status_schema = convert_schema(sch)
+        return fn
+
+    return wrapped
+
 
 class DirectoryServicePlugin(object):
-    def getpwent(self):
+    def getpwent(self, filter=None, params=None):
         raise NotImplementedError()
 
     def getpwuid(self, name):
@@ -36,7 +54,7 @@ class DirectoryServicePlugin(object):
     def getpwnam(self, uid):
         raise NotImplementedError()
 
-    def getgrent(self):
+    def getgrent(self, filter=None, params=None):
         raise NotImplementedError()
 
     def getgrnam(self, name):
@@ -44,3 +62,9 @@ class DirectoryServicePlugin(object):
 
     def getgrgid(self, gid):
         raise NotImplementedError()
+
+    def configure(self, *args, **kwargs):
+        pass
+
+    def get_kerberos_realm(self):
+        return None

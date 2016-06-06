@@ -25,6 +25,8 @@
 #
 #####################################################################
 
+import os
+import errno
 from plugin import DirectoryServicePlugin
 
 
@@ -34,42 +36,40 @@ class LocalDatabasePlugin(DirectoryServicePlugin):
         self.datastore = context.datastore
 
     def getpwent(self, filter=None, params=None):
-        filter = filter or []
-        filter.append(('builtin', '=', False))
-        return self.datastore.query('users', *filter, **(params or {}))
+        return self.datastore.query('users', *(filter or []), **(params or {}))
 
     def getpwnam(self, name):
-        user = self.datastore.get_one('users', ('username', '=', name), ('builtin', '=', False))
-        if not user:
-            return None
-
-        return user
+        return self.datastore.get_one('users', ('username', '=', name))
 
     def getpwuid(self, uid):
-        user = self.datastore.get_one('users', ('uid', '=', uid), ('builtin', '=', False))
-        if not user:
-            return None
+        return self.datastore.get_one('users', ('uid', '=', uid))
 
-        return user
+    def getpwuuid(self, uuid):
+        return self.datastore.get_one('users', ('id', '=', uuid))
 
     def getgrent(self, filter=None, params=None):
-        filter = filter or []
-        filter.append(('builtin', '=', False))
-        return self.datastore.query('groups', *filter, **(params or {}))
+        return self.datastore.query('groups', *(filter or []), **(params or {}))
 
     def getgrnam(self, name):
-        group = self.datastore.get_one('groups', ('username', '=', name), ('builtin', '=', False))
-        if not group:
-            return None
-
-        return group
+        return self.datastore.get_one('groups', ('name', '=', name))
 
     def getgrgid(self, gid):
-        group = self.datastore.get_one('groups', ('uid', '=', gid), ('builtin', '=', False))
-        if not group:
-            return None
+        return self.datastore.get_one('groups', ('gid', '=', gid))
 
-        return group
+    def getgruuid(self, uuid):
+        return self.datastore.get_one('groups', ('id', '=', uuid))
+
+    def change_password(self, user_name, password):
+        user = self.datastore.get_one('users', ('username', '=', user_name))
+        if not user:
+            raise OSError(errno.ENOENT, os.strerror(errno.ENOENT))
+
+        self.context.client.call_task_sync('user.update', user['id'], {
+            'password': password
+        })
+
+    def configure(self, enable, uid_min, uid_max, gid_min, gid_max, parameters):
+        return 'local'
 
 
 def _init(context):

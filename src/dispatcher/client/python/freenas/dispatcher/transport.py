@@ -31,20 +31,21 @@ import os
 import errno
 import paramiko
 import socket
+import select
 import time
 import logging
 from threading import RLock, Event
 from freenas.utils import xrecvmsg, xsendmsg
 from freenas.utils.spawn_thread import spawn_thread
 from ws4py.client.threadedclient import WebSocketClient
-from abc import ABCMeta, abstractmethod
-from six import with_metaclass
 import struct
 
 
 MAXFDS = 128
 CMSGCRED_SIZE = struct.calcsize('iiiih16i')
 _debug_log_file = None
+_client_transports = {}
+_server_transports = {}
 
 
 def debug_log(message, *args):
@@ -61,55 +62,93 @@ def debug_log(message, *args):
         _debug_log_file.flush()
 
 
-def _patched_exec_command(self, command, bufsize=-1, timeout=None, get_pty=False, stdin_binary=True,
-                          stdout_binary=False, stderr_binary=False):
-
+def _patched_exec_command(
+    self, command, bufsize=-1,
+    timeout=None, get_pty=False, stdin_binary=True,
+    stdout_binary=False, stderr_binary=False
+):
     chan = self._transport.open_session()
     if get_pty:
         chan.get_pty()
     chan.settimeout(timeout)
     chan.exec_command(command)
     stdin = chan.makefile('wb' if stdin_binary else 'w', bufsize)
-    stdout = chan.makefile('rb' if stdin_binary else 'r', bufsize)
-    stderr = chan.makefile_stderr('rb' if stdin_binary else 'r', bufsize)
+    stdout = chan.makefile('rb' if stdout_binary else 'r', bufsize)
+    stderr = chan.makefile_stderr('rb' if stderr_binary else 'r', bufsize)
     return stdin, stdout, stderr
+
 
 paramiko.SSHClient.exec_command = _patched_exec_command
 
 
-class ClientTransportBuilder(object):
-    def create(self, scheme):
-        if 'ssh' in scheme:
-            return ClientTransportSSH()
-        elif 'ws' in scheme:
-            return ClientTransportWS()
-        elif 'unix' in scheme:
-            return ClientTransportSock()
+def client_transport(*schemas):
+    def wrapper(c):
+        for i in schemas:
+            _client_transports[i] = c
+
+        return c
+
+    return wrapper
+
+
+def server_transport(*schemas):
+    def wrapper(c):
+        for i in schemas:
+            _server_transports[i] = c
+
+        return c
+
+    return wrapper
+
+
+class ClientTransport(object):
+    def __new__(cls, *args, **kwargs):
+        if cls is ClientTransport:
+            scheme = args[0]
+            try:
+                impl = _client_transports[scheme]
+            except KeyError:
+                raise ValueError('Unknown transport for scheme {0}'.format(scheme))
+
+            i = object.__new__(impl)
+            return i
         else:
-            raise ValueError('Unsupported type of connection scheme.')
+            super(ClientTransport, cls).__new__(cls)
 
-
-class ClientTransportBase(with_metaclass(ABCMeta, object)):
-
-    @abstractmethod
     def connect(self, url, parent, **kwargs):
-        return
+        raise NotImplementedError()
 
     @property
-    @abstractmethod
     def address(self):
-        return
+        return None
 
-    @abstractmethod
     def send(self, message, fds):
-        return
+        raise NotImplementedError()
 
-    @abstractmethod
     def close(self):
-        return
+        raise NotImplementedError()
 
 
-class ClientTransportWS(ClientTransportBase):
+class ServerTransport(object):
+    def __new__(cls, *args, **kwargs):
+        if cls is ServerTransport:
+            scheme = args[0]
+            try:
+                impl = _server_transports[scheme]
+            except KeyError:
+                raise ValueError('Unknown transport for scheme {0}'.format(scheme))
+
+            i = object.__new__(impl)
+            return i
+        else:
+            super(ServerTransport, cls).__new__(cls)
+
+    def serve_forever(self, server):
+        raise NotImplementedError()
+
+
+@client_transport('ws', 'http')
+class ClientTransportWS(ClientTransport):
     class WebSocketHandler(WebSocketClient):
         def __init__(self, url, parent):
             super(ClientTransportWS.WebSocketHandler, self).__init__(url)
@@ -118,19 +157,17 @@ class ClientTransportWS(ClientTransportBase):
         def opened(self):
             debug_log('Connection opened, local address {0}', self.local_address)
             self.parent.opened.set()
+            self.parent.parent.on_open()
 
         def closed(self, code, reason=None):
             debug_log('Connection closed, code {0}', code)
             self.parent.opened.clear()
-            self.parent.parent.drop_pending_calls()
-            if self.parent.parent.error_callback is not None:
-                from freenas.dispatcher.client import ClientError
-                self.parent.parent.error_callback(ClientError.CONNECTION_CLOSED)
+            self.parent.parent.on_close('Going away')
 
         def received_message(self, message):
-            self.parent.parent.recv(message.data, None)
+            self.parent.parent.on_message(message.data)
 
-    def __init__(self):
+    def __init__(self, scheme):
         self.parent = None
         self.scheme_default_port = None
         self.ws = None
@@ -210,8 +247,9 @@ class ClientTransportWS(ClientTransportBase):
         return self.opened.is_set()
 
 
-class ClientTransportSSH(ClientTransportBase):
-    def __init__(self):
+@client_transport('ssh', 'ws+ssh')
+class ClientTransportSSH(ClientTransport):
+    def __init__(self, scheme):
         self.ssh = None
         self.channel = None
         self.url = None
@@ -365,12 +403,13 @@ class ClientTransportSSH(ClientTransportBase):
                 self.closed()
             else:
                 debug_log("Received data: {0}", message)
-                self.parent.recv(message, None)
+                self.parent.on_message(message, None)
 
     def closed(self):
         debug_log("Transport connection has been closed abnormally.")
         self.terminated = True
         self.ssh.close()
+
         self.parent.drop_pending_calls()
         if self.parent.error_callback is not None:
             from freenas.dispatcher.client import ClientError
@@ -395,8 +434,9 @@ class ClientTransportSSH(ClientTransportBase):
         return self.ssh.get_host_keys()
 
 
-class ClientTransportSock(ClientTransportBase):
-    def __init__(self):
+@client_transport('unix')
+class ClientTransportSock(ClientTransport):
+    def __init__(self, scheme):
         self.path = '/var/run/dispatcher.sock'
         self.sock = None
         self.parent = None
@@ -416,21 +456,26 @@ class ClientTransportSock(ClientTransportBase):
         if url.path:
             self.path = url.path
 
-        while True:
-            try:
-                self.sock.connect(self.path)
+        try:
+            while True:
+                try:
+                    self.sock.connect(self.path)
 
-                debug_log('Connected to {0}', self.path)
-                break
-            except (socket.error, OSError) as err:
-                if timeout:
-                    timeout -= 1
-                    time.sleep(1)
-                    continue
-                else:
-                    self.close()
-                    debug_log('Socket connection exception: {0}', err)
+                    debug_log('Connected to {0}', self.path)
+                    break
+                except (socket.error, OSError) as err:
+                    if timeout:
+                        timeout -= 1
+                        time.sleep(1)
+                        continue
+                    else:
+                        self.close()
+                        debug_log('Socket connection exception: {0}', err)
                     raise
+        except KeyboardInterrupt:
+            self.close()
+            self.sock.close()
+            raise
 
         spawn_thread(self.recv)
 
@@ -487,7 +532,7 @@ class ClientTransportSock(ClientTransportBase):
                     if cmsg_level == socket.SOL_SOCKET and cmsg_type == socket.SCM_RIGHTS:
                         fds.fromstring(cmsg_data[:len(cmsg_data) - (len(cmsg_data) % fds.itemsize)])
 
-                self.parent.recv(message, fds)
+                self.parent.on_message(message, fds=fds)
             except OSError:
                 break
 
@@ -509,7 +554,142 @@ class ClientTransportSock(ClientTransportBase):
             if self.terminated is False:
                 debug_log("Transport socket connection terminated abnormally.")
                 self.terminated = True
-                self.parent.drop_pending_calls()
-                if self.parent.error_callback is not None:
-                    from freenas.dispatcher.client import ClientError
-                    self.parent.error_callback(ClientError.CONNECTION_CLOSED)
+                self.parent.on_close('Going away')
+
+
+@server_transport('unix')
+class ServerTransportSock(ServerTransport):
+    class UnixSocketHandler(object):
+        def __init__(self, server, connfd, address):
+            self.connfd = connfd
+            self.address = address
+            self.server = server
+            self.client_address = ("unix", 0)
+            self.conn = None
+            self.wlock = RLock()
+
+        def send(self, message, fds=None):
+            if fds is None:
+                fds = []
+
+            with self.wlock:
+                data = message.encode('utf-8')
+                header = struct.pack('II', 0xdeadbeef, len(data))
+                try:
+                    fd = self.connfd.fileno()
+                    ancdata = []
+                    if fd == -1:
+                        return
+
+                    if fds:
+                        ancdata.append((socket.SOL_SOCKET, socket.SCM_RIGHTS, array.array('i', [i.fd for i in fds])))
+
+                    r, w, x = select.select([], [fd], [], 10)
+                    if fd not in w:
+                        raise OSError(errno.ETIMEDOUT, 'Operation timed out')
+
+                    xsendmsg(self.connfd, header + data, ancdata)
+                    for i in fds:
+                        if i.close:
+                            try:
+                                os.close(i.fd)
+                            except OSError:
+                                pass
+
+                except (OSError, ValueError, socket.timeout) as err:
+                    self.server.logger.info('Send failed: {0}; closing connection'.format(str(err)))
+                    if err.errno != errno.EBADF:
+                        self.connfd.shutdown(socket.SHUT_RDWR)
+
+        def handle_connection(self):
+            self.conn.on_open()
+
+            while True:
+                try:
+                    fds = array.array('i')
+                    header, ancdata = xrecvmsg(
+                        self.connfd, 8,
+                        socket.CMSG_SPACE(MAXFDS * fds.itemsize) + socket.CMSG_SPACE(CMSGCRED_SIZE)
+                    )
+
+                    if header == b'' or len(header) != 8:
+                        if len(header) > 0:
+                            self.server.logger.info('Short read (len {0})'.format(len(header)))
+                        break
+
+                    magic, length = struct.unpack('II', header)
+                    if magic != 0xdeadbeef:
+                        self.server.logger.info('Message with wrong magic dropped (magic {0:x})'.format(magic))
+                        break
+
+                    msg, _ = xrecvmsg(self.connfd, length)
+                    if msg == b'' or len(msg) != length:
+                        self.server.logger.info('Message with wrong length dropped; closing connection')
+                        break
+
+                    for cmsg_level, cmsg_type, cmsg_data in ancdata:
+                        if cmsg_level == socket.SOL_SOCKET and cmsg_type == socket.SCM_CREDS:
+                            pid, uid, euid, gid = struct.unpack('iiii', cmsg_data[:struct.calcsize('iiii')])
+                            self.client_address = ('unix', pid)
+                            self.conn.credentials = {
+                                'pid': pid,
+                                'uid': uid,
+                                'euid': euid,
+                                'gid': gid
+                            }
+
+                        if cmsg_level == socket.SOL_SOCKET and cmsg_type == socket.SCM_RIGHTS:
+                            fds.fromstring(cmsg_data[:len(cmsg_data) - (len(cmsg_data) % fds.itemsize)])
+
+                except (OSError, ValueError) as err:
+                    self.server.logger.info('Receive failed: {0}; closing connection'.format(str(err)), exc_info=True)
+                    break
+
+                self.conn.on_message(msg, fds=fds)
+
+            self.close()
+
+        def close(self):
+            if self.conn:
+                self.conn.on_close('Bye bye')
+                self.conn = None
+                try:
+                    self.connfd.shutdown(socket.SHUT_RDWR)
+                    self.connfd.close()
+                except OSError:
+                    pass
+
+    def __init__(self, scheme, parsed_url):
+        self.path = parsed_url.path
+        self.sockfd = None
+        self.backlog = 50
+        self.logger = logging.getLogger('UnixSocketServer')
+        self.connections = []
+
+    def broadcast_event(self, event, args):
+        for i in self.connections:
+            i.emit_event(event, args)
+
+    def serve_forever(self, server):
+        try:
+            if os.path.exists(self.path):
+                os.unlink(self.path)
+
+            self.sockfd = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+            self.sockfd.bind(self.path)
+            os.chmod(self.path, 0o775)
+            self.sockfd.listen(self.backlog)
+        except OSError as err:
+            self.logger.error('Cannot start socket server: {0}'.format(str(err)))
+            return
+
+        while True:
+            try:
+                fd, addr = self.sockfd.accept()
+            except OSError as err:
+                self.logger.error('accept() failed: {0}'.format(str(err)))
+                continue
+
+            handler = self.UnixSocketHandler(self, fd, addr)
+            handler.conn = server.on_connection(handler)
+            spawn_thread(handler.handle_connection, threadpool=True)

@@ -13,6 +13,7 @@ AllowTcpForwarding ${"yes" if ssh_config['allow_port_forwarding'] else "no"}
 Compression ${"delayed" if ssh_config['compression'] else "no"}
 PasswordAuthentication ${"yes" if ssh_config['allow_password_auth'] else "no"}
 PubkeyAuthentication ${"yes" if ssh_config['allow_pubkey_auth'] else "no"}
+GSSAPIAuthentication ${"yes" if ssh_config['allow_gssapi_auth'] else "no"}
 % if ssh_config['auxiliary']:
 ${ssh_config['auxiliary']}
 % endif

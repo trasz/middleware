@@ -92,6 +92,7 @@ def _init(dispatcher, plugin):
                 'maximum': 65535
                 },
             'permit_root_login': {'type': 'boolean'},
+            'allow_gssapi_auth': {'type': 'boolean'},
             'allow_pubkey_auth': {'type': 'boolean'},
             'allow_password_auth': {'type': 'boolean'},
             'allow_port_forwarding': {'type': 'boolean'},

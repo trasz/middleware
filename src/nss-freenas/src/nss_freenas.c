@@ -31,24 +31,31 @@
 #include <string.h>
 #include <errno.h>
 #include <sys/types.h>
+#include <sys/socket.h>
 #include <sys/param.h>
+#include <sys/time.h>
+#include <arpa/inet.h>
+#include <netinet/in.h>
 #include <pwd.h>
 #include <grp.h>
 #include <nsswitch.h>
 #include <jansson.h>
 #include <dispatcher.h>
+#include <netdb.h>
 
 #define PASSWD_FILE "/etc/passwd.json"
 #define GROUP_FILE  "/etc/group.json"
 
 static char *alloc_string(char **, size_t *, const char *);
+static void *alloc_blob(char **, size_t *, size_t);
 static void *alloc_null(char **, size_t *);
 static void flat_load_files();
 static json_t *flat_find_user(const char *, const char *, uid_t);
 static json_t *flat_find_group(const char *, const char *, gid_t);
-static int call_dispatcher(const char *, json_t *, json_t **, bool ref);
+static int call_dispatcher(const char *, json_t *, json_t **);
 static void populate_user(json_t *, struct passwd *, char *, size_t);
 static void populate_group(json_t *, struct group *, char *, size_t);
+static void populate_hostent(json_t *, struct hostent *, char *, size_t, int);
 static int gr_addgid(gid_t, gid_t *, int, int *);
 
 NSS_METHOD_PROTOTYPE(nss_freenas_getpwnam_r);
@@ -61,6 +68,12 @@ NSS_METHOD_PROTOTYPE(nss_freenas_getgrgid_r);
 NSS_METHOD_PROTOTYPE(nss_freenas_getgrent_r);
 NSS_METHOD_PROTOTYPE(nss_freenas_setgrent);
 NSS_METHOD_PROTOTYPE(nss_freenas_endgrent);
+NSS_METHOD_PROTOTYPE(nss_freenas_getgroupmembership);
+NSS_METHOD_PROTOTYPE(nss_freenas_getaddrinfo);
+NSS_METHOD_PROTOTYPE(nss_freenas_gethostbyaddr_r);
+NSS_METHOD_PROTOTYPE(nss_freenas_gethostbyname2_r);
+NSS_METHOD_PROTOTYPE(nss_freenas_ghbyaddr);
+NSS_METHOD_PROTOTYPE(nss_freenas_ghbyname);
 
 static json_t *flat_users;
 static json_t *flat_groups;
@@ -78,15 +91,32 @@ alloc_string(char **buf, size_t *max, const char *str)
 	char *ret;
 
 	ret = *buf;
-	length = strlen(str) + 1;
+
+	length = str != NULL ? strlen(str) + 1 : 0;
 
 	if (length > *max)
 		return (NULL);
 
-	memcpy(*buf, str, length);
+	if (length > 0)
+		memcpy(*buf, str, length);
+
 	*buf += length;
 	*max -= length;
 
+	return (ret);
+}
+
+static void *
+alloc_blob(char **buf, size_t *max, size_t length)
+{
+	char *ret;
+
+	if (length > *max)
+		return (NULL);
+
+	ret = *buf;
+	*buf += length;
+	*max -= length;
 	return (ret);
 }
 
@@ -230,6 +260,8 @@ populate_user(json_t *user, struct passwd *pwbuf, char *buf, size_t buflen)
 	obj = json_object_get(user, "unixhash");
 	pwbuf->pw_passwd = alloc_string(&buf, &buflen,
 	obj != NULL ? json_string_value(obj) : "*");
+
+	pwbuf->pw_class = alloc_string(&buf, &buflen, "default");
 }
 
 static void
@@ -250,28 +282,88 @@ populate_group(json_t *group, struct group *grbuf, char *buf, size_t buflen)
 	grbuf->gr_mem = alloc_null(&buf, &buflen);
 }
 
-static int
-call_dispatcher(const char *method, json_t *args, json_t **result, bool ref)
+static void
+populate_hostent(json_t *result, struct hostent *hp, char *buf, size_t buflen,
+    int af)
 {
-	connection_t *conn;
+	json_t *addrs, *aliases, *i;
+	size_t idx, addrs_cnt, aliases_cnt, addrlen;
+	struct in6_addr addr;
 
-	conn = dispatcher_open("unix");
+	addrs = json_object_get(result, "addresses");
+	if (addrs == NULL)
+		return;
+
+	aliases = json_object_get(result, "aliases");
+	if (aliases == NULL)
+		return;
+
+	hp->h_addr_list = alloc_blob(&buf, &buflen,
+	    (json_array_size(addrs) + 1) * sizeof(void *));
+	hp->h_aliases = alloc_blob(&buf, &buflen,
+	    (json_array_size(aliases) + 1) * sizeof(void *));
+	hp->h_name = alloc_string(&buf, &buflen, json_string_value(
+	    json_object_get(result, "name")));
+	hp->h_length = sizeof(in_addr_t);
+	hp->h_addrtype = af;
+
+	json_array_foreach(addrs, idx, i) {
+		if (af == AF_INET)
+			addrlen = sizeof(struct in_addr);
+
+		if (af == AF_INET6)
+			addrlen = sizeof(struct in6_addr);
+
+		inet_pton(af, json_string_value(i), &addr);
+		hp->h_addr_list[idx] = alloc_blob(&buf, &buflen, addrlen);
+		memcpy(hp->h_addr_list[idx], &addr, addrlen);
+	}
+
+	hp->h_addr_list[idx] = NULL;
+
+	json_array_foreach(aliases, idx, i) {
+		hp->h_aliases[idx] = alloc_string(&buf, &buflen,
+		    json_string_value(i));
+	}
+
+	hp->h_aliases[idx] = NULL;
+}
+
+static int
+call_dispatcher(const char *method, json_t *args, json_t **result)
+{
+	struct timespec ts;
+	struct timeval tv;
+	connection_t *conn;
+	rpc_call_t *call;
+
+	conn = dispatcher_open("unix:///var/run/dscached.sock");
 	if (conn == NULL)
 		return (-1);
 
-	if (dispatcher_login_service(conn, "nss-freenas") < 0) {
+	gettimeofday(&tv, NULL);
+	ts.tv_sec = tv.tv_sec + 2;
+	ts.tv_nsec = tv.tv_usec * 1000;
+
+	call = dispatcher_call_async(conn, method, args, NULL, NULL);
+
+	if (call == NULL) {
 		dispatcher_close(conn);
 		return (-1);
 	}
 
-	if (dispatcher_call_sync(conn, method, args, result) != RPC_CALL_DONE) {
+	if (rpc_call_timedwait(call, &ts) != 0) {
 		dispatcher_close(conn);
 		return (-1);
 	}
 
-	if (ref)
-		json_incref(*result);
+	if (rpc_call_success(call) != RPC_CALL_DONE) {
+		dispatcher_close(conn);
+		return (-1);
+	}
 
+	*result = rpc_call_result(call);
+	json_incref(*result);
 	dispatcher_close(conn);
 	return (0);
 }
@@ -315,7 +407,7 @@ nss_freenas_getpwnam_r(void *retval, void *mdata, va_list ap)
 	ret = va_arg(ap, int *);
 
 	if (call_dispatcher("dscached.account.getpwnam", json_pack("[s]", name),
-	    &user, false) < 0)
+	    &user) < 0)
 		user = flat_find_user(name, NULL, -1);
 
 	if (user == NULL || json_is_null(user)) {
@@ -330,6 +422,7 @@ nss_freenas_getpwnam_r(void *retval, void *mdata, va_list ap)
 	*(struct passwd **)retval = pwbuf;
 	*ret = 0;
 
+	json_decref(user);
 	return (NS_SUCCESS);
 }
 
@@ -350,8 +443,8 @@ nss_freenas_getpwuid_r(void *retval, void *mdata, va_list ap)
 	ret = va_arg(ap, int *);
 
 	if (call_dispatcher("dscached.account.getpwuid", json_pack("[i]", uid),
-	&user, false) < 0)
-	user = flat_find_user(NULL, NULL, uid);
+	    &user) < 0)
+		user = flat_find_user(NULL, NULL, uid);
 
 	if (user == NULL || json_is_null(user)) {
 		if (user != NULL)
@@ -365,6 +458,7 @@ nss_freenas_getpwuid_r(void *retval, void *mdata, va_list ap)
 	*(struct passwd **)retval = pwbuf;
 	*ret = 0;
 
+	json_decref(user);
 	return (NS_SUCCESS);
 }
 
@@ -400,7 +494,6 @@ nss_freenas_getpwent_r(void *retval, void *mdata, va_list ap)
 	*ret = 0;
 
 	pw_idx++;
-
 	return (NS_SUCCESS);
 }
 
@@ -408,7 +501,7 @@ int
 nss_freenas_setpwent(void *retval, void *mdata, va_list ap)
 {
 	if (call_dispatcher("dscached.account.query", json_array(),
-	    &pw_results, true) < 0) {
+	    &pw_results) < 0) {
 		flat_load_files();
 		pw_results = json_copy(flat_users);
 	}
@@ -452,7 +545,7 @@ nss_freenas_getgrnam_r(void *retval, void *mdata __unused, va_list ap)
 	ret = va_arg(ap, int *);
 
 	if (call_dispatcher("dscached.group.getgrnam", json_pack("[s]", name),
-	    &group, false) < 0)
+	    &group) < 0)
 		group = flat_find_group(name, NULL, -1);
 
 	if (group == NULL || json_is_null(group)) {
@@ -467,6 +560,7 @@ nss_freenas_getgrnam_r(void *retval, void *mdata __unused, va_list ap)
 	*(struct group **)retval = grbuf;
 	*ret = 0;
 
+	json_decref(group);
 	return (NS_SUCCESS);
 }
 
@@ -487,7 +581,7 @@ nss_freenas_getgrgid_r(void *retval, void *mdata __unused, va_list ap)
 	ret = va_arg(ap, int *);
 
 	if (call_dispatcher("dscached.group.getgrgid", json_pack("[i]", gid),
-	    &group, false) < 0)
+	    &group) < 0)
 		group = flat_find_group(NULL, NULL, gid);
 
 	if (group == NULL || json_is_null(group)) {
@@ -502,6 +596,7 @@ nss_freenas_getgrgid_r(void *retval, void *mdata __unused, va_list ap)
 	*(struct group **)retval = grbuf;
 	*ret = 0;
 
+	json_decref(group);
 	return (NS_SUCCESS);
 }
 
@@ -545,7 +640,7 @@ int
 nss_freenas_setgrent(void *retval, void *mdata, va_list ap)
 {
 	if (call_dispatcher("dscached.group.query", json_array(),
-	    &gr_results, true) < 0) {
+	    &gr_results) < 0) {
 		flat_load_files();
 		gr_results = json_copy(flat_groups);
 	}
@@ -576,32 +671,153 @@ nss_freenas_endgrent(void *retval, void *mdata, va_list ap)
 int
 nss_freenas_getgroupmembership(void *retval, void *mdata, va_list ap)
 {
-/*
-	const char 	*uname  = va_arg(ap, const char *);
-	gid_t		 group  = va_arg(ap, gid_t);
-	gid_t		*groups = va_arg(ap, gid_t *);
-	int		 maxgrp = va_arg(ap, int);
-	int		*groupc = va_arg(ap, int *);
-*/
-	return (NS_UNAVAIL);
+	const char *uname;
+	gid_t group;
+	gid_t *groups;
+	int maxgrp;
+	int *groupc;
+	int *ret;
+	json_t *user, *grouplist, *gid;
+	size_t idx;
+
+	uname = va_arg(ap, const char *);
+	group = va_arg(ap, gid_t);
+	groups = va_arg(ap, gid_t *);
+	maxgrp = va_arg(ap, int);
+	groupc = va_arg(ap, int *);
+
+	if (call_dispatcher("dscached.account.getpwnam", json_pack("[s]", uname),
+	    &user) < 0)
+		user = flat_find_user(uname, NULL, (uid_t)-1);
+
+	if (user == NULL || json_is_null(user)) {
+		if (user != NULL)
+			json_decref(user);
+		*groupc = 0;
+		return (NS_NOTFOUND);
+	}
+
+	grouplist = json_object_get(user, "gids");
+	if (grouplist == NULL) {
+		*groupc = 0;
+		return (NS_SUCCESS);
+	}
+
+	json_array_foreach(grouplist, idx, gid) {
+		gr_addgid(json_integer_value(gid), groups, maxgrp, groupc);
+	}
+
+	return (NS_SUCCESS);
 }
 
 int
 nss_freenas_getaddrinfo(void *retval, void *mdata, va_list ap)
 {
+	const char *hostname;
+	const char *servname;
+	const struct addrinfo *hints;
+	struct addrinfo **res;
+	int *ret;
+
+	hostname = va_arg(ap, const char *);
+	servname = va_arg(ap, const char *);
+	hints = va_arg(ap, const struct addrinfo *);
+	res = va_arg(ap, struct addrinfo **);
+	ret = va_arg(ap, int *);
+
 	return (NS_UNAVAIL);
 }
 
 int
 nss_freenas_gethostbyaddr_r(void *retval, void *mdata, va_list ap)
 {
-	return (NS_UNAVAIL);
+	void		*addr;
+	char		*buf;
+	struct hostent	*hp;
+	struct hostent	**resultp;
+	int		 af;
+	size_t		 buflen;
+	int		 len;
+	int		 ret_errno;
+	int *ret;
+	char addrstr[INET6_ADDRSTRLEN];
+	json_t *result;
+
+	addr = va_arg(ap, void *);
+	len = va_arg(ap, socklen_t);
+	af = va_arg(ap, int);
+	hp = va_arg(ap, struct hostent *);
+	buf = va_arg(ap, char *);
+	buflen = va_arg(ap, size_t);
+	ret_errno = va_arg(ap, int);
+	ret = va_arg(ap, int *);
+	resultp = (struct hostent **)retval;
+
+	if (inet_ntop(af, addr, addrstr, INET6_ADDRSTRLEN) == NULL)
+		return (NS_UNAVAIL);
+
+	if (call_dispatcher("dscached.host.gethostbyaddr", json_pack("[si]",
+	    addrstr, af), &result) < 0) {
+		return (NS_UNAVAIL);
+	}
+
+	if (result == NULL || json_is_null(result)) {
+		if (result != NULL)
+			json_decref(result);
+		*ret = ENOENT;
+		return (NS_NOTFOUND);
+	}
+
+	populate_hostent(result, hp, buf, buflen, af);
+
+	*resultp = hp;
+	*ret = 0;
+	json_decref(result);
+	return (NS_SUCCESS);
 }
 
 int
 nss_freenas_gethostbyname2_r(void *retval, void *mdata, va_list ap)
 {
-	return (NS_UNAVAIL);
+	char *buf;
+	const char *name;
+	struct hostent *hp;
+	struct hostent **resultp;
+	int af;
+	size_t buflen;
+	int ret_errno;
+	int *ret;
+	json_t *result, *addrs, *aliases, *i;
+	size_t idx;
+	in_addr_t addr;
+
+	name = va_arg(ap, char *);
+	af = va_arg(ap, int);
+	hp = va_arg(ap, struct hostent *);
+	buf = va_arg(ap, char *);
+	buflen = va_arg(ap, size_t);
+	ret_errno = va_arg(ap, int);
+	ret = va_arg(ap, int *);
+	resultp = (struct hostent **)retval;
+
+	if (call_dispatcher("dscached.host.gethostbyname", json_pack("[si]",
+	    name, af), &result) < 0) {
+		return (NS_UNAVAIL);
+	}
+
+	if (result == NULL || json_is_null(result)) {
+		if (result != NULL)
+			json_decref(result);
+		*ret = ENOENT;
+		return (NS_NOTFOUND);
+	}
+
+	populate_hostent(result, hp, buf, buflen, af);
+
+	*resultp = hp;
+	*ret = 0;
+	json_decref(result);
+	return (NS_SUCCESS);
 }
 
 int

@@ -71,6 +71,7 @@ def extend_with_default(validator_class):
         all_types = dict(validator.DEFAULT_TYPES)
         all_types.update({
             "fd": FileDescriptor,
+            "binary": bytes,
             "datetime": datetime.datetime
         })
 

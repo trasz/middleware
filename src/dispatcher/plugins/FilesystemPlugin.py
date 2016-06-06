@@ -25,10 +25,7 @@
 #
 #####################################################################
 
-
 import errno
-import pwd
-import grp
 import os
 import stat
 import bsd
@@ -79,13 +76,15 @@ class FilesystemProvider(Provider):
             raise RpcException(err.errno, str(err))
 
         try:
-            username = pwd.getpwuid(st.st_uid).pw_name
-        except KeyError:
+            user = self.dispatcher.call_sync('dscached.account.getpwuid', st.st_uid)
+            username = user['username']
+        except RpcException:
             username = None
 
         try:
-            groupname = grp.getgrgid(st.st_gid).gr_name
-        except KeyError:
+            group = self.dispatcher.call_sync('dscached.group.getgrgid', st.st_gid)
+            groupname = group['name']
+        except RpcException:
             groupname = None
 
         return {
@@ -263,13 +262,15 @@ class SetPermissionsTask(Task):
 
             if user:
                 try:
-                    uid = pwd.getpwnam(user).pw_uid
-                except KeyError:
+                    user = self.dispatcher.call_sync('dscached.account.getpwnam', user)
+                    uid = user['uid']
+                except RpcException:
                     raise TaskException(errno.ENOENT, 'User {0} not found'.format(user))
 
             if group:
                 try:
-                    gid = grp.getgrnam(group).gr_gid
+                    group = self.dispatcher.call_sync('dscached.group.getgrnam', user)
+                    gid = group['gid']
                 except KeyError:
                     raise TaskException(errno.ENOENT, 'Group {0} not found'.format(group))
 

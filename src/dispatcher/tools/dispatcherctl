@@ -59,6 +59,7 @@ def call(method, args, server=DEFAULT_SERVER, timeout=DEFAULT_TIMEOUT, stream=Fa
 
     try:
         if stream:
+            c.call_sync('management.enable_features', ['streaming_responses'])
             for i in c.call_sync(method, *args, streaming=True):
                 dump(i, sys.stdout, indent=4)
                 print()

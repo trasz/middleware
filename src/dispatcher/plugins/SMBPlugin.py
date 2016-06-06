@@ -69,6 +69,9 @@ class SMBProvider(Provider):
                 config['dirmask'] = get_unix_permissions(config['dirmask'])
         return config
 
+    @returns(bool)
+    def ad_enabled(self):
+        return self.datastore.exists('directories', ('plugin', '=', 'winbind'), ('enabled', '=', True))
 
 @private
 @description('Configure SMB service')
@@ -117,7 +120,7 @@ class SMBConfigureTask(Task):
             if smb.get('dirmask'):
                 smb['dirmask'] = get_integer(smb['dirmask'])
             node.update(smb)
-            configure_params(node.__getstate__())
+            configure_params(node.__getstate__(), self.dispatcher.call_sync('service.smb.ad_enabled'))
 
             try:
                 rpc = smbconf.SambaMessagingContext()
@@ -145,7 +148,7 @@ def yesno(val):
     return 'yes' if val else 'no'
 
 
-def configure_params(smb):
+def configure_params(smb, ad=False):
     conf = smbconf.SambaConfig('registry')
     conf['netbios name'] = smb['netbiosname'][0]
     conf['netbios aliases'] = ' '.join(smb['netbiosname'][1:])
@@ -153,7 +156,6 @@ def configure_params(smb):
     if smb['bind_addresses']:
         conf['interfaces'] = ' '.join(['127.0.0.1'] + smb['bind_addresses'])
 
-    conf['workgroup'] = smb['workgroup']
     conf['server string'] = smb['description']
     conf['encrypt passwords'] = 'yes'
     conf['dns proxy'] = 'no'
@@ -198,12 +200,16 @@ def configure_params(smb):
     conf['acl check permissions'] = 'true'
     conf['dos filemode'] = 'yes'
     conf['multicast dns register'] = yesno(smb['zeroconf'])
-    conf['local master'] = yesno(smb['local_master'])
-    conf['server role'] = 'auto'
+    conf['passdb backend'] = 'freenas'
     conf['log level'] = str(getattr(LogLevel, smb['log_level']).value)
     conf['username map'] = '/usr/local/etc/smbusers'
     conf['idmap config *: range'] = '90000001-100000000'
     conf['idmap config *: backend'] = 'tdb'
+
+    if not ad:
+        conf['local master'] = yesno(smb['local_master'])
+        conf['server role'] = 'auto'
+        conf['workgroup'] = smb['workgroup']
 
 
 def collect_debug(dispatcher):
@@ -321,4 +327,4 @@ def _init(dispatcher, plugin):
 
     set_smb_sid()
     node = ConfigNode('service.smb', dispatcher.configstore)
-    configure_params(node.__getstate__())
+    configure_params(node.__getstate__(), dispatcher.call_sync('service.smb.ad_enabled'))

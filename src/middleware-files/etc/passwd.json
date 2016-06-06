@@ -1,652 +1,677 @@
 [
-  {
-    "uid": 0,
-    "shell": "/bin/csh",
-    "id": "4B6D36AD-93E2-4B4E-A1A3-93E8A698F1DC",
-    "password_disabled": false,
-    "group": "0562D3BE-679B-45E3-A220-F9D9A2E938A9",
-    "locked": false,
-    "username": "root",
-    "smbhash": null,
-    "builtin": true,
-    "email": null,
-    "sshpubkey": null,
-    "updated_at": {
-      "$date": "2016-03-22 14:36:21.870000"
+    {
+        "uid": 0,
+        "shell": "/bin/csh",
+        "id": "4B6D36AD-93E2-4B4E-A1A3-93E8A698F1DC",
+        "password_disabled": false,
+        "group": "0562D3BE-679B-45E3-A220-F9D9A2E938A9",
+        "locked": false,
+        "username": "root",
+        "smbhash": null,
+        "builtin": true,
+        "email": null,
+        "sshpubkey": null,
+        "updated_at": {
+            "$date": "2016-03-22 14:36:21.870000"
+        },
+        "full_name": "Charlie &",
+        "attributes": {},
+        "sudo": false,
+        "groups": [],
+        "home": "/root",
+        "unixhash": "*",
+        "created_at": {
+            "$date": "2016-03-08 22:21:49.917000"
+        }
     },
-    "full_name": "Charlie &",
-    "attributes": {},
-    "sudo": false,
-    "groups": [],
-    "home": "/root",
-    "unixhash": "*",
-    "created_at": {
-      "$date": "2016-03-08 22:21:49.917000"
-    }
-  },
-  {
-    "uid": 1,
-    "full_name": "Owner of many system processes",
-    "shell": "/usr/sbin/nologin",
-    "id": "F0C27E8C-9E93-40C1-BA11-129F79157A73",
-    "password_disabled": false,
-    "group": "36DD1308-699E-45B9-BA9E-D3253A14E1D5",
-    "locked": false,
-    "username": "daemon",
-    "smbhash": "*",
-    "email": null,
-    "sshpubkey": null,
-    "updated_at": {
-      "$date": "2016-03-08 22:21:49.942000"
+    {
+        "uid": 1,
+        "full_name": "Owner of many system processes",
+        "shell": "/usr/sbin/nologin",
+        "id": "F0C27E8C-9E93-40C1-BA11-129F79157A73",
+        "password_disabled": false,
+        "group": "36DD1308-699E-45B9-BA9E-D3253A14E1D5",
+        "locked": false,
+        "username": "daemon",
+        "nthash": null,
+        "email": null,
+        "sshpubkey": null,
+        "updated_at": {
+            "$date": "2016-03-08 22:21:49.942000"
+        },
+        "builtin": true,
+        "attributes": {},
+        "sudo": false,
+        "groups": [],
+        "home": "/root",
+        "unixhash": "*",
+        "created_at": {
+            "$date": "2016-03-08 22:21:49.942000"
+        }
     },
-    "builtin": true,
-    "attributes": {},
-    "sudo": false,
-    "groups": [],
-    "home": "/root",
-    "unixhash": "*",
-    "created_at": {
-      "$date": "2016-03-08 22:21:49.942000"
-    }
-  },
-  {
-    "uid": 2,
-    "full_name": "System &",
-    "shell": "/usr/sbin/nologin",
-    "id": "BC35A261-4A81-41AA-AC26-12C2CABB25CE",
-    "password_disabled": false,
-    "group": "872D1632-EADD-431F-8C5F-8BD6222B602F",
-    "locked": false,
-    "username": "operator",
-    "smbhash": "*",
-    "email": null,
-    "sshpubkey": null,
-    "updated_at": {
-      "$date": "2016-03-08 22:21:49.916000"
+    {
+        "uid": 2,
+        "full_name": "System &",
+        "shell": "/usr/sbin/nologin",
+        "id": "BC35A261-4A81-41AA-AC26-12C2CABB25CE",
+        "password_disabled": false,
+        "group": "872D1632-EADD-431F-8C5F-8BD6222B602F",
+        "locked": false,
+        "username": "operator",
+        "nthash": null,
+        "email": null,
+        "sshpubkey": null,
+        "updated_at": {
+            "$date": "2016-03-08 22:21:49.916000"
+        },
+        "builtin": true,
+        "attributes": {},
+        "sudo": false,
+        "groups": [],
+        "home": "/",
+        "unixhash": "*",
+        "created_at": {
+            "$date": "2016-03-08 22:21:49.916000"
+        }
     },
-    "builtin": true,
-    "attributes": {},
-    "sudo": false,
-    "groups": [],
-    "home": "/",
-    "unixhash": "*",
-    "created_at": {
-      "$date": "2016-03-08 22:21:49.916000"
-    }
-  },
-  {
-    "uid": 3,
-    "full_name": "Binaries Commands and Source",
-    "shell": "/usr/sbin/nologin",
-    "id": "2BC04966-0194-45B0-A01E-D39AD20FFB27",
-    "password_disabled": false,
-    "group": "566D4055-B736-4AC5-B324-889231381E27",
-    "locked": false,
-    "username": "bin",
-    "smbhash": "*",
-    "email": null,
-    "sshpubkey": null,
-    "updated_at": {
-      "$date": "2016-03-08 22:21:49.896000"
+    {
+        "uid": 3,
+        "full_name": "Binaries Commands and Source",
+        "shell": "/usr/sbin/nologin",
+        "id": "2BC04966-0194-45B0-A01E-D39AD20FFB27",
+        "password_disabled": false,
+        "group": "566D4055-B736-4AC5-B324-889231381E27",
+        "locked": false,
+        "username": "bin",
+        "nthash": null,
+        "email": null,
+        "sshpubkey": null,
+        "updated_at": {
+            "$date": "2016-03-08 22:21:49.896000"
+        },
+        "builtin": true,
+        "attributes": {},
+        "sudo": false,
+        "groups": [],
+        "home": "/",
+        "unixhash": "*",
+        "created_at": {
+            "$date": "2016-03-08 22:21:49.896000"
+        }
     },
-    "builtin": true,
-    "attributes": {},
-    "sudo": false,
-    "groups": [],
-    "home": "/",
-    "unixhash": "*",
-    "created_at": {
-      "$date": "2016-03-08 22:21:49.896000"
-    }
-  },
-  {
-    "uid": 4,
-    "full_name": "Tty Sandbox",
-    "shell": "/usr/sbin/nologin",
-    "id": "4E62F0A2-DE18-4D57-BA99-B78A5323F46F",
-    "password_disabled": false,
-    "group": "8980C534-6A71-4BFB-BC72-54CBD5A186DB",
-    "locked": false,
-    "username": "tty",
-    "smbhash": "*",
-    "email": null,
-    "sshpubkey": null,
-    "updated_at": {
-      "$date": "2016-03-08 22:21:49.904000"
+    {
+        "uid": 4,
+        "full_name": "Tty Sandbox",
+        "shell": "/usr/sbin/nologin",
+        "id": "4E62F0A2-DE18-4D57-BA99-B78A5323F46F",
+        "password_disabled": false,
+        "group": "8980C534-6A71-4BFB-BC72-54CBD5A186DB",
+        "locked": false,
+        "username": "tty",
+        "nthash": null,
+        "email": null,
+        "sshpubkey": null,
+        "updated_at": {
+            "$date": "2016-03-08 22:21:49.904000"
+        },
+        "builtin": true,
+        "attributes": {},
+        "sudo": false,
+        "groups": [],
+        "home": "/",
+        "unixhash": "*",
+        "created_at": {
+            "$date": "2016-03-08 22:21:49.904000"
+        }
     },
-    "builtin": true,
-    "attributes": {},
-    "sudo": false,
-    "groups": [],
-    "home": "/",
-    "unixhash": "*",
-    "created_at": {
-      "$date": "2016-03-08 22:21:49.904000"
-    }
-  },
-  {
-    "uid": 5,
-    "full_name": "KMem Sandbox",
-    "shell": "/usr/sbin/nologin",
-    "id": "00DDE493-6CD7-418F-9754-B2BCE4234EA3",
-    "password_disabled": false,
-    "group": "3EE33D50-8A95-42A7-B6EC-B201CD51C298",
-    "locked": false,
-    "username": "kmem",
-    "smbhash": "*",
-    "email": null,
-    "sshpubkey": null,
-    "updated_at": {
-      "$date": "2016-03-08 22:21:49.912000"
+    {
+        "uid": 5,
+        "full_name": "KMem Sandbox",
+        "shell": "/usr/sbin/nologin",
+        "id": "00DDE493-6CD7-418F-9754-B2BCE4234EA3",
+        "password_disabled": false,
+        "group": "3EE33D50-8A95-42A7-B6EC-B201CD51C298",
+        "locked": false,
+        "username": "kmem",
+        "nthash": null,
+        "email": null,
+        "sshpubkey": null,
+        "updated_at": {
+            "$date": "2016-03-08 22:21:49.912000"
+        },
+        "builtin": true,
+        "attributes": {},
+        "sudo": false,
+        "groups": [],
+        "home": "/",
+        "unixhash": "*",
+        "created_at": {
+            "$date": "2016-03-08 22:21:49.912000"
+        }
     },
-    "builtin": true,
-    "attributes": {},
-    "sudo": false,
-    "groups": [],
-    "home": "/",
-    "unixhash": "*",
-    "created_at": {
-      "$date": "2016-03-08 22:21:49.912000"
-    }
-  },
-  {
-    "uid": 7,
-    "full_name": "Games pseudo-user",
-    "shell": "/usr/sbin/nologin",
-    "id": "4D2A5872-8453-40EF-9EA0-4CC76F7F08D3",
-    "password_disabled": false,
-    "group": "C5B8F090-DB15-4083-BBE3-07FA541E7DAE",
-    "locked": false,
-    "username": "games",
-    "smbhash": "*",
-    "email": null,
-    "sshpubkey": null,
-    "updated_at": {
-      "$date": "2016-03-08 22:21:49.921000"
+    {
+        "uid": 7,
+        "full_name": "Games pseudo-user",
+        "shell": "/usr/sbin/nologin",
+        "id": "4D2A5872-8453-40EF-9EA0-4CC76F7F08D3",
+        "password_disabled": false,
+        "group": "C5B8F090-DB15-4083-BBE3-07FA541E7DAE",
+        "locked": false,
+        "username": "games",
+        "nthash": null,
+        "email": null,
+        "sshpubkey": null,
+        "updated_at": {
+            "$date": "2016-03-08 22:21:49.921000"
+        },
+        "builtin": true,
+        "attributes": {},
+        "sudo": false,
+        "groups": [],
+        "home": "/",
+        "unixhash": "*",
+        "created_at": {
+            "$date": "2016-03-08 22:21:49.921000"
+        }
     },
-    "builtin": true,
-    "attributes": {},
-    "sudo": false,
-    "groups": [],
-    "home": "/",
-    "unixhash": "*",
-    "created_at": {
-      "$date": "2016-03-08 22:21:49.921000"
-    }
-  },
-  {
-    "uid": 8,
-    "full_name": "News Subsystem",
-    "shell": "/usr/sbin/nologin",
-    "id": "1F703A0C-D7C0-4223-AC95-9B2DB2D53A92",
-    "password_disabled": false,
-    "group": "75BB5D8A-8A36-46B4-A9BA-323EE310733A",
-    "locked": false,
-    "username": "news",
-    "smbhash": "*",
-    "email": null,
-    "sshpubkey": null,
-    "updated_at": {
-      "$date": "2016-03-08 22:21:49.937000"
+    {
+        "uid": 8,
+        "full_name": "News Subsystem",
+        "shell": "/usr/sbin/nologin",
+        "id": "1F703A0C-D7C0-4223-AC95-9B2DB2D53A92",
+        "password_disabled": false,
+        "group": "75BB5D8A-8A36-46B4-A9BA-323EE310733A",
+        "locked": false,
+        "username": "news",
+        "nthash": null,
+        "email": null,
+        "sshpubkey": null,
+        "updated_at": {
+            "$date": "2016-03-08 22:21:49.937000"
+        },
+        "builtin": true,
+        "attributes": {},
+        "sudo": false,
+        "groups": [],
+        "home": "/",
+        "unixhash": "*",
+        "created_at": {
+            "$date": "2016-03-08 22:21:49.937000"
+        }
     },
-    "builtin": true,
-    "attributes": {},
-    "sudo": false,
-    "groups": [],
-    "home": "/",
-    "unixhash": "*",
-    "created_at": {
-      "$date": "2016-03-08 22:21:49.937000"
-    }
-  },
-  {
-    "uid": 9,
-    "full_name": "Mister Man Pages",
-    "shell": "/usr/sbin/nologin",
-    "id": "616D055E-0471-4BE7-B79A-813648FF4FF0",
-    "password_disabled": false,
-    "group": "A787B5E4-C875-47EB-BF44-A787581DD98A",
-    "locked": false,
-    "username": "man",
-    "smbhash": "*",
-    "email": null,
-    "sshpubkey": null,
-    "updated_at": {
-      "$date": "2016-03-08 22:21:49.940000"
+    {
+        "uid": 9,
+        "full_name": "Mister Man Pages",
+        "shell": "/usr/sbin/nologin",
+        "id": "616D055E-0471-4BE7-B79A-813648FF4FF0",
+        "password_disabled": false,
+        "group": "A787B5E4-C875-47EB-BF44-A787581DD98A",
+        "locked": false,
+        "username": "man",
+        "nthash": null,
+        "email": null,
+        "sshpubkey": null,
+        "updated_at": {
+            "$date": "2016-03-08 22:21:49.940000"
+        },
+        "builtin": true,
+        "attributes": {},
+        "sudo": false,
+        "groups": [],
+        "home": "/usr/share/man",
+        "unixhash": "*",
+        "created_at": {
+            "$date": "2016-03-08 22:21:49.940000"
+        }
     },
-    "builtin": true,
-    "attributes": {},
-    "sudo": false,
-    "groups": [],
-    "home": "/usr/share/man",
-    "unixhash": "*",
-    "created_at": {
-      "$date": "2016-03-08 22:21:49.940000"
-    }
-  },
-  {
-    "uid": 14,
-    "full_name": "",
-    "shell": "/bin/csh",
-    "id": "A7F01ED8-61DD-4561-8B49-2936AF854825",
-    "password_disabled": false,
-    "group": "25E95D6D-AA2D-489C-8DAC-DD60ECC5F707",
-    "locked": false,
-    "username": "ftp",
-    "smbhash": "*",
-    "email": null,
-    "sshpubkey": null,
-    "updated_at": {
-      "$date": "2016-03-08 22:21:49.943000"
+    {
+        "uid": 14,
+        "full_name": "",
+        "shell": "/bin/csh",
+        "id": "A7F01ED8-61DD-4561-8B49-2936AF854825",
+        "password_disabled": false,
+        "group": "25E95D6D-AA2D-489C-8DAC-DD60ECC5F707",
+        "locked": false,
+        "username": "ftp",
+        "nthash": null,
+        "email": null,
+        "sshpubkey": null,
+        "updated_at": {
+            "$date": "2016-03-08 22:21:49.943000"
+        },
+        "builtin": true,
+        "attributes": {},
+        "sudo": false,
+        "groups": [],
+        "home": "/nonexistent",
+        "unixhash": "*",
+        "created_at": {
+            "$date": "2016-03-08 22:21:49.943000"
+        }
     },
-    "builtin": true,
-    "attributes": {},
-    "sudo": false,
-    "groups": [],
-    "home": "/nonexistent",
-    "unixhash": "*",
-    "created_at": {
-      "$date": "2016-03-08 22:21:49.943000"
-    }
-  },
-  {
-    "uid": 22,
-    "full_name": "Secure Shell Daemon",
-    "shell": "/usr/sbin/nologin",
-    "id": "99281C5F-29B7-45DA-8590-7A5E2CD34D71",
-    "password_disabled": false,
-    "group": "C9AC8A31-FAE9-41EE-A8B1-07FA6E509626",
-    "locked": false,
-    "username": "sshd",
-    "smbhash": "*",
-    "email": null,
-    "sshpubkey": null,
-    "updated_at": {
-      "$date": "2016-03-08 22:21:49.931000"
+    {
+        "uid": 22,
+        "full_name": "Secure Shell Daemon",
+        "shell": "/usr/sbin/nologin",
+        "id": "99281C5F-29B7-45DA-8590-7A5E2CD34D71",
+        "password_disabled": false,
+        "group": "C9AC8A31-FAE9-41EE-A8B1-07FA6E509626",
+        "locked": false,
+        "username": "sshd",
+        "nthash": null,
+        "email": null,
+        "sshpubkey": null,
+        "updated_at": {
+            "$date": "2016-03-08 22:21:49.931000"
+        },
+        "builtin": true,
+        "attributes": {},
+        "sudo": false,
+        "groups": [],
+        "home": "/var/empty",
+        "unixhash": "*",
+        "created_at": {
+            "$date": "2016-03-08 22:21:49.931000"
+        }
     },
-    "builtin": true,
-    "attributes": {},
-    "sudo": false,
-    "groups": [],
-    "home": "/var/empty",
-    "unixhash": "*",
-    "created_at": {
-      "$date": "2016-03-08 22:21:49.931000"
-    }
-  },
-  {
-    "uid": 25,
-    "full_name": "Sendmail Submission User",
-    "shell": "/usr/sbin/nologin",
-    "id": "AB2406DA-3F09-4BFA-B0C1-A04BFC7B3A9B",
-    "password_disabled": false,
-    "group": "E41D0AED-EC6A-4C86-8063-4215F923135E",
-    "locked": false,
-    "username": "smmsp",
-    "smbhash": "*",
-    "email": null,
-    "sshpubkey": null,
-    "updated_at": {
-      "$date": "2016-03-08 22:21:49.907000"
+    {
+        "uid": 25,
+        "full_name": "Sendmail Submission User",
+        "shell": "/usr/sbin/nologin",
+        "id": "AB2406DA-3F09-4BFA-B0C1-A04BFC7B3A9B",
+        "password_disabled": false,
+        "group": "E41D0AED-EC6A-4C86-8063-4215F923135E",
+        "locked": false,
+        "username": "smmsp",
+        "nthash": null,
+        "email": null,
+        "sshpubkey": null,
+        "updated_at": {
+            "$date": "2016-03-08 22:21:49.907000"
+        },
+        "builtin": true,
+        "attributes": {},
+        "sudo": false,
+        "groups": [],
+        "home": "/var/spool/clientmqueue",
+        "unixhash": "*",
+        "created_at": {
+            "$date": "2016-03-08 22:21:49.907000"
+        }
     },
-    "builtin": true,
-    "attributes": {},
-    "sudo": false,
-    "groups": [],
-    "home": "/var/spool/clientmqueue",
-    "unixhash": "*",
-    "created_at": {
-      "$date": "2016-03-08 22:21:49.907000"
-    }
-  },
-  {
-    "uid": 26,
-    "full_name": "Sendmail Default User",
-    "shell": "/usr/sbin/nologin",
-    "id": "02BAF7A9-5FA5-4DD7-A234-8F1D27B249C7",
-    "password_disabled": false,
-    "group": "14FC9B9E-97EA-45C8-970A-8853987F6BCE",
-    "locked": false,
-    "username": "mailnull",
-    "smbhash": "*",
-    "email": null,
-    "sshpubkey": null,
-    "updated_at": {
-      "$date": "2016-03-08 22:21:49.935000"
+    {
+        "uid": 26,
+        "full_name": "Sendmail Default User",
+        "shell": "/usr/sbin/nologin",
+        "id": "02BAF7A9-5FA5-4DD7-A234-8F1D27B249C7",
+        "password_disabled": false,
+        "group": "14FC9B9E-97EA-45C8-970A-8853987F6BCE",
+        "locked": false,
+        "username": "mailnull",
+        "nthash": null,
+        "email": null,
+        "sshpubkey": null,
+        "updated_at": {
+            "$date": "2016-03-08 22:21:49.935000"
+        },
+        "builtin": true,
+        "attributes": {},
+        "sudo": false,
+        "groups": [],
+        "home": "/var/spool/mqueue",
+        "unixhash": "*",
+        "created_at": {
+            "$date": "2016-03-08 22:21:49.935000"
+        }
     },
-    "builtin": true,
-    "attributes": {},
-    "sudo": false,
-    "groups": [],
-    "home": "/var/spool/mqueue",
-    "unixhash": "*",
-    "created_at": {
-      "$date": "2016-03-08 22:21:49.935000"
-    }
-  },
-  {
-    "uid": 53,
-    "full_name": "Bind Sandbox",
-    "shell": "/usr/sbin/nologin",
-    "id": "68E21C39-85B7-4FBC-875F-78EBB4701B83",
-    "password_disabled": false,
-    "group": "FD259280-436B-45A6-B5AC-52BFAD816019",
-    "locked": false,
-    "username": "bind",
-    "smbhash": "*",
-    "email": null,
-    "sshpubkey": null,
-    "updated_at": {
-      "$date": "2016-03-08 22:21:49.933000"
+    {
+        "uid": 53,
+        "full_name": "Bind Sandbox",
+        "shell": "/usr/sbin/nologin",
+        "id": "68E21C39-85B7-4FBC-875F-78EBB4701B83",
+        "password_disabled": false,
+        "group": "FD259280-436B-45A6-B5AC-52BFAD816019",
+        "locked": false,
+        "username": "bind",
+        "nthash": null,
+        "email": null,
+        "sshpubkey": null,
+        "updated_at": {
+            "$date": "2016-03-08 22:21:49.933000"
+        },
+        "builtin": true,
+        "attributes": {},
+        "sudo": false,
+        "groups": [],
+        "home": "/",
+        "unixhash": "*",
+        "created_at": {
+            "$date": "2016-03-08 22:21:49.933000"
+        }
     },
-    "builtin": true,
-    "attributes": {},
-    "sudo": false,
-    "groups": [],
-    "home": "/",
-    "unixhash": "*",
-    "created_at": {
-      "$date": "2016-03-08 22:21:49.933000"
-    }
-  },
-  {
-    "uid": 62,
-    "full_name": "Packet Filter pseudo-user",
-    "shell": "/usr/sbin/nologin",
-    "id": "55B8D645-EDF3-4F18-9DA6-EF7F8C2F656B",
-    "password_disabled": false,
-    "group": "3A545AA3-45F7-4E82-BB9F-613E3DF55FD9",
-    "locked": false,
-    "username": "proxy",
-    "smbhash": "*",
-    "email": null,
-    "sshpubkey": null,
-    "updated_at": {
-      "$date": "2016-03-08 22:21:49.945000"
+    {
+        "uid": 59,
+        "full_name": "Unbound DNS Resolver",
+        "shell": "/usr/sbin/nologin",
+        "id": "ACD1D057-8BB1-4D0C-8932-0ACAE7EDE456",
+        "password_disabled": false,
+        "group": "DBC444DE-F5B8-44EC-9153-97017E7A7D1D",
+        "locked": false,
+        "username": "unbound",
+        "nthash": null,
+        "email": null,
+        "sshpubkey": null,
+        "updated_at": {
+            "$date": "2016-03-08 22:21:49.933000"
+        },
+        "builtin": true,
+        "attributes": {},
+        "sudo": false,
+        "groups": [],
+        "home": "/var/unbound",
+        "unixhash": "*",
+        "created_at": {
+            "$date": "2016-03-08 22:21:49.933000"
+        }
     },
-    "builtin": true,
-    "attributes": {},
-    "sudo": false,
-    "groups": [],
-    "home": "/nonexistent",
-    "unixhash": "*",
-    "created_at": {
-      "$date": "2016-03-08 22:21:49.945000"
-    }
-  },
-  {
-    "uid": 64,
-    "full_name": "pflogd privsep user",
-    "shell": "/usr/sbin/nologin",
-    "id": "7F46A805-2636-4DE4-8AE4-93959D4F91AC",
-    "password_disabled": false,
-    "group": "F5E3DBDE-FF46-4E1C-B8C6-47713B28487C",
-    "locked": false,
-    "username": "_pflogd",
-    "smbhash": "*",
-    "email": null,
-    "sshpubkey": null,
-    "updated_at": {
-      "$date": "2016-03-08 22:21:49.928000"
+    {
+        "uid": 62,
+        "full_name": "Packet Filter pseudo-user",
+        "shell": "/usr/sbin/nologin",
+        "id": "55B8D645-EDF3-4F18-9DA6-EF7F8C2F656B",
+        "password_disabled": false,
+        "group": "3A545AA3-45F7-4E82-BB9F-613E3DF55FD9",
+        "locked": false,
+        "username": "proxy",
+        "nthash": null,
+        "email": null,
+        "sshpubkey": null,
+        "updated_at": {
+            "$date": "2016-03-08 22:21:49.945000"
+        },
+        "builtin": true,
+        "attributes": {},
+        "sudo": false,
+        "groups": [],
+        "home": "/nonexistent",
+        "unixhash": "*",
+        "created_at": {
+            "$date": "2016-03-08 22:21:49.945000"
+        }
     },
-    "builtin": true,
-    "attributes": {},
-    "sudo": false,
-    "groups": [],
-    "home": "/var/empty",
-    "unixhash": "*",
-    "created_at": {
-      "$date": "2016-03-08 22:21:49.928000"
-    }
-  },
-  {
-    "uid": 65,
-    "full_name": "dhcp programs",
-    "shell": "/usr/sbin/nologin",
-    "id": "0C4265A4-EB83-4356-8B56-6765525FEE82",
-    "password_disabled": false,
-    "group": "901C6195-D94A-4CC9-BF1D-954DFB14F17B",
-    "locked": false,
-    "username": "_dhcp",
-    "smbhash": "*",
-    "email": null,
-    "sshpubkey": null,
-    "updated_at": {
-      "$date": "2016-03-08 22:21:49.924000"
+    {
+        "uid": 64,
+        "full_name": "pflogd privsep user",
+        "shell": "/usr/sbin/nologin",
+        "id": "7F46A805-2636-4DE4-8AE4-93959D4F91AC",
+        "password_disabled": false,
+        "group": "F5E3DBDE-FF46-4E1C-B8C6-47713B28487C",
+        "locked": false,
+        "username": "_pflogd",
+        "nthash": null,
+        "email": null,
+        "sshpubkey": null,
+        "updated_at": {
+            "$date": "2016-03-08 22:21:49.928000"
+        },
+        "builtin": true,
+        "attributes": {},
+        "sudo": false,
+        "groups": [],
+        "home": "/var/empty",
+        "unixhash": "*",
+        "created_at": {
+            "$date": "2016-03-08 22:21:49.928000"
+        }
     },
-    "builtin": true,
-    "attributes": {},
-    "sudo": false,
-    "groups": [],
-    "home": "/var/empty",
-    "unixhash": "*",
-    "created_at": {
-      "$date": "2016-03-08 22:21:49.924000"
-    }
-  },
-  {
-    "uid": 66,
-    "full_name": "UUCP pseudo-user",
-    "shell": "/usr/local/libexec/uucp/uucico",
-    "id": "CE37C6D9-B10E-46BE-8825-67CE1C0991D8",
-    "password_disabled": false,
-    "group": "04E287E2-6FB0-45A8-85CB-F548DBF7FFCF",
-    "locked": false,
-    "username": "uucp",
-    "smbhash": "*",
-    "email": null,
-    "sshpubkey": null,
-    "updated_at": {
-      "$date": "2016-03-08 22:21:49.938000"
+    {
+        "uid": 65,
+        "full_name": "dhcp programs",
+        "shell": "/usr/sbin/nologin",
+        "id": "0C4265A4-EB83-4356-8B56-6765525FEE82",
+        "password_disabled": false,
+        "group": "901C6195-D94A-4CC9-BF1D-954DFB14F17B",
+        "locked": false,
+        "username": "_dhcp",
+        "nthash": null,
+        "email": null,
+        "sshpubkey": null,
+        "updated_at": {
+            "$date": "2016-03-08 22:21:49.924000"
+        },
+        "builtin": true,
+        "attributes": {},
+        "sudo": false,
+        "groups": [],
+        "home": "/var/empty",
+        "unixhash": "*",
+        "created_at": {
+            "$date": "2016-03-08 22:21:49.924000"
+        }
     },
-    "builtin": true,
-    "attributes": {},
-    "sudo": false,
-    "groups": [],
-    "home": "/var/spool/uucppublic",
-    "unixhash": "*",
-    "created_at": {
-      "$date": "2016-03-08 22:21:49.938000"
-    }
-  },
-  {
-    "uid": 68,
-    "full_name": "Post Office Owner",
-    "shell": "/usr/sbin/nologin",
-    "id": "BF66DDBC-35A2-4936-B9F4-541B1C48BFEB",
-    "password_disabled": false,
-    "group": "070ED099-D9AE-4D82-AAD4-C8CF18C7998B",
-    "locked": false,
-    "username": "pop",
-    "smbhash": "*",
-    "email": null,
-    "sshpubkey": null,
-    "updated_at": {
-      "$date": "2016-03-08 22:21:49.919000"
+    {
+        "uid": 66,
+        "full_name": "UUCP pseudo-user",
+        "shell": "/usr/local/libexec/uucp/uucico",
+        "id": "CE37C6D9-B10E-46BE-8825-67CE1C0991D8",
+        "password_disabled": false,
+        "group": "04E287E2-6FB0-45A8-85CB-F548DBF7FFCF",
+        "locked": false,
+        "username": "uucp",
+        "nthash": null,
+        "email": null,
+        "sshpubkey": null,
+        "updated_at": {
+            "$date": "2016-03-08 22:21:49.938000"
+        },
+        "builtin": true,
+        "attributes": {},
+        "sudo": false,
+        "groups": [],
+        "home": "/var/spool/uucppublic",
+        "unixhash": "*",
+        "created_at": {
+            "$date": "2016-03-08 22:21:49.938000"
+        }
     },
-    "builtin": true,
-    "attributes": {},
-    "sudo": false,
-    "groups": [],
-    "home": "/nonexistent",
-    "unixhash": "*",
-    "created_at": {
-      "$date": "2016-03-08 22:21:49.919000"
-    }
-  },
-  {
-    "uid": 78,
-    "full_name": "Auditdistd unprivileged user",
-    "shell": "/usr/sbin/nologin",
-    "id": "FC6EB95D-176D-4CC5-B087-72E61E39E699",
-    "password_disabled": false,
-    "group": "2941B683-7444-42A4-AA66-F86A8F20A947",
-    "locked": false,
-    "username": "auditdistd",
-    "smbhash": "*",
-    "email": null,
-    "sshpubkey": null,
-    "updated_at": {
-      "$date": "2016-03-08 22:21:49.930000"
+    {
+        "uid": 68,
+        "full_name": "Post Office Owner",
+        "shell": "/usr/sbin/nologin",
+        "id": "BF66DDBC-35A2-4936-B9F4-541B1C48BFEB",
+        "password_disabled": false,
+        "group": "070ED099-D9AE-4D82-AAD4-C8CF18C7998B",
+        "locked": false,
+        "username": "pop",
+        "nthash": null,
+        "email": null,
+        "sshpubkey": null,
+        "updated_at": {
+            "$date": "2016-03-08 22:21:49.919000"
+        },
+        "builtin": true,
+        "attributes": {},
+        "sudo": false,
+        "groups": [],
+        "home": "/nonexistent",
+        "unixhash": "*",
+        "created_at": {
+            "$date": "2016-03-08 22:21:49.919000"
+        }
     },
-    "builtin": true,
-    "attributes": {},
-    "sudo": false,
-    "groups": [],
-    "home": "/var/empty",
-    "unixhash": "*",
-    "created_at": {
-      "$date": "2016-03-08 22:21:49.930000"
-    }
-  },
-  {
-    "uid": 80,
-    "full_name": "World Wide Web Owner",
-    "shell": "/usr/sbin/nologin",
-    "id": "6596F0F7-3C24-4E14-BF88-A6F42EB33095",
-    "password_disabled": false,
-    "group": "9B9B8F5E-E737-46BC-B215-61F6A0579E9E",
-    "locked": false,
-    "username": "www",
-    "smbhash": "*",
-    "email": null,
-    "sshpubkey": null,
-    "updated_at": {
-      "$date": "2016-03-08 22:21:49.926000"
+    {
+        "uid": 78,
+        "full_name": "Auditdistd unprivileged user",
+        "shell": "/usr/sbin/nologin",
+        "id": "FC6EB95D-176D-4CC5-B087-72E61E39E699",
+        "password_disabled": false,
+        "group": "2941B683-7444-42A4-AA66-F86A8F20A947",
+        "locked": false,
+        "username": "auditdistd",
+        "nthash": null,
+        "email": null,
+        "sshpubkey": null,
+        "updated_at": {
+            "$date": "2016-03-08 22:21:49.930000"
+        },
+        "builtin": true,
+        "attributes": {},
+        "sudo": false,
+        "groups": [],
+        "home": "/var/empty",
+        "unixhash": "*",
+        "created_at": {
+            "$date": "2016-03-08 22:21:49.930000"
+        }
     },
-    "builtin": true,
-    "attributes": {},
-    "sudo": false,
-    "groups": [],
-    "home": "/nonexistent",
-    "unixhash": "*",
-    "created_at": {
-      "$date": "2016-03-08 22:21:49.926000"
-    }
-  },
-  {
-    "uid": 142,
-    "full_name": "Ladvd User",
-    "shell": "/usr/sbin/nologin",
-    "id": "78EA375D-F11C-42C5-9FB3-385FD9F368C9",
-    "password_disabled": false,
-    "group": "6A5FE6A8-AED3-405D-86F9-CD1936137D2B",
-    "locked": false,
-    "username": "ladvd",
-    "smbhash": "*",
-    "email": null,
-    "sshpubkey": null,
-    "updated_at": {
-      "$date": "2016-03-08 22:21:49.910000"
+    {
+        "uid": 80,
+        "full_name": "World Wide Web Owner",
+        "shell": "/usr/sbin/nologin",
+        "id": "6596F0F7-3C24-4E14-BF88-A6F42EB33095",
+        "password_disabled": false,
+        "group": "9B9B8F5E-E737-46BC-B215-61F6A0579E9E",
+        "locked": false,
+        "username": "www",
+        "nthash": null,
+        "email": null,
+        "sshpubkey": null,
+        "updated_at": {
+            "$date": "2016-03-08 22:21:49.926000"
+        },
+        "builtin": true,
+        "attributes": {},
+        "sudo": false,
+        "groups": [],
+        "home": "/nonexistent",
+        "unixhash": "*",
+        "created_at": {
+            "$date": "2016-03-08 22:21:49.926000"
+        }
     },
-    "builtin": true,
-    "attributes": {},
-    "sudo": false,
-    "groups": [],
-    "home": "/var/empty",
-    "unixhash": "*",
-    "created_at": {
-      "$date": "2016-03-08 22:21:49.910000"
-    }
-  },
-  {
-    "uid": 556,
-    "full_name": "D-BUS Daemon User",
-    "shell": "/usr/sbin/nologin",
-    "id": "F589F902-F76B-4CA9-8168-24B4E95EC2D3",
-    "password_disabled": false,
-    "group": "70216FA9-D279-4E5A-B9D4-DBB2824FD218",
-    "locked": false,
-    "username": "messagebus",
-    "smbhash": "*",
-    "email": null,
-    "sshpubkey": null,
-    "updated_at": {
-      "$date": "2016-03-08 22:21:49.909000"
+    {
+        "uid": 142,
+        "full_name": "Ladvd User",
+        "shell": "/usr/sbin/nologin",
+        "id": "78EA375D-F11C-42C5-9FB3-385FD9F368C9",
+        "password_disabled": false,
+        "group": "6A5FE6A8-AED3-405D-86F9-CD1936137D2B",
+        "locked": false,
+        "username": "ladvd",
+        "nthash": null,
+        "email": null,
+        "sshpubkey": null,
+        "updated_at": {
+            "$date": "2016-03-08 22:21:49.910000"
+        },
+        "builtin": true,
+        "attributes": {},
+        "sudo": false,
+        "groups": [],
+        "home": "/var/empty",
+        "unixhash": "*",
+        "created_at": {
+            "$date": "2016-03-08 22:21:49.910000"
+        }
     },
-    "builtin": true,
-    "attributes": {},
-    "sudo": false,
-    "groups": [],
-    "home": "/nonexistent",
-    "unixhash": "*",
-    "created_at": {
-      "$date": "2016-03-08 22:21:49.909000"
-    }
-  },
-  {
-    "uid": 666,
-    "full_name": "WebDAV Anonymous User",
-    "shell": "/usr/sbin/nologin",
-    "id": "14254694-9809-4BE4-83CE-6FAD5A9B0E5E",
-    "password_disabled": false,
-    "group": "1E5EA5EC-0075-492E-BE6A-0CE85F82F15D",
-    "locked": false,
-    "username": "webdav",
-    "smbhash": "*",
-    "email": null,
-    "sshpubkey": null,
-    "updated_at": {
-      "$date": "2016-03-08 22:21:49.914000"
+    {
+        "uid": 556,
+        "full_name": "D-BUS Daemon User",
+        "shell": "/usr/sbin/nologin",
+        "id": "F589F902-F76B-4CA9-8168-24B4E95EC2D3",
+        "password_disabled": false,
+        "group": "70216FA9-D279-4E5A-B9D4-DBB2824FD218",
+        "locked": false,
+        "username": "messagebus",
+        "nthash": null,
+        "email": null,
+        "sshpubkey": null,
+        "updated_at": {
+            "$date": "2016-03-08 22:21:49.909000"
+        },
+        "builtin": true,
+        "attributes": {},
+        "sudo": false,
+        "groups": [],
+        "home": "/nonexistent",
+        "unixhash": "*",
+        "created_at": {
+            "$date": "2016-03-08 22:21:49.909000"
+        }
     },
-    "builtin": true,
-    "attributes": {},
-    "sudo": false,
-    "groups": [],
-    "home": "/nonexistent",
-    "unixhash": "*",
-    "created_at": {
-      "$date": "2016-03-08 22:21:49.914000"
-    }
-  },
-  {
-    "uid": 922,
-    "full_name": "MongoDB pseudo-user",
-    "shell": "/usr/sbin/nologin",
-    "id": "87181BD2-C447-4388-883D-C0C81A3B5D42",
-    "password_disabled": false,
-    "group": "4F8F5150-28A0-4215-B822-EC4F4A617F6F",
-    "locked": false,
-    "username": "mongodb",
-    "smbhash": "*",
-    "email": null,
-    "sshpubkey": null,
-    "updated_at": {
-      "$date": "2016-03-08 22:21:49.905000"
+    {
+        "uid": 666,
+        "full_name": "WebDAV Anonymous User",
+        "shell": "/usr/sbin/nologin",
+        "id": "14254694-9809-4BE4-83CE-6FAD5A9B0E5E",
+        "password_disabled": false,
+        "group": "1E5EA5EC-0075-492E-BE6A-0CE85F82F15D",
+        "locked": false,
+        "username": "webdav",
+        "nthash": null,
+        "email": null,
+        "sshpubkey": null,
+        "updated_at": {
+            "$date": "2016-03-08 22:21:49.914000"
+        },
+        "builtin": true,
+        "attributes": {},
+        "sudo": false,
+        "groups": [],
+        "home": "/nonexistent",
+        "unixhash": "*",
+        "created_at": {
+            "$date": "2016-03-08 22:21:49.914000"
+        }
     },
-    "builtin": true,
-    "attributes": {},
-    "sudo": false,
-    "groups": [],
-    "home": "/data",
-    "unixhash": "*",
-    "created_at": {
-      "$date": "2016-03-08 22:21:49.905000"
-    }
-  },
-  {
-    "uid": 65534,
-    "full_name": "Unprivileged user",
-    "shell": "/usr/sbin/nologin",
-    "id": "94248344-2453-4523-A0D9-1A128897FBE2",
-    "password_disabled": false,
-    "group": "AE3500A4-C5FD-41D1-BDD7-6831A9D1E4AA",
-    "locked": false,
-    "username": "nobody",
-    "smbhash": "*",
-    "email": null,
-    "sshpubkey": null,
-    "updated_at": {
-      "$date": "2016-03-08 22:21:49.947000"
+    {
+        "uid": 922,
+        "full_name": "MongoDB pseudo-user",
+        "shell": "/usr/sbin/nologin",
+        "id": "87181BD2-C447-4388-883D-C0C81A3B5D42",
+        "password_disabled": false,
+        "group": "4F8F5150-28A0-4215-B822-EC4F4A617F6F",
+        "locked": false,
+        "username": "mongodb",
+        "nthash": null,
+        "email": null,
+        "sshpubkey": null,
+        "updated_at": {
+            "$date": "2016-03-08 22:21:49.905000"
+        },
+        "builtin": true,
+        "attributes": {},
+        "sudo": false,
+        "groups": [],
+        "home": "/data",
+        "unixhash": "*",
+        "created_at": {
+            "$date": "2016-03-08 22:21:49.905000"
+        }
     },
-    "builtin": true,
-    "attributes": {},
-    "sudo": false,
-    "groups": [],
-    "home": "/nonexistent",
-    "unixhash": "*",
-    "created_at": {
-      "$date": "2016-03-08 22:21:49.947000"
+    {
+        "uid": 65534,
+        "full_name": "Unprivileged user",
+        "shell": "/usr/sbin/nologin",
+        "id": "94248344-2453-4523-A0D9-1A128897FBE2",
+        "password_disabled": false,
+        "group": "AE3500A4-C5FD-41D1-BDD7-6831A9D1E4AA",
+        "locked": false,
+        "username": "nobody",
+        "nthash": null,
+        "email": null,
+        "sshpubkey": null,
+        "updated_at": {
+            "$date": "2016-03-08 22:21:49.947000"
+        },
+        "builtin": true,
+        "attributes": {},
+        "sudo": false,
+        "groups": [],
+        "home": "/nonexistent",
+        "unixhash": "*",
+        "created_at": {
+            "$date": "2016-03-08 22:21:49.947000"
+        }
     }
-  }
 ]

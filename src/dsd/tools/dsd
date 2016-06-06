@@ -1,3 +1,0 @@
-#!/bin/sh
-LIBDIR=/usr/local/lib/dsd/src
-exec /usr/local/bin/python3 $LIBDIR/main.py $*

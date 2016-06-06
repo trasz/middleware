@@ -83,8 +83,8 @@ http_parse_uri(ws_conn_t *conn, char *uri)
 	}
 
 	struct addrinfo hints = {
-			.ai_family = AF_INET,
-			.ai_socktype = SOCK_STREAM
+		.ai_family = AF_INET,
+		.ai_socktype = SOCK_STREAM
 	};
 
 	conn->ws_host = xsubstrdup(uri, match[1].rm_so, match[1].rm_eo);
@@ -97,6 +97,7 @@ http_parse_uri(ws_conn_t *conn, char *uri)
 		return -1;
 	}
 
+	regfree(&re);
 	return 0;
 }
 
@@ -177,7 +178,7 @@ ws_handshake(ws_conn_t *conn)
 			break;
 		}
 
-		json_object_set(conn->ws_headers, name, json_string(value));
+		json_object_set_new(conn->ws_headers, name, json_string(value));
 		free(line);
 	}
 
@@ -214,6 +215,7 @@ ws_close(ws_conn_t *conn)
 	shutdown(conn->ws_fd, SHUT_RDWR);
 	close(conn->ws_fd);
 
+	json_decref(conn->ws_headers);
 	free(conn->ws_uri);
 	free(conn->ws_host);
 	free(conn->ws_port);
@@ -333,6 +335,8 @@ ws_event_loop(void *arg)
 			if (event.ident == conn->ws_fd) {
 				if (event.flags & EV_EOF)
 					return NULL;
+
+				frame = NULL;
 
 				if (ws_recv_msg(conn, &frame, &size, NULL) < 0)
 					continue;

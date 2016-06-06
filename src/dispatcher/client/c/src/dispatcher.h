@@ -48,18 +48,21 @@ typedef enum error_code
 typedef enum rpc_call_status
 {
 	RPC_CALL_IN_PROGRESS,
+    	RPC_CALL_MORE_AVAILABLE,
 	RPC_CALL_DONE,
 	RPC_CALL_ERROR
 } rpc_call_status_t;
 
 typedef void (error_callback_t)(connection_t *, error_code_t, void *);
 typedef void (event_callback_t)(connection_t *, const char *, json_t *, void *);
-typedef void (rpc_callback_t)(connection_t *, const char *, json_t *, json_t *,
-    void *);
+typedef void (rpc_callback_t)(connection_t *, const char *,
+    rpc_call_status_t, json_t *, void *);
 
 connection_t *dispatcher_open(const char *);
 void dispatcher_close(connection_t *);
 int dispatcher_get_fd(connection_t *);
+int dispatcher_login_user(connection_t *, const char *, const char *,
+    const char *);
 int dispatcher_login_service(connection_t *, const char *);
 int dispatcher_subscribe_event(connection_t *, const char *);
 int dispatcher_unsubscribe_event(connection_t *, const char *);
@@ -69,9 +72,14 @@ rpc_call_t *dispatcher_call_async(connection_t *, const char *, json_t *,
 int dispatcher_emit_event(connection_t *, const char *, json_t *);
 void dispatcher_on_error(connection_t *, error_callback_t *, void *);
 void dispatcher_on_event(connection_t *, event_callback_t *, void *);
-void rpc_call_wait(rpc_call_t *);
-int rpc_call_success(rpc_call_t *);
+int rpc_call_wait(rpc_call_t *);
+int rpc_call_continue(rpc_call_t *);
+int rpc_call_abort(rpc_call_t *);
+int rpc_call_timedwait(rpc_call_t *, const struct timespec *);
+rpc_call_status_t rpc_call_status(rpc_call_t *);
 json_t *rpc_call_result(rpc_call_t *);
 void rpc_call_free(rpc_call_t *);
+struct tm *rpc_json_to_timestamp(json_t *);
+json_t *rpc_timestamp_to_json(struct tm *);
 
 #endif
