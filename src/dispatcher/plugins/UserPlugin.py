@@ -30,7 +30,7 @@ import errno
 import os
 import re
 from datetime import datetime
-from task import Provider, Task, TaskException, TaskWarning, ValidationException, VerifyException, query
+from task import Provider, Task, TaskException, TaskDescription, TaskWarning, ValidationException, VerifyException, query
 from debug import AttachFile
 from freenas.dispatcher.rpc import RpcException, description, accepts, returns, SchemaHelper as h, generator
 from datastore import DuplicateKeyException, DatastoreException
