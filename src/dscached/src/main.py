@@ -613,7 +613,8 @@ class Main(object):
         self.connect()
 
     def init_server(self, address):
-        self.server = Server(self.rpc)
+        self.server = Server(self)
+        self.server.rpc = self.rpc
         self.server.start(address)
         thread = Thread(target=self.server.serve_forever)
         thread.name = 'ServerThread'
