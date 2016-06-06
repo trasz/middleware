@@ -2424,6 +2424,26 @@ def _init(dispatcher, plugin):
         }
     })
 
+    plugin.register_schema_definition('volume-readonly-property', {
+        'type': 'object',
+        'additionalProperties': False,
+        'properties': {
+            'value': {
+                'type': 'string',
+                'readOnly': True
+            },
+            'rawvalue': {
+                'type': 'string',
+                'readOnly': True
+            },
+            'source': {
+                'type': 'string',
+                'enum': ['NONE', 'DEFAULT', 'LOCAL', 'INHERITED'],
+                'readOnly': True
+            }
+        }
+    })
+
     plugin.register_schema_definition('volume-dataset-compression-property', {
         'type': 'object',
         'additionalProperties': True,
@@ -2501,10 +2521,14 @@ def _init(dispatcher, plugin):
             'rname': {'type': 'string'},
             'volume': {'type': 'string'},
             'mountpoint': {'type': 'string'},
-            'mounted': {'type': 'boolean'},
+            'mounted': {
+                'type': 'boolean',
+                'readOnly': True
+            },
             'type': {
                 'type': 'string',
-                'enum': ['FILESYSTEM', 'VOLUME']
+                'enum': ['FILESYSTEM', 'VOLUME'],
+                'readOnly': True
             },
             'volsize': {'type': ['integer', 'null']},
             'properties': {'$ref': 'volume-dataset-properties'},
@@ -2520,8 +2544,8 @@ def _init(dispatcher, plugin):
         'type': 'object',
         'additionalProperties': False,
         'properties': {
-            'used': {'$ref': 'volume-property'},
-            'available': {'$ref': 'volume-property'},
+            'used': {'$ref': 'volume-readonly-property'},
+            'available': {'$ref': 'volume-readonly-property'},
             'compression': {'allOf': [
                 {'$ref': 'volume-property'},
                 {'$ref': 'volume-dataset-compression-property'}
@@ -2546,13 +2570,13 @@ def _init(dispatcher, plugin):
             'volblocksize': {'$ref': 'volume-property'},
             'refcompressratio': {'$ref': 'volume-property'},
             'numclones': {'$ref': 'volume-property'},
-            'compressratio': {'$ref': 'volume-property'},
+            'compressratio': {'$ref': 'volume-readonly-property'},
             'written': {'$ref': 'volume-property'},
-            'referenced': {'$ref': 'volume-property'},
-            'usedbyrefreservation': {'$ref': 'volume-property'},
-            'usedbysnapshots': {'$ref': 'volume-property'},
-            'usedbydataset': {'$ref': 'volume-property'},
-            'usedbychildren': {'$ref': 'volume-property'},
+            'referenced': {'$ref': 'volume-readonly-property'},
+            'usedbyrefreservation': {'$ref': 'volume-readonly-property'},
+            'usedbysnapshots': {'$ref': 'volume-readonly-property'},
+            'usedbydataset': {'$ref': 'volume-readonly-property'},
+            'usedbychildren': {'$ref': 'volume-readonly-property'},
             'logicalused': {'$ref': 'volume-property'},
             'logicalreferenced': {'$ref': 'volume-property'}
         }
@@ -2576,11 +2600,11 @@ def _init(dispatcher, plugin):
         'type': 'object',
         'additionalProperties': False,
         'properties': {
-            'used': {'$ref': 'volume-property'},
-            'referenced': {'$ref': 'volume-property'},
-            'compressratio': {'$ref': 'volume-property'},
+            'used': {'$ref': 'volume-readonly-property'},
+            'referenced': {'$ref': 'volume-readonly-property'},
+            'compressratio': {'$ref': 'volume-readonly-property'},
             'clones': {'$ref': 'volume-property'},
-            'creation': {'$ref': 'volume-property'}
+            'creation': {'$ref': 'volume-readonly-property'}
         }
     })
 
