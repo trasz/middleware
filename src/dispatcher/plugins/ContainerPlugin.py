@@ -37,6 +37,7 @@ import urllib.request
 import urllib.parse
 import urllib.error
 import shutil
+import logging
 from task import Provider, Task, ProgressTask, VerifyException, TaskException, query, TaskWarning, TaskDescription
 from freenas.dispatcher.rpc import RpcException
 from freenas.dispatcher.rpc import SchemaHelper as h, description, accepts
@@ -47,6 +48,9 @@ from freenas.utils.query import wrap
 
 VM_OUI = '00:a0:98'  # NetApp
 BLOCKSIZE = 65536
+
+
+logger = logging.getLogger(__name__)
 
 
 @description('Provides information about containers')
