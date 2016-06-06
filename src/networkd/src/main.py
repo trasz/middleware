@@ -40,6 +40,8 @@ import netif
 import time
 import ipaddress
 import io
+import dhcp.client
+import socket
 from datastore import get_datastore, DatastoreException
 from datastore.config import ConfigStore
 from freenas.dispatcher.client import Client, ClientError
@@ -51,6 +53,7 @@ from functools import reduce
 
 
 DEFAULT_CONFIGFILE = '/usr/local/etc/middleware.conf'
+INITIAL_DHCP_TIMEOUT = 30
 
 
 def cidr_to_netmask(cidr):
@@ -179,9 +182,9 @@ class RoutingSocketEventSource(threading.Thread):
             except OSError as err:
                 # Apparently interface doesn't exist anymore
                 if err.errno == errno.ENXIO:
-                    del self.mtu_cache[i.name]
-                    del self.flags_cache[i.name]
-                    del self.link_state_cache[i.name]
+                    self.mtu_cache.pop(i.name, None)
+                    self.flags_cache.pop(i.name, None)
+                    self.link_state_cache.pop(i.name, None)
                 else:
                     self.context.logger.warn('Building interface cache for {0} failed: {1}'.format(i.name, str(err)))
 
@@ -388,7 +391,16 @@ class ConfigurationService(RpcService):
         return None
 
     def query_interfaces(self):
-        return netif.list_interfaces()
+        def extend(name, iface):
+            iface = iface.__getstate__()
+            dhcp = self.context.dhcp_clients.get(name)
+
+            if dhcp:
+                iface['dhcp'] = dhcp.__getstate__()
+
+            return iface
+
+        return {name: extend(name, i) for name, i in netif.list_interfaces().items()}
 
     def query_routes(self):
         rtable = netif.RoutingTable()
@@ -403,8 +415,13 @@ class ConfigurationService(RpcService):
                 if i.type == netif.InterfaceType.LOOP:
                     continue
 
+                if i.name in ('mgmt0', 'nat0'):
+                    continue
+
                 self.logger.info('Trying to acquire DHCP lease on interface {0}...'.format(i.name))
-                if self.context.configure_dhcp(i.name):
+                i.up()
+
+                if self.context.configure_dhcp(i.name, True, INITIAL_DHCP_TIMEOUT):
                     entity.update({
                         'enabled': True,
                         'dhcp': True
@@ -415,6 +432,8 @@ class ConfigurationService(RpcService):
                     self.config.set('container.default_nic', i.name)
                     self.logger.info('Successfully configured interface {0}'.format(i.name))
                     return
+                else:
+                    i.down()
 
             self.logger.warn('Failed to configure any network interface')
             return
@@ -565,111 +584,119 @@ class ConfigurationService(RpcService):
             self.logger.info('Interface {0} is disabled'.format(name))
             return
 
-        # If it's VLAN, configure parent and tag
-        if entity.get('type') == 'VLAN':
-            vlan = entity.get('vlan')
-            if vlan:
-                parent = vlan.get('parent')
-                tag = vlan.get('tag')
+        try:
+            # If it's VLAN, configure parent and tag
+            if entity.get('type') == 'VLAN':
+                vlan = entity.get('vlan')
+                if vlan:
+                    parent = vlan.get('parent')
+                    tag = vlan.get('tag')
 
-                if parent and tag:
-                    try:
-                        tag = int(tag)
-                        iface.unconfigure()
-                        iface.configure(parent, tag)
-                    except Exception as e:
-                        self.logger.warn('Failed to configure VLAN interface {0}: {1}'.format(name, str(e)))
+                    if parent and tag:
+                        try:
+                            tag = int(tag)
+                            iface.unconfigure()
+                            iface.configure(parent, tag)
+                        except Exception as e:
+                            self.logger.warn('Failed to configure VLAN interface {0}: {1}'.format(name, str(e)))
+                            raise
 
-        # Configure protocol and member ports for a LAGG
-        if entity.get('type') == 'LAGG':
-            lagg = entity.get('lagg')
-            if lagg:
-                iface.protocol = getattr(netif.AggregationProtocol, lagg.get('protocol', 'FAILOVER'))
-                old_ports = set(p[0] for p in iface.ports)
-                new_ports = set(lagg['ports'])
+            # Configure protocol and member ports for a LAGG
+            if entity.get('type') == 'LAGG':
+                lagg = entity.get('lagg')
+                if lagg:
+                    iface.protocol = getattr(netif.AggregationProtocol, lagg.get('protocol', 'FAILOVER'))
+                    old_ports = set(p[0] for p in iface.ports)
+                    new_ports = set(lagg['ports'])
 
-                for port in old_ports - new_ports:
-                    iface.delete_port(port)
+                    for port in old_ports - new_ports:
+                        iface.delete_port(port)
 
-                for port in new_ports - old_ports:
-                    iface.add_port(port)
+                    for port in new_ports - old_ports:
+                        iface.add_port(port)
 
-        # Configure member interfaces for a bridge
-        if entity.get('type') == 'BRIDGE':
-            bridge = entity.get('bridge')
-            if bridge:
-                old_members = set(iface.members)
-                new_members = set(bridge['members'])
+            # Configure member interfaces for a bridge
+            if entity.get('type') == 'BRIDGE':
+                bridge = entity.get('bridge')
+                if bridge:
+                    old_members = set(iface.members)
+                    new_members = set(bridge['members'])
 
-                for port in old_members - new_members:
-                    iface.delete_member(port)
+                    for port in old_members - new_members:
+                        iface.delete_member(port)
 
-                for port in new_members - old_members:
-                    iface.add_member(port)
+                    for port in new_members - old_members:
+                        iface.add_member(port)
 
-        if entity.get('dhcp'):
-            if self.context.dhclient_running(name):
-                self.logger.info('Interface {0} already configured using DHCP'.format(name))
+            if entity.get('dhcp'):
+                if name in self.context.dhcp_clients:
+                    self.logger.info('Interface {0} already configured using DHCP'.format(name))
+                else:
+                    # Remove all existing aliases
+                    for i in iface.addresses:
+                        iface.remove_address(i)
+
+                    self.logger.info('Trying to acquire DHCP lease on interface {0}...'.format(name))
+                    if not self.context.configure_dhcp(name):
+                        self.logger.warn('Failed to configure interface {0} using DHCP'.format(name))
             else:
-                # Remove all existing aliases
-                for i in iface.addresses:
+                if name in self.context.dhcp_clients:
+                    self.logger.info('Stopping DHCP client on interface {0}'.format(name))
+                    self.context.deconfigure_dhcp(name)
+
+                addresses = set(convert_aliases(entity))
+                existing_addresses = set([a for a in iface.addresses if a.af != netif.AddressFamily.LINK])
+
+                # Remove orphaned addresses
+                for i in existing_addresses - addresses:
+                    if i.af == netif.AddressFamily.INET6 and str(i.address).startswith('fe80::'):
+                        # skip link-local IPv6 addresses
+                        continue
+
+                    self.logger.info('Removing address from interface {0}: {1}'.format(name, i))
                     iface.remove_address(i)
 
-                self.logger.info('Trying to acquire DHCP lease on interface {0}...'.format(name))
-                if not self.context.configure_dhcp(name):
-                    self.logger.warn('Failed to configure interface {0} using DHCP'.format(name))
-        else:
-            addresses = set(convert_aliases(entity))
-            existing_addresses = set([a for a in iface.addresses if a.af != netif.AddressFamily.LINK])
+                # Add new or changed addresses
+                for i in addresses - existing_addresses:
+                    self.logger.info('Adding new address to interface {0}: {1}'.format(name, i))
+                    iface.add_address(i)
 
-            # Remove orphaned addresses
-            for i in existing_addresses - addresses:
-                if i.af == netif.AddressFamily.INET6 and str(i.address).startswith('fe80::'):
-                    # skip link-local IPv6 addresses
-                    continue
+            # nd6 stuff
+            if entity.get('rtadv', False):
+                iface.nd6_flags = iface.nd6_flags | {netif.NeighborDiscoveryFlags.ACCEPT_RTADV}
+                if restart_rtsold:
+                    self.client.call_sync('service.restart', 'rtsold')
+            else:
+                iface.nd6_flags = iface.nd6_flags - {netif.NeighborDiscoveryFlags.ACCEPT_RTADV}
 
-                self.logger.info('Removing address from interface {0}: {1}'.format(name, i))
-                iface.remove_address(i)
+            if entity.get('noipv6', False):
+                iface.nd6_flags = iface.nd6_flags | {netif.NeighborDiscoveryFlags.IFDISABLED}
+                iface.nd6_flags = iface.nd6_flags - {netif.NeighborDiscoveryFlags.AUTO_LINKLOCAL}
+            else:
+                iface.nd6_flags = iface.nd6_flags - {netif.NeighborDiscoveryFlags.IFDISABLED}
+                iface.nd6_flags = iface.nd6_flags | {netif.NeighborDiscoveryFlags.AUTO_LINKLOCAL}
 
-            # Add new or changed addresses
-            for i in addresses - existing_addresses:
-                self.logger.info('Adding new address to interface {0}: {1}'.format(name, i))
-                iface.add_address(i)
+            if entity.get('mtu'):
+                iface.mtu = entity['mtu']
 
-        # nd6 stuff
-        if entity.get('rtadv', False):
-            iface.nd6_flags = iface.nd6_flags | {netif.NeighborDiscoveryFlags.ACCEPT_RTADV}
-            if restart_rtsold:
-                self.client.call_sync('service.restart', 'rtsold')
-        else:
-            iface.nd6_flags = iface.nd6_flags - {netif.NeighborDiscoveryFlags.ACCEPT_RTADV}
+            if entity.get('media'):
+                iface.media_subtype = entity['media']
 
-        if entity.get('noipv6', False):
-            iface.nd6_flags = iface.nd6_flags | {netif.NeighborDiscoveryFlags.IFDISABLED}
-            iface.nd6_flags = iface.nd6_flags - {netif.NeighborDiscoveryFlags.AUTO_LINKLOCAL}
-        else:
-            iface.nd6_flags = iface.nd6_flags - {netif.NeighborDiscoveryFlags.IFDISABLED}
-            iface.nd6_flags = iface.nd6_flags | {netif.NeighborDiscoveryFlags.AUTO_LINKLOCAL}
+            if entity.get('capabilities'):
+                caps = iface.capabilities
+                for c in entity['capabilities'].get('add'):
+                    caps.add(getattr(netif.InterfaceCapability, c))
 
-        if entity.get('mtu'):
-            iface.mtu = entity['mtu']
+                for c in entity['capabilities'].get('del'):
+                    caps.remove(getattr(netif.InterfaceCapability, c))
 
-        if entity.get('media'):
-            iface.media_subtype = entity['media']
+                iface.capabilities = caps
 
-        if entity.get('capabilities'):
-            caps = iface.capabilities
-            for c in entity['capabilities'].get('add'):
-                caps.add(getattr(netif.InterfaceCapability, c))
-
-            for c in entity['capabilities'].get('del'):
-                caps.remove(getattr(netif.InterfaceCapability, c))
-
-            iface.capabilities = caps
-
-        if netif.InterfaceFlags.UP not in iface.flags:
-            self.logger.info('Bringing interface {0} up'.format(name))
-            iface.up()
+            if netif.InterfaceFlags.UP not in iface.flags:
+                self.logger.info('Bringing interface {0} up'.format(name))
+                iface.up()
+        except OSError as err:
+            raise RpcException(err.errno, err.strerror)
 
         self.client.emit_event('network.interface.configured', {
             'interface': name,
@@ -699,22 +726,17 @@ class ConfigurationService(RpcService):
 
     def renew_lease(self, name):
         self.logger.info('Renewing IP lease on {0}'.format(name))
-        if self.context.dhclient_running(name):
-            pid = self.context.dhclient_pid(name)
-            os.kill(pid, signal.SIGTERM)
-            self.logger.info('Killed dhclient with pid {0}'.format(pid))
-
-        time.sleep(1)
-        return self.configure_interface(name)
+        return self.context.renew_dhcp(name)
 
 
-class Main:
+class Main(object):
     def __init__(self):
         self.config = None
         self.client = None
         self.datastore = None
         self.configstore = None
         self.rtsock_thread = None
+        self.dhcp_clients = {}
         self.logger = logging.getLogger('networkd')
 
     def dhclient_pid(self, interface):
@@ -740,17 +762,108 @@ class Main:
         except OSError:
             return False
 
-    def configure_dhcp(self, interface):
-        # Check if dhclient is running
-        if self.dhclient_running(interface):
+    def configure_dhcp(self, interface, block=False, timeout=None):
+        if interface in self.dhcp_clients:
             self.logger.info('Interface {0} already configured by DHCP'.format(interface))
             return True
 
-        def unblock_signals():
-            signal.pthread_sigmask(signal.SIG_UNBLOCK, [signal.SIGTERM, signal.SIGINT])
+        def bind(old_lease, lease):
+            self.logger.info('{0} DHCP lease on {1} from {2}, valid for {3} seconds'.format(
+                'Renewed' if old_lease else 'Acquired',
+                interface,
+                client.server_address,
+                lease.lifetime,
+                interface
+            ))
 
-        ret = subprocess.call(['/sbin/dhclient', interface], close_fds=True, preexec_fn=unblock_signals)
-        return ret == 0
+            if old_lease is None or lease.client_ip != old_lease.client_ip:
+                self.logger.info('Assigning IP address {0} to interface {1}'.format(lease.client_ip, interface))
+                alias = lease.client_interface
+                try:
+                    iface = netif.get_interface(interface)
+                    iface.add_address(netif.InterfaceAddress(netif.AddressFamily.INET, alias))
+                except OSError as err:
+                    self.logger.error('Cannot add alias to {0}: {1}'.format(interface, err.strerror))
+
+            if lease.router and self.configstore.get('network.dhcp.assign_gateway'):
+                try:
+                    rtable = netif.RoutingTable()
+                    newroute = default_route(lease.router)
+                    if rtable.default_route_ipv4 != newroute:
+                        if rtable.default_route_ipv4:
+                            self.logger.info('DHCP default route changed from {0} to {1}'.format(
+                                rtable.default_route_ipv4,
+                                newroute
+                            ))
+                            rtable.delete(rtable.default_route_ipv4)
+                            rtable.add(default_route(lease.router))
+                        else:
+                            self.logger.info('Adding default route via {0}'.format(lease.router))
+                            rtable.add(default_route(lease.router))
+                except OSError as err:
+                    self.logger.error('Cannot configure default route: {0}'.format(err.strerror))
+
+            if lease.dns_addresses and self.configstore.get('network.dhcp.assign_dns'):
+                inp = []
+                proc = subprocess.Popen(
+                    ['/sbin/resolvconf', '-a', interface],
+                    stdout=subprocess.PIPE,
+                    stdin=subprocess.PIPE
+                )
+
+                for i in lease.dns_addresses:
+                    # Filter out bogus DNS server addresses
+                    if str(i) in ('127.0.0.1', '0.0.0.0', '255.255.255.255'):
+                        continue
+
+                    inp.append('nameserver {0}'.format(i))
+
+                if lease.domain_name:
+                    inp.append('search {0}'.format(lease.domain_name))
+
+                proc.communicate('\n'.join(inp).encode('ascii'))
+                proc.wait()
+                self.logger.info('Updated DNS configuration')
+            else:
+                subprocess.call(['/sbin/resolvconf', '-d', interface])
+                self.logger.info('Deleted DNS configuration')
+
+        def unbind(lease, reason):
+            reasons = {
+                dhcp.client.UnbindReason.EXPIRE: 'expired',
+                dhcp.client.UnbindReason.REVOKE: 'revoked'
+            }
+
+            self.logger.info(''.format(
+                'DHCP lease on {0} {1}'.format(interface, reasons.get(reason, 'revoked'))
+            ))
+
+        def state_change(state):
+            self.client.emit_event('network.interface.changed', {
+                'operation': 'update',
+                'ids': [interface]
+            })
+
+        client = dhcp.client.Client(interface, socket.gethostname())
+        client.on_bind = bind
+        client.on_unbind = unbind
+        client.on_state_change = state_change
+        client.start()
+        self.dhcp_clients[interface] = client
+
+        if block:
+            return client.wait_for_bind(timeout) is not None
+
+    def deconfigure_dhcp(self, interface):
+        client = self.dhcp_clients[interface]
+        client.release()
+        del self.dhcp_clients[interface]
+
+    def renew_dhcp(self, interface):
+        if interface not in self.dhcp_clients:
+            raise RpcException(errno.ENXIO, 'Interface {0} is not configured for DHCP'.format(interface))
+
+        self.dhcp_clients[interface].request(renew=True, timeout=30)
 
     def interface_detached(self, name):
         self.logger.warn('Interface {0} detached from the system'.format(name))
@@ -761,7 +874,7 @@ class Main:
     def using_dhcp_for_gateway(self):
         for i in self.datastore.query('network.interfaces'):
             if i.get('dhcp') and self.configstore.get('network.dhcp.assign_gateway'):
-                    return True
+                return True
 
         return False
 
@@ -775,6 +888,9 @@ class Main:
 
             # We want only physical NICs
             if i.cloned:
+                continue
+
+            if i.name in ('mgmt0', 'nat0'):
                 continue
 
             if not self.datastore.exists('network.interfaces', ('id', '=', i.name)):
@@ -874,6 +990,14 @@ class Main:
             }
         })
 
+        self.client.register_schema('network-interface-nd6-flag', {
+            'type': 'array',
+            'items': {
+                'type': 'string',
+                'enum': list(netif.NeighborDiscoveryFlags.__members__.keys())
+            }
+        })
+
         self.client.register_schema('network-interface-type', {
             'type': 'string',
             'enum': [
@@ -882,6 +1006,20 @@ class Main:
                 'VLAN',
                 'BRIDGE',
                 'LAGG'
+            ]
+        })
+
+        self.client.register_schema('network-interface-dhcp-state', {
+            'type': 'string',
+            'enum': [
+                'INIT',
+                'SELECTING',
+                'REQUESTING',
+                'INIT_REBOOT',
+                'REBOOTING',
+                'BOUND',
+                'RENEWING',
+                'REBINDING'
             ]
         })
 
@@ -898,12 +1036,53 @@ class Main:
                 'media_type': {'type': 'string'},
                 'media_subtype': {'type': 'string'},
                 'media_options': {'$ref': 'network-interface-mediaopts'},
+                'cloned': {'type': 'boolean'},
                 'capabilities': {'$ref': 'network-interface-capabilities'},
                 'flags': {'$ref': 'network-interface-flags'},
+                'dhcp': {
+                    'type': 'object',
+                    'properties': {
+                        'state': {'$ref': 'network-interface-dhcp-state'},
+                        'server_address': {'type': 'string'},
+                        'server_name': {'type': 'string'},
+                        'lease_starts_at': {'type': 'datetime'},
+                        'lease_ends_at': {'type': 'datetime'}
+                    }
+                },
                 'aliases': {
                     'type': 'array',
                     'items': {'$ref': 'network-interface-alias'}
-                }
+                },
+                'nd6_flags': {
+                    'type': 'array',
+                    'items': {'$ref': 'network-interface-nd6-flag'}
+                },
+                'ports': {
+                    'oneOf': [
+                        {'type': 'null'},
+                        {
+                            'type': 'array',
+                            'members': {
+                                'type': 'object',
+                                'properties': {
+                                    'name': {'type': 'string'},
+                                    'flags': {'$ref': 'network-lagg-port-flags'}
+                                }
+                            }
+                        }
+                    ]
+                },
+                'members': {
+                    'oneOf': [
+                        {'type': 'null'},
+                        {
+                            'type': 'array',
+                            'members': {'type': 'string'}
+                        }
+                    ]
+                },
+                'parent': {'type': ['string', 'null']},
+                'tag': {'type': ['string', 'null']}
             }
         })
 

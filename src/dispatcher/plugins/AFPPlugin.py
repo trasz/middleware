@@ -30,8 +30,7 @@ import os
 
 from datastore.config import ConfigNode
 from freenas.dispatcher.rpc import RpcException, SchemaHelper as h, description, accepts, returns, private
-from resources import Resource
-from task import Task, Provider, TaskException, ValidationException
+from task import Task, Provider, TaskException, ValidationException, TaskDescription
 
 logger = logging.getLogger('AFPPlugin')
 
@@ -49,8 +48,12 @@ class AFPProvider(Provider):
 @description('Configure AFP service')
 @accepts(h.ref('service-afp'))
 class AFPConfigureTask(Task):
-    def describe(self, share):
+    @classmethod
+    def early_describe(cls):
         return 'Configuring AFP service'
+
+    def describe(self, share):
+        return TaskDescription('Configuring AFP service')
 
     def verify(self, afp):
 

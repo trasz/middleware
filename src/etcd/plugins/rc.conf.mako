@@ -1,5 +1,6 @@
 <%
     from bsd import sysctl
+    from freenas.utils.permissions import perm_to_oct_string
 
     adv_config = dispatcher.call_sync('system.advanced.get_config')
     gen_config = dispatcher.call_sync('system.general.get_config')
@@ -62,6 +63,7 @@ early_kld_list="geom_stripe geom_raid3 geom_raid5 geom_gate geom_multipath"
 # A set of kernel modules that can be loaded after mounting local filesystems.
 kld_list="dtraceall ipmi fuse if_cxgbe"
 
+gateway_enable="YES"
 ipv6_activate_all_interfaces="YES"
 rtsold_enable="YES"
 dbus_enable="YES"
@@ -170,7 +172,7 @@ smartd_flags="-i ${smartd_config['interval']*60}"
 snmpd_conffile="/usr/local/etc/snmpd.conf"
 snmpd_flags="-Ls5d"
 
-tftpd_flags="-s -u ${tftp_config['username']} -U ${tftp_config['umask']}\
+tftpd_flags="-s -u ${tftp_config['username']} -U ${perm_to_oct_string(tftp_config['umask'])}\
 % if tftp_config['port'] != 69:
  -a :${tftp_config['port']}\
 % endif

@@ -29,7 +29,6 @@
 import re
 import gevent
 from event import EventSource
-from freenas.dispatcher.rpc import RpcException
 
 
 class EntitySubscriberEventSource(EventSource):
@@ -57,8 +56,12 @@ class EntitySubscriberEventSource(EventSource):
             self.services.remove(service)
 
     def changed(self, service, event):
-        ids = event['ids']
+        ids = event.get('ids', None)
         operation = event['operation']
+
+        if ids is None and operation != 'update':
+            self.logger.warn('Bogus event {0}: no ids and operation is {1}'.format(event, operation))
+            return
 
         if operation in ('delete', 'rename'):
             self.dispatcher.dispatch_event('entity-subscriber.{0}.changed'.format(service), {
@@ -67,7 +70,7 @@ class EntitySubscriberEventSource(EventSource):
                 'ids': ids
             })
         else:
-            gevent.spawn(self.fetch, service, operation, ids)
+            gevent.spawn(self.fetch if ids is not None else self.fetch_one, service, operation, ids)
 
     def fetch(self, service, operation, ids):
         try:
@@ -82,6 +85,18 @@ class EntitySubscriberEventSource(EventSource):
             'operation': operation,
             'ids': ids,
             'entities': entities,
+            'nolog': True
+        })
+
+    def fetch_one(self, service, operation, ids):
+        assert operation == 'update'
+        assert ids is None
+
+        entity = self.dispatcher.call_sync('{0}.get_config'.format(service))
+        self.dispatcher.dispatch_event('entity-subscriber.{0}.changed'.format(service), {
+            'service': service,
+            'operation': operation,
+            'data': entity,
             'nolog': True
         })
 

@@ -28,6 +28,7 @@
 from gevent.event import Event
 from gevent.lock import RLock
 from freenas.utils.query import wrap
+from sortedcontainers import SortedDict
 
 
 class CacheStore(object):
@@ -36,9 +37,9 @@ class CacheStore(object):
             self.valid = Event()
             self.data = None
 
-    def __init__(self):
+    def __init__(self, key=None):
         self.lock = RLock()
-        self.store = {}
+        self.store = SortedDict(key)
 
     def __getitem__(self, item):
         return self.get(item)
@@ -104,13 +105,22 @@ class CacheStore(object):
             if value.valid.is_set():
                 yield value.data
 
+    def remove_predicate(self, predicate):
+        result = []
+        for k, v in self.itervalid():
+            if predicate(v):
+                self.remove(k)
+                result.append(k)
+
+        return result
+
     def query(self, *filter, **params):
         return wrap(list(self.validvalues())).query(*filter, **params)
 
 
 class EventCacheStore(CacheStore):
-    def __init__(self, dispatcher, name):
-        super(EventCacheStore, self).__init__()
+    def __init__(self, dispatcher, name, key=None):
+        super(EventCacheStore, self).__init__(key=key)
         self.dispatcher = dispatcher
         self.ready = False
         self.name = name
@@ -134,15 +144,6 @@ class EventCacheStore(CacheStore):
             })
 
         return ret
-
-    def remove_predicate(self, predicate):
-        result = []
-        for k, v in self.itervalid():
-            if predicate(v):
-                self.remove(k)
-                result.append(k)
-
-        return result
 
     def rename(self, oldkey, newkey):
         with self.lock:

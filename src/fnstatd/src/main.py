@@ -32,14 +32,12 @@ import re
 import math
 import errno
 import argparse
-import json
 import logging
 import setproctitle
 import dateutil.parser
 import dateutil.tz
 import tables
 import signal
-import socket
 import time
 import numpy as np
 import pandas as pd
@@ -49,7 +47,7 @@ import gevent.monkey
 import gevent.socket
 from gevent.server import StreamServer
 from freenas.dispatcher.client import Client, ClientError
-from freenas.dispatcher.rpc import RpcService, RpcException
+from freenas.dispatcher.rpc import RpcService, RpcException, SchemaHelper as h, accepts, returns
 from datastore import DatastoreException, get_datastore
 from ringbuffer import MemoryRingBuffer, PersistentRingBuffer
 from freenas.utils.debug import DebugService
@@ -198,9 +196,10 @@ class DataSource(object):
                 df = pd.concat((df, new))
 
         df = df.reset_index().drop_duplicates(subset='index').set_index('index')
-        df = df.sort()[0]
-        df = df[start:end]
-        df = df.resample(frequency, how='mean').interpolate()
+        if len(buckets):
+            df = df.sort()[0]
+            df = df[start:end]
+            df = df.resample(frequency, how='mean').interpolate()
         return df
 
     def check_alerts(self):
@@ -325,10 +324,10 @@ class OutputService(RpcService):
 
         return stats
 
-    def query(self, data_source, params):
-        start = parse_datetime(params.pop('start'))
-        end = parse_datetime(params.pop('end'))
-        frequency = params.pop('frequency')
+    def get_stats(self, data_source, params):
+        start = params.pop('start')
+        end = params.pop('end', datetime.utcnow())
+        frequency = params.pop('frequency', '10S')
 
         if type(data_source) is str:
             if data_source not in self.context.data_sources:
@@ -449,12 +448,34 @@ class Main(object):
 
         return self.data_sources[name]
 
+    def register_schemas(self):
+        self.client.register_schema('get-stats-params', {
+            'type': 'object',
+            'additionalProperties': False,
+            'properties': {
+                'start': {'type': 'datetime'},
+                'end': {'type': 'datetime'},
+                'frequency': {'type': 'string'}
+            }
+        })
+
+        self.client.register_schema('get-stats-result', {
+            'type': 'object',
+            'additionalProperties': False,
+            'properties': {
+                'data': {
+                    'type': 'array',
+                }
+            }
+        })
+
     def connect(self):
         while True:
             try:
                 self.client.connect('unix:')
                 self.client.login_service('statd')
                 self.client.enable_server()
+                self.register_schemas()
                 self.client.register_service('statd.output', OutputService(self))
                 self.client.register_service('statd.alert', AlertService(self))
                 self.client.register_service('statd.debug', DebugService(gevent=True))

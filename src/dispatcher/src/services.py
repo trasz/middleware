@@ -40,6 +40,7 @@ from freenas.dispatcher.rpc import RpcService, RpcException, pass_sender, privat
 from auth import ShellToken
 from task import TaskState, query
 from freenas.utils import first_or_default
+from freenas.utils.trace_logger import TRACE
 
 
 class ManagementService(RpcService):
@@ -133,7 +134,11 @@ class ManagementService(RpcService):
         self.dispatcher.set_syslog_level(level)
 
     def get_logging_level(self):
-        return logging.getLogger().getEffectiveLevel()
+        level = logging.getLogger().getEffectiveLevel()
+        if level == TRACE:
+            return 'TRACE'
+        else:
+            return logging.getLevelName(level)
 
 
 class DebugService(RpcService):

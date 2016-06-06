@@ -31,7 +31,7 @@ import ipfsApi
 from requests.exceptions import ConnectionError
 from datastore.config import ConfigNode
 from freenas.dispatcher.rpc import RpcException, SchemaHelper as h, description, accepts, returns, private
-from task import Task, Provider, TaskException, ValidationException
+from task import Task, Provider, TaskException, ValidationException, TaskDescription
 
 logger = logging.getLogger('IPFSPlugin')
 
@@ -103,9 +103,12 @@ class IPFSProvider(Provider):
 @description('Configure IPFS service')
 @accepts(h.ref('service-ipfs'))
 class IPFSConfigureTask(Task):
-
-    def describe(self, share):
+    @classmethod
+    def early_describe(cls):
         return 'Configuring IPFS service'
+
+    def describe(self, ipfs):
+        return TaskDescription('Configuring IPFS service')
 
     def verify(self, ipfs):
         errors = ValidationException()

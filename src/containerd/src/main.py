@@ -36,6 +36,7 @@ import errno
 import time
 import string
 import random
+import threading
 import gevent
 import gevent.os
 import gevent.monkey
@@ -48,6 +49,7 @@ import select
 import tempfile
 import ipaddress
 import pf
+from bsd import kld, sysctl
 from gevent.queue import Queue, Channel
 from gevent.event import Event
 from geventwebsocket import WebSocketServer, WebSocketApplication, Resource
@@ -71,7 +73,10 @@ MGMT_INTERFACE = 'mgmt0'
 NAT_ADDR = ipaddress.ip_interface('172.21.0.1/16')
 NAT_INTERFACE = 'nat0'
 DEFAULT_CONFIGFILE = '/usr/local/etc/middleware.conf'
-SCROLLBACK_SIZE = 65536
+SCROLLBACK_SIZE = 20 * 1024
+
+
+vtx_enabled = False
 
 
 class VirtualMachineState(enum.Enum):
@@ -85,7 +90,7 @@ class BinaryRingBuffer(object):
         self.data = bytearray(size)
 
     def push(self, data):
-        #del self.data[0:len(data)]
+        del self.data[0:len(data)]
         self.data += data
 
     def read(self):
@@ -122,8 +127,14 @@ class VirtualMachine(object):
 
         for i in self.devices:
             if i['type'] == 'DISK':
+                drivermap = {
+                    'AHCI': 'ahci-hd',
+                    'VIRTIO': 'virtio-blk'
+                }
+
+                driver = drivermap.get(i['properties'].get('mode', 'AHCI'))
                 path = self.context.client.call_sync('container.get_disk_path', self.id, i['name'])
-                args += ['-s', '{0}:0,ahci-hd,{1}'.format(index, path)]
+                args += ['-s', '{0}:0,{1},{2}'.format(index, driver, path)]
                 index += 1
 
             if i['type'] == 'CDROM':
@@ -194,9 +205,7 @@ class VirtualMachine(object):
         self.console_thread = gevent.spawn(self.console_worker)
 
     def stop(self, force=False):
-        self.logger.info('Stopping container {0} ({1})'.format(self.name, self.id))
-        if self.state == VirtualMachineState.STOPPED:
-            raise RuntimeError()
+        self.logger.info('Stopping VM {0}'.format(self.name))
 
         for i in self.tap_interfaces:
             self.cleanup_tap(i)
@@ -249,8 +258,9 @@ class VirtualMachine(object):
                             cdcounter += 1
 
                         print('({0}) {1}'.format(name, path), file=devmap)
-                        if i['name'] == self.config['boot_device']:
-                            bootname = name
+                        if 'boot_device' in self.config:
+                            if i['name'] == self.config['boot_device']:
+                                bootname = name
 
                     if self.config.get('boot_partition'):
                         bootname += ',{0}'.format(self.config['boot_partition'])
@@ -377,6 +387,9 @@ class ManagementService(RpcService):
 
     @private
     def start_container(self, id):
+        if not vtx_enabled:
+            raise RpcException(errno.EINVAL, 'Cannot start VM - Intel VT-x instruction support not available.')
+
         container = self.context.datastore.get_by_id('containers', id)
 
         if container['type'] == 'VM':
@@ -390,7 +403,9 @@ class ManagementService(RpcService):
                 os.path.join(container['target'], 'vm', container['name'], 'files')
             )
             vm.start()
-            self.context.containers[id] = vm
+            with self.context.cv:
+                self.context.containers[id] = vm
+                self.context.cv.notify_all()
 
     @private
     def stop_container(self, id, force=False):
@@ -402,8 +417,13 @@ class ManagementService(RpcService):
             if not vm:
                 return
 
+            if vm.state == VirtualMachineState.STOPPED:
+                raise RpcException(errno.EACCES, 'Container {0} is already stopped'.format(container['name']))
+
             vm.stop(force)
-            del self.context.containers[id]
+            with self.context.cv:
+                del self.context.containers[id]
+                self.context.cv.notify_all()
 
     @private
     def request_console(self, id):
@@ -507,7 +527,12 @@ class ConsoleConnection(WebSocketApplication, EventEmitter):
                 return
 
             self.authenticated = True
-            self.vm = self.context.containers[cid]
+
+            with self.context.cv:
+                if not self.context.cv.wait_for(lambda: cid in self.context.containers, timeout=30):
+                    return
+                self.vm = self.context.containers[cid]
+
             self.console_queue = self.vm.console_register()
             self.ws.send(json.dumps({'status': 'ok'}))
             self.ws.send(self.vm.scrollback.read())
@@ -528,12 +553,14 @@ class Main(object):
         self.configstore = None
         self.config = None
         self.mgmt = None
+        self.nat = None
         self.vm_started = Event()
         self.containers = {}
         self.tokens = {}
         self.logger = logging.getLogger('containerd')
         self.bridge_interface = None
         self.used_nmdms = []
+        self.cv = threading.Condition()
 
     def init_datastore(self):
         try:
@@ -588,6 +615,13 @@ class Main(object):
             ipaddress.ip_interface('169.254.169.254/32')
         ))
 
+        self.nat = ManagementNetwork(self, NAT_INTERFACE, NAT_ADDR)
+        self.nat.up()
+        self.nat.bridge_if.add_address(netif.InterfaceAddress(
+            netif.AddressFamily.INET,
+            ipaddress.ip_interface('169.254.169.254/32')
+        ))
+
     def init_nat(self):
         default_if = self.client.call_sync('networkd.configuration.get_default_interface')
         if not default_if:
@@ -596,30 +630,40 @@ class Main(object):
 
         p = pf.PF()
 
-        # Try to find and remove existing NAT rules for the same subnet
-        oldrule = first_or_default(
-            lambda r: r.src.address.address == MGMT_ADDR.network.network_address,
-            p.get_rules('nat')
-        )
+        for addr in (MGMT_ADDR, NAT_ADDR):
+            # Try to find and remove existing NAT rules for the same subnet
+            oldrule = first_or_default(
+                lambda r: r.src.address.address == addr.network.network_address,
+                p.get_rules('nat')
+            )
 
-        if oldrule:
-            p.delete_rule('nat', oldrule.index)
+            if oldrule:
+                p.delete_rule('nat', oldrule.index)
 
-        rule = pf.Rule()
-        rule.src.address.address = MGMT_ADDR.network.network_address
-        rule.src.address.netmask = MGMT_ADDR.netmask
-        rule.action = pf.RuleAction.NAT
-        rule.af = socket.AF_INET
-        rule.ifname = default_if
-        rule.redirect_pool.append(pf.Address(ifname=default_if))
-        rule.proxy_ports = [50001, 65535]
-        p.append_rule('nat', rule)
+            rule = pf.Rule()
+            rule.src.address.address = addr.network.network_address
+            rule.src.address.netmask = addr.netmask
+            rule.action = pf.RuleAction.NAT
+            rule.af = socket.AF_INET
+            rule.ifname = default_if
+            rule.redirect_pool.append(pf.Address(ifname=default_if))
+            rule.proxy_ports = [50001, 65535]
+            p.append_rule('nat', rule)
 
         try:
             p.enable()
         except OSError as err:
             if err.errno != errno.EEXIST:
                 raise err
+
+        # Last, but not least, enable IP forwarding in kernel
+        try:
+            sysctl.sysctlbyname('net.inet.ip.forwarding', 1)
+        except OSError as err:
+            raise err
+
+    def init_dhcp(self):
+        pass
 
     def init_ec2(self):
         self.ec2 = EC2MetadataServer(self)
@@ -647,7 +691,7 @@ class Main(object):
         sys.exit(0)
 
     def generate_id(self):
-        return ''.join([random.choice(string.ascii_letters + string.digits) for n in range(32)])
+        return ''.join([random.choice(string.ascii_letters + string.digits) for _ in range(32)])
 
     def dispatcher_error(self, error):
         self.die()
@@ -662,6 +706,21 @@ class Main(object):
 
         gevent.signal(signal.SIGTERM, self.die)
         gevent.signal(signal.SIGQUIT, self.die)
+
+        # Load pf kernel module
+        try:
+            kld.kldload('/boot/kernel/pf.ko')
+        except OSError as err:
+            if err.errno != errno.EEXIST:
+                self.logger.error('Cannot load PF module: %s', str(err))
+                self.logger.error('NAT unavailable')
+
+        global vtx_enabled
+        try:
+            if sysctl.sysctlbyname('hw.vmm.vmx.initialized'):
+                vtx_enabled = True
+        except OSError:
+            pass
 
         self.config = args.c
         self.init_datastore()

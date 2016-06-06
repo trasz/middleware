@@ -42,14 +42,16 @@ from freenas.dispatcher.rpc import (
 )
 from gevent import subprocess
 from task import (
-    Provider, Task, ProgressTask, MasterProgressTask, TaskException, VerifyException, TaskWarning
+    Provider, Task, ProgressTask, MasterProgressTask, TaskException, TaskDescription,
+    VerifyException, TaskWarning
 )
 if '/usr/local/lib' not in sys.path:
     sys.path.append('/usr/local/lib')
 from freenasOS import Configuration, Train
 from freenasOS.Exceptions import (
     UpdateManifestNotFound, ManifestInvalidSignature, UpdateBootEnvironmentException,
-    UpdatePackageException,
+    UpdatePackageException, UpdateIncompleteCacheException, UpdateBusyCacheException,
+    ChecksumFailException, UpdatePackageNotFound
 )
 from freenasOS.Update import CheckForUpdates, DownloadUpdate, ApplyUpdate
 
@@ -450,9 +452,12 @@ class UpdateProvider(Provider):
 @description("Set the System Updater Cofiguration Settings")
 @accepts(h.ref('update'))
 class UpdateConfigureTask(Task):
+    @classmethod
+    def early_describe(cls):
+        return "Configuring updates"
 
-    def describe(self):
-        return "System Updater Configure Settings"
+    def describe(self, props):
+        return TaskDescription("Configuring updates")
 
     def verify(self, props):
         # TODO: Fix this verify's resource allocation as unique task
@@ -491,10 +496,14 @@ class UpdateConfigureTask(Task):
 ))
 @accepts(h.object(properties={'check_now': bool}))
 class CheckUpdateTask(Task):
-    def describe(self):
-        return "Checks for Updates and Reports Operations to be performed"
+    @classmethod
+    def early_describe(cls):
+        return "Checking for updates"
 
-    def verify(self, conditions={}):
+    def describe(self, conditions=None):
+        return TaskDescription("Checking for updates")
+
+    def verify(self, conditions=None):
         # TODO: Fix this verify's resource allocation as unique task
         block = self.dispatcher.resource_graph.get_resource(update_resource_string)
         if block is not None and block.busy:
@@ -505,7 +514,10 @@ class CheckUpdateTask(Task):
 
         return [update_resource_string]
 
-    def run(self, conditions={}):
+    def run(self, conditions=None):
+        if conditions is None:
+            conditions = {}
+
         check_now = conditions.get('check_now', True)
         cache_dir = self.dispatcher.call_sync('update.update_cache_getter', 'cache_dir')
         try:
@@ -521,8 +533,12 @@ class CheckUpdateTask(Task):
 @description("Downloads Updates for the current system update train")
 @accepts()
 class DownloadUpdateTask(ProgressTask):
+    @classmethod
+    def early_describe(cls):
+        return "Downloading updates"
+
     def describe(self):
-        return "Downloads the Updates and caches them to apply when needed"
+        return TaskDescription("Downloading updates")
 
     def verify(self):
         if not update_cache.get('updateAvailable', timeout=1):
@@ -565,6 +581,21 @@ class DownloadUpdateTask(ProgressTask):
                 get_handler=handler.get_handler,
                 check_handler=handler.check_handler
             )
+        except ManifestInvalidSignature as e:
+            raise TaskException(
+                errno.EBADMSG, 'Latest manifest has invalid signature: {0}'.format(str(e))
+            )
+        except UpdateIncompleteCacheException as e:
+            raise TaskException(errno.EIO, 'Possibly with no network, cached update is incomplete')
+        except UpdateBusyCacheException as e:
+            raise TaskException(errno.EBUSY, str(e))
+        except ChecksumFailException as e:
+            raise TaskException(errno.EBADMSG, str(e))
+        except UpdatePackageNotFound as e:
+            raise TaskException(
+                errno.EIO,
+                "Update Package: '{0}' Not Found. This could be due to a failed Download".format(str(e))
+            )
         except Exception as e:
             raise TaskException(
                 errno.EAGAIN, 'Got exception {0} while trying to Download Updates'.format(str(e))
@@ -585,8 +616,12 @@ class DownloadUpdateTask(ProgressTask):
 @description("Apply a manual update file")
 @accepts(str, str)
 class UpdateManualTask(ProgressTask):
-    def describe(self):
-        return "Manual update from a file"
+    @classmethod
+    def early_describe(cls):
+        return 'Updating from a file'
+
+    def describe(self, path, sha256):
+        return TaskDescription("Updating from a file ({name})".format(name=path))
 
     def verify(self, path, sha256):
 
@@ -665,8 +700,12 @@ class UpdateManualTask(ProgressTask):
 @accepts(bool)
 @description("Applies cached updates")
 class UpdateApplyTask(ProgressTask):
-    def describe(self):
-        return "Applies cached updates to the system and reboots if necessary"
+    @classmethod
+    def early_describe(cls):
+        return "Applying updates"
+
+    def describe(self, reboot_post_install=False):
+        return TaskDescription("Applying updates")
 
     def verify(self, reboot_post_install=False):
         return ['root']
@@ -723,8 +762,12 @@ class UpdateApplyTask(ProgressTask):
 @description("Verify installation integrity")
 @accepts()
 class UpdateVerifyTask(ProgressTask):
+    @classmethod
+    def early_describe(cls):
+        return "Verifying installation integrity"
+
     def describe(self):
-        return "Verify installation integrity"
+        return TaskDescription("Verifying installation integrity")
 
     def verify(self):
         return [update_resource_string]
@@ -757,9 +800,12 @@ class UpdateVerifyTask(ProgressTask):
 ))
 @returns(bool)
 class CheckFetchUpdateTask(MasterProgressTask):
-    def describe(self):
-        return "Checks for updates from the update server and downloads them if available. " +\
-               "Returns Ture if updates were found and applied else False"
+    @classmethod
+    def early_describe(cls):
+        return "Checking for updates"
+
+    def describe(self, mail=False):
+        return TaskDescription("Checking for updates")
 
     def verify(self, mail=False):
         block = self.dispatcher.resource_graph.get_resource(update_resource_string)
@@ -802,6 +848,12 @@ class CheckFetchUpdateTask(MasterProgressTask):
 @description("Checks for new updates, fetches if available, installs new/or downloaded updates")
 @accepts(bool)
 class UpdateNowTask(MasterProgressTask):
+    @classmethod
+    def early_describe(cls):
+        return "Checking for updates and updating"
+
+    def describe(self, reboot_post_install=False):
+        return TaskDescription("Checking for updates and updating")
 
     def verify(self, reboot_post_install=False):
         return ['root']
@@ -933,7 +985,7 @@ def _init(dispatcher, plugin):
     plugin.register_event_type('update.changed')
 
     # Register reources
-    plugin.register_resource(Resource(update_resource_string), ['system'])
+    plugin.register_resource(Resource(update_resource_string), ['system', 'system-dataset'])
 
     # Get the Update Cache (if any) at system boot (and hence in init here)
     # Do this in parallel so that a failed cache generation does not take the

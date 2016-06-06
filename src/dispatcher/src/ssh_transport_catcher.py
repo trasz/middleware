@@ -63,8 +63,18 @@ class TransportCatcherSSH(object):
         self.terminated = False
 
     def start(self):
+        self.stdin_fd = io.open(sys.stdin.fileno(), 'rb')
+        self.stdout_fd = io.open(sys.stdout.fileno(), 'wb')
         self.sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-        self.sock.connect('/var/run/dispatcher.sock')
+        try:
+            self.sock.connect('/var/run/dispatcher.sock')
+        except PermissionError:
+            self.stdout_fd.write(struct.pack('II', 0xbadbeef0, 0))
+            self.stdout_fd.flush()
+            self.stdin_fd.close()
+            self.stdout_fd.close()
+            self.sock.close()
+            return
         self.sock_fd = self.sock.makefile('rwb')
 
         ssh_client_data = os.getenv("SSH_CLIENT")
@@ -85,9 +95,6 @@ class TransportCatcherSSH(object):
             debug_log("Sent data: {0}", message)
 
         debug_log('Connection opened.')
-
-        self.stdin_fd = io.open(sys.stdin.fileno(), 'rb')
-        self.stdout_fd = io.open(sys.stdout.fileno(), 'wb')
 
         inputs = [sys.stdin.fileno(), self.sock.fileno()]
         while self.terminated is False:
@@ -130,6 +137,8 @@ class TransportCatcherSSH(object):
         })
 
     def closed(self):
+        self.stdin_fd.close()
+        self.stdout_fd.close()
         self.sock.close()
         self.sock_fd.close()
         self.terminated = True

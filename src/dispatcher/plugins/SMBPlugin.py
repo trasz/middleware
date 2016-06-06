@@ -34,8 +34,9 @@ from datastore.config import ConfigNode
 from freenas.dispatcher.rpc import RpcException, SchemaHelper as h, description, accepts, returns, private
 from lib.system import system, SubprocessException
 from lib.freebsd import get_sysctl
-from task import Task, Provider, TaskException, ValidationException
+from task import Task, Provider, TaskException, ValidationException, TaskDescription
 from debug import AttachFile, AttachCommandOutput
+from freenas.utils.permissions import get_unix_permissions, get_integer, perm_to_oct_string
 
 logger = logging.getLogger('SMBPlugin')
 
@@ -59,7 +60,14 @@ class SMBProvider(Provider):
     @accepts()
     @returns(h.ref('service-smb'))
     def get_config(self):
-        return ConfigNode('service.smb', self.configstore).__getstate__()
+        config = ConfigNode('service.smb', self.configstore).__getstate__()
+        if 'filemask' in config:
+            if config['filemask'] is not None:
+                config['filemask'] = get_unix_permissions(config['filemask'])
+        if 'dirmask' in config:
+            if config['dirmask'] is not None:
+                config['dirmask'] = get_unix_permissions(config['dirmask'])
+        return config
 
     @returns(bool)
     def ad_enabled(self):
@@ -69,8 +77,12 @@ class SMBProvider(Provider):
 @description('Configure SMB service')
 @accepts(h.ref('service-smb'))
 class SMBConfigureTask(Task):
-    def describe(self, smb):
+    @classmethod
+    def early_describe(cls):
         return 'Configuring SMB service'
+
+    def describe(self, smb):
+        return TaskDescription('Configuring SMB service')
 
     def verify(self, smb):
         errors = ValidationException()
@@ -94,14 +106,6 @@ class SMBConfigureTask(Task):
         if workgroup.lower() in [i.lower() for i in netbiosname]:
             errors.add((0, 'netbiosname'), 'NetBIOS and Workgroup must be unique')
 
-        dirmask = smb.get('dirmask')
-        if dirmask and (int(dirmask, 8) & ~0o11777):
-            errors.add((0, 'dirmask'), 'This is not a valid mask')
-
-        filemask = smb.get('filemask')
-        if filemask and (int(filemask, 8) & ~0o11777):
-            errors.add((0, 'filemask'), 'This is not a valid mask')
-
         if errors:
             raise errors
 
@@ -111,6 +115,10 @@ class SMBConfigureTask(Task):
         try:
             action = 'NONE'
             node = ConfigNode('service.smb', self.configstore)
+            if smb.get('filemask'):
+                smb['filemask'] = get_integer(smb['filemask'])
+            if smb.get('dirmask'):
+                smb['dirmask'] = get_integer(smb['dirmask'])
             node.update(smb)
             configure_params(node.__getstate__(), self.dispatcher.call_sync('service.smb.ad_enabled'))
 
@@ -160,6 +168,14 @@ def configure_params(smb, ad=False):
     if smb['syslog']:
         conf['syslog only'] = 'yes'
         conf['syslog'] = '1'
+
+    if 'filemask' in smb:
+        if smb['filemask'] is not None:
+            conf['create mode'] = perm_to_oct_string(get_unix_permissions(smb['filemask'])).zfill(4)
+
+    if 'dirmask' in smb:
+        if smb['dirmask'] is not None:
+            conf['directory mode'] = perm_to_oct_string(get_unix_permissions(smb['dirmask'])).zfill(4)
 
     conf['load printers'] = 'no'
     conf['printing'] = 'bsd'
@@ -270,8 +286,18 @@ def _init(dispatcher, plugin):
             'domain_logons': {'type': 'boolean'},
             'time_server': {'type': 'boolean'},
             'guest_user': {'type': 'string'},
-            'filemask': {'type': ['string', 'null']},
-            'dirmask': {'type': ['string', 'null']},
+            'filemask': {
+                'oneOf': [
+                    {'$ref': 'unix-permissions'},
+                    {'type': 'null'}
+                ]
+            },
+            'dirmask': {
+                'oneOf': [
+                    {'$ref': 'unix-permissions'},
+                    {'type': 'null'}
+                ]
+            },
             'empty_password': {'type': 'boolean'},
             'unixext': {'type': 'boolean'},
             'zeroconf': {'type': 'boolean'},

@@ -30,7 +30,6 @@ import errno
 import os
 import random
 import json
-import tempfile
 import hashlib
 import gzip
 import pygit2
@@ -38,22 +37,30 @@ import urllib.request
 import urllib.parse
 import urllib.error
 import shutil
-from task import Provider, Task, ProgressTask, VerifyException, TaskException, query, TaskWarning
+from task import Provider, Task, ProgressTask, VerifyException, TaskException, query, TaskWarning, TaskDescription
 from freenas.dispatcher.rpc import RpcException
-from freenas.dispatcher.rpc import SchemaHelper as h, description, accepts, returns, private
-from freenas.utils import first_or_default, normalize, deep_update, process_template
+from freenas.dispatcher.rpc import SchemaHelper as h, description, accepts
+from freenas.utils import first_or_default, normalize, deep_update, process_template, in_directory
 from utils import save_config, load_config, delete_config
 from freenas.utils.query import wrap
 
 
 VM_OUI = '00:a0:98'  # NetApp
+BLOCKSIZE = 65536
 
 
+@description('Provides information about containers')
 class ContainerProvider(Provider):
     @query('container')
     def query(self, filter=None, params=None):
         def extend(obj):
             obj['status'] = self.dispatcher.call_sync('containerd.management.get_status', obj['id'])
+            root = self.dispatcher.call_sync('container.get_container_root', obj['id'])
+            if os.path.isdir(root):
+                readme = get_readme(root)
+                if readme:
+                    with open(readme, 'r') as readme_file:
+                        obj['template']['readme'] = readme_file.read()
             return obj
 
         return self.datastore.query('containers', *(filter or []), callback=extend, **(params or {}))
@@ -63,7 +70,7 @@ class ContainerProvider(Provider):
         if not container:
             return None
 
-        pass # XXX
+        return os.path.join('/mnt', container['target'], 'vm', container['name'])
 
     def get_disk_path(self, container_id, disk_name):
         container = self.datastore.get_by_id('containers', container_id)
@@ -89,24 +96,30 @@ class ContainerProvider(Provider):
         if not vol:
             return None
 
-        if vol['properties']['auto']:
+        if vol['properties'].get('auto'):
             return os.path.join(self.get_container_root(container_id), vol['name'])
 
         return vol['properties']['destination']
 
-    @description('Returns container if provided dataset is its root')
-    def get_dependent(self, dataset):
-        path_parts = dataset.split('/')
-        if len(path_parts) != 3:
-            return None
-        if path_parts[1] != 'vm':
-            return None
+    @description("Get containers dependent on provided filesystem path")
+    def get_dependencies(self, path, enabled_only=True, recursive=True):
+        result = []
 
-        return self.dispatcher.call_sync(
-            'container.query',
-            [('name', '=', path_parts[2]), ('target', '=', path_parts[0])],
-            {'single': True}
-        )
+        if enabled_only:
+            containers = self.datastore.query('containers', ('enabled', '=', True))
+        else:
+            containers = self.datastore.query('containers')
+
+        for i in containers:
+            target_path = self.get_container_root(i['id'])
+            if recursive:
+                if in_directory(target_path, path):
+                    result.append(i)
+            else:
+                if target_path == path:
+                    result.append(i)
+
+        return result
 
     def generate_mac(self):
         return VM_OUI + ':' + ':'.join('{0:02x}'.format(random.randint(0, 255)) for _ in range(0, 3))
@@ -117,21 +130,31 @@ class ContainerProvider(Provider):
     @description("Returns list of supported container types")
     def supported_types(self):
         result = ['JAIL', 'VM', 'DOCKER']
-
         return result
 
 
-class VMTemplateProvider(Provider):
+@description('Provides information about container templates')
+class ContainerTemplateProvider(Provider):
     @query('container')
     def query(self, filter=None, params=None):
-        templates_dir = self.dispatcher.call_sync('system_dataset.request_directory', 'vm-templates')
+        templates_dir = self.dispatcher.call_sync('system_dataset.request_directory', 'container_templates')
+        cache_dir = self.dispatcher.call_sync('system_dataset.request_directory', 'container_image_cache')
         templates = []
         for root, dirs, files in os.walk(templates_dir):
             if 'template.json' in files:
-                with open(os.path.join(root, 'template.json'), encoding='utf-8') as template:
+                with open(os.path.join(root, 'template.json'), encoding='utf-8') as template_file:
                     try:
-                        templates.append(json.loads(template.read()))
-                        templates[-1]['template']['path'] = root
+                        template = json.loads(template_file.read())
+                        readme = get_readme(root)
+                        if readme:
+                            with open(readme, 'r') as readme_file:
+                                template['template']['readme'] = readme_file.read()
+                        template['template']['path'] = root
+                        template['template']['cached'] = False
+                        if os.path.isdir(os.path.join(cache_dir, template['template']['name'])):
+                            template['template']['cached'] = True
+
+                        templates.append(template)
                     except ValueError:
                         pass
 
@@ -158,7 +181,7 @@ class ContainerBaseTask(Task):
         except RpcException:
             raise TaskException(
                 errno.EACCES,
-                'Dataset of the same name as {0} already exists. Maybe you meant to import an VM?'.format(container_ds)
+                'Dataset of the same name as {0} already exists. Maybe you meant to import an VM?'.format(self.container_ds)
             )
 
     def init_files(self, container):
@@ -171,6 +194,11 @@ class ContainerBaseTask(Task):
             dest_root = self.dispatcher.call_sync('volume.get_dataset_path', self.container_ds)
             files_root = os.path.join(dest_root, 'files')
 
+            try:
+                shutil.copyfile(os.path.join(template['path'], 'README.md'), dest_root)
+            except OSError:
+                pass
+
             os.mkdir(files_root)
 
             for root, dirs, files in os.walk(source_root):
@@ -180,7 +208,7 @@ class ContainerBaseTask(Task):
                     name, ext = os.path.splitext(f)
                     if ext == '.in':
                         process_template(os.path.join(root, f), os.path.join(files_root, r, name), **{
-                            'VM_ROOT': files_root
+                            'VM_ROOT': dest_root
                         })
                     else:
                         shutil.copy(os.path.join(root, f), os.path.join(files_root, r, f))
@@ -190,12 +218,17 @@ class ContainerBaseTask(Task):
 
             if template.get('fetch'):
                 for f in template['fetch']:
-                    urllib.request.urlretrieve(f['url'], os.path.join(files_root, f['dest']))
+                    if f.get('dest'):
+                        self.join_subtasks(self.run_subtask(
+                            'container.file.install',
+                            container['template']['name'],
+                            f['name'],
+                            files_root if f['dest'] == '.' else os.path.join(files_root, f['dest'])
+                        ))
 
     def create_device(self, container, res):
         if res['type'] == 'DISK':
             container_ds = os.path.join(container['target'], 'vm', container['name'])
-            container_dir = self.dispatcher.call_sync('volume.get_dataset_path', container_ds)
             ds_name = os.path.join(container_ds, res['name'])
             self.join_subtasks(self.run_subtask('volume.dataset.create', {
                 'volume': container['target'],
@@ -204,13 +237,15 @@ class ContainerBaseTask(Task):
                 'volsize': res['properties']['size']
             }))
 
+            normalize(res['properties'], {
+                'mode': 'AHCI'
+            })
+
             if res['properties'].get('source'):
-                source = res['properties']['source']
                 self.join_subtasks(self.run_subtask(
-                    'container.download_image',
-                    source['url'],
-                    source['sha256'],
-                    container_dir,
+                    'container.file.install',
+                    container['template']['name'],
+                    res['properties']['source'],
                     os.path.join('/dev/zvol', ds_name)
                 ))
 
@@ -225,6 +260,11 @@ class ContainerBaseTask(Task):
             container_ds = os.path.join(container['target'], 'vm', container['name'])
             opts = {}
 
+            normalize(res['properties'], {
+                'type': 'VT9P',
+                'auto': False
+            })
+
             if properties['type'] == 'NFS':
                 opts['sharenfs'] = {'value': '-network={0}'.format(str(mgmt_net.network))}
                 if not self.configstore.get('service.nfs.enable'):
@@ -232,10 +272,19 @@ class ContainerBaseTask(Task):
 
             if properties['type'] == 'VT9P':
                 if properties.get('auto'):
+                    ds_name = os.path.join(container_ds, res['name'])
                     self.join_subtasks(self.run_subtask('volume.dataset.create', {
                         'volume': container['target'],
-                        'id': os.path.join(container_ds, res['name'])
+                        'id': ds_name
                     }))
+
+                    if properties.get('source'):
+                        self.join_subtasks(self.run_subtask(
+                            'container.file.install',
+                            container['template']['name'],
+                            properties['source'],
+                            self.dispatcher.call_sync('volume.get_dataset_path', ds_name)
+                        ))
 
     def update_device(self, container, old_res, new_res):
         if new_res['type'] == 'DISK':
@@ -252,36 +301,42 @@ class ContainerBaseTask(Task):
 
 
 @accepts(h.ref('container'))
+@description('Creates a container')
 class ContainerCreateTask(ContainerBaseTask):
+    @classmethod
+    def early_describe(cls):
+        return 'Creating container'
+
+    def describe(self, container):
+        return TaskDescription('Creating container {name}', name=container.get('name', ''))
+
     def verify(self, container):
         if not self.dispatcher.call_sync('volume.query', [('id', '=', container['target'])], {'single': True}):
             raise VerifyException(errno.ENXIO, 'Volume {0} doesn\'t exist'.format(container['target']))
 
-        if self.datastore.exists('replication.reserved_containers', ('type', '=', container['type']), ('name', '=', container['name'])):
-            reserved_item = self.datastore.get_by_id('replication.reserved_containers', container['name'])
-            raise VerifyException(
-                errno.EEXIST,
-                'Container {0} name is reserved by {1} replication task'.format(
-                    container['name'],
-                    reserved_item['link_name']
-                )
-            )
-
-        return ['zpool:{0}'.format(container['target'])]
+        return ['zpool:{0}'.format(container['target']), 'system-dataset']
 
     def run(self, container):
         if container.get('template'):
-            self.join_subtasks(self.run_subtask('vm_template.fetch'))
+            self.join_subtasks(self.run_subtask('container.template.fetch'))
             template = self.dispatcher.call_sync(
-                'vm_template.query',
+                'container.template.query',
                 [('template.name', '=', container['template'].get('name'))],
                 {'single': True}
             )
+            template['template'].pop('readme')
 
             if template is None:
                 raise TaskException(errno.ENOENT, 'Template {0} not found'.format(container['template'].get('name')))
 
-            deep_update(container, template)
+            result = {}
+            for key in container:
+                if container[key]:
+                    result[key] = container[key]
+            deep_update(template, result)
+            container = template
+
+            self.join_subtasks(self.run_subtask('container.cache.update', container['template']['name']))
         else:
             normalize(container, {
                 'config': {},
@@ -289,7 +344,8 @@ class ContainerCreateTask(ContainerBaseTask):
             })
 
         normalize(container, {
-            'enabled': True
+            'enabled': True,
+            'immutable': False
         })
 
         normalize(container['config'], {
@@ -298,9 +354,9 @@ class ContainerCreateTask(ContainerBaseTask):
         })
 
         self.init_dataset(container)
-        self.init_files(container)
         for res in container['devices']:
             self.create_device(container, res)
+        self.init_files(container)
 
         id = self.datastore.insert('containers', container)
         self.dispatcher.dispatch_event('container.changed', {
@@ -323,23 +379,21 @@ class ContainerCreateTask(ContainerBaseTask):
 
 
 @accepts(str, str)
+@description('Imports existing container')
 class ContainerImportTask(ContainerBaseTask):
+    @classmethod
+    def early_describe(cls):
+        return 'Importing container'
+
+    def describe(self, name, volume):
+        return TaskDescription('Importing container {name}', name=name)
+
     def verify(self, name, volume):
         if not self.dispatcher.call_sync('volume.query', [('id', '=', volume)], {'single': True}):
             raise VerifyException(errno.ENXIO, 'Volume {0} doesn\'t exist'.format(volume))
 
         if self.datastore.exists('containers', ('name', '=', name)):
             raise VerifyException(errno.EEXIST, 'Container {0} already exists'.format(name))
-
-        if self.datastore.exists('replication.reserved_containers', ('name', '=', name)):
-            reserved_item = self.datastore.get_by_id('replication.reserved_containers', name)
-            raise VerifyException(
-                errno.EEXIST,
-                'Container {0} name is reserved by {1} replication task'.format(
-                    name,
-                    reserved_item['link_name']
-                )
-            )
 
         return ['zpool:{0}'.format(volume)]
 
@@ -370,8 +424,49 @@ class ContainerImportTask(ContainerBaseTask):
         return id
 
 
+@accepts(str, bool)
+@description('Sets container immutable')
+class ContainerSetImmutableTask(ContainerBaseTask):
+    @classmethod
+    def early_describe(cls):
+        return 'Updating container\'s immutable property'
+
+    def describe(self, id, immutable):
+        container = self.datastore.get_by_id('containers', id)
+        return TaskDescription(
+            'Setting {name} container\'s immutable property to {value}',
+            name=container.get('name', '') if container else '',
+            value='on' if immutable else 'off'
+        )
+
+    def verify(self, id, immutable):
+        if not self.datastore.exists('containers', ('id', '=', id)):
+            raise VerifyException(errno.ENOENT, 'Container {0} does not exist'.format(id))
+
+        return ['system']
+
+    def run(self, id, immutable):
+        container = self.datastore.get_by_id('containers', id)
+        container['enabled'] = not immutable
+        container['immutable'] = immutable
+        self.datastore.update('containers', id, container)
+        self.dispatcher.dispatch_event('container.changed', {
+            'operation': 'update',
+            'ids': [id]
+        })
+
+
 @accepts(str, h.ref('container'))
+@description('Updates container')
 class ContainerUpdateTask(ContainerBaseTask):
+    @classmethod
+    def early_describe(cls):
+        return 'Updating container'
+
+    def describe(self, id, updated_params):
+        container = self.datastore.get_by_id('containers', id)
+        return TaskDescription('Updating container {name}', name=container.get('name', '') if container else '')
+
     def verify(self, id, updated_params):
         if not self.datastore.exists('containers', ('id', '=', id)):
             raise VerifyException(errno.ENOENT, 'Container {0} not found'.format(id))
@@ -380,6 +475,8 @@ class ContainerUpdateTask(ContainerBaseTask):
 
     def run(self, id, updated_params):
         container = self.datastore.get_by_id('containers', id)
+        if container['immutable']:
+            raise TaskException(errno.EACCES, 'Cannot modify immutable container {0}.'.format(id))
         try:
             delete_config(
                 self.dispatcher.call_sync(
@@ -392,7 +489,15 @@ class ContainerUpdateTask(ContainerBaseTask):
         except (RpcException, OSError):
             pass
 
+        if 'template' in updated_params:
+            readme = updated_params['template'].pop('readme')
+            if readme:
+                root = self.dispatcher.call_sync('container.get_container_root', container['id'])
+                with open(os.path.join(root, 'README.md'), 'w') as readme_file:
+                    readme_file.write(readme)
+
         if 'devices' in updated_params:
+            self.join_subtasks(self.run_subtask('container.cache.update', container['template']['name']))
             for res in updated_params['devices']:
                 existing = first_or_default(lambda i: i['name'] == res['name'], container['devices'])
                 if existing:
@@ -423,7 +528,16 @@ class ContainerUpdateTask(ContainerBaseTask):
 
 
 @accepts(str)
+@description('Deletes container')
 class ContainerDeleteTask(Task):
+    @classmethod
+    def early_describe(cls):
+        return 'Deleting container'
+
+    def describe(self, id):
+        container = self.datastore.get_by_id('containers', id)
+        return TaskDescription('Deleting container {name}', name=container.get('name', '') if container else '')
+
     def verify(self, id):
         if not self.datastore.exists('containers', ('id', '=', id)):
             raise VerifyException(errno.ENOENT, 'Container {0} not found'.format(id))
@@ -449,6 +563,11 @@ class ContainerDeleteTask(Task):
         container_ds = os.path.join(root_ds, container['name'])
 
         try:
+            self.join_subtasks(self.run_subtask('container.stop', id, True))
+        except RpcException:
+            pass
+
+        try:
             self.join_subtasks(self.run_subtask('volume.dataset.delete', container_ds))
         except RpcException as err:
             if err.code != errno.ENOENT:
@@ -462,7 +581,16 @@ class ContainerDeleteTask(Task):
 
 
 @accepts(str)
+@description('Exports container from database')
 class ContainerExportTask(Task):
+    @classmethod
+    def early_describe(cls):
+        return 'Exporting container'
+
+    def describe(self, id):
+        container = self.datastore.get_by_id('containers', id)
+        return TaskDescription('Exporting container {name}', name=container.get('name', '') if container else '')
+
     def verify(self, id):
         if not self.datastore.exists('containers', ('id', '=', id)):
             raise VerifyException(errno.ENOENT, 'Container {0} not found'.format(id))
@@ -478,7 +606,16 @@ class ContainerExportTask(Task):
 
 
 @accepts(str)
+@description('Starts container')
 class ContainerStartTask(Task):
+    @classmethod
+    def early_describe(cls):
+        return 'Starting container'
+
+    def describe(self, id):
+        container = self.datastore.get_by_id('containers', id)
+        return TaskDescription('Starting container {name}', name=container.get('name', '') if container else '')
+
     def verify(self, id):
         container = self.dispatcher.call_sync('container.query', [('id', '=', id)], {'single': True})
         if not container['enabled']:
@@ -494,7 +631,16 @@ class ContainerStartTask(Task):
 
 
 @accepts(str, bool)
+@description('Stops container')
 class ContainerStopTask(Task):
+    @classmethod
+    def early_describe(cls):
+        return 'Stopping container'
+
+    def describe(self, id, force=False):
+        container = self.datastore.get_by_id('containers', id)
+        return TaskDescription('Stopping container {name}', name=container.get('name', '') if container else '')
+
     def verify(self, id, force=False):
         return ['system']
 
@@ -506,39 +652,197 @@ class ContainerStopTask(Task):
         })
 
 
-@accepts(str, str)
-class DownloadImageTask(ProgressTask):
-    BLOCKSIZE = 65536
+@accepts(str, bool)
+@description('Reboots container')
+class ContainerRebootTask(Task):
+    @classmethod
+    def early_describe(cls):
+        return 'Rebooting container'
 
-    def verify(self, url, sha256, vmdir, destination):
-        return []
+    def describe(self, id, force=False):
+        container = self.datastore.get_by_id('containers', id)
+        return TaskDescription('Rebooting container {name}', name=container.get('name', '') if container else '')
 
-    def run(self, url, sha256, vmdir, destination):
+    def verify(self, id, force=False):
+        return ['system']
+
+    def run(self, id, force=False):
+        self.join_subtasks(self.run_subtask('container.stop', id, force))
+        self.join_subtasks(self.run_subtask('container.start', id))
+
+
+@accepts(str)
+@description('Caches container files')
+class CacheFilesTask(ProgressTask):
+    @classmethod
+    def early_describe(cls):
+        return 'Caching container files'
+
+    def describe(self, name):
+        return TaskDescription('Caching container files {name}', name=name or '')
+
+    def verify(self, name):
+        return ['system-dataset']
+
+    def run(self, name):
+        cache_dir = self.dispatcher.call_sync('system_dataset.request_directory', 'container_image_cache')
+        template = self.dispatcher.call_sync(
+            'container.template.query',
+            [('template.name', '=', name)],
+            {'single': True}
+        )
+        if not template:
+            raise TaskException(errno.ENOENT, 'Template of container {0} does not exist'.format(name))
+
+        self.set_progress(0, 'Caching images')
+        res_cnt = len(template['template']['fetch'])
+
+        for idx, res in enumerate(template['template']['fetch']):
+            self.set_progress(int(idx / res_cnt), 'Caching files')
+            url = res['url']
+            res_name = res['name']
+            destination = os.path.join(cache_dir, name, res_name)
+            sha256 = res['sha256']
+
+            sha256_path = os.path.join(destination, 'sha256')
+            if os.path.isdir(destination):
+                if os.path.exists(sha256_path):
+                    with open(sha256_path) as sha256_file:
+                        if sha256_file.read() == sha256:
+                            continue
+            else:
+                os.makedirs(destination)
+
+            self.join_subtasks(self.run_subtask(
+                'container.file.download',
+                url,
+                sha256,
+                destination
+            ))
+
+        self.set_progress(100, 'Cached images')
+
+
+@accepts(str)
+@description('Deletes cached container files')
+class DeleteFilesTask(Task):
+    @classmethod
+    def early_describe(cls):
+        return 'Deleting cached container files'
+
+    def describe(self, name):
+        return TaskDescription('Deleting cached container {name} files', name=name)
+
+    def verify(self, name):
+        return ['system-dataset']
+
+    def run(self, name):
+        cache_dir = self.dispatcher.call_sync('system_dataset.request_directory', 'container_image_cache')
+        images_dir = os.path.join(cache_dir, name)
+        shutil.rmtree(images_dir)
+
+
+@accepts(str, str, str)
+@description('Downloads container file')
+class DownloadFileTask(ProgressTask):
+    @classmethod
+    def early_describe(cls):
+        return 'Downloading container file'
+
+    def describe(self, url, sha256, destination):
+        return TaskDescription('Downloading container file {name}', name=url or '')
+
+    def verify(self, url, sha256, destination):
+        return ['system-dataset']
+
+    def run(self, url, sha256, destination):
         def progress_hook(nblocks, blocksize, totalsize):
             self.set_progress((nblocks * blocksize) / float(totalsize) * 100)
 
-        self.set_progress(0, 'Downloading image')
-        path, headers = urllib.request.urlretrieve(url, tempfile.mktemp(dir=vmdir), progress_hook)
+        file_path = os.path.join(destination, url.split('/')[-1])
+        sha256_path = os.path.join(destination, 'sha256')
+
+        self.set_progress(0, 'Downloading file')
+        urllib.request.urlretrieve(url, file_path, progress_hook)
         hasher = hashlib.sha256()
 
         self.set_progress(100, 'Verifying checksum')
-        with open(path, 'rb') as f:
-            for chunk in iter(lambda: f.read(self.BLOCKSIZE), b""):
+        with open(file_path, 'rb') as f:
+            for chunk in iter(lambda: f.read(BLOCKSIZE), b""):
                 hasher.update(chunk)
 
         if hasher.hexdigest() != sha256:
             raise TaskException(errno.EINVAL, 'Invalid SHA256 checksum')
 
-        self.set_progress(100, 'Copying image to virtual disk')
+        with open(sha256_path, 'w') as sha256_file:
+            sha256_file.write(sha256)
+
+
+@accepts(str, str, str)
+@description('Installs container file')
+class InstallFileTask(Task):
+    @classmethod
+    def early_describe(cls):
+        return 'Installing container file'
+
+    def describe(self, name, res, destination):
+        return TaskDescription(
+            'Installing container file {name} in {destination}',
+            name=os.path.join(name, res) or '',
+            destination=destination or ''
+        )
+
+    def verify(self, name, res, destination):
+        return ['system-dataset']
+
+    def run(self, name, res, destination):
+        cache_dir = self.dispatcher.call_sync('system_dataset.request_directory', 'container_image_cache')
+        files_path = os.path.join(cache_dir, name, res)
+        file_path = self.get_archive_path(files_path)
+
+        if not file_path:
+            raise TaskException(errno.ENOENT, 'File {0} not found'.format(files_path))
+
+        if file_path.endswith('tar.gz'):
+            shutil.unpack_archive(file_path, destination)
+        else:
+            if os.path.isdir(destination):
+                destination = os.path.join(destination, res)
+            self.unpack_gzip(file_path, destination)
+
+    def get_archive_path(self, files_path):
+        archive_path = None
+        for file in os.listdir(files_path):
+            if file.endswith('.gz'):
+                archive_path = os.path.join(files_path, file)
+        return archive_path
+
+    def unpack_gzip(self, path, destination):
         with open(destination, 'wb') as dst:
             with gzip.open(path, 'rb') as src:
-                for chunk in iter(lambda: src.read(self.BLOCKSIZE), b""):
-                    dst.write(chunk)
+                for chunk in iter(lambda: src.read(BLOCKSIZE), b""):
+                    done = 0
+                    total = len(chunk)
+
+                    while done < total:
+                        ret = os.write(dst.fileno(), chunk[done:])
+                        if ret == 0:
+                            raise TaskException(errno.ENOSPC, 'Image is too large to fit in destination')
+
+                        done += ret
 
 
-class VMTemplateFetchTask(ProgressTask):
+@description('Downloads container templates')
+class ContainerTemplateFetchTask(ProgressTask):
+    @classmethod
+    def early_describe(cls):
+        return 'Downloading container templates'
+
+    def describe(self):
+        return TaskDescription('Downloading container templates')
+
     def verify(self):
-        return []
+        return ['system-dataset']
 
     def run(self):
         def clean_clone(url, path):
@@ -556,7 +860,7 @@ class VMTemplateFetchTask(ProgressTask):
                     'Cannot update template cache. Result is outdated. Check networking.'))
                 return
 
-        templates_dir = self.dispatcher.call_sync('system_dataset.request_directory', 'vm-templates')
+        templates_dir = self.dispatcher.call_sync('system_dataset.request_directory', 'container_templates')
 
         progress = 0
         self.set_progress(progress, 'Downloading templates')
@@ -600,6 +904,15 @@ class VMTemplateFetchTask(ProgressTask):
         self.set_progress(100, 'Templates downloaded')
 
 
+def get_readme(path):
+    file_path = None
+    for file in os.listdir(path):
+        if file == 'README.md':
+            file_path = os.path.join(path, file)
+
+    return file_path
+
+
 def _depends():
     return ['VolumePlugin']
 
@@ -613,12 +926,14 @@ def _init(dispatcher, plugin):
             'name': {'type': 'string'},
             'description': {'type': 'string'},
             'enabled': {'type': 'boolean'},
+            'immutable': {'type': 'boolean'},
             'target': {'type': 'string'},
             'template': {
                 'type': ['object', 'null'],
                 'properties': {
                     'name': {'type': 'string'},
-                    'path': {'type': 'string'}
+                    'path': {'type': 'string'},
+                    'cached': {'type': 'boolean'}
                 }
             },
             'type': {
@@ -679,6 +994,10 @@ def _init(dispatcher, plugin):
         'type': 'object',
         'additionalProperties': False,
         'properties': {
+            'mode': {
+                'type': 'string',
+                'enum': ['AHCI', 'VIRTIO']
+            },
             'size': {'type': 'integer'}
         }
     })
@@ -717,6 +1036,7 @@ def _init(dispatcher, plugin):
         return True
 
     plugin.register_provider('container', ContainerProvider)
+    plugin.register_provider('container.template', ContainerTemplateProvider)
     plugin.register_task_handler('container.create', ContainerCreateTask)
     plugin.register_task_handler('container.import', ContainerImportTask)
     plugin.register_task_handler('container.update', ContainerUpdateTask)
@@ -724,10 +1044,13 @@ def _init(dispatcher, plugin):
     plugin.register_task_handler('container.export', ContainerExportTask)
     plugin.register_task_handler('container.start', ContainerStartTask)
     plugin.register_task_handler('container.stop', ContainerStopTask)
-    plugin.register_task_handler('container.download_image', DownloadImageTask)
-
-    plugin.register_provider('vm_template', VMTemplateProvider)
-    plugin.register_task_handler('vm_template.fetch', VMTemplateFetchTask)
+    plugin.register_task_handler('container.reboot', ContainerRebootTask)
+    plugin.register_task_handler('container.immutable.set', ContainerSetImmutableTask)
+    plugin.register_task_handler('container.file.install', InstallFileTask)
+    plugin.register_task_handler('container.file.download', DownloadFileTask)
+    plugin.register_task_handler('container.cache.update', CacheFilesTask)
+    plugin.register_task_handler('container.cache.delete', DeleteFilesTask)
+    plugin.register_task_handler('container.template.fetch', ContainerTemplateFetchTask)
 
     plugin.attach_hook('volume.pre_destroy', volume_pre_destroy)
     plugin.attach_hook('volume.pre_detach', volume_pre_detach)

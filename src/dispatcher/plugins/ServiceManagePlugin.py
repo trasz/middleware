@@ -31,7 +31,7 @@ import gevent
 import gevent.pool
 import logging
 
-from task import Task, Provider, TaskException, VerifyException, ValidationException, query
+from task import Task, Provider, TaskException, TaskDescription, VerifyException, ValidationException, query
 from debug import AttachFile, AttachCommandOutput
 from resources import Resource
 from freenas.dispatcher.rpc import RpcException, description, accepts, private, returns
@@ -66,17 +66,13 @@ class ServiceInfoProvider(Provider):
 
         # Running extend sequentially might take too long due to the number of services
         # and `service ${name} onestatus`. To workaround that run it in parallel using gevent
-        result = self.datastore.query('service_definitions', *(filter or []), **(params or {}))
+        result = self.datastore.query('service_definitions')
         if result is None:
             return result
-        single = (params or {}).get('single')
-        if single is True:
-            jobs = {gevent.spawn(extend, result): result}
-        else:
-            jobs = {
-                gevent.spawn(extend, entry): entry
-                for entry in result
-            }
+        jobs = {
+            gevent.spawn(extend, entry): entry
+            for entry in result
+        }
         gevent.joinall(list(jobs.keys()), timeout=15)
         group = gevent.pool.Group()
 
@@ -93,7 +89,7 @@ class ServiceInfoProvider(Provider):
 
         result = group.map(result, jobs)
         result = list(map(lambda s: extend_dict(s, {'config': wrap(self.get_service_config(s['id']))}), result))
-        return result[0] if single is True else result
+        return wrap(result).query(*(filter or []), **(params or {}))
 
     @accepts(str)
     @returns(h.object())
@@ -233,19 +229,19 @@ class ServiceInfoProvider(Provider):
 
         if node['enable'].value and state != 'RUNNING':
             logger.info('Starting service {0}'.format(service))
-            self.dispatcher.call_sync('service.ensure_started', service)
+            self.dispatcher.call_sync('service.ensure_started', service, timeout=120)
 
         elif not node['enable'].value and state != 'STOPPED':
             logger.info('Stopping service {0}'.format(service))
-            self.dispatcher.call_sync('service.ensure_stopped', service)
+            self.dispatcher.call_sync('service.ensure_stopped', service, timeout=120)
 
         else:
             if restart:
                 logger.info('Restarting service {0}'.format(service))
-                self.dispatcher.call_sync('service.restart', service)
+                self.dispatcher.call_sync('service.restart', service, timeout=120)
             elif reload:
                 logger.info('Reloading service {0}'.format(service))
-                self.dispatcher.call_sync('service.reload', service)
+                self.dispatcher.call_sync('service.reload', service, timeout=120)
 
 
 @description("Provides functionality to start, stop, restart or reload service")
@@ -254,8 +250,13 @@ class ServiceInfoProvider(Provider):
     h.enum(str, ['start', 'stop', 'restart', 'reload'])
 )
 class ServiceManageTask(Task):
+    @classmethod
+    def early_describe(cls):
+        return 'Changing service state'
+
     def describe(self, id, action):
-        return "{0}ing service {1}".format(action.title(), id)
+        svc = self.datastore.get_by_id('service_definitions', id)
+        return TaskDescription("{action}ing service {name}", action=action.title(), name=svc['name'])
 
     def verify(self, id, action):
         if not self.datastore.exists('service_definitions', ('id', '=', id)):
@@ -304,15 +305,21 @@ class ServiceManageTask(Task):
     h.forbidden('id', 'name', 'builtin', 'pid', 'state')
 ))
 class UpdateServiceConfigTask(Task):
+    @classmethod
+    def early_describe(cls):
+        return 'Updating service configuration'
+
     def describe(self, id, updated_fields):
-        return "Updating configuration for service {0}".format(id)
+        svc = self.datastore.get_by_id('service_definitions', id)
+        return TaskDescription("Updating configuration of service {name}", name=svc['name'])
 
     def verify(self, id, updated_fields):
         svc = self.datastore.get_by_id('service_definitions', id)
         if not svc:
             raise VerifyException(
                 errno.ENOENT,
-                'Service {0} not found'.format(id))
+                'Service {0} not found'.format(id)
+            )
 
         if 'config' in updated_fields:
             for x in updated_fields['config']:
@@ -381,7 +388,7 @@ class UpdateServiceConfigTask(Task):
                             break
 
         self.dispatcher.call_sync('etcd.generation.generate_group', 'services')
-        self.dispatcher.call_sync('service.apply_state', service_def['name'], restart, reload, timeout=30)
+        self.dispatcher.call_sync('service.apply_state', service_def['name'], restart, reload, timeout=120)
         self.dispatcher.dispatch_event('service.changed', {
             'operation': 'update',
             'ids': [service_def['id']]

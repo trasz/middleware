@@ -50,8 +50,8 @@ from freenas.dispatcher.rpc import (
 )
 from lib.system import SubprocessException, system
 from lib.freebsd import get_sysctl
-from task import Provider, Task, TaskException, TaskAbortException, ValidationException
-from debug import AttachFile, AttachCommandOutput
+from task import Provider, Task, TaskException, TaskAbortException, ValidationException, TaskDescription
+from debug import AttachCommandOutput
 
 if '/usr/local/lib' not in sys.path:
     sys.path.append('/usr/local/lib')
@@ -241,8 +241,12 @@ class SystemUIProvider(Provider):
 @description("Configures general system settings")
 @accepts(h.ref('system-general'))
 class SystemGeneralConfigureTask(Task):
+    @classmethod
+    def early_describe(cls):
+        return "Configuring general system settings"
+
     def describe(self, props):
-        return "System General Settings Configure"
+        return TaskDescription("Configuring general system settings")
 
     def verify(self, props):
         errors = ValidationException()
@@ -297,9 +301,12 @@ class SystemGeneralConfigureTask(Task):
 @description("Configures advanced system settings")
 @accepts(h.ref('system-advanced'))
 class SystemAdvancedConfigureTask(Task):
+    @classmethod
+    def early_describe(cls):
+        return 'Configuring advanced system settings'
 
     def describe(self, props):
-        return "System Advanced Settings Configure"
+        return TaskDescription('Configuring advanced system settings')
 
     def verify(self, props):
         return ['system']
@@ -394,9 +401,12 @@ class SystemAdvancedConfigureTask(Task):
 @description("Configures the System UI settings")
 @accepts(h.ref('system-ui'))
 class SystemUIConfigureTask(Task):
+    @classmethod
+    def early_describe(cls):
+        return 'Configuring System UI settings'
 
     def describe(self, props):
-        return "System UI Settings Configure"
+        return TaskDescription('Configuring System UI settings')
 
     def verify(self, props):
         return ['system']
@@ -441,6 +451,13 @@ class SystemUIConfigureTask(Task):
 ))
 @description("Configures system time")
 class SystemTimeConfigureTask(Task):
+    @classmethod
+    def early_describe(cls):
+        return 'Configuring system time'
+
+    def describe(self, props):
+        return TaskDescription('Configuring system time')
+
     def verify(self, props):
         return ['system']
 
@@ -468,8 +485,12 @@ class SystemRebootTask(Task):
         self.finish_event = Event()
         self.abort_flag = False
 
+    @classmethod
+    def early_describe(cls):
+        return 'Rebooting system'
+
     def describe(self, delay=None):
-        return "System Reboot"
+        return TaskDescription('Rebooting system with delay {delay} seconds', delay=delay or 0)
 
     def verify(self, delay=None):
         return ['root']
@@ -492,6 +513,7 @@ class SystemRebootTask(Task):
         self.dispatcher.call_sync('alert.emit', {
             'class': 'SystemReboot',
             'user': self.user,
+            'title': 'System reboot',
             'description': 'System has been rebooted by {0}'.format(self.user)
         })
 
@@ -507,8 +529,12 @@ class SystemRebootTask(Task):
 @accepts(h.any_of(int, None))
 @description("Shuts the system down")
 class SystemHaltTask(Task):
+    @classmethod
+    def early_describe(cls):
+        return 'Shutting the system down'
+
     def describe(self):
-        return "System Shutdown"
+        return TaskDescription('Shutting the system down')
 
     def verify(self):
         return ['root']
@@ -525,6 +551,7 @@ class SystemHaltTask(Task):
         self.dispatcher.call_sync('alert.emit', {
             'class': 'SystemShutdown',
             'user': self.user,
+            'title': 'System shutdown',
             'description': 'System has been shut down by {0}'.format(self.user)
         })
 
@@ -637,6 +664,9 @@ def _init(dispatcher, plugin):
     plugin.register_event_handler('system.hostname.change', on_hostname_change)
 
     # Register Event Types
+    plugin.register_event_type('system.general.changed')
+    plugin.register_event_type('system.advanced.changed')
+    plugin.register_event_type('system.ui.changed')
     plugin.register_event_type('power.changed', schema=h.ref('power_changed'))
 
     # Register providers

@@ -27,12 +27,13 @@
 
 import os
 import errno
-from task import Task, TaskStatus, Provider, TaskException, VerifyException
-from freenas.dispatcher.rpc import RpcException, description, accepts, returns, private
+from task import Task, Provider, VerifyException, TaskDescription
+from freenas.dispatcher.rpc import description, accepts
 from freenas.dispatcher.rpc import SchemaHelper as h
 from freenas.utils import normalize
 
 
+@description('Provides information about simulated disks')
 class FakeDisksProvider(Provider):
     def query(self, filter=None, params=None):
         return self.datastore.query('simulator.disks', *(filter or []), **(params or {}))
@@ -46,8 +47,15 @@ class FakeDisksProvider(Provider):
     )
 )
 class CreateFakeDisk(Task):
+    @classmethod
+    def early_describe(cls):
+        return "Creating simulated disk"
+
+    def describe(self, disk):
+        return TaskDescription("Creating simulated disk {name}", name=disk.get('path', '') if disk else '')
+
     def verify(self, disk):
-        return ['system']
+        return ['system-dataset']
 
     def run(self, disk):
         defpath = os.path.join(self.dispatcher.call_sync('system_dataset.request_directory', 'simulator'), disk['id'])
@@ -81,11 +89,19 @@ class CreateFakeDisk(Task):
     )
 )
 class ConfigureFakeDisk(Task):
+    @classmethod
+    def early_describe(cls):
+        return "Updating simulated disk"
+
+    def describe(self, id, updated_params):
+        disk = self.datastore.get_by_id('simulator.disks', id)
+        return TaskDescription("Updating simulated disk {name}", name=disk.get('path', id) if disk else id)
+
     def verify(self, id, updated_params):
         if not self.datastore.exists('simulator.disks', ('id', '=', id)):
             raise VerifyException(errno.ENOENT, 'Disk {0} not found'.format(id))
 
-        return ['system']
+        return ['system-dataset']
 
     def run(self, id, updated_params):
         disk = self.datastore.get_by_id('simulator.disks', id)
@@ -98,11 +114,19 @@ class ConfigureFakeDisk(Task):
 @description("Deletes the Simulated Fake Disk identified with the ID provided")
 @accepts(str)
 class DeleteFakeDisk(Task):
+    @classmethod
+    def early_describe(cls):
+        return "Deleting simulated disk"
+
+    def describe(self, id):
+        disk = self.datastore.get_by_id('simulator.disks', id)
+        return TaskDescription("Deleting simulated disk {name}", name=disk.get('path', id) if disk else id)
+
     def verify(self, id):
         if not self.datastore.exists('simulator.disks', ('id', '=', id)):
             raise VerifyException(errno.ENOENT, 'Disk {0} not found'.format(id))
 
-        return ['system']
+        return ['system-dataset']
 
     def run(self, id):
         self.datastore.delete('simulator.disks', id)

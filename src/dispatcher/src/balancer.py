@@ -49,7 +49,7 @@ from freenas.utils import first_or_default
 from resources import Resource
 from task import (
     TaskException, TaskAbortException, VerifyException, ValidationException,
-    TaskStatus, TaskState, MasterProgressTask
+    TaskStatus, TaskState, TaskDescription, MasterProgressTask
 )
 import collections
 
@@ -76,7 +76,9 @@ class TaskExecutor(object):
         self.checked_in = Event()
         self.result = AsyncResult()
         self.exiting = False
+        self.task_started = Event()
         self.thread = gevent.spawn(self.executor)
+        self.status_lock = RLock()
 
     def checkin(self, conn):
         self.balancer.logger.debug('Check-in of worker #{0} (key {1})'.format(self.index, self.key))
@@ -85,84 +87,87 @@ class TaskExecutor(object):
         self.checked_in.set()
 
     def get_status(self):
-        if not self.conn:
-            return None
+        with self.status_lock:
+            if not self.conn:
+                return None
 
-        try:
-            st = TaskStatus(0)
-            if issubclass(self.task.clazz, MasterProgressTask):
-                progress_subtask_info = self.conn.call_client_sync(
-                    'taskproxy.get_master_progress_info'
-                )
-                if progress_subtask_info['increment_progress'] != 0:
-                    progress_subtask_info['progress'] += progress_subtask_info['increment_progress']
-                    progress_subtask_info['increment_progress'] = 0
-                    self.conn.call_client_sync(
-                        'taskproxy.set_master_progress_detail',
-                        {
-                            'progress': progress_subtask_info['progress'],
-                            'increment_progress': progress_subtask_info['increment_progress']
-                        }
+            self.task_started.wait()
+            try:
+                st = TaskStatus(0)
+                if issubclass(self.task.clazz, MasterProgressTask):
+                    progress_subtask_info = self.conn.call_client_sync(
+                        'taskproxy.get_master_progress_info'
                     )
-                if progress_subtask_info['active_tids']:
-                    progress_to_increment = 0
-                    concurent_weight = progress_subtask_info['concurent_subtask_detail']['average_weight']
-                    for tid in progress_subtask_info['concurent_subtask_detail']['tids']:
-                        subtask_status = self.balancer.get_task(tid).executor.get_status()
-                        progress_to_increment += subtask_status.percentage * concurent_weight * \
-                            progress_subtask_info['subtask_weights'][str(tid)]
-                    for tid in set(progress_subtask_info['active_tids']).symmetric_difference(
-                        set(progress_subtask_info['concurent_subtask_detail']['tids'])
-                    ):
-                        subtask_status = self.balancer.get_task(tid).executor.get_status()
-                        progress_to_increment += subtask_status.percentage * \
-                            progress_subtask_info['subtask_weights'][str(tid)]
-                    progress_subtask_info['progress'] += int(progress_to_increment)
-                    if progress_subtask_info['pass_subtask_details']:
-                        progress_subtask_info['message'] = subtask_status.message
-                st = TaskStatus(
-                    progress_subtask_info['progress'], progress_subtask_info['message']
-                )
-            else:
-                st.__setstate__(self.conn.call_client_sync('taskproxy.get_status'))
-            return st
+                    if progress_subtask_info['increment_progress'] != 0:
+                        progress_subtask_info['progress'] += progress_subtask_info['increment_progress']
+                        progress_subtask_info['increment_progress'] = 0
+                        self.conn.call_client_sync(
+                            'taskproxy.set_master_progress_detail',
+                            {
+                                'progress': progress_subtask_info['progress'],
+                                'increment_progress': progress_subtask_info['increment_progress']
+                            }
+                        )
+                    if progress_subtask_info['active_tids']:
+                        progress_to_increment = 0
+                        concurent_weight = progress_subtask_info['concurent_subtask_detail']['average_weight']
+                        for tid in progress_subtask_info['concurent_subtask_detail']['tids']:
+                            subtask_status = self.balancer.get_task(tid).executor.get_status()
+                            progress_to_increment += subtask_status.percentage * concurent_weight * \
+                                progress_subtask_info['subtask_weights'][str(tid)]
+                        for tid in set(progress_subtask_info['active_tids']).symmetric_difference(
+                            set(progress_subtask_info['concurent_subtask_detail']['tids'])
+                        ):
+                            subtask_status = self.balancer.get_task(tid).executor.get_status()
+                            progress_to_increment += subtask_status.percentage * \
+                                progress_subtask_info['subtask_weights'][str(tid)]
+                        progress_subtask_info['progress'] += int(progress_to_increment)
+                        if progress_subtask_info['pass_subtask_details']:
+                            progress_subtask_info['message'] = subtask_status.message
+                    st = TaskStatus(
+                        progress_subtask_info['progress'], progress_subtask_info['message']
+                    )
+                else:
+                    st.__setstate__(self.conn.call_client_sync('taskproxy.get_status'))
+                return st
 
-        except RpcException as err:
-            self.balancer.logger.error(
-                "Cannot obtain status from task #{0}: {1}".format(self.task.id, str(err))
-            )
-            self.proc.terminate()
+            except RpcException as err:
+                self.balancer.logger.error(
+                    "Cannot obtain status from task #{0}: {1}".format(self.task.id, str(err))
+                )
+                self.proc.terminate()
 
     def put_status(self, status):
-        # Try to collect rusage at this point, when process is still alive
-        try:
-            kinfo = bsd.kinfo_getproc(self.pid)
-            self.task.rusage = kinfo.rusage
-        except LookupError:
-            pass
+        with self.status_lock:
+            # Try to collect rusage at this point, when process is still alive
+            try:
+                kinfo = bsd.kinfo_getproc(self.pid)
+                self.task.rusage = kinfo.rusage
+            except LookupError:
+                pass
 
-        if status['status'] == 'ROLLBACK':
-            self.task.set_state(TaskState.ROLLBACK)
+            if status['status'] == 'ROLLBACK':
+                self.task.set_state(TaskState.ROLLBACK)
 
-        if status['status'] == 'FINISHED':
-            self.result.set(status['result'])
+            if status['status'] == 'FINISHED':
+                self.result.set(status['result'])
 
-        if status['status'] == 'FAILED':
-            error = status['error']
-            cls = TaskException
+            if status['status'] == 'FAILED':
+                error = status['error']
+                cls = TaskException
 
-            if error['type'] == 'task.TaskAbortException':
-                cls = TaskAbortException
+                if error['type'] == 'task.TaskAbortException':
+                    cls = TaskAbortException
 
-            if error['type'] == 'ValidationException':
-                cls = ValidationException
+                if error['type'] == 'ValidationException':
+                    cls = ValidationException
 
-            self.result.set_exception(cls(
-                code=error['code'],
-                message=error['message'],
-                stacktrace=error['stacktrace'],
-                extra=error.get('extra')
-            ))
+                self.result.set_exception(cls(
+                    code=error['code'],
+                    message=error['message'],
+                    stacktrace=error['stacktrace'],
+                    extra=error.get('extra')
+                ))
 
     def put_warning(self, warning):
         self.task.add_warning(warning)
@@ -171,6 +176,7 @@ class TaskExecutor(object):
         self.result = AsyncResult()
         self.task = task
         self.task.set_state(TaskState.EXECUTING)
+        self.task_started.set()
 
         filename = None
         module_name = inspect.getmodule(task.clazz).__name__
@@ -218,6 +224,7 @@ class TaskExecutor(object):
 
             self.task.ended.set()
             self.balancer.task_exited(self.task)
+            self.task_started.clear()
             self.state = WorkerState.IDLE
             return
 
@@ -225,6 +232,7 @@ class TaskExecutor(object):
         self.task.set_state(TaskState.FINISHED, TaskStatus(100, ''))
         self.task.ended.set()
         self.balancer.task_exited(self.task)
+        self.task_started.clear()
         self.state = WorkerState.IDLE
 
     def abort(self):
@@ -300,6 +308,7 @@ class Task(object):
         self.session_id = None
         self.error = None
         self.state = TaskState.CREATED
+        self.description = None
         self.progress = None
         self.resources = []
         self.warnings = []
@@ -323,6 +332,7 @@ class Task(object):
             "finished_at": self.finished_at,
             "user": self.user,
             "resources": self.resources,
+            "description": self.get_description().__getstate__(),
             "session": self.session_id,
             "name": self.name,
             "parent": self.parent.id if self.parent else None,
@@ -411,6 +421,18 @@ class Task(object):
             'ids': [self.id]
         })
 
+    def get_description(self):
+        if not self.description:
+            if not self.clazz:
+                return TaskDescription(self.name)
+
+            return TaskDescription(self.clazz.early_describe())
+
+        if isinstance(self.description, TaskDescription):
+            return self.description
+
+        return TaskDescription(str(self.description))
+
     def progress_watcher(self):
         while True:
             if self.ended.wait(1):
@@ -458,7 +480,7 @@ class Balancer(object):
         # states to 'FAILED' since they are no longer running
         # in this instance of the dispatcher
         for stale_task in dispatcher.datastore.query('tasks', ('state', 'in', ['EXECUTING', 'WAITING', 'CREATED'])):
-            self.logger.info('Stale Task ID: {0} Name: {1} being set to FAILED'.format(
+            self.logger.info('Stale task ID: {0}, name: {1} being set to FAILED'.format(
                 stale_task['id'],
                 stale_task['name']
             ))
@@ -549,6 +571,7 @@ class Balancer(object):
         task.args = args
         task.instance = task.clazz(self.dispatcher, self.dispatcher.datastore)
         task.instance.verify(*task.args)
+        task.description = task.instance.describe(*task.args)
         task.id = self.dispatcher.datastore.insert("tasks", task)
         task.parent = parent
 
@@ -570,7 +593,7 @@ class Balancer(object):
         for i in tasks:
             i.join()
 
-    def abort(self, id):
+    def abort(self, id, error=None):
         task = self.get_task(id)
         if not task:
             self.logger.warning("Cannot abort task: unknown task id %d", id)
@@ -589,27 +612,42 @@ class Balancer(object):
                 pass
         if success:
             task.ended.set()
-            task.set_state(TaskState.ABORTED, TaskStatus(0, "Aborted"))
-            self.logger.debug("Task ID: %d, Name: %s aborted by user", task.id, task.name)
+            if error:
+                task.set_state(TaskState.FAILED, TaskStatus(0), serialize_error(error))
+                self.logger.debug("Task ID: %d, name: %s aborted with error", task.id, task.name)
+            else:
+                task.set_state(TaskState.ABORTED, TaskStatus(0, "Aborted"))
+                self.logger.debug("Task ID: %d, name: %s aborted by user", task.id, task.name)
 
     def task_exited(self, task):
         self.resource_graph.release(*task.resources)
-        self.schedule_tasks()
+        self.schedule_tasks(True)
 
-    def schedule_tasks(self):
+    def schedule_tasks(self, exit=False):
         """
         This function is called when:
         1) any new task is submitted to any of the queues
         2) any task exists
-
-        :return:
         """
-        for task in [t for t in self.task_list if t.state == TaskState.WAITING]:
+        started = 0
+        executing_tasks = [t for t in self.task_list if t.state == TaskState.EXECUTING]
+        waiting_tasks = [t for t in self.task_list if t.state == TaskState.WAITING]
+
+        for task in waiting_tasks:
             if not self.resource_graph.can_acquire(*task.resources):
                 continue
 
             self.resource_graph.acquire(*task.resources)
             self.threads.append(task.start())
+            started += 1
+
+        if not started and not executing_tasks and (exit or len(waiting_tasks) == 1):
+            for task in waiting_tasks:
+                # Check whether or not task waits on nonexistent resources. If it does,
+                # abort it 'cause there's no chance anymore that missing resources will appear.
+                if any(self.resource_graph.get_resource(res) is None for res in task.resources):
+                    self.logger.warning('Aborting task {0}: deadlock'.format(task.id))
+                    self.abort(task.id, VerifyException(errno.EBUSY, 'Resource deadlock avoided'))
 
     def distribution_thread(self):
         while True:
@@ -631,6 +669,7 @@ class Balancer(object):
 
                 task.instance = task.clazz(self.dispatcher, self.dispatcher.datastore)
                 task.resources = task.instance.verify(*task.args)
+                task.description = task.instance.describe(*task.args)
 
                 if type(task.resources) is not list:
                     raise ValueError("verify() returned something else than resource list")
@@ -678,7 +717,8 @@ class Balancer(object):
         return [x for x in self.task_list if x.state in (
             TaskState.CREATED,
             TaskState.WAITING,
-            TaskState.EXECUTING)]
+            TaskState.EXECUTING
+        )]
 
     def get_tasks(self, type=None):
         if type is None:

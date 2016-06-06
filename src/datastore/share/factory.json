@@ -141,8 +141,8 @@
             "service.ftp.only_anonymous": false,
             "service.ftp.only_local": false,
             "service.ftp.display_login": null,
-            "service.ftp.filemask": "077",
-            "service.ftp.dirmask": "077",
+            "service.ftp.filemask": 63,
+            "service.ftp.dirmask": 63,
             "service.ftp.fxp": false,
             "service.ftp.resume": true,
             "service.ftp.chroot": false,
@@ -185,7 +185,7 @@
             "service.tftpd.allow_new_files": false,
             "service.tftpd.port": 69,
             "service.tftpd.username": "nobody",
-            "service.tftpd.umask": "022",
+            "service.tftpd.umask": 18,
             "service.tftpd.auxiliary": null,
             "service.ups.enable": false,
             "service.ups.mode": "MASTER",
@@ -247,6 +247,8 @@
             "middleware.parallel_disk_format": true,
             "middleware.executors_count": 4,
             "middleware.streaming_burst_size": 16,
+            "middleware.zfs_refresh_interval": 30,
+            "middleware.snapshot_scrub_interval": 300,
             "system.console.keymap": "us.iso",
             "system.syslog_server": null,
             "system.timezone": "America/Los_Angeles",
@@ -443,7 +445,8 @@
             },
             "11BB3D33-A56B-4B2A-AE2D-76B77E5A9895": {
                 "dependencies": [
-                    "file:hosts"
+                    "file:hosts",
+                    "file:dhclient.conf"
                 ],
                 "name": "network"
             },
@@ -625,6 +628,7 @@
                 ],
                 "builtin": false,
                 "task": "service.smb.update",
+                "get_config_rpc": "service.smb.get_config",
                 "name": "smb"
             },
             "FFD1EA3F-36E3-4CFA-8A1E-9BADA0DEFB76": {
@@ -1073,30 +1077,6 @@
     {
         "metadata": {
             "name": "replication.links",
-            "migration": "keep",
-            "pkey-type": "native",
-            "attributes": {
-                "type": "config"
-            }
-        },
-        "data": {
-        }
-    },
-    {
-        "metadata": {
-            "name": "replication.reserved_shares",
-            "migration": "keep",
-            "pkey-type": "native",
-            "attributes": {
-                "type": "config"
-            }
-        },
-        "data": {
-        }
-    },
-    {
-        "metadata": {
-            "name": "replication.reserved_containers",
             "migration": "keep",
             "pkey-type": "native",
             "attributes": {

@@ -32,7 +32,7 @@ import ipaddress
 import logging
 from freenas.dispatcher.rpc import RpcException, description, accepts, returns
 from freenas.dispatcher.rpc import SchemaHelper as h
-from task import Provider, Task, TaskException, VerifyException, query
+from task import Provider, Task, TaskException, VerifyException, query, TaskDescription
 from lib.system import system, SubprocessException
 from bsd import kld
 from freenas.utils.query import wrap
@@ -52,6 +52,7 @@ logger = logging.getLogger('IPMIPlugin')
 channels = []
 
 
+@description('Provides information about IPMI')
 class IPMIProvider(Provider):
     @accepts()
     @returns(bool)
@@ -88,6 +89,14 @@ class IPMIProvider(Provider):
 @accepts(int, h.ref('ipmi-configuration'))
 @description("Configures IPMI module")
 class ConfigureIPMITask(Task):
+    @classmethod
+    def early_describe(cls):
+        return 'Configuring IPMI module'
+
+    def describe(self, id, updated_params):
+        config = self.dispatcher.call_sync('ipmi.get_config', id)
+        return TaskDescription('Configuring {name} IPMI module', name=config.get('address', '') if config else '')
+
     def verify(self, id, updated_params):
         if not self.dispatcher.call_sync('ipmi.is_ipmi_loaded'):
             raise VerifyException(errno.ENXIO, 'No IPMI module loaded')

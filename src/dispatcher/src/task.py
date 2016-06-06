@@ -64,6 +64,13 @@ class Task(object):
             'metadata': getattr(cls, 'metadata', None)
         }
 
+    @classmethod
+    def early_describe(cls):
+        return cls.__name__
+
+    def describe(self, *args, **kwargs):
+        return
+
     def get_status(self):
         return TaskStatus(50, 'Executing...')
 
@@ -243,6 +250,25 @@ class TaskStatus(object):
         self.percentage = obj['percentage']
         self.message = obj['message']
         self.extra = obj['extra']
+
+
+class TaskDescription(object):
+    def __init__(self, fmt, **kwargs):
+        self.kwargs = kwargs
+        self.fmt = fmt
+
+    def __str__(self):
+        return self.fmt.format(**self.kwargs)
+
+    def __getstate__(self):
+        return {
+            'message': str(self),
+            'name': self.kwargs.get('name'),
+            'format': {
+                'string': self.fmt,
+                'args': self.kwargs
+            }
+        }
 
 
 class Provider(RpcService):

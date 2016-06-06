@@ -59,7 +59,9 @@ def _init(dispatcher, plugin):
         for number, mibs in list(devs.items()):
             firmware_ver = mibs.get('firmware_version')
             driver_ver = mibs.get('driver_version')
-            if int(firmware_ver) != int(driver_ver):
+            target = '{0}.{1}'.format(driver, number)
+            alert = dispatcher.call_sync('alert.get_active_alert', 'DiskControllerFirmwareMismatch', target)
+            if int(firmware_ver) != int(driver_ver) and not alert:
                 dispatcher.call_sync('alert.emit', {
                     'class': 'DiskControllerFirmwareMismatch',
                     'title': 'Firmware/driver version mismatch',

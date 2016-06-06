@@ -62,6 +62,7 @@ def dump_task(ds, task):
     print("Task ID: {0}".format(task['id']))
     print("Task state: {0}".format(task['state']))
     print("Task name: {0}".format(task['name']))
+    print("Description: {0}".format(task['description']['message'] if 'description' in task else ''))
     print("Started at: {0}".format(task['started_at']))
     print("Started by: {0}".format(task['user']))
     print("Resources assigned: {0}".format(', '.join(task['resources'])))
@@ -92,20 +93,24 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('-c', metavar='CONFIG', default=DEFAULT_CONFIGFILE, help='Config file name')
     parser.add_argument('tasks', metavar='TASKS', nargs='*', default='all', help='Task ids or "all"')
+    parser.add_argument('--last', metavar='NUMBER', nargs='?', type=int, help='Number of tasks')
 
     args = parser.parse_args()
     init_datastore(args.c)
 
-    if 'all' in args.tasks:
-        tasks = ds.query('tasks')
+    if args.last:
+        tasks = ds.query('tasks', sort='id', dir='asc')[-args.last:]
     else:
-        tasks = []
-        for arg in args.tasks:
-            if '-' in arg:
-                low, high = arg.split('-')
-                tasks += ds.query('tasks', ('id', '>=', int(low)), ('id', '<=', int(high)))
-            else:
-                tasks += ds.query('tasks', ('id', '=', int(arg)))
+        if 'all' in args.tasks:
+            tasks = ds.query('tasks')
+        else:
+            tasks = []
+            for arg in args.tasks:
+                if '-' in arg:
+                    low, high = arg.split('-')
+                    tasks += ds.query('tasks', ('id', '>=', int(low)), ('id', '<=', int(high)))
+                else:
+                    tasks += ds.query('tasks', ('id', '=', int(arg)))
 
     for i in tasks:
         dump_task(ds, i)

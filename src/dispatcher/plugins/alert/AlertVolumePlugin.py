@@ -28,7 +28,6 @@ import logging
 
 
 logger = logging.getLogger('AlertVolume')
-degraded_volumes = []
 
 
 def _depends():
@@ -37,21 +36,14 @@ def _depends():
 
 def _init(dispatcher, plugin):
     def volume_status(volume):
-        if volume['status'] == 'ONLINE' and volume['id'] in degraded_volumes:
-            degraded_volumes.remove(volume['id'])
-            dispatcher.rpc.call_sync('alert.emit', {
-                'name': 'volume.status',
-                'description': 'The volume {0} state is {1}'.format(
-                    volume['id'],
-                    volume['status'],
-                ),
-                'severity': 'INFO',
-            })
+        alert = dispatcher.call_sync('alert.get_active_alert', 'VolumeDegraded', volume['id'])
 
-        if volume['status'] != 'ONLINE' and volume['id'] not in degraded_volumes:
-            degraded_volumes.append(volume['id'])
+        if volume['status'] == 'ONLINE' and alert:
+            dispatcher.call_sync('alert.cancel', alert['id'])
+
+        if volume['status'] != 'ONLINE' and volume['id'] and not alert:
             dispatcher.rpc.call_sync('alert.emit', {
-                'name': 'VolumeDegraded',
+                'class': 'VolumeDegraded',
                 'target': volume['id'],
                 'description': 'The volume {0} state is {1}'.format(
                     volume['id'],
@@ -65,6 +57,9 @@ def _init(dispatcher, plugin):
                 continue
 
             if volume.get('upgraded') is not False:
+                continue
+
+            if dispatcher.call_sync('alert.get_active_alert', 'VolumeUpgradePossible', volume['id']):
                 continue
 
             dispatcher.rpc.call_sync('alert.emit', {

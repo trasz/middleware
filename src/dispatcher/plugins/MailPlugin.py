@@ -39,7 +39,7 @@ from datastore.config import ConfigNode
 from freenas.dispatcher.rpc import (
     RpcException, SchemaHelper as h, accepts, description, returns
 )
-from task import Provider, Task, TaskException, ValidationException
+from task import Provider, Task, ValidationException, TaskDescription
 
 logger = logging.getLogger('MailPlugin')
 
@@ -128,7 +128,17 @@ class MailProvider(Provider):
 
 
 @accepts(h.ref('mail'))
+@description('Updates mail configuration')
 class MailConfigureTask(Task):
+    @classmethod
+    def early_describe(cls):
+        return 'Updating mail configuration'
+
+    def describe(self, mail):
+        return TaskDescription(
+            'Updating {name} mail configuration',
+            name=mail.get('user', '') + '@' + mail.get('server', '') if mail else ''
+        )
 
     def verify(self, mail):
         errors = ValidationException()

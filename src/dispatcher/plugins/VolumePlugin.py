@@ -44,13 +44,16 @@ import uuid
 from cache import EventCacheStore
 from lib.system import system, SubprocessException
 from lib.freebsd import fstyp
-from task import Provider, Task, ProgressTask, MasterProgressTask, TaskException, TaskWarning, VerifyException, query
+from task import (
+    Provider, Task, ProgressTask, MasterProgressTask, TaskException, TaskWarning, VerifyException, query,
+    TaskDescription
+)
 from freenas.dispatcher.rpc import (
     RpcException, description, accepts, returns, private, SchemaHelper as h, generator
 )
 from utils import first_or_default, load_config
 from datastore import DuplicateKeyException
-from freenas.utils import include, exclude, normalize, chunks, yesno_to_bool
+from freenas.utils import include, exclude, normalize, chunks, yesno_to_bool, remove_unchanged
 from freenas.utils.query import wrap
 from freenas.utils.copytree import count_files, copytree
 from cryptography.fernet import Fernet, InvalidToken
@@ -79,7 +82,6 @@ DISKS_PER_VDEV = {
     'raidz3': 5
 }
 
-SNAPSHOT_SCRUB_INTERVAL = 300
 VOLUMES_ROOT = '/mnt'
 DEFAULT_ACLS = [
     {'text': 'owner@:rwxpDdaARWcCos:fd:allow'},
@@ -123,6 +125,7 @@ class VolumeProvider(Provider):
                             pass
 
                 vol.update({
+                    'rname': 'zpool:{0}'.format(vol['id']),
                     'description': None,
                     'mountpoint': None,
                     'upgraded': None,
@@ -403,6 +406,7 @@ class VolumeProvider(Provider):
         }
 
 
+@description('Provides information about datasets')
 class DatasetProvider(Provider):
     @query('volume-dataset')
     @generator
@@ -410,6 +414,7 @@ class DatasetProvider(Provider):
         return datasets.query(*(filter or []), **(params or {}))
 
 
+@description('Provides information about snapshots')
 class SnapshotProvider(Provider):
     @query('volume-snapshot')
     @generator
@@ -417,7 +422,7 @@ class SnapshotProvider(Provider):
         return snapshots.query(*(filter or []), **(params or {}))
 
 
-@description("Creates new volume")
+@description("Creating a volume")
 @accepts(
     h.all_of(
         h.ref('volume'),
@@ -426,6 +431,13 @@ class SnapshotProvider(Provider):
     h.one_of(str, None)
 )
 class VolumeCreateTask(ProgressTask):
+    @classmethod
+    def early_describe(cls):
+        return "Creating a volume"
+
+    def describe(self, volume, password=None):
+        return TaskDescription("Creating volume {name}", name=volume['id'])
+
     def verify(self, volume, password=None):
         if self.datastore.exists('volumes', ('id', '=', volume['id'])):
             raise VerifyException(errno.EEXIST, 'Volume with same name already exists')
@@ -546,6 +558,13 @@ class VolumeCreateTask(ProgressTask):
 @description("Creates new volume and automatically guesses disks layout")
 @accepts(str, str, str, h.array(str), h.array(str), h.array(str), h.one_of(bool, None), h.one_of(str, None))
 class VolumeAutoCreateTask(Task):
+    @classmethod
+    def early_describe(cls):
+        return "Creating a volume"
+
+    def describe(self, name, type, layout, disks, cache_disks=None, log_disks=None, encryption=False, password=None):
+        return TaskDescription("Creating the volume {name}", name=name)
+
     def verify(self, name, type, layout, disks, cache_disks=None, log_disks=None, encryption=False, password=None):
         if self.datastore.exists('volumes', ('id', '=', name)):
             raise VerifyException(
@@ -608,6 +627,13 @@ class VolumeAutoCreateTask(Task):
 @description("Destroys active volume")
 @accepts(str)
 class VolumeDestroyTask(Task):
+    @classmethod
+    def early_describe(cls):
+        return "Deleting volume"
+
+    def describe(self, id):
+        return TaskDescription("Deleting the volume {name}", name=id)
+
     def verify(self, id):
         vol = self.datastore.get_by_id('volumes', id)
         if not vol:
@@ -621,6 +647,9 @@ class VolumeDestroyTask(Task):
 
     def run(self, id):
         vol = self.datastore.get_by_id('volumes', id)
+        if not vol:
+            raise TaskException(errno.ENOENT, 'Volume {0} not found'.format(id))
+
         encryption = vol.get('encryption', {})
         config = self.dispatcher.call_sync('zfs.pool.query', [('id', '=', id)], {'single': True})
 
@@ -668,6 +697,13 @@ class VolumeDestroyTask(Task):
 @description("Updates configuration of existing volume")
 @accepts(str, h.ref('volume'), h.one_of(str, None))
 class VolumeUpdateTask(Task):
+    @classmethod
+    def early_describe(cls):
+        return "Updating a volume"
+
+    def describe(self, id, updated_params, password=None):
+        return TaskDescription("Updating the volume {name}", name=id)
+
     def verify(self, id, updated_params, password=None):
         vol = self.datastore.get_by_id('volumes', id)
         if not vol:
@@ -684,14 +720,16 @@ class VolumeUpdateTask(Task):
         if password is None:
             password = ''
 
-        volume = self.datastore.get_by_id('volumes', id)
+        volume = self.dispatcher.call_sync('volume.query', [('id', '=', id)], {'single': True})
+        remove_unchanged(updated_params, volume)
+
         encryption = volume.get('encryption')
         if not volume:
             raise TaskException(errno.ENOENT, 'Volume {0} not found'.format(id))
 
-        if 'name' in updated_params:
+        if 'id' in updated_params:
             # Renaming pool. Need to export and import again using different name
-            new_name = updated_params['name']
+            new_name = updated_params['id']
             self.dispatcher.run_hook('volume.pre_rename', {'name': id, 'new_name': new_name})
 
             # Rename mountpoint
@@ -717,21 +755,60 @@ class VolumeUpdateTask(Task):
 
         if 'topology' in updated_params:
             new_vdevs = {}
+            removed_vdevs = []
             updated_vdevs = []
             params = {}
             subtasks = []
+            new_topology = updated_params['topology']
             old_topology = self.dispatcher.call_sync(
                 'volume.query',
                 [('id', '=', id)],
                 {'single': True, 'select': 'topology'}
             )
 
-            new_topology = []
-            for vdev in old_topology['data']:
-                if vdev['type'] == 'disk':
-                    new_topology.append({'type': vdev['type'], 'path': vdev['path'], 'guid': vdev['guid']})
-                else:
-                    new_topology.append({'type': vdev['type'], 'children': vdev['children'], 'guid': vdev['guid']})
+            for group, vdevs in old_topology.items():
+                for vdev in vdevs:
+                    new_vdev = first_or_default(lambda v: v.get('guid') == vdev['guid'], new_topology.get(group, []))
+                    if not new_vdev:
+                        # Vdev is missing - it's either remove vdev request or bogus topology
+                        if group == 'data':
+                            raise TaskException(errno.EBUSY, 'Cannot remove data vdev {0}'.format(vdev['guid']))
+
+                        removed_vdevs.append(vdev['guid'])
+                        continue
+
+                    if compare_vdevs(new_vdev, vdev):
+                        continue
+
+                    if new_vdev['type'] not in ('disk', 'mirror'):
+                        raise TaskException(
+                            errno.EINVAL,
+                            'Cannot detach vdev {0}, {1} is not mirror or disk'.format(
+                                vdev['guid'],
+                                vdev['type']
+                            )
+                        )
+
+                    if vdev['type'] not in ('disk', 'mirror'):
+                        raise TaskException(
+                            errno.EINVAL,
+                            'Cannot change vdev {0} type ({1}) to {2}'.format(
+                                vdev['guid'],
+                                vdev['type'],
+                                new_vdev['type']
+                            )
+                        )
+
+                    if vdev['type'] == 'mirror' and new_vdev['type'] == 'mirror' and len(new_vdev['children']) < 2:
+                        raise TaskException(
+                            errno.EINVAL,
+                            'Cannot mirror vdev {0} must have at least two members'.format(vdev['guid'])
+                        )
+
+                    if new_vdev['type'] == 'mirror':
+                        for i in vdev['children']:
+                            if not first_or_default(lambda v: v.get('guid') == i['guid'], new_vdev['children']):
+                                removed_vdevs.append(i['guid'])
 
             for group, vdevs in list(updated_params['topology'].items()):
                 for vdev in vdevs:
@@ -792,17 +869,8 @@ class VolumeUpdateTask(Task):
                         'vdev': vdev['children'][-1]
                     })
 
-                    for idx, entry in enumerate(new_topology):
-                        if entry['guid'] is old_vdev['guid']:
-                            del new_topology[idx]
-                            if vdev['type'] == 'disk':
-                                new_topology.append({'type': vdev['type'], 'path': vdev['path'], 'guid': vdev['guid']})
-                            else:
-                                new_topology.append({
-                                    'type': vdev['type'],
-                                    'children': vdev['children'],
-                                    'guid': vdev['guid']
-                                })
+            for vdev in removed_vdevs:
+                self.join_subtasks(self.run_subtask('zfs.pool.detach', id, vdev))
 
             for vdev, group in iterate_vdevs(new_vdevs):
                 if vdev['type'] == 'disk':
@@ -891,18 +959,8 @@ class VolumeUpdateTask(Task):
                 updated_vdevs)
             )
 
-            for vdev in new_topology:
-                vdev.pop('guid', None)
-
-            for vdev, group in iterate_vdevs(new_vdevs):
-                if vdev['type'] == 'disk':
-                    new_topology.append({'type': vdev['type'], 'path': vdev['path']})
-                else:
-                    new_topology.append({'type': vdev['type'], 'children': vdev['children']})
-
-            volume['topology'] = {'data': new_topology}
+            volume['topology'] = new_topology
             self.datastore.update('volumes', volume['id'], volume)
-
             self.dispatcher.dispatch_event('volume.changed', {
                 'operation': 'update',
                 'ids': [volume['id']]
@@ -912,6 +970,13 @@ class VolumeUpdateTask(Task):
 @description("Imports previously exported volume")
 @accepts(str, str, h.object(), h.ref('volume-import-params'), h.one_of(str, None))
 class VolumeImportTask(Task):
+    @classmethod
+    def early_describe(cls):
+        return "Importing a volume"
+
+    def describe(self, id, new_name, params=None, enc_params=None, password=None):
+        return TaskDescription("Importing the volume {name}", name=id)
+
     def verify(self, id, new_name, params=None, enc_params=None, password=None):
         if enc_params is None:
             enc_params = {}
@@ -995,9 +1060,16 @@ class VolumeImportTask(Task):
         self.dispatcher.run_hook('volume.post_attach', {'name': new_name})
 
 
-@description("Imports non-ZFS disk contents info existing volume")
+@description("Imports non-ZFS disk contents into existing volume")
 @accepts(str, str, str)
 class VolumeDiskImportTask(ProgressTask):
+    @classmethod
+    def early_describe(cls):
+        return "Importing disk into volume"
+
+    def describe(self, src, dest_path, fstype=None):
+        return TaskDescription("Importing disk {src} into {dst} path", src=src, dst=dest_path)
+
     def verify(self, src, dest_path, fstype=None):
         disk = self.dispatcher.call_sync('disk.partition_to_disk', src)
         if not disk:
@@ -1051,6 +1123,13 @@ class VolumeDiskImportTask(ProgressTask):
 @description("Exports active volume")
 @accepts(str)
 class VolumeDetachTask(Task):
+    @classmethod
+    def early_describe(cls):
+        return "Detaching a volume"
+
+    def describe(self, id):
+        return TaskDescription("Detaching the volume {name}", name=id)
+
     def verify(self, id):
         vol = self.datastore.get_by_id('volumes', id)
         if not vol:
@@ -1089,6 +1168,13 @@ class VolumeDetachTask(Task):
 @description("Upgrades volume to newest ZFS version")
 @accepts(str)
 class VolumeUpgradeTask(Task):
+    @classmethod
+    def early_describe(cls):
+        return "Upgrading a volume"
+
+    def describe(self, id):
+        return TaskDescription("Upgrading the volume {name}", name=id)
+
     def verify(self, id):
         vol = self.datastore.get_by_id('volumes', id)
         if not vol:
@@ -1108,8 +1194,16 @@ class VolumeUpgradeTask(Task):
         })
 
 
+@description('Replaces failed disk in active volume')
 @accepts(str, h.ref('zfs-vdev'), h.one_of(str, None))
 class VolumeAutoReplaceTask(Task):
+    @classmethod
+    def early_describe(cls):
+        return "Replacing failed disk in a volume"
+
+    def describe(self, id, failed_vdev, password=None):
+        return TaskDescription("Replacing the failed disk {vdev} in the volume {name}", name=id, vdev=failed_vdev)
+
     def verify(self, id, failed_vdev, password=None):
         vol = self.datastore.get_by_id('volumes', id)
         if not vol:
@@ -1168,6 +1262,13 @@ class VolumeAutoReplaceTask(Task):
 @description("Locks encrypted ZFS volume")
 @accepts(str)
 class VolumeLockTask(Task):
+    @classmethod
+    def early_describe(cls):
+        return "Locking encrypted volume"
+
+    def describe(self, id):
+        return TaskDescription("Locking the encrypted volume {name}", name=id)
+
     def verify(self, id):
         vol = self.dispatcher.call_sync('volume.query', [('id', '=', id)], {'single': True})
         if not vol:
@@ -1222,6 +1323,13 @@ class VolumeLockTask(Task):
     h.enum(str, ['all', 'containers', 'shares', 'system'])
 )
 class VolumeAutoImportTask(Task):
+    @classmethod
+    def early_describe(cls):
+        return "Importing services from a volume"
+
+    def describe(self, volume, scope):
+        return TaskDescription("Importing {scope} services from the volume {name}", name=volume, scope=scope)
+
     def verify(self, volume, scope):
         if not self.datastore.exists('volumes', ('id', '=', volume)):
             raise VerifyException(errno.ENOENT, 'Volume {0} not found'.format(volume))
@@ -1361,6 +1469,13 @@ class VolumeAutoImportTask(Task):
 @description("Unlocks encrypted ZFS volume")
 @accepts(str, h.one_of(str, None), h.object())
 class VolumeUnlockTask(Task):
+    @classmethod
+    def early_describe(cls):
+        return "Unlocking encrypted volume"
+
+    def describe(self, id, password=None, params=None):
+        return TaskDescription("Unlocking the encrypted volume {name}", name=id)
+
     def verify(self, id, password=None, params=None):
         if not self.datastore.exists('volumes', ('id', '=', id)):
             raise VerifyException(errno.ENOENT, 'Volume {0} not found'.format(id))
@@ -1433,6 +1548,13 @@ class VolumeUnlockTask(Task):
 @description("Generates and sets new key for encrypted ZFS volume")
 @accepts(str, h.one_of(str, None))
 class VolumeRekeyTask(Task):
+    @classmethod
+    def early_describe(cls):
+        return "Regenerating the keys of encrypted volume"
+
+    def describe(self, id, password=None):
+        return TaskDescription("Regenerating the keys of the encrypted volume {name}", name=id)
+
     def verify(self, id, password=None):
         if not self.datastore.exists('volumes', ('id', '=', id)):
             raise VerifyException(errno.ENOENT, 'Volume {0} not found'.format(id))
@@ -1500,6 +1622,13 @@ class VolumeRekeyTask(Task):
 @description("Creates a backup file of Master Keys of encrypted volume")
 @accepts(str, str)
 class VolumeBackupKeysTask(Task):
+    @classmethod
+    def early_describe(cls):
+        return "Creating a backup of the keys of encrypted volume"
+
+    def describe(self, id, out_path=None):
+        return TaskDescription("Creating a backup of the keys of the encrypted volume {name}", name=id)
+
     def verify(self, id, out_path=None):
         if not self.datastore.exists('volumes', ('id', '=', id)):
             raise VerifyException(errno.ENOENT, 'Volume {0} not found'.format(id))
@@ -1545,6 +1674,13 @@ class VolumeBackupKeysTask(Task):
 @description("Loads a backup file of Master Keys of encrypted volume")
 @accepts(str, h.one_of(str, None), str)
 class VolumeRestoreKeysTask(Task):
+    @classmethod
+    def early_describe(cls):
+        return "Uploading the keys from backup to encrypted volume"
+
+    def describe(self, id, password=None, in_path=None):
+        return TaskDescription("Uploading the keys from backup to the encrypted volume {name}", name=id)
+
     def verify(self, id, password=None, in_path=None):
         if not self.datastore.exists('volumes', ('id', '=', id)):
             raise VerifyException(errno.ENOENT, 'Volume {0} not found'.format(id))
@@ -1596,6 +1732,13 @@ class VolumeRestoreKeysTask(Task):
 @description("Scrubs the volume")
 @accepts(str)
 class VolumeScrubTask(MasterProgressTask):
+    @classmethod
+    def early_describe(cls):
+        return "Performing a scrub of a volume"
+
+    def describe(self, id):
+        return TaskDescription("Performing a scrub of the volume {name}", name=id)
+
     def verify(self, id):
         vol = self.dispatcher.call_sync('volume.query', [('id', '=', id)], {'single': True})
         if not vol:
@@ -1621,6 +1764,22 @@ class VolumeScrubTask(MasterProgressTask):
 @description("Makes vdev in a volume offline")
 @accepts(str, str)
 class VolumeOfflineVdevTask(Task):
+    @classmethod
+    def early_describe(cls):
+        return "Turning offline a disk of a volume"
+
+    def describe(self, id, vdev_guid):
+        try:
+            config = self.dispatcher.call_sync('disk.get_disk_config_by_id', vdev_guid)
+        except RpcException:
+            config = None
+
+        return TaskDescription(
+            "Turning offline the {disk} disk of the volume {name}",
+            name=id,
+            disk=config['path'] if config else vdev_guid
+        )
+
     def verify(self, id, vdev_guid):
         vol = self.dispatcher.call_sync('volume.query', [('id', '=', id)], {'single': True})
         if not vol:
@@ -1639,6 +1798,22 @@ class VolumeOfflineVdevTask(Task):
 @description("Makes vdev in a volume online")
 @accepts(str, str)
 class VolumeOnlineVdevTask(Task):
+    @classmethod
+    def early_describe(cls):
+        return "Turning online a disk of a volume"
+
+    def describe(self, id, vdev_guid):
+        try:
+            config = self.dispatcher.call_sync('disk.get_disk_config_by_id', vdev_guid)
+        except RpcException:
+            config = None
+
+        return TaskDescription(
+            "Turning online the {disk} disk of the volume {name}",
+            name=id,
+            disk=config['path'] if config else vdev_guid
+        )
+
     def verify(self, id, vdev_guid):
         vol = self.dispatcher.call_sync('volume.query', [('id', '=', id)], {'single': True})
         if not vol:
@@ -1660,6 +1835,13 @@ class VolumeOnlineVdevTask(Task):
     h.required('id', 'volume')
 ))
 class DatasetCreateTask(Task):
+    @classmethod
+    def early_describe(cls):
+        return "Creating a dataset"
+
+    def describe(self, dataset):
+        return TaskDescription("Creating the dataset {name}", name=dataset['id'])
+
     def verify(self, dataset):
         if not self.datastore.exists('volumes', ('id', '=', dataset['volume'])):
             raise VerifyException(errno.ENOENT, 'Volume {0} not found'.format(dataset['volume']))
@@ -1668,6 +1850,7 @@ class DatasetCreateTask(Task):
 
     def run(self, dataset):
         props = {}
+        params = {}
         normalize(dataset, {
             'type': 'FILESYSTEM',
             'permissions_type': 'CHMOD',
@@ -1685,6 +1868,13 @@ class DatasetCreateTask(Task):
             props['volsize'] = str(dataset['volsize'])
 
         props['org.freenas:uuid'] = uuid.uuid4()
+        params = exclude(
+                dataset['properties'],
+                'used', 'usedbydataset', 'usedbysnapshots', 'usedbychildren', 'logicalused', 'logicalreferenced',
+                'written', 'usedbyrefreservation', 'referenced', 'available', 'compressratio', 'refcompressratio')
+        for k, v in list(params.items()):
+            params[k] = v['value']
+        props.update(params)
         self.join_subtasks(self.run_subtask(
             'zfs.create_dataset',
             dataset['id'],
@@ -1703,6 +1893,13 @@ class DatasetCreateTask(Task):
 @description("Deletes an existing Dataset from a Volume")
 @accepts(str)
 class DatasetDeleteTask(Task):
+    @classmethod
+    def early_describe(cls):
+        return "Deleting a dataset"
+
+    def describe(self, id):
+        return TaskDescription("Deleting the dataset {name}", name=id)
+
     def verify(self, id):
         pool_name, _, ds = id.partition('/')
         if not self.datastore.exists('volumes', ('id', '=', pool_name)):
@@ -1748,6 +1945,13 @@ class DatasetDeleteTask(Task):
 @description("Configures/Updates an existing Dataset's properties")
 @accepts(str, h.ref('volume-dataset'))
 class DatasetConfigureTask(Task):
+    @classmethod
+    def early_describe(cls):
+        return "Configuring a dataset"
+
+    def describe(self, id, updated_params):
+        return TaskDescription("Configuring the dataset {name}", name=id)
+
     def verify(self, id, updated_params):
         pool_name, _, ds = id.partition('/')
         if not self.datastore.exists('volumes', ('id', '=', pool_name)):
@@ -1818,6 +2022,13 @@ class DatasetConfigureTask(Task):
     h.forbidden('id')
 ))
 class SnapshotCreateTask(Task):
+    @classmethod
+    def early_describe(cls):
+        return "Creating a snapshot"
+
+    def describe(self, snapshot):
+        return TaskDescription("Creating the snapshot {name}", name=snapshot['name'])
+
     def verify(self, snapshot):
         return ['zfs:{0}'.format(snapshot['dataset'])]
 
@@ -1843,6 +2054,13 @@ class SnapshotCreateTask(Task):
 @description("Deletes the specified snapshot")
 @accepts(str)
 class SnapshotDeleteTask(Task):
+    @classmethod
+    def early_describe(cls):
+        return "Deleting a snapshot"
+
+    def describe(self, id):
+        return TaskDescription("Deleting the snapshot {name}", name=id)
+
     def verify(self, id):
         pool, ds, snap = split_snapshot_name(id)
         return ['zfs:{0}'.format(ds)]
@@ -1861,6 +2079,13 @@ class SnapshotDeleteTask(Task):
     h.ref('volume-snapshot')
 ))
 class SnapshotConfigureTask(Task):
+    @classmethod
+    def early_describe(cls):
+        return "Configuring a snapshot"
+
+    def describe(self, id, updated_params):
+        return TaskDescription("Configuring the snapshot {name}", name=id)
+
     def verify(self, id, updated_params):
         pool, ds, snap = split_snapshot_name(id)
         return ['zfs:{0}'.format(ds)]
@@ -2024,7 +2249,7 @@ def _init(dispatcher, plugin):
         ds = wrap(ds)
         perms = None
 
-        if pool == boot_pool['id']:
+        if ds['pool'] == boot_pool['id']:
             return None
 
         if ds['mountpoint']:
@@ -2042,6 +2267,7 @@ def _init(dispatcher, plugin):
         return {
             'id': ds['name'],
             'name': ds['name'],
+            'rname': 'zfs:{0}'.format(ds['id']),
             'volume': ds['pool'],
             'type': ds['type'],
             'mountpoint': ds.get('properties.mountpoint.value'),
@@ -2129,8 +2355,9 @@ def _init(dispatcher, plugin):
         })
 
     def scrub_snapshots():
+        interval = dispatcher.configstore.get('middleware.snapshot_scrub_interval')
         while True:
-            gevent.sleep(SNAPSHOT_SCRUB_INTERVAL)
+            gevent.sleep(interval)
             ts = int(time.time())
             for snap in dispatcher.call_sync('volume.snapshot.query'):
                 snap = wrap(snap)
@@ -2157,7 +2384,9 @@ def _init(dispatcher, plugin):
                 'type': 'string',
                 'enum': ['zfs']
             },
+            'rname': {'type': 'string'},
             'topology': {'$ref': 'zfs-topology'},
+            'scan': {'$ref': 'zfs-scan'},
             'encrypted': {'type': 'boolean'},
             'encryption': {'$ref': 'encryption'},
             'providers_presence': {
@@ -2183,11 +2412,51 @@ def _init(dispatcher, plugin):
         'additionalProperties': False,
         'properties': {
             'value': {'type': 'string'},
-            'rawvalue': {'type': 'string'},
+            'rawvalue': {
+                'type': 'string',
+                'readOnly': True
+            },
             'source': {
                 'type': 'string',
-                'enum': ['NONE', 'DEFAULT', 'LOCAL', 'INHERITED']
+                'enum': ['NONE', 'DEFAULT', 'LOCAL', 'INHERITED'],
+                'readOnly': True
             }
+        }
+    })
+
+    plugin.register_schema_definition('volume-dataset-compression-property', {
+        'type': 'object',
+        'additionalProperties': True,
+        'properties': {
+            'value': {'enum': ['on', 'off', 'lzjb', 'zle', 'lz4', 'gzip', 'gzip-1',
+                               'gzip-2', 'gzip-3', 'gzip-4', 'gzip-5', 'gzip-6',
+                               'gzip-7', 'gzip-8', 'gzip-9']}
+        }
+    })
+
+    plugin.register_schema_definition('volume-dataset-dedup-property', {
+        'type': 'object',
+        'additionalProperties': True,
+        'properties': {
+            'value': {'enum': ['on', 'off', 'verify', 'sha256', 'sha256,verify',
+                               'sha512', 'sha512,verify', 'skein', 'skein,verify',
+                               'edonr,verify']}
+        }
+    })
+
+    plugin.register_schema_definition('volume-dataset-casesensitivity-property', {
+        'type': 'object',
+        'additionalProperties': True,
+        'properties': {
+            'value': {'enum': ['sensitive', 'insensitive', 'mixed']}
+        }
+    })
+
+    plugin.register_schema_definition('volume-dataset-atime-property', {
+        'type': 'object',
+        'additionalProperties': True,
+        'properties': {
+            'value': {'enum': ['on', 'off']}
         }
     })
 
@@ -2229,6 +2498,7 @@ def _init(dispatcher, plugin):
         'properties': {
             'id': {'type': 'string'},
             'name': {'type': 'string'},
+            'rname': {'type': 'string'},
             'volume': {'type': 'string'},
             'mountpoint': {'type': 'string'},
             'mounted': {'type': 'boolean'},
@@ -2252,14 +2522,26 @@ def _init(dispatcher, plugin):
         'properties': {
             'used': {'$ref': 'volume-property'},
             'available': {'$ref': 'volume-property'},
-            'compression': {'$ref': 'volume-property'},
-            'atime': {'$ref': 'volume-property'},
-            'dedup': {'$ref': 'volume-property'},
+            'compression': {'allOf': [
+                {'$ref': 'volume-property'},
+                {'$ref': 'volume-dataset-compression-property'}
+                ]},
+            'atime': {'allOf': [
+                {'$ref': 'volume-property'},
+                {'$ref': 'volume-dataset-atime-property'}
+                ]},
+            'dedup': {'allOf': [
+                {'$ref': 'volume-property'},
+                {'$ref': 'volume-dataset-dedup-property'}
+                ]},
             'quota': {'$ref': 'volume-property'},
             'refquota': {'$ref': 'volume-property'},
             'reservation': {'$ref': 'volume-property'},
             'refreservation': {'$ref': 'volume-property'},
-            'casesensitivity': {'$ref': 'volume-property'},
+            'casesensitivity': {'allOf': [
+                {'$ref': 'volume-property'},
+                {'$ref': 'volume-dataset-casesensitivity-property'},
+                ]},
             'volsize': {'$ref': 'volume-property'},
             'volblocksize': {'$ref': 'volume-property'},
             'refcompressratio': {'$ref': 'volume-property'},

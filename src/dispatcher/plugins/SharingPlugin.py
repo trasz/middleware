@@ -29,8 +29,8 @@ import os
 import errno
 from freenas.dispatcher.rpc import description, accepts, returns, private
 from freenas.dispatcher.rpc import SchemaHelper as h, generator
-from task import Task, TaskException, VerifyException, Provider, RpcException, query
-from freenas.utils import normalize, in_directory
+from task import Task, TaskException, TaskDescription, VerifyException, Provider, RpcException, query, TaskWarning
+from freenas.utils import normalize, in_directory, remove_unchanged
 from utils import split_dataset, save_config, load_config, delete_config
 
 
@@ -79,7 +79,7 @@ class SharesProvider(Provider):
         return self.dispatcher.call_sync('share.{0}.get_connected_clients'.format(share['type']), id)
 
     @description("Get shares dependent on provided filesystem path")
-    @accepts(str)
+    @accepts(str, bool, bool)
     @returns(h.array(h.ref('share')))
     def get_dependencies(self, path, enabled_only=True, recursive=True):
         result = []
@@ -147,29 +147,16 @@ class SharesProvider(Provider):
     h.required('name', 'type', 'target_type', 'target_path', 'properties')
 ))
 class CreateShareTask(Task):
+    @classmethod
+    def early_describe(cls):
+        return "Creating share"
+
+    def describe(self, share):
+        return TaskDescription("Creating share {name}", name=share.get('name') if share else '')
+
     def verify(self, share):
         if not self.dispatcher.call_sync('share.supported_types').get(share['type']):
             raise VerifyException(errno.ENXIO, 'Unknown sharing type {0}'.format(share['type']))
-
-        if self.datastore.exists(
-            'shares',
-            ('type', '=', share['type']),
-            ('name', '=', share['name'])
-        ):
-            raise VerifyException(errno.EEXIST, 'Share {0} of type {1} already exists'.format(
-                share['name'],
-                share['type']
-            ))
-
-        if self.datastore.exists('replication.reserved_shares', ('type', '=', share['type']), ('name', '=', share['name'])):
-            reserved_item = self.datastore.get_by_id('replication.reserved_shares', share['name'])
-            raise VerifyException(
-                errno.EEXIST,
-                'Share {0} name is reserved by {1} replication task'.format(
-                    share['name'],
-                    reserved_item['link_name']
-                )
-            )
 
         share_path = self.dispatcher.call_sync('share.expand_path', share['target_path'], share['target_type'])
         if share['target_type'] != 'FILE':
@@ -188,8 +175,19 @@ class CreateShareTask(Task):
         assert share_type['subtype'] in ('FILE', 'BLOCK'),\
             "Unsupported Share subtype: {0}".format(share_type['subtype'])
 
+        if self.datastore.exists(
+            'shares',
+            ('type', '=', share['type']),
+            ('name', '=', share['name'])
+        ):
+            raise TaskException(errno.EEXIST, 'Share {0} of type {1} already exists'.format(
+                share['name'],
+                share['type']
+            ))
+
         normalize(share, {
             'enabled': True,
+            'immutable': False,
             'description': ''
         })
 
@@ -252,7 +250,7 @@ class CreateShareTask(Task):
                 new_share
             )
         except OSError as err:
-            self.add_warning(errno.ENXIO, 'Cannot save backup config file: {0}'.format(str(err)))
+            self.add_warning(TaskWarning(errno.ENXIO, 'Cannot save backup config file: {0}'.format(str(err))))
 
         return ids[0]
 
@@ -260,10 +258,21 @@ class CreateShareTask(Task):
 @description("Updates existing share")
 @accepts(str, h.ref('share'))
 class UpdateShareTask(Task):
+    @classmethod
+    def early_describe(cls):
+        return "Updating share"
+
+    def describe(self, id, updated_fields):
+        share = self.datastore.get_by_id('shares', id)
+        return TaskDescription("Updating share {name}", name=share.get('name', id) if share else id)
+
     def verify(self, id, updated_fields):
         share = self.datastore.get_by_id('shares', id)
         if not share:
             raise VerifyException(errno.ENOENT, 'Share not found')
+
+        if share['immutable']:
+            raise VerifyException(errno.EACCES, 'Cannot modify immutable share {0}.'.format(id))
 
         if 'name' in updated_fields or 'type' in updated_fields:
             share.update(updated_fields)
@@ -292,6 +301,7 @@ class UpdateShareTask(Task):
 
     def run(self, id, updated_fields):
         share = self.datastore.get_by_id('shares', id)
+        remove_unchanged(updated_fields, share)
 
         path = self.dispatcher.call_sync('share.get_directory_path', share['id'])
         try:
@@ -337,12 +347,19 @@ class UpdateShareTask(Task):
                 updated_share
             )
         except OSError as err:
-            self.add_warning(errno.ENXIO, 'Cannot save backup config file: {0}'.format(str(err)))
+            self.add_warning(TaskWarning(errno.ENXIO, 'Cannot save backup config file: {0}'.format(str(err))))
 
 
 @description("Imports existing share")
 @accepts(str, str, str)
 class ImportShareTask(Task):
+    @classmethod
+    def early_describe(cls):
+        return "Importing share"
+
+    def describe(self, config_path, name, type):
+        return TaskDescription("Importing share {name} from {config_path}", name=name, config_path=config_path)
+
     def verify(self, config_path, name, type):
         try:
             share = load_config(config_path, '{0}-{1}'.format(type, name))
@@ -382,16 +399,6 @@ class ImportShareTask(Task):
 
         share = load_config(config_path, '{0}-{1}'.format(type, name))
 
-        if self.datastore.exists('replication.reserved_shares', ('type', '=', share['type']), ('name', '=', share['name'])):
-            reserved_item = self.datastore.get_by_id('replication.reserved_shares', share['name'])
-            raise TaskException(
-                errno.EEXIST,
-                'Share {0} name is reserved by {1} replication task'.format(
-                    share['name'],
-                    reserved_item['link_name']
-                )
-            )
-
         ids = self.join_subtasks(self.run_subtask('share.{0}.import'.format(share['type']), share))
 
         self.dispatcher.dispatch_event('share.changed', {
@@ -402,20 +409,60 @@ class ImportShareTask(Task):
         return ids[0]
 
 
+@description("Sets share immutable")
+@accepts(str, bool)
+class ShareSetImmutableTask(Task):
+    @classmethod
+    def early_describe(cls):
+        return 'Updating share\'s immutable property'
+
+    def describe(self, id, immutable):
+        share = self.datastore.get_by_id('shares', id)
+        return TaskDescription(
+            'Setting {name} share\'s immutable property to {value}',
+            name=share.get('name', id) if share else id,
+            value='on' if immutable else 'off'
+        )
+
+    def verify(self, id, immutable):
+        if not self.datastore.exists('shares', id):
+            raise VerifyException(errno.ENOENT, 'Share {0} does not exist'.format(id))
+
+        return ['system']
+
+    def run(self, id, immutable):
+        share = self.datastore.get_by_id('shares', id)
+        share['immutable'] = immutable
+        share['enabled'] = not immutable
+        self.datastore.update('shares', id, share)
+        self.dispatcher.dispatch_event('share.changed', {
+            'operation': 'update',
+            'ids': [share['id']]
+        })
+
+
 @description("Deletes share")
 @accepts(str)
 class DeleteShareTask(Task):
-    def verify(self, name):
-        share = self.datastore.get_by_id('shares', name)
+    @classmethod
+    def early_describe(cls):
+        return "Deleting share"
+
+    def describe(self, id):
+        share = self.datastore.get_by_id('shares', id)
+        return TaskDescription("Deleting share {name}", name=share.get('name', id) if share else id)
+
+    def verify(self, id):
+        share = self.datastore.get_by_id('shares', id)
         if not share:
             raise VerifyException(errno.ENOENT, 'Share not found')
 
         return ['system']
 
-    def run(self, name):
-        share = self.datastore.get_by_id('shares', name)
-
+    def run(self, id):
+        share = self.datastore.get_by_id('shares', id)
         path = self.dispatcher.call_sync('share.get_directory_path', share['id'])
+
         try:
             delete_config(
                 path,
@@ -424,36 +471,51 @@ class DeleteShareTask(Task):
         except OSError:
             pass
 
-        self.join_subtasks(self.run_subtask('share.{0}.delete'.format(share['type']), name))
+        self.join_subtasks(self.run_subtask('share.{0}.delete'.format(share['type']), id))
         self.dispatcher.dispatch_event('share.changed', {
             'operation': 'delete',
-            'ids': [name]
+            'ids': [id]
         })
 
 
 @description("Export share")
 @accepts(str)
 class ExportShareTask(Task):
-    def verify(self, name):
-        share = self.datastore.get_by_id('shares', name)
+    @classmethod
+    def early_describe(cls):
+        return "Exporting share"
+
+    def describe(self, id):
+        share = self.datastore.get_by_id('shares', id)
+        return TaskDescription("Exporting share {name}", name=share.get('name', id) if share else id)
+
+    def verify(self, id):
+        share = self.datastore.get_by_id('shares', id)
         if not share:
             raise VerifyException(errno.ENOENT, 'Share not found')
 
         return ['system']
 
-    def run(self, name):
-        share = self.datastore.get_by_id('shares', name)
+    def run(self, id):
+        share = self.datastore.get_by_id('shares', id)
 
-        self.join_subtasks(self.run_subtask('share.{0}.delete'.format(share['type']), name))
+        self.join_subtasks(self.run_subtask('share.{0}.delete'.format(share['type']), id))
         self.dispatcher.dispatch_event('share.changed', {
             'operation': 'delete',
-            'ids': [name]
+            'ids': [id]
         })
 
 
 @description("Deletes all shares dependent on specified volume/dataset")
 @accepts(str)
 class DeleteDependentShares(Task):
+    @classmethod
+    def early_describe(cls):
+        return 'Deleting shares related to system path'
+
+    def describe(self, path):
+        return TaskDescription('Deleting shares related to system path {name}', name=path)
+
     def verify(self, path):
         return ['system']
 
@@ -469,6 +531,13 @@ class DeleteDependentShares(Task):
 @description("Updates all shares related to specified volume/dataset")
 @accepts(str, h.ref('share'))
 class UpdateRelatedShares(Task):
+    @classmethod
+    def early_describe(cls):
+        return 'Updating shares related to system path'
+
+    def describe(self, path, updated_fields):
+        return TaskDescription('Updating shares related to system path {name}', name=path)
+
     def verify(self, path, updated_fields):
         return ['system']
 
@@ -478,6 +547,23 @@ class UpdateRelatedShares(Task):
             subtasks.append(self.run_subtask('share.update', i['id'], updated_fields))
 
         self.join_subtasks(*subtasks)
+
+
+@description("Kills client connections from specified IP address")
+@accepts(str, str)
+class ShareTerminateConnectionTask(Task):
+    @classmethod
+    def early_describe(cls):
+        return 'Killing connections to share'
+
+    def describe(self, share_type, address):
+        return TaskDescription('Killing {address} connections to {name} share', address=address, name=share_type)
+
+    def verify(self, share_type, address):
+        return ['system']
+
+    def run(self, share_type, address):
+        self.join_subtasks(self.run_subtask('share.{0}.terminate_connection'.format(share_type), address))
 
 
 def _depends():
@@ -492,13 +578,17 @@ def _init(dispatcher, plugin):
             'name': {'type': 'string'},
             'description': {'type': 'string'},
             'enabled': {'type': 'boolean'},
+            'immutable': {'type': 'boolean'},
             'type': {'type': 'string'},
             'target_type': {
                 'type': 'string',
                 'enum': ['DATASET', 'ZVOL', 'DIRECTORY', 'FILE']
             },
             'target_path': {'type': 'string'},
-            'filesystem_path': {'type': 'string'},
+            'filesystem_path': {
+                'type': 'string',
+                'readOnly': True
+            },
             'permissions': {
                 'oneOf': [
                     {'$ref': 'permissions'},
@@ -592,8 +682,10 @@ def _init(dispatcher, plugin):
     plugin.register_task_handler('share.delete', DeleteShareTask)
     plugin.register_task_handler('share.export', ExportShareTask)
     plugin.register_task_handler('share.import', ImportShareTask)
+    plugin.register_task_handler('share.immutable.set', ShareSetImmutableTask)
     plugin.register_task_handler('share.delete_dependent', DeleteDependentShares)
     plugin.register_task_handler('share.update_related', UpdateRelatedShares)
+    plugin.register_task_handler('share.terminate_connection', ShareTerminateConnectionTask)
 
     # Register Event Types
     plugin.register_event_type(

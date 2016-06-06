@@ -12,7 +12,7 @@
 network_start()
 {
 	/usr/local/sbin/dispatcherctl call plugin.wait_for_service '"networkd.configuration"'
-	/usr/local/sbin/dispatcherctl call networkd.configuration.configure_network
+	/usr/local/sbin/dispatcherctl call networkd.configuration.configure_network --timeout 60
 }
 
 name="ix-network"

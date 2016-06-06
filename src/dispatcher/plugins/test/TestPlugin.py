@@ -28,11 +28,22 @@
 import os
 import threading
 import uuid
-from task import Task
+import errno
+import time
+from task import Task, TaskDescription, TaskWarning, ProgressTask, MasterProgressTask
 from freenas.dispatcher.fd import FileDescriptor
+from freenas.dispatcher.rpc import accepts, description
 
 
+@description('Downloads tests')
 class TestDownloadTask(Task):
+    @classmethod
+    def early_describe(cls):
+        return 'Downloading tests'
+
+    def describe(self):
+        return TaskDescription('Downloading tests')
+
     def verify(self):
         return []
 
@@ -54,5 +65,98 @@ class TestDownloadTask(Task):
         return url
 
 
+class TestWarningsTask(Task):
+
+    @classmethod
+    def early_describe(cls):
+        return 'Task Warning Tests'
+
+    def describe(self):
+        return TaskDescription('Testing Task Warnings')
+
+    def verify(self):
+        return []
+
+    def run(self):
+        self.add_warning(TaskWarning(errno.EBUSY, 'Warning 1'))
+        self.add_warning(TaskWarning(errno.ENXIO, 'Warning 2'))
+        self.add_warning(
+            TaskWarning(errno.EINVAL, 'Warning 3 with extra payload', extra={'hello': 'world'})
+        )
+
+
+@accepts(int)
+@description("Dummy Progress Task to test shit 1")
+class ProgressChildTask(ProgressTask):
+
+    @classmethod
+    def early_describe(cls):
+        return 'Dummy Progress Task'
+
+    def describe(self, duration):
+        return TaskDescription('Dummy time.sleep based progress task ({0} secs)'.format(duration))
+
+    def verify(self, duration):
+        return ['system']
+
+    def run(self, duration):
+        self.message = "Executing {0} Task with duration of {1}...".format(
+            self.__class__.__name__,
+            duration
+        )
+        multiplier = 100.0 / duration
+        for i in range(duration):
+            time.sleep(1)
+            self.set_progress((i + 1) * multiplier)
+
+
+@accepts()
+@description("Dummy Progess Master Task to test shit")
+class ProgressMasterTask(MasterProgressTask):
+
+    @classmethod
+    def early_describe(cls):
+        return 'Dummy Master Progress Task'
+
+    def describe(self):
+        return TaskDescription(
+            'Dummy MasterProgress Task that executes test.pchildtest twice with 5 second durations'
+        )
+
+    def verify(self):
+        return ['system']
+
+    def run(self):
+        self.set_progress(0, 'Starting Master Progress Test Task...')
+        self.join_subtasks(self.run_subtask('test.pchildtest', 1, weight=0.5))
+        self.join_subtasks(self.run_subtask('test.pchildtest', 1, weight=0.5))
+
+
+@accepts()
+@description("Dummy Progess Master Task to test shit")
+class NestedProgressMasterTask(MasterProgressTask):
+
+    @classmethod
+    def early_describe(cls):
+        return 'Dummy Master Progress Nested Task'
+
+    def describe(self):
+        return TaskDescription(
+            'Dummy NestedMasterProgress Task that executes test.masterprogresstask & test.pchildtest'
+        )
+
+    def verify(self):
+        return ['system']
+
+    def run(self):
+        self.set_progress(0, 'Starting Master Progress Test Task...')
+        self.join_subtasks(self.run_subtask('test.masterprogresstask', weight=0.67))
+        self.join_subtasks(self.run_subtask('test.pchildtest', 1, weight=0.33))
+
+
 def _init(dispatcher, plugin):
     plugin.register_task_handler('test.test_download', TestDownloadTask)
+    plugin.register_task_handler('test.test_warnings', TestWarningsTask)
+    plugin.register_task_handler('test.pchildtest', ProgressChildTask)
+    plugin.register_task_handler('test.masterprogresstask', ProgressMasterTask)
+    plugin.register_task_handler('test.nestedmasterprogresstask', NestedProgressMasterTask)

@@ -29,15 +29,22 @@ import errno
 import json
 from datastore import DatastoreException
 from datastore.restore import restore_db
-from freenas.dispatcher.rpc import RpcException, description, accepts, returns
-from freenas.dispatcher.rpc import SchemaHelper as h
-from task import Provider, Task, ProgressTask, TaskException, VerifyException
+from freenas.dispatcher.rpc import description
+from task import Task, ProgressTask, TaskException, TaskDescription
 
 
 FACTORY_DB = '/usr/local/share/datastore/factory.json'
 
 
+@description('Dumps current database state')
 class DownloadDatabaseTask(Task):
+    @classmethod
+    def early_describe(cls):
+        return 'Downloading current database state'
+
+    def describe(self):
+        return TaskDescription('Downloading current database state')
+
     def verify(self):
         return ['system']
 
@@ -45,7 +52,15 @@ class DownloadDatabaseTask(Task):
         pass
 
 
+@description('Uploads database state from file')
 class UploadDatabaseTask(Task):
+    @classmethod
+    def early_describe(cls):
+        return 'Loading database from file'
+
+    def describe(self):
+        return TaskDescription('Loading database from file')
+
     def verify(self):
         return ['system']
 
@@ -53,7 +68,15 @@ class UploadDatabaseTask(Task):
         pass
 
 
+@description('Restores database config to it\'s defaults')
 class RestoreFactoryConfigTask(ProgressTask):
+    @classmethod
+    def early_describe(cls):
+        return 'Restoring database defaults'
+
+    def describe(self):
+        return TaskDescription('Restoring database defaults')
+
     def verify(self):
         return ['root']
 

@@ -28,12 +28,13 @@
 import time
 from datastore import DatastoreException
 from datetime import datetime
-from freenas.dispatcher.rpc import generator
+from freenas.dispatcher.rpc import generator, description
 from event import EventSource
 from task import Provider
 from debug import AttachDirectory
 
 
+@description('Provides information about system log')
 class SyslogProvider(Provider):
     @generator
     def query(self, filter=None, params=None):

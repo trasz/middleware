@@ -30,7 +30,7 @@ import logging
 
 from datastore.config import ConfigNode
 from freenas.dispatcher.rpc import RpcException, SchemaHelper as h, description, accepts, returns, private
-from task import Task, Provider, TaskException, ValidationException
+from task import Task, Provider, TaskException, ValidationException, TaskDescription
 from debug import AttachFile
 
 
@@ -50,8 +50,12 @@ class NFSProvider(Provider):
 @description('Configure NFS service')
 @accepts(h.ref('service-nfs'))
 class NFSConfigureTask(Task):
-    def describe(self, share):
+    @classmethod
+    def early_describe(cls):
         return 'Configuring NFS service'
+
+    def describe(self, nfs):
+        return TaskDescription('Configuring NFS service')
 
     def verify(self, nfs):
         errors = []

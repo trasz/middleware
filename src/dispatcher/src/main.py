@@ -75,8 +75,8 @@ from services import (
 from schemas import register_general_purpose_schemas
 from balancer import Balancer
 from auth import PasswordAuthenticator, TokenStore, Token, TokenException, User, Service
-from freenas.utils import FaultTolerantLogHandler, load_module_from_file, xrecvmsg, xsendmsg, TraceLogger
-
+from freenas.utils import FaultTolerantLogHandler, load_module_from_file, xrecvmsg, xsendmsg
+from freenas.utils.trace_logger import TraceLogger, TRACE
 
 DEFAULT_CONFIGFILE = '/usr/local/etc/middleware.conf'
 LOGGING_FORMAT = '%(asctime)s %(levelname)s %(filename)s:%(lineno)d %(message)s'
@@ -526,7 +526,7 @@ class Dispatcher(object):
 
     def set_syslog_level(self, level):
         if level == 'TRACE':
-            log_level = logging.DEBUG - 5
+            log_level = TRACE
         else:
             log_level = getattr(logging, level, None)
 
@@ -1078,6 +1078,10 @@ class DispatcherConnection(ServerConnection):
                 self.emit_rpc_error(id, errno.EACCES, "Incorrect username or password")
                 return
 
+        if not user.has_role('wheel'):
+            self.emit_rpc_error(id, errno.EACCES, "Not authorized")
+            return
+
         if client_addr == 'unix':
             lifetime = None
 
@@ -1208,6 +1212,8 @@ class DispatcherConnection(ServerConnection):
             # the reconnect will just log the session back in
             self.dispatcher.token_store.revoke_token(self.token)
             self.transport.close()
+            if self in self.server.connections:
+                self.server.connections.remove(self)
         except WebSocketError as werr:
             # This error usually implies that the socket is dead
             # so just log it and move on

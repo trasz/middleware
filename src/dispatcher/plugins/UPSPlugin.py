@@ -36,7 +36,7 @@ import time
 from datastore.config import ConfigNode
 from freenas.dispatcher.rpc import RpcException, SchemaHelper as h, description, accepts, private, returns
 from lib.system import system, SubprocessException
-from task import Task, Provider, TaskException, ValidationException
+from task import Task, Provider, TaskException, ValidationException, TaskDescription
 
 logger = logging.getLogger('UPSPlugin')
 
@@ -143,8 +143,12 @@ class UPSProvider(Provider):
 @description('Configure UPS service')
 @accepts(h.ref('service-ups'))
 class UPSConfigureTask(Task):
-    def describe(self, share):
+    @classmethod
+    def early_describe(cls):
         return 'Configuring UPS service'
+
+    def describe(self, ups):
+        return TaskDescription('Configuring UPS service')
 
     def verify(self, ups):
         errors = ValidationException()

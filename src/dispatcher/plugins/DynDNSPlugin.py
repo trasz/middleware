@@ -28,7 +28,7 @@ import logging
 
 from datastore.config import ConfigNode
 from freenas.dispatcher.rpc import RpcException, SchemaHelper as h, description, accepts, returns, private
-from task import Task, Provider, TaskException, ValidationException
+from task import Task, Provider, TaskException, ValidationException, TaskDescription
 
 logger = logging.getLogger('DynDNSPlugin')
 
@@ -68,8 +68,12 @@ class DynDNSProvider(Provider):
 @description('Configure DynamicDNS service')
 @accepts(h.ref('service-dyndns'))
 class DynDNSConfigureTask(Task):
-    def describe(self, share):
+    @classmethod
+    def early_describe(cls):
         return 'Configuring DynamicDNS service'
+
+    def describe(self, dyndns):
+        return TaskDescription('Configuring DynamicDNS service')
 
     def verify(self, dyndns):
         errors = []

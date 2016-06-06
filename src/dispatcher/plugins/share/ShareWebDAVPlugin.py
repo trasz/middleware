@@ -23,12 +23,11 @@
 # POSSIBILITY OF SUCH DAMAGE.
 #
 #####################################################################
-import errno
 import logging
 import requests
 from io import StringIO
-from task import Task, Provider
-from freenas.dispatcher.rpc import RpcException, SchemaHelper as h, description, accepts, private
+from task import Task, Provider, TaskDescription
+from freenas.dispatcher.rpc import SchemaHelper as h, description, accepts, private
 from freenas.utils import normalize
 from lxml import etree
 
@@ -80,8 +79,12 @@ class WebDAVSharesProvider(Provider):
 @description("Adds new WebDAV share")
 @accepts(h.ref('share'))
 class CreateWebDAVShareTask(Task):
+    @classmethod
+    def early_describe(cls):
+        return "Creating WebDAV share"
+
     def describe(self, share):
-        return "Creating WebDAV share {0}".format(share['name'])
+        return TaskDescription("Creating WebDAV share {name}", name=share.get('name', '') if share else '')
 
     def verify(self, share):
         return ['service:webdav']
@@ -106,8 +109,13 @@ class CreateWebDAVShareTask(Task):
 @description("Updates existing WebDAV share")
 @accepts(str, h.ref('share'))
 class UpdateWebDAVShareTask(Task):
+    @classmethod
+    def early_describe(cls):
+        return "Updating WebDAV share"
+
     def describe(self, id, updated_fields):
-        return "Updating WebDAV share {0}".format(id)
+        share = self.datastore.get_by_id('shares', id)
+        return TaskDescription("Updating WebDAV share {name}", name=share.get('name', id) if share else id)
 
     def verify(self, id, updated_fields):
         return ['service:webdav']
@@ -128,8 +136,13 @@ class UpdateWebDAVShareTask(Task):
 @description("Removes WebDAV share")
 @accepts(str)
 class DeleteWebDAVShareTask(Task):
+    @classmethod
+    def early_describe(cls):
+        return "Deleting WebDAV share"
+
     def describe(self, id):
-        return "Deleting WebDAV share {0}".format(id)
+        share = self.datastore.get_by_id('shares', id)
+        return TaskDescription("Deleting WebDAV share {name}", name=share.get('name', id) if share else id)
 
     def verify(self, id):
         return ['service:webdav']
@@ -148,8 +161,12 @@ class DeleteWebDAVShareTask(Task):
 @description("Imports existing WebDAV share")
 @accepts(h.ref('share'))
 class ImportWebDAVShareTask(CreateWebDAVShareTask):
+    @classmethod
+    def early_describe(cls):
+        return "Importing WebDAV share"
+
     def describe(self, share):
-        return "Importing WebDAV share {0}".format(share['name'])
+        return TaskDescription("Importing WebDAV share {name}", name=share.get('name', '') if share else '')
 
     def verify(self, share):
         return super(ImportWebDAVShareTask, self).verify(share)

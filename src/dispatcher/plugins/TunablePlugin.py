@@ -28,8 +28,8 @@ import errno
 import logging
 import re
 from datastore import DatastoreException
-from task import Task, Provider, TaskException, ValidationException, VerifyException, query
-from freenas.dispatcher.rpc import RpcException, accepts, description, returns
+from task import Task, Provider, TaskException, ValidationException, VerifyException, query, TaskDescription
+from freenas.dispatcher.rpc import RpcException, accepts, description
 from freenas.dispatcher.rpc import SchemaHelper as h
 from lib.system import SubprocessException, system
 from bsd import sysctl
@@ -77,8 +77,12 @@ class TunablesProvider(Provider):
     h.required('var', 'value', 'type'),
 ))
 class TunableCreateTask(Task):
+    @classmethod
+    def early_describe(cls):
+        return "Creating Tunable"
+
     def describe(self, tunable):
-        return "Creating Tunable {0}".format(tunable['var'])
+        return TaskDescription("Creating Tunable {name}", name=tunable.get('var', '') if tunable else '')
 
     def verify(self, tunable):
 
@@ -136,6 +140,14 @@ class TunableCreateTask(Task):
 @description("Updates Tunable")
 @accepts(str, h.ref('tunable'))
 class TunableUpdateTask(Task):
+    @classmethod
+    def early_describe(cls):
+        return "Updating Tunable"
+
+    def describe(self, id, updated_fields):
+        tunable = self.datastore.get_by_id('tunables', id)
+        return TaskDescription("Updating Tunable {name}", name=tunable.get('var', id) if tunable else id)
+
     def verify(self, id, updated_fields):
 
         tunable = self.datastore.get_by_id('tunables', id)
@@ -149,8 +161,9 @@ class TunableUpdateTask(Task):
         ):
             errors.add((1, 'var'), 'This variable already exists.', code=errno.EEXIST)
 
-        if 'value' in updated_fields and '"' in updated_fields['value'] or "'" in updated_fields['value']:
-            errors.add((1, 'value'), 'Quotes are not allowed')
+        if 'value' in updated_fields:
+            if '"' in updated_fields['value'] or "'" in updated_fields['value']:
+                errors.add((1, 'value'), 'Quotes are not allowed')
 
         if 'type' in updated_fields:
             if updated_fields['type'] in ('LOADER', 'RC') and not VAR_LOADER_RC_RE.match(tunable['var']):
@@ -198,6 +211,14 @@ class TunableUpdateTask(Task):
 @description("Deletes Tunable")
 @accepts(str)
 class TunableDeleteTask(Task):
+    @classmethod
+    def early_describe(cls):
+        return "Deleting Tunable"
+
+    def describe(self, id):
+        tunable = self.datastore.get_by_id('tunables', id)
+        return TaskDescription("Deleting Tunable {name}", name=tunable.get('var', id) if tunable else id)
+
     def verify(self, id):
 
         tunable = self.datastore.get_by_id('tunables', id)

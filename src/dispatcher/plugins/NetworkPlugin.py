@@ -31,10 +31,10 @@ import logging
 import os
 from freenas.dispatcher.rpc import RpcException, description, accepts, returns
 from freenas.dispatcher.rpc import SchemaHelper as h
-from freenas.utils import normalize, first_or_default
+from freenas.utils import normalize
 from datastore.config import ConfigNode
 from gevent import hub
-from task import Provider, Task, TaskException, VerifyException, query, TaskWarning
+from task import Provider, Task, TaskException, TaskDescription, VerifyException, query, TaskWarning
 from debug import AttachFile, AttachCommandOutput
 
 
@@ -64,12 +64,16 @@ class NetworkProvider(Provider):
         ifaces = self.dispatcher.call_sync('networkd.configuration.query_interfaces')
         ifaces.pop('mgmt0', None)
         for i, v in ifaces.items():
-            if 'LOOPBACK' in v['flags']:
+            if (
+                'LOOPBACK' in v['flags'] or
+                v['link_state'] != 'LINK_STATE_UP' or
+                'UP' not in v['flags']
+            ):
                 continue
             for aliases in v['aliases']:
                 if aliases['address'] and aliases['type'] != 'LINK':
                     ips.append(aliases['address'])
-        return ips
+        return list(set(ips))
 
 
 @description("Provides access to network interface settings")
@@ -108,6 +112,13 @@ class HostsProvider(Provider):
 @description("Updates global network configuration settings")
 @accepts(h.ref('network-config'))
 class NetworkConfigureTask(Task):
+    @classmethod
+    def early_describe(cls):
+        return "Updating global network settings"
+
+    def describe(self, settings):
+        return TaskDescription("Updating global network settings")
+
     def verify(self, settings):
         return ['system']
 
@@ -128,7 +139,15 @@ class NetworkConfigureTask(Task):
     h.forbidden('id', 'status')
 ))
 @returns(str)
+@description('Creates network interface')
 class CreateInterfaceTask(Task):
+    @classmethod
+    def early_describe(cls):
+        return "Creating network interface"
+
+    def describe(self, iface):
+        return TaskDescription("Creating {name} network interface", name=iface['type'])
+
     def verify(self, iface):
         return ['system']
 
@@ -186,6 +205,14 @@ class CreateInterfaceTask(Task):
 @description("Deletes interface")
 @accepts(str)
 class DeleteInterfaceTask(Task):
+    @classmethod
+    def early_describe(cls):
+        return "Deleting network interface"
+
+    def describe(self, id):
+        iface = self.datastore.get_by_id('network.interfaces', id)
+        return TaskDescription("Deleting network interface {name}", name=iface.get('name', ''))
+
     def verify(self, id):
         iface = self.datastore.get_by_id('network.interfaces', id)
         if not iface:
@@ -215,6 +242,14 @@ class DeleteInterfaceTask(Task):
     h.forbidden('id', 'type', 'status')
 ))
 class ConfigureInterfaceTask(Task):
+    @classmethod
+    def early_describe(cls):
+        return "Updating configuration of network interface"
+
+    def describe(self, id, updated_fields):
+        iface = self.datastore.get_by_id('network.interfaces', id)
+        return TaskDescription("Updating configuration of network interface {name}", name=iface.get('name', ''))
+
     def verify(self, id, updated_fields):
         if not self.datastore.exists('network.interfaces', ('id', '=', id)):
             raise VerifyException(errno.ENOENT, 'Interface {0} does not exist'.format(id))
@@ -273,7 +308,7 @@ class ConfigureInterfaceTask(Task):
         try:
             self.dispatcher.call_sync(task, id)
         except RpcException as err:
-            raise TaskException(errno.ENXIO, 'Cannot reconfigure interface: {0}'.format(str(err)))
+            raise TaskException(err.code, 'Cannot reconfigure interface: {0}'.format(err.message))
 
         self.dispatcher.dispatch_event('network.interface.changed', {
             'operation': 'update',
@@ -284,6 +319,14 @@ class ConfigureInterfaceTask(Task):
 @description("Enables interface")
 @accepts(str)
 class InterfaceUpTask(Task):
+    @classmethod
+    def early_describe(cls):
+        return "Setting network interface up"
+
+    def describe(self, id):
+        iface = self.datastore.get_by_id('network.interfaces', id)
+        return TaskDescription("Setting network interface {name} up", name=iface.get('name', ''))
+
     def verify(self, id):
         iface = self.datastore.get_by_id('network.interfaces', id)
         if not iface:
@@ -309,6 +352,14 @@ class InterfaceUpTask(Task):
 @description("Disables interface")
 @accepts(str)
 class InterfaceDownTask(Task):
+    @classmethod
+    def early_describe(cls):
+        return "Setting network interface down"
+
+    def describe(self, id):
+        iface = self.datastore.get_by_id('network.interfaces', id)
+        return TaskDescription("Setting network interface {name} down", name=iface.get('name', ''))
+
     def verify(self, id):
         iface = self.datastore.get_by_id('network.interfaces', id)
         if not iface:
@@ -334,6 +385,14 @@ class InterfaceDownTask(Task):
 @description("Renews IP lease on interface")
 @accepts(str)
 class InterfaceRenewTask(Task):
+    @classmethod
+    def early_describe(cls):
+        return "Renewing IP address of network interface"
+
+    def describe(self, id):
+        iface = self.datastore.get_by_id('network.interfaces', id)
+        return TaskDescription("Renewing IP address of network interface {name}", name=iface.get('name', ''))
+
     def verify(self, id):
         interface = self.datastore.get_by_id('network.interfaces', id)
         if not interface:
@@ -365,6 +424,13 @@ class InterfaceRenewTask(Task):
     h.required('id', 'addresses')
 ))
 class AddHostTask(Task):
+    @classmethod
+    def early_describe(cls):
+        return "Adding static host"
+
+    def describe(self, host):
+        return TaskDescription("Adding static host {name}", name=host['id'])
+
     def verify(self, host):
         if self.datastore.exists('network.hosts', ('id', '=', host['id'])):
             raise VerifyException(errno.EEXIST, 'Host entry {0} already exists'.format(host['id']))
@@ -387,6 +453,13 @@ class AddHostTask(Task):
 @description("Updates host entry in the database")
 @accepts(str, h.ref('network-host'))
 class UpdateHostTask(Task):
+    @classmethod
+    def early_describe(cls):
+        return "Updating static host"
+
+    def describe(self, id, updated_fields):
+        return TaskDescription("Updating static host {name}", name=id)
+
     def verify(self, id, updated_fields):
         if not self.datastore.exists('network.hosts', ('id', '=', id)):
             raise VerifyException(errno.ENOENT, 'Host entry {0} does not exist'.format(id))
@@ -412,6 +485,13 @@ class UpdateHostTask(Task):
 @description("Deletes host entry from the database")
 @accepts(str)
 class DeleteHostTask(Task):
+    @classmethod
+    def early_describe(cls):
+        return "Deleting static host"
+
+    def describe(self, id, updated_fields):
+        return TaskDescription("Deleting static host {name}", name=id)
+
     def verify(self, id):
         if not self.datastore.exists('network.hosts', ('id', '=', id)):
             raise VerifyException(errno.ENOENT, 'Host entry {0} does not exist'.format(id))
@@ -438,6 +518,13 @@ class DeleteHostTask(Task):
     h.required('id', 'type', 'network', 'netmask', 'gateway')
 ))
 class AddRouteTask(Task):
+    @classmethod
+    def early_describe(cls):
+        return "Adding static route"
+
+    def describe(self, route):
+        return TaskDescription("Adding static route {name}", name=route['id'])
+
     def verify(self, route):
         if self.datastore.exists('network.routes', ('id', '=', route['id'])):
             raise VerifyException(errno.EEXIST, 'Route {0} exists'.format(route['id']))
@@ -491,6 +578,13 @@ class AddRouteTask(Task):
 @description("Updates static route in the system")
 @accepts(str, h.ref('network-route'))
 class UpdateRouteTask(Task):
+    @classmethod
+    def early_describe(cls):
+        return "Updating static route"
+
+    def describe(self, name, updated_fields):
+        return TaskDescription("Updating static route {name}", name=id)
+
     def verify(self, name, updated_fields):
         if not self.datastore.exists('network.routes', ('id', '=', name)):
             raise VerifyException(errno.ENOENT, 'Route {0} does not exist'.format(name))
@@ -552,14 +646,21 @@ class UpdateRouteTask(Task):
 @description("Deletes static route from the system")
 @accepts(str)
 class DeleteRouteTask(Task):
-    def verify(self, name):
-        if not self.datastore.exists('network.routes', ('id', '=', name)):
-            raise VerifyException(errno.ENOENT, 'route {0} does not exist'.format(name))
+    @classmethod
+    def early_describe(cls):
+        return "Deleting static route"
+
+    def describe(self, id):
+        return TaskDescription("Deleting static route {name}", name=id)
+
+    def verify(self, id):
+        if not self.datastore.exists('network.routes', ('id', '=', id)):
+            raise VerifyException(errno.ENOENT, 'route {0} does not exist'.format(id))
 
         return ['system']
 
-    def run(self, name):
-        self.datastore.delete('network.routes', name)
+    def run(self, id):
+        self.datastore.delete('network.routes', id)
         try:
             self.dispatcher.call_sync('networkd.configuration.configure_routes')
         except RpcException as e:
@@ -567,7 +668,7 @@ class DeleteRouteTask(Task):
 
         self.dispatcher.dispatch_event('network.route.changed', {
             'operation': 'delete',
-            'ids': [name]
+            'ids': [id]
         })
 
 
@@ -603,6 +704,8 @@ def _init(dispatcher, plugin):
             'type': {'$ref': 'network-interface-type'},
             'id': {'type': 'string'},
             'name': {'type': ['string', 'null']},
+            'created_at': {'type': 'datetime'},
+            'updated_at': {'type': 'datetime'},
             'enabled': {'type': 'boolean'},
             'dhcp': {'type': 'boolean'},
             'rtadv': {'type': 'boolean'},
@@ -789,6 +892,8 @@ def _init(dispatcher, plugin):
     plugin.register_task_handler('network.interface.renew', InterfaceRenewTask)
 
     plugin.register_event_handler('network.dns.configured', on_resolv_conf_change)
+    plugin.register_event_type('network.changed')
+    plugin.register_event_type('network.config.changed')
     plugin.register_event_type('network.interface.changed')
     plugin.register_event_type('network.host.changed')
     plugin.register_event_type('network.route.changed')

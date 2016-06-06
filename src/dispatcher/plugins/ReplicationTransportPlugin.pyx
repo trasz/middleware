@@ -38,8 +38,8 @@ from freenas.dispatcher.client import Client
 from freenas.dispatcher.fd import FileDescriptor
 from paramiko import AuthenticationException
 from freenas.dispatcher.rpc import RpcException, SchemaHelper as h, description, accepts, private
-from utils import get_replication_client
-from task import Task, ProgressTask, Provider, TaskException, TaskWarning, VerifyException, query
+from utils import get_replication_client, call_task_and_check_state
+from task import Task, ProgressTask, Provider, TaskException, TaskWarning, VerifyException, query, TaskDescription
 from libc.stdlib cimport malloc, free
 from posix.unistd cimport read, write
 from libc.stdint cimport *
@@ -206,6 +206,7 @@ cdef uint32_t write_fd(int fd, void *buf, uint32_t nbytes) nogil:
             return done
 
 
+@description('Provides information about known peers')
 class HostProvider(Provider):
     @query('known-host')
     def query(self, filter=None, params=None):
@@ -225,6 +226,7 @@ class HostProvider(Provider):
         return [i for i in keys]
 
 
+@description('Provides information about replication transport layer')
 class TransportProvider(Provider):
     def __init__(self):
         super(TransportProvider, self).__init__()
@@ -264,6 +266,13 @@ class TransportSendTask(Task):
         self.sock = None
         self.conn = None
 
+    @classmethod
+    def early_describe(cls):
+        return "Sending replication stream"
+
+    def describe(self, fd, transport):
+        return TaskDescription("Sending replication stream to {name}", name=transport['client_address'])
+
     def verify(self, fd, transport):
         client_address = transport.get('client_address')
         if not client_address:
@@ -286,10 +295,10 @@ class TransportSendTask(Task):
         return []
 
     def run(self, fd, transport):
-        cdef uint8_t *token_buffer
+        cdef uint8_t *token_buffer = NULL
         cdef int ret
         cdef uint32_t token_size
-        cdef uint32_t *buffer
+        cdef uint32_t *buffer = NULL
         cdef int ret_wr
         cdef uint32_t buffer_size
         cdef uint32_t header_size = 2 * sizeof(uint32_t)
@@ -477,6 +486,7 @@ class TransportSendTask(Task):
                 if self.conn:
                     self.conn.shutdown(socket.SHUT_RDWR)
                     self.conn.close()
+                    self.conn = None
 
                 self.finished.wait()
 
@@ -488,6 +498,7 @@ class TransportSendTask(Task):
             if self.sock:
                 self.sock.shutdown(socket.SHUT_RDWR)
                 self.sock.close()
+                self.sock = None
             close_fds(self.fds)
 
     def get_recv_status(self, status):
@@ -497,9 +508,11 @@ class TransportSendTask(Task):
             if self.conn:
                 self.conn.shutdown(socket.SHUT_RDWR)
                 self.conn.close()
+                self.conn = None
             if self.sock:
                 self.sock.shutdown(socket.SHUT_RDWR)
                 self.sock.close()
+                self.sock = None
             self.finished.set_exception(
                 TaskException(
                     error['code'],
@@ -517,6 +530,14 @@ class TransportSendTask(Task):
         self.aborted = True
         self.finished.set(True)
         close_fds(self.fds)
+        if self.conn:
+            self.conn.shutdown(socket.SHUT_RDWR)
+            self.conn.close()
+            self.conn = None
+        if self.sock:
+            self.sock.shutdown(socket.SHUT_RDWR)
+            self.sock.close()
+            self.sock = None
 
 
 @private
@@ -531,6 +552,14 @@ class TransportReceiveTask(ProgressTask):
         self.addr = None
         self.aborted = False
         self.fds = []
+        self.sock = None
+
+    @classmethod
+    def early_describe(cls):
+        return "Receiving replication stream"
+
+    def describe(self, transport):
+        return TaskDescription("Receiving replication stream from {name}", name=transport['server_address'])
 
     def verify(self, transport):
         if 'auth_token' not in transport:
@@ -560,8 +589,8 @@ class TransportReceiveTask(ProgressTask):
     def run(self, transport):
         cdef uint8_t *token_buf
         cdef int ret
-        cdef uint32_t *buffer
-        cdef uint32_t *header_buffer
+        cdef uint32_t *buffer = NULL
+        cdef uint32_t *header_buffer = NULL
         cdef uint32_t length
         cdef uint32_t buffer_size
         cdef uint32_t header_size = 2 * sizeof(uint32_t)
@@ -569,7 +598,7 @@ class TransportReceiveTask(ProgressTask):
         cdef int header_rd
         cdef int header_wr
 
-        sock = None
+        progress_t = None
         try:
             buffer_size = transport.get('buffer_size', 1024*1024)
 
@@ -589,26 +618,26 @@ class TransportReceiveTask(ProgressTask):
             for conn_option in socket.getaddrinfo(server_address, server_port, socket.AF_UNSPEC, socket.SOCK_STREAM):
                 af, sock_type, proto, canonname, addr = conn_option
                 try:
-                    sock = socket.socket(af, sock_type, proto)
+                    self.sock = socket.socket(af, sock_type, proto)
                 except OSError:
-                    sock = None
+                    self.sock = None
                     continue
                 try:
-                    sock.connect(addr)
+                    self.sock.connect(addr)
                 except OSError:
-                    sock.close()
-                    sock = None
+                    self.sock.close()
+                    self.sock = None
                     continue
                 break
 
-            if sock is None:
+            if self.sock is None:
                 raise TaskException(EACCES, 'Could not connect to a socket at address {0}'.format(server_address))
             self.addr = addr
             logger.debug('Connected to a TCP socket at {0}:{1}'.format(*addr))
 
-            sock.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, buffer_size)
+            self.sock.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, buffer_size)
 
-            conn_fd = os.dup(sock.fileno())
+            conn_fd = os.dup(self.sock.fileno())
             self.fds.append(conn_fd)
 
             plugins = transport.get('transport_plugins', [])
@@ -634,7 +663,7 @@ class TransportReceiveTask(ProgressTask):
                         'Registered {0} transport layer plugin for {1}:{2} connection'.format(plugin['name'], *addr)
                     )
 
-            ret = write_fd(sock.fileno(), token_buf, token_size)
+            ret = write_fd(self.sock.fileno(), token_buf, token_size)
             if ret == -1:
                 raise TaskException(ECONNABORTED, 'Transport connection closed unexpectedly')
             elif ret != token_size:
@@ -701,11 +730,12 @@ class TransportReceiveTask(ProgressTask):
         finally:
             try:
                 if not self.aborted:
-                    if header_buffer[0] != transport_header_magic:
-                        raise TaskException(
-                            EINVAL,
-                            'Bad magic {0} received. Expected {1}'.format(header_buffer[0], transport_header_magic)
-                        )
+                    if header_buffer:
+                        if header_buffer[0] != transport_header_magic:
+                            raise TaskException(
+                                EINVAL,
+                                'Bad magic {0} received. Expected {1}'.format(header_buffer[0], transport_header_magic)
+                            )
                     if ret == -1:
                         raise TaskException(
                             errno,
@@ -721,13 +751,15 @@ class TransportReceiveTask(ProgressTask):
                     self.join_subtasks(*subtasks)
             finally:
                 self.running = False
-                progress_t.join()
+                if progress_t:
+                    progress_t.join()
                 logger.debug('Receive from {0}:{1} finished. Closing connection'.format(*addr))
                 free(buffer)
                 free(header_buffer)
-                if sock:
-                    sock.shutdown(socket.SHUT_RDWR)
-                    sock.close()
+                if self.sock:
+                    self.sock.shutdown(socket.SHUT_RDWR)
+                    self.sock.close()
+                    self.sock = None
                 close_fds(self.fds)
 
     def count_progress(self):
@@ -753,6 +785,10 @@ class TransportReceiveTask(ProgressTask):
     def abort(self):
         self.aborted = True
         close_fds(self.fds)
+        if self.sock:
+            self.sock.shutdown(socket.SHUT_RDWR)
+            self.sock.close()
+            self.sock = None
 
 
 @private
@@ -763,6 +799,16 @@ class TransportCompressTask(Task):
         super(TransportCompressTask, self).__init__(dispatcher, datastore)
         self.fds = []
         self.aborted = False
+
+    @classmethod
+    def early_describe(cls):
+        return "Compressing replication stream"
+
+    def describe(self, plugin):
+        return TaskDescription(
+            "Compressing replication stream using the {method} method",
+            method=plugin.get('level', 'DEFAULT')
+        )
 
     def verify(self, plugin):
         if 'read_fd' not in plugin:
@@ -782,8 +828,8 @@ class TransportCompressTask(Task):
         cdef int wr_fd = plugin['write_fd'].fd
         cdef uint32_t have
         cdef z_stream strm
-        cdef unsigned char *in_buffer
-        cdef unsigned char *out_buffer
+        cdef unsigned char *in_buffer = NULL
+        cdef unsigned char *out_buffer = NULL
         cdef uint8_t err = 0
         cdef uint32_t buffer_size = plugin.get('buffer_size', 1024*1024)
 
@@ -877,6 +923,13 @@ class TransportDecompressTask(Task):
         self.fds = []
         self.aborted = False
 
+    @classmethod
+    def early_describe(cls):
+        return "Decompressing the replication stream"
+
+    def describe(self, plugin):
+        return TaskDescription("Decompressing the replication stream")
+
     def verify(self, plugin):
         if 'read_fd' not in plugin:
             raise VerifyException(ENOENT, 'Read file descriptor is not specified')
@@ -894,8 +947,8 @@ class TransportDecompressTask(Task):
         cdef int wr_fd = plugin['write_fd'].fd
         cdef uint32_t have
         cdef z_stream strm
-        cdef unsigned char *in_buffer
-        cdef unsigned char *out_buffer
+        cdef unsigned char *in_buffer = NULL
+        cdef unsigned char *out_buffer = NULL
         cdef uint32_t buffer_size = plugin.get('buffer_size', 1024*1024)
 
         self.fds.append(rd_fd)
@@ -989,6 +1042,16 @@ class TransportEncryptTask(Task):
         self.fds = []
         self.aborted = False
 
+    @classmethod
+    def early_describe(cls):
+        return "Encrypting the replication stream"
+
+    def describe(self, plugin):
+        return TaskDescription(
+            "Encrypting the replication stream using the {algorithm} algorithm",
+            algorithm=plugin.get('type', 'AES128')
+        )
+
     def verify(self, plugin):
         if 'auth_token' not in plugin:
             raise VerifyException(ENOENT, 'Authentication token is missing')
@@ -1002,8 +1065,8 @@ class TransportEncryptTask(Task):
         return []
 
     def run(self, plugin):
-        cdef uint32_t *plainbuffer
-        cdef unsigned char *cipherbuffer
+        cdef uint32_t *plainbuffer = NULL
+        cdef unsigned char *cipherbuffer = NULL
         cdef uint8_t *iv
         cdef uint8_t *key
         cdef uint8_t *byte_buffer
@@ -1242,6 +1305,16 @@ class TransportDecryptTask(Task):
         self.fds = []
         self.aborted = False
 
+    @classmethod
+    def early_describe(cls):
+        return "Decrypting replication stream"
+
+    def describe(self, plugin):
+        return TaskDescription(
+            "Decrypting replication stream using the {algorithm} algorithm",
+            algorithm=plugin.get('type', 'AES128')
+        )
+
     def verify(self, plugin):
         if 'auth_token' not in plugin:
             raise VerifyException(ENOENT, 'Authentication token is missing')
@@ -1255,12 +1328,12 @@ class TransportDecryptTask(Task):
         return []
 
     def run(self, plugin):
-        cdef uint32_t *plainbuffer
-        cdef uint32_t *header_buffer
-        cdef unsigned char *cipherbuffer
+        cdef uint32_t *plainbuffer = NULL
+        cdef uint32_t *header_buffer = NULL
+        cdef unsigned char *cipherbuffer = NULL
         cdef uint8_t *byte_buffer
-        cdef uint8_t *iv
-        cdef uint8_t *key
+        cdef uint8_t *iv = NULL
+        cdef uint8_t *key = NULL
         cdef uint8_t *py_iv_t
         cdef uint8_t *py_key_t
         cdef uint32_t key_size
@@ -1443,10 +1516,11 @@ class TransportDecryptTask(Task):
                 if not ctx:
                     raise TaskException(errno, 'Cryptographic context creation failed')
 
-                magic = header_buffer[0]
-                if magic:
-                    if magic not in (encrypt_rekey_magic, encrypt_transfer_magic):
-                        raise TaskException(EINVAL, 'Invalid magic received {0}'.format(magic))
+                if header_buffer:
+                    magic = header_buffer[0]
+                    if magic:
+                        if magic not in (encrypt_rekey_magic, encrypt_transfer_magic):
+                            raise TaskException(EINVAL, 'Invalid magic received {0}'.format(magic))
 
             with nogil:
                 EVP_CIPHER_CTX_free(ctx)
@@ -1471,6 +1545,16 @@ class TransportThrottleTask(Task):
         self.fds = []
         self.aborted = False
 
+    @classmethod
+    def early_describe(cls):
+        return "Throttling replication stream"
+
+    def describe(self, plugin):
+        return TaskDescription(
+            "Throttling replication stream to {throttle} iB/s",
+            throttle=plugin.get('buffer_size', 50*1024*1024)
+        )
+
     def verify(self, plugin):
         if 'read_fd' not in plugin:
             raise VerifyException(ENOENT, 'Read file descriptor is not specified')
@@ -1481,7 +1565,7 @@ class TransportThrottleTask(Task):
         return []
 
     def run(self, plugin):
-        cdef uint8_t *buffer
+        cdef uint8_t *buffer = NULL
         cdef uint32_t buffer_size
         cdef int ret
         cdef int ret_wr
@@ -1565,10 +1649,14 @@ class TransportThrottleTask(Task):
 @description('Exchange keys with remote machine for replication purposes')
 @accepts(str, str, str, int)
 class HostsPairCreateTask(Task):
-    def describe(self, username, remote, password, port=22):
-        return 'Exchange keys with remote machine for replication purposes'
+    @classmethod
+    def early_describe(cls):
+        return 'Exchanging SSH keys with remote host'
 
-    def verify(self, username, remote, password):
+    def describe(self, username, remote, password, port=22):
+        return TaskDescription('Exchanging SSH keys with the remote {name}', name=remote)
+
+    def verify(self, username, remote, password, port=22):
         if self.datastore.exists('replication.known_hosts', ('id', '=', remote)):
             raise VerifyException(EEXIST, 'Known hosts entry for {0} already exists'.format(remote))
 
@@ -1591,7 +1679,8 @@ class HostsPairCreateTask(Task):
 
         local_ssh_config = self.dispatcher.call_sync('service.sshd.get_config')
 
-        remote_client.call_task_sync(
+        call_task_and_check_state(
+            remote_client,
             'replication.known_host.create',
             {
                 'name': ip_at_remote_side,
@@ -1620,6 +1709,13 @@ class HostsPairCreateTask(Task):
 @description('Create known host entry in database')
 @accepts(h.ref('known-host'))
 class KnownHostCreateTask(Task):
+    @classmethod
+    def early_describe(cls):
+        return 'Creating a known host entry'
+
+    def describe(self, known_host):
+        return TaskDescription('Creating a known host entry for the remote {name}', name=known_host['name'])
+
     def verify(self, known_host):
         if self.datastore.exists('replication.known_hosts', ('id', '=', known_host['name'])):
             raise VerifyException(EEXIST, 'Known hosts entry for {0} already exists'.format(known_host['name']))
@@ -1640,6 +1736,13 @@ class KnownHostCreateTask(Task):
 @description('Remove keys making local and remote accessible from each other for replication user')
 @accepts(str)
 class HostsPairDeleteTask(Task):
+    @classmethod
+    def early_describe(cls):
+        return 'Deleting SSH association'
+
+    def describe(self, remote):
+        return TaskDescription('Deleting SSH association with the remote {name}', name=remote)
+
     def verify(self, remote):
         if not self.datastore.exists('replication.known_hosts', ('id', '=', remote)):
             raise VerifyException(ENOENT, 'Known hosts entry for {0} does not exist'.format(remote))
@@ -1647,11 +1750,13 @@ class HostsPairDeleteTask(Task):
         return ['system']
 
     def run(self, remote):
+        remote_client = None
         try:
             remote_client = get_replication_client(self.dispatcher, remote)
 
             ip_at_remote_side = remote_client.call_sync('management.get_sender_address').split(',', 1)[0]
-            remote_client.call_task_sync(
+            call_task_and_check_state(
+                remote_client,
                 'replication.known_host.delete',
                 ip_at_remote_side
             )
@@ -1671,13 +1776,21 @@ class HostsPairDeleteTask(Task):
             remote
         ))
 
-        remote_client.disconnect()
+        if remote_client:
+            remote_client.disconnect()
 
 
 @private
 @description('Remove known host entry from database')
 @accepts(str)
 class KnownHostDeleteTask(Task):
+    @classmethod
+    def early_describe(cls):
+        return 'Deleting known host entry'
+
+    def describe(self, name):
+        return TaskDescription('Deleting the known host entry for the remote {name}', name=name)
+
     def verify(self, name):
         if not self.datastore.exists('replication.known_hosts', ('id', '=', name)):
             raise VerifyException(ENOENT, 'Known hosts entry for {0} does not exist'.format(name))
@@ -1710,6 +1823,13 @@ class KnownHostDeleteTask(Task):
 @description('Update SSH port number in remote known host entry')
 @accepts(str, int)
 class HostsPairPortUpdateTask(Task):
+    @classmethod
+    def early_describe(cls):
+        return 'Updating the SSH port number in the known host entry'
+
+    def describe(self, name, port):
+        return TaskDescription('Updating the SSH port number in the known host entry of the {name}', name=name)
+
     def verify(self, name, port):
         if not self.datastore.exists('replication.known_hosts', ('id', '=', name)):
             raise VerifyException(ENOENT, 'Known hosts entry for {0} does not exist'.format(name))
@@ -1720,7 +1840,7 @@ class HostsPairPortUpdateTask(Task):
         remote_client = get_replication_client(self.dispatcher, name)
         ip_at_remote_side = remote_client.call_sync('management.get_sender_address').split(',', 1)[0]
 
-        remote_client.call_task_sync('replication.known_host.update_port', ip_at_remote_side, port)
+        call_task_and_check_state(remote_client, 'replication.known_host.update_port', ip_at_remote_side, port)
         remote_client.disconnect()
 
 
@@ -1728,6 +1848,13 @@ class HostsPairPortUpdateTask(Task):
 @description('Update SSH port number in known host entry')
 @accepts(str, int)
 class KnownHostPortUpdateTask(Task):
+    @classmethod
+    def early_describe(cls):
+        return 'Updating the SSH port number used for communication with remote host'
+
+    def describe(self, name, port):
+        return TaskDescription('Updating the SSH port number used to connect to the {name}', name=name)
+
     def verify(self, name, port):
         if not self.datastore.exists('replication.known_hosts', ('id', '=', name)):
             raise VerifyException(ENOENT, 'Known hosts entry for {0} does not exist'.format(name))

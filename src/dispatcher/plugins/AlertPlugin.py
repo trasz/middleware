@@ -38,7 +38,7 @@ from freenas.dispatcher.rpc import (
     returns,
     private
 )
-from task import Provider, Task, TaskException, VerifyException, query
+from task import Provider, Task, TaskException, TaskDescription, VerifyException, query
 from freenas.utils import normalize
 
 logger = logging.getLogger('AlertPlugin')
@@ -55,7 +55,7 @@ class AlertsProvider(Provider):
 
     @private
     @accepts(str, str)
-    @returns(h.one_of(int, None))
+    @returns(h.one_of(h.ref('alert'), None))
     def get_active_alert(self, cls, target):
         return self.datastore.query(
             'alerts',
@@ -100,13 +100,13 @@ class AlertsProvider(Provider):
             'when': datetime.utcnow(),
             'dismissed': False,
             'active': True,
-            'one_shot': False
+            'one_shot': False,
+            'severity': cls['severity']
         })
 
         alert.update({
             'type': cls['type'],
             'subtype': cls['subtype'],
-            'severity': cls['severity'],
             'send_count': 0
         })
 
@@ -166,8 +166,12 @@ class AlertsFiltersProvider(Provider):
     h.required('id')
 ))
 class AlertFilterCreateTask(Task):
+    @classmethod
+    def early_describe(cls):
+        return 'Creating alert filter'
+
     def describe(self, alertfilter):
-        return 'Creating alert filter {0}'.format(alertfilter['name'])
+        return TaskDescription('Creating alert filter {name}', name=alertfilter.get('name', '') if alertfilter else '')
 
     def verify(self, alertfilter):
         return []
@@ -184,9 +188,13 @@ class AlertFilterCreateTask(Task):
 @description("Deletes the specified Alert Filter")
 @accepts(str)
 class AlertFilterDeleteTask(Task):
+    @classmethod
+    def early_describe(cls):
+        return 'Deleting alert filter'
+
     def describe(self, id):
         alertfilter = self.datastore.get_by_id('alert.filters', id)
-        return 'Deleting alert filter {0}'.format(alertfilter['name'])
+        return TaskDescription('Deleting alert filter {name}', name=alertfilter.get('name', id) if alertfilter else id)
 
     def verify(self, id):
 
@@ -217,9 +225,13 @@ class AlertFilterDeleteTask(Task):
 @description("Updates the specified Alert Filter")
 @accepts(str, h.ref('alert-filter'))
 class AlertFilterUpdateTask(Task):
+    @classmethod
+    def early_describe(cls):
+        return 'Updating alert filter'
+
     def describe(self, id, updated_fields):
         alertfilter = self.datastore.get_by_id('alert.filters', id)
-        return 'Updating alert filter {0}'.format(alertfilter['id'])
+        return TaskDescription('Updating alert filter {name}', name=alertfilter.get('name', id) if alertfilter else id)
 
     def verify(self, id, updated_fields):
         return []
@@ -241,7 +253,16 @@ class AlertFilterUpdateTask(Task):
         })
 
 
+@accepts(str, h.ref('alert-severity'))
+@description('Sends user alerts')
 class SendAlertTask(Task):
+    @classmethod
+    def early_describe(cls):
+        return 'Sending user alert'
+
+    def describe(self, message, priority=None):
+        return TaskDescription('Sending user alert')
+
     def verify(self, message, priority=None):
         return []
 
@@ -253,7 +274,8 @@ class SendAlertTask(Task):
             'class': 'UserMessage',
             'severity': priority,
             'title': 'Message from user {0}'.format(self.user),
-            'description': message
+            'description': message,
+            'one_shot': True
         })
 
 
@@ -263,17 +285,26 @@ def _init(dispatcher, plugin):
         'enum': ['CRITICAL', 'WARNING', 'INFO'],
     })
 
+    plugin.register_schema_definition('alert-class-id', {
+        'type': 'string',
+        'enum': dispatcher.datastore.query('alert.classes', select='id')
+    })
+
     plugin.register_schema_definition('alert', {
         'type': 'object',
         'properties': {
             'id': {'type': 'integer'},
-            'class': {'type': 'string'},
-            'type': {'type': 'string'},
+            'class': {'$ref': 'alert-class-id'},
+            'type': {
+                'type': 'string',
+                'enum': ['SYSTEM', 'VOLUME', 'DISK']
+            },
             'subtype': {'type': 'string'},
+            'severity': {'$ref': 'alert-severity'},
             'target': {'type': 'string'},
             'title': {'type': 'string'},
             'description': {'type': 'string'},
-            'source': {'type': 'string'},
+            'user': {'type': 'string'},
             'happened_at': {'type': 'string'},
             'cancelled_at': {'type': ['string', 'null']},
             'dismissed_at': {'type': ['string', 'null']},
@@ -339,7 +370,7 @@ def _init(dispatcher, plugin):
         'additionalProperties': {
             'type': 'object',
             'properties': {
-                'id': {'type': 'string'},
+                'id': {'$ref': 'alert-class-id'},
                 'type': {'type': 'string'},
                 'subtype': {'type': 'string'},
                 'severity': {'$ref': 'alert-severity'}

@@ -140,8 +140,12 @@ class UserCreateTask(Task):
         self.id = None
         self.created_group = False
 
+    @classmethod
+    def early_describe(cls):
+        return "Creating user"
+
     def describe(self, user):
-        return "Adding user {0}".format(user['username'])
+        return TaskDescription("Adding user {name}", name=user['username'])
 
     def verify(self, user):
         errors = ValidationException()
@@ -202,18 +206,19 @@ class UserCreateTask(Task):
                     'password_changed_at': datetime.utcnow()
                 })
 
-            if user.get('group') is None:
-                try:
-                    result = self.join_subtasks(self.run_subtask('group.create', {
-                        'gid': uid,
-                        'name': user['username']
-                    }))
-                except RpcException as err:
-                    raise err
+        if user.get('group') is None:
+            try:
+                result = self.join_subtasks(self.run_subtask('group.create', {
+                    'gid': uid,
+                    'name': user['username']
+                }))
+            except RpcException as err:
+                raise err
 
-                user['group'] = result[0]
-                self.created_group = result[0]
+            user['group'] = result[0]
+            self.created_group = result[0]
 
+        try:
             id = self.datastore.insert('users', user)
             self.id = id
             self.dispatcher.call_sync('etcd.generation.generate_group', 'accounts')
@@ -227,7 +232,7 @@ class UserCreateTask(Task):
         except RpcException as e:
             raise TaskException(
                 errno.ENXIO,
-                'Cannot regenerate users file, maybe etcd service is offline. Actual Error: {0}'.format(e)
+                'Cannot regenerate users file: {0}'.format(e)
             )
 
         volumes_root = self.dispatcher.call_sync('volume.get_volumes_root')
@@ -257,10 +262,6 @@ class UserCreateTask(Task):
         return uid
 
     def rollback(self, user):
-        if user['home'] not in (None, '/nonexistent'):
-            if os.path.isdir(user['home']):
-                os.rmdir(user['home'])
-
         if self.datastore.exists('users', ('id', '=', self.id)):
             self.datastore.delete('users', self.id)
             self.dispatcher.call_sync('etcd.generation.generate_group', 'accounts')
@@ -272,9 +273,13 @@ class UserCreateTask(Task):
 @description("Deletes an user from the system")
 @accepts(str)
 class UserDeleteTask(Task):
+    @classmethod
+    def early_describe(cls):
+        return "Deleting user"
+
     def describe(self, id):
         user = self.datastore.get_by_id('users', id)
-        return "Deleting user {0}".format(user['username'] if user else id)
+        return TaskDescription("Deleting user {name}", name=user['username'] if user else id)
 
     def verify(self, id):
         user = self.datastore.get_by_id('users', id)
@@ -296,6 +301,12 @@ class UserDeleteTask(Task):
                     errno.EBUSY,
                     'Group {0} ({1}) left behind, you need to delete it separately'.format(group['name'], group['gid']))
                 )
+
+            if user.get('smbhash'):
+                try:
+                    system('/usr/local/bin/pdbedit', '-x', user['username'])
+                except SubprocessException as e:
+                    pass
 
             self.datastore.delete('users', id)
             self.dispatcher.call_sync('etcd.generation.generate_group', 'accounts')
@@ -321,6 +332,14 @@ class UserUpdateTask(Task):
         super(UserUpdateTask, self).__init__(dispatcher, datastore)
         self.original_user = None
 
+    @classmethod
+    def early_describe(cls):
+        return "Updating user"
+
+    def describe(self, id, updated_fields):
+        user = self.datastore.get_by_id('users', id)
+        return TaskDescription("Updating user {name}", name=user['username'] if user else id)
+
     def verify(self, id, updated_fields):
         user = self.datastore.get_by_id('users', id)
         errors = ValidationException()
@@ -330,6 +349,7 @@ class UserUpdateTask(Task):
                 (1, 'id'), "User with id: {0} does not exist".format(id), code=errno.ENOENT
             )
             raise errors
+
         if user.get('builtin'):
             if 'home' in updated_fields:
                 errors.add(
@@ -350,11 +370,11 @@ class UserUpdateTask(Task):
                     (1, 'locked'), "Cannot change builtin user's locked flag", code=errno.EPERM
                 )
 
+        if updated_fields.get('full_name') and ':' in updated_fields['full_name']:
+            errors.add((1, 'full_name'), 'The character ":" is not allowed')
+
         if 'groups' in updated_fields and len(updated_fields['groups']) > 64:
             errors.add((1, 'groups'), 'User cannot belong to more than 64 auxiliary groups')
-
-        if 'full_name' in updated_fields and ':' in updated_fields['full_name']:
-            errors.add((1, 'full_name'), 'The character ":" is not allowed')
 
         if 'username' in updated_fields:
             if self.datastore.exists('users', ('username', '=', updated_fields['username']), ('id', '!=', id)):
@@ -403,7 +423,7 @@ class UserUpdateTask(Task):
         except DatastoreException as e:
             raise TaskException(errno.EBADMSG, 'Cannot update user: {0}'.format(str(e)))
         except RpcException as e:
-            raise TaskException(errno.ENXIO, 'Cannot regenerate users file, etcd service is offline')
+            raise TaskException(e.code, 'Cannot regenerate users file: {0}'.format(e.message))
 
         volumes_root = self.dispatcher.call_sync('volume.get_volumes_root')
         if user['home'].startswith(volumes_root):
@@ -448,8 +468,12 @@ class UserUpdateTask(Task):
     h.forbidden('builtin')
 ))
 class GroupCreateTask(Task):
+    @classmethod
+    def early_describe(cls):
+        return "Creating group"
+
     def describe(self, group):
-        return "Adding group {0}".format(group['name'])
+        return TaskDescription("Adding group {name}", name=group['name'])
 
     def verify(self, group):
         errors = ValidationException()
@@ -492,7 +516,7 @@ class GroupCreateTask(Task):
         except DatastoreException as e:
             raise TaskException(errno.EBADMSG, 'Cannot add group: {0}'.format(str(e)))
         except RpcException as e:
-            raise TaskException(errno.ENXIO, 'Cannot regenerate groups file, etcd service is offline')
+            raise TaskException(e.code, 'Cannot regenerate groups file: {0}'.format(e.message))
 
         self.dispatcher.dispatch_event('group.changed', {
             'operation': 'create',
@@ -511,8 +535,13 @@ class GroupCreateTask(Task):
     )
 )
 class GroupUpdateTask(Task):
+    @classmethod
+    def early_describe(cls):
+        return "Updating group"
+
     def describe(self, id, updated_fields):
-        return "Deleting group {0}".format(id)
+        group = self.datastore.get_by_id('groups', id)
+        return TaskDescription("Updating group {name}", name=group['name'] if group else id)
 
     def verify(self, id, updated_fields):
         errors = ValidationException()
@@ -546,7 +575,7 @@ class GroupUpdateTask(Task):
         except DatastoreException as e:
             raise TaskException(errno.EBADMSG, 'Cannot update group: {0}'.format(str(e)))
         except RpcException as e:
-            raise TaskException(errno.ENXIO, 'Cannot regenerate groups file, etcd service is offline')
+            raise TaskException(e.code, 'Cannot regenerate groups file: {0}'.format(e.message))
 
         self.dispatcher.dispatch_event('group.changed', {
             'operation': 'update',
@@ -557,8 +586,13 @@ class GroupUpdateTask(Task):
 @description("Deletes a group")
 @accepts(str)
 class GroupDeleteTask(Task):
-    def describe(self, gid):
-        return "Deleting group {0}".format(gid)
+    @classmethod
+    def early_describe(cls):
+        return "Deleting group"
+
+    def describe(self, id):
+        group = self.datastore.get_by_id('groups', id)
+        return TaskDescription("Deleting group {name}", name=group['name'] if group else id)
 
     def verify(self, id):
         # Check if group exists

@@ -37,9 +37,9 @@ from freenas.dispatcher.rpc import (
     RpcException, description, accepts, returns, pass_sender, private
 )
 from freenas.dispatcher.rpc import SchemaHelper as h
-from task import Provider, Task, TaskStatus, TaskWarning, VerifyException, TaskException
+from task import Provider, Task, TaskStatus, TaskWarning, VerifyException, TaskException, TaskDescription
 from auth import FileToken
-from freenas.utils.query import wrap
+from freenas.utils.permissions import modes_to_oct, get_type
 
 
 @description("Provides informations filesystem structure")
@@ -130,7 +130,7 @@ class FilesystemProvider(Provider):
         try:
             f = open(path, 'rb')
         except OSError as e:
-            raise RpcException(e.errno, e.message)
+            raise RpcException(e.errno, e)
 
         token = self.dispatcher.token_store.issue_token(FileToken(
             user=sender.user,
@@ -149,7 +149,7 @@ class FilesystemProvider(Provider):
         try:
             f = open(dest_path, 'wb')
         except OSError as e:
-            raise RpcException(e.errno, e.message)
+            raise RpcException(e.errno, e)
 
         token = self.dispatcher.token_store.issue_token(FileToken(
             user=sender.user,
@@ -182,7 +182,15 @@ class FilesystemProvider(Provider):
 
 @accepts(str)
 @private
+@description('Downloads a file')
 class DownloadFileTask(Task):
+    @classmethod
+    def early_describe(cls):
+        return 'Downloading file'
+
+    def describe(self, connection):
+        return TaskDescription('Downloading file')
+
     def verify(self, connection):
         return []
 
@@ -200,7 +208,15 @@ class DownloadFileTask(Task):
 
 @accepts(str)
 @private
+@description('Uploads a file')
 class UploadFileTask(Task):
+    @classmethod
+    def early_describe(cls):
+        return 'Uploading file'
+
+    def describe(self, connection):
+        return TaskDescription('Uploading file')
+
     def verify(self, connection):
         return []
 
@@ -217,7 +233,15 @@ class UploadFileTask(Task):
 
 
 @accepts(str, h.ref('permissions'), bool)
+@description('Sets permissions')
 class SetPermissionsTask(Task):
+    @classmethod
+    def early_describe(cls):
+        return 'Setting permissions'
+
+    def describe(self, path, permissions, recursive=False):
+        return TaskDescription('Setting permissions on path {name}', name=path)
+
     def verify(self, path, permissions, recursive=False):
         if not os.path.exists(path):
             raise VerifyException(errno.ENOENT, 'Path {0} does not exist'.format(path))
@@ -273,7 +297,7 @@ class SetPermissionsTask(Task):
             except OSError as err:
                 if err.errno == errno.EPERM:
                     if chmod_safe:
-                        self.add_warning(err.errno, 'chmod() failed: {0}'.format(err.strerror))
+                        self.add_warning(TaskWarning(err.errno, 'chmod() failed: {0}'.format(err.strerror)))
                 else:
                     raise TaskException(err.errno, 'chmod() failed: {0}'.format(err.strerror))
 
@@ -302,51 +326,6 @@ class SetPermissionsTask(Task):
             'recursive': recursive,
             'permissions': permissions
         })
-
-
-def modes_to_oct(modes):
-    modes = wrap(modes)
-    result = 0
-
-    if modes['user.read']:
-        result &= stat.S_IRUSR
-
-    if modes['user.write']:
-        result &= stat.S_IWUSR
-
-    if modes['user.execute']:
-        result &= stat.S_IXUSR
-
-    if modes['group.read']:
-        result &= stat.S_IRGRP
-
-    if modes['group.write']:
-        result &= stat.S_IWGRP
-
-    if modes['group.execute']:
-        result &= stat.S_IXGRP
-
-    if modes['others.read']:
-        result &= stat.S_IROTH
-
-    if modes['others.write']:
-        result &= stat.S_IWOTH
-
-    if modes['others.execute']:
-        result &= stat.S_IXOTH
-
-    return result
-
-
-def get_type(st):
-    if stat.S_ISDIR(st.st_mode):
-        return 'DIRECTORY'
-
-    elif stat.S_ISLNK(st.st_mode):
-        return 'LINK'
-
-    else:
-        return 'FILE'
 
 
 def _init(dispatcher, plugin):
@@ -408,9 +387,43 @@ def _init(dispatcher, plugin):
             },
             'id': {'type': ['string', 'null']},
             'name': {'type': ['string', 'null']},
-            'perms': {'type': 'object'},
-            'flags': {'type': 'object'},
+            'perms': {'$ref': 'acl-entry-perms'},
+            'flags': {'$ref': 'acl-entry-flags'},
             'text': {'type': ['string', 'null']}
+        }
+    })
+
+    plugin.register_schema_definition('acl-entry-perms', {
+        'type': 'object',
+        'additionalProperties': False,
+        'properties': {
+            'READ_DATA': {'type': 'boolean'},
+            'LIST_DIRECTORY': {'type': 'boolean'},
+            'WRITE_DATA': {'type': 'boolean'},
+            'ADD_FILE': {'type': 'boolean'},
+            'APPEND_DATA': {'type': 'boolean'},
+            'ADD_SUBDIRECTORY': {'type': 'boolean'},
+            'READ_NAMED_ATTRS': {'type': 'boolean'},
+            'WRITE_NAMED_ATTRS': {'type': 'boolean'},
+            'EXECUTE': {'type': 'boolean'},
+            'DELETE_CHILD': {'type': 'boolean'},
+            'READ_ATTRIBUTES': {'type': 'boolean'},
+            'WRITE_ATTRIBUTES': {'type': 'boolean'},
+            'DELETE': {'type': 'boolean'},
+            'READ_ACL': {'type': 'boolean'},
+            'WRITE_ACL': {'type': 'boolean'},
+            'SYNCHRONIZE': {'type': 'boolean'}
+        }
+    })
+
+    plugin.register_schema_definition('acl-entry-flags', {
+        'type': 'object',
+        'additionalProperties': False,
+        'properties': {
+            'FILE_INHERIT': {'type': 'boolean'},
+            'DIRECTORY_INHERIT': {'type': 'boolean'},
+            'NO_PROPAGATE_INHERIT': {'type': 'boolean'},
+            'INHERIT_ONLY': {'type': 'boolean'}
         }
     })
 

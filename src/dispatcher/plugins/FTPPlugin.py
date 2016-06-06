@@ -28,7 +28,8 @@ import logging
 
 from datastore.config import ConfigNode
 from freenas.dispatcher.rpc import RpcException, SchemaHelper as h, description, accepts, returns, private
-from task import Task, Provider, TaskException, ValidationException
+from task import Task, Provider, TaskException, ValidationException, TaskDescription
+from freenas.utils.permissions import get_unix_permissions, get_integer
 
 logger = logging.getLogger('FTPPlugin')
 
@@ -39,15 +40,22 @@ class FTPProvider(Provider):
     @accepts()
     @returns(h.ref('service-ftp'))
     def get_config(self):
-        return ConfigNode('service.ftp', self.configstore).__getstate__()
+        config = ConfigNode('service.ftp', self.configstore).__getstate__()
+        config['filemask'] = get_unix_permissions(config['filemask'])
+        config['dirmask'] = get_unix_permissions(config['dirmask'])
+        return config
 
 
 @private
 @description('Configure FTP service')
 @accepts(h.ref('service-ftp'))
 class FTPConfigureTask(Task):
-    def describe(self, share):
+    @classmethod
+    def early_describe(cls):
         return 'Configuring FTP service'
+
+    def describe(self, ftp):
+        return TaskDescription('Configuring FTP service')
 
     def verify(self, ftp):
         errors = ValidationException()
@@ -68,7 +76,7 @@ class FTPConfigureTask(Task):
 
         if node['only_anonymous'] and not node['anonymous_path']:
             errors.add(
-                ((0, 'anonymous_path'), errno.EINVAL, 'This field is required for anonymous login.')
+                (0, 'anonymous_path'), errno.EINVAL, 'This field is required for anonymous login.'
             )
 
         if node['tls'] is True and not node['tls_ssl_certificate']:
@@ -87,6 +95,8 @@ class FTPConfigureTask(Task):
     def run(self, ftp):
         try:
             node = ConfigNode('service.ftp', self.configstore)
+            ftp['filemask'] = get_integer(ftp['filemask'])
+            ftp['dirmask'] = get_integer(ftp['dirmask'])
             node.update(ftp)
             self.dispatcher.call_sync('etcd.generation.generate_group', 'ftp')
             self.dispatcher.dispatch_event('service.ftp.changed', {
@@ -127,8 +137,8 @@ def _init(dispatcher, plugin):
             'only_anonymous': {'type': 'boolean'},
             'only_local': {'type': 'boolean'},
             'display_login': {'type': ['string', 'null']},
-            'filemask': {'type': 'string'},
-            'dirmask': {'type': 'string'},
+            'filemask': {'$ref': 'unix-permissions'},
+            'dirmask': {'$ref': 'unix-permissions'},
             'fxp': {'type': 'boolean'},
             'resume': {'type': 'boolean'},
             'chroot': {'type': 'boolean'},

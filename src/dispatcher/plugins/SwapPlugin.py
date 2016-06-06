@@ -32,8 +32,9 @@ import bsd.kld
 from task import Provider
 from lib.system import system, SubprocessException
 from lib.geom import confxml
-from freenas.dispatcher.rpc import accepts, returns, description
-from freenas.dispatcher.rpc import SchemaHelper as h
+from freenas.dispatcher.rpc import accepts, returns, description, SchemaHelper as h
+from freenas.utils.decorators import delay
+from freenas.utils.trace_logger import TRACE
 
 
 logger = logging.getLogger('SwapPlugin')
@@ -119,19 +120,16 @@ def clear_swap(dispatcher):
 
 def remove_swap(dispatcher, disks):
     disks = set(disks)
+    logger.log(TRACE, 'Remove swap request: disks={0}'.format(','.join(disks)))
     for swap in list(get_swap_info(dispatcher).values()):
         if disks & set(swap['disks']):
             try:
+                logger.log(TRACE, 'Removing swap mirror {0}'.format(swap['name']))
                 system('/sbin/swapoff', os.path.join('/dev/mirror', swap['name']))
                 system('/sbin/gmirror', 'destroy', swap['name'])
             except SubprocessException as err:
                 logger.warn('Failed to disable swap on {0}: {1}'.format(swap['name'], err.err.strip()))
                 logger.warn('Continuing without {0}'.format(swap['name']))
-
-    # Try to create new swap partitions, as at this stage we
-    # might have two unused data disks
-    if len(disks) > 0:
-        rearrange_swap(dispatcher)
 
 
 def create_swap(dispatcher, disks):
@@ -150,10 +148,10 @@ def rearrange_swap(dispatcher):
     swap_disks = set(get_available_disks(dispatcher))
     active_swap_disks = set(sum([s['disks'] for s in swap_info], []))
 
-    logger.debug('Rescanning available disks')
-    logger.debug('Disks already used for swap: %s', ', '.join(active_swap_disks))
-    logger.debug('Disks that could be used for swap: %s', ', '.join(swap_disks - active_swap_disks))
-    logger.debug('Disks that can\'t be used for swap anymore: %s', ', '.join(active_swap_disks - swap_disks))
+    logger.log(TRACE, 'Rescanning available disks')
+    logger.log(TRACE, 'Disks already used for swap: %s', ', '.join(active_swap_disks))
+    logger.log(TRACE, 'Disks that could be used for swap: %s', ', '.join(swap_disks - active_swap_disks))
+    logger.log(TRACE, 'Disks that can\'t be used for swap anymore: %s', ', '.join(active_swap_disks - swap_disks))
 
     create_swap(dispatcher, list(swap_disks - active_swap_disks))
     remove_swap(dispatcher, list(active_swap_disks - swap_disks))
@@ -169,6 +167,7 @@ def _init(dispatcher, plugin):
         remove_swap(dispatcher, disks)
         return True
 
+    @delay(minutes=1)
     def on_volumes_change(args):
         with dispatcher.get_lock('swap'):
             rearrange_swap(dispatcher)

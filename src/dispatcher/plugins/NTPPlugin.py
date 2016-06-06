@@ -27,8 +27,8 @@
 import errno
 import logging
 from datastore import DatastoreException
-from task import Task, Provider, TaskException, ValidationException, VerifyException, query
-from freenas.dispatcher.rpc import RpcException, accepts, description, returns
+from task import Task, Provider, TaskException, ValidationException, VerifyException, query, TaskDescription
+from freenas.dispatcher.rpc import RpcException, accepts, description
 from freenas.dispatcher.rpc import SchemaHelper as h
 from lib.system import system, SubprocessException
 
@@ -48,8 +48,12 @@ class NTPServersProvider(Provider):
     h.required('address'),
 ), bool)
 class NTPServerCreateTask(Task):
-    def describe(self, ntp):
-        return "Creating NTP Server {0}".format(ntp['address'])
+    @classmethod
+    def early_describe(cls):
+        return "Creating NTP Server"
+
+    def describe(self, ntp, force=False):
+        return TaskDescription("Creating NTP Server {name}", name=ntp['address'])
 
     def verify(self, ntp, force=False):
         errors = ValidationException()
@@ -93,6 +97,14 @@ class NTPServerCreateTask(Task):
 @description("Updates NTP Server")
 @accepts(str, h.ref('ntp-server'), bool)
 class NTPServerUpdateTask(Task):
+    @classmethod
+    def early_describe(cls):
+        return "Creating NTP Server"
+
+    def describe(self, id, updated_fields, force=False):
+        ntp = self.datastore.get_by_id('ntpservers', id)
+        return TaskDescription("Creating NTP Server {name}", name=ntp.get('address', '') or '')
+
     def verify(self, id, updated_fields, force=False):
 
         ntp = self.datastore.get_by_id('ntpservers', id)
@@ -143,6 +155,14 @@ class NTPServerUpdateTask(Task):
 @description("Deletes NTP Server")
 @accepts(str)
 class NTPServerDeleteTask(Task):
+    @classmethod
+    def early_describe(cls):
+        return "Creating NTP Server"
+
+    def describe(self, id):
+        ntp = self.datastore.get_by_id('ntpservers', id)
+        return TaskDescription("Creating NTP Server {name}", name=ntp.get('address', '') or '')
+
     def verify(self, id):
         ntp = self.datastore.get_by_id('ntpservers', id)
         if ntp is None:

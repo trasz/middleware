@@ -30,8 +30,10 @@ import logging
 import errno
 import weakref
 import gevent
+import gevent.threadpool
 import netif
-from dhcp.server import Server, Lease
+from dhcp.server import Server
+from dhcp.lease import Lease
 
 
 class AddressAllocation(object):
@@ -58,6 +60,7 @@ class ManagementNetwork(object):
         self.dhcp_server_thread = None
         self.dhcp_server = Server()
         self.allocations = {}
+        self.pool = gevent.threadpool.ThreadPool(1)
         self.logger = logging.getLogger('ManagementNetwork:{0}'.format(self.ifname))
 
     def up(self):
@@ -78,11 +81,10 @@ class ManagementNetwork(object):
         ))
         self.bridge_if.up()
 
-        # Start DHCP server
         self.dhcp_server.server_name = 'FreeNAS'
         self.dhcp_server.on_request = self.dhcp_request
-        self.dhcp_server.start(self.subnet)
-        self.dhcp_server_thread = gevent.spawn(self.dhcp_worker)
+        self.dhcp_server.start(self.ifname, self.subnet.ip)
+        self.dhcp_server_thread = self.pool.apply_async(self.dhcp_worker)
 
     def down(self):
         self.bridge_if.down()
@@ -111,8 +113,14 @@ class ManagementNetwork(object):
     def allocate_ip_address(self, mac, hostname):
         allocation = self.allocations.get(mac)
         if not allocation or not allocation.vm():
+            self.logger.debug('Trying to match MAC address {0} and hostname {1} to a container'.format(
+                mac,
+                hostname
+            ))
+
             vm = self.context.vm_by_mgmt_mac(mac)
             if not vm:
+                self.logger.warning('Cannot find a match for MAC {0}'.format(mac))
                 return None
 
             allocation = AddressAllocation()
@@ -122,9 +130,8 @@ class ManagementNetwork(object):
             allocation.lease.client_mac = mac
             allocation.lease.client_ip = self.pick_ip_address()
             allocation.lease.client_mask = self.subnet.netmask
-            allocation.lease.static_routes = [
-                (ipaddress.ip_network('169.254.169.254/32'), ipaddress.ip_address('169.254.16.1'))
-            ]
+            allocation.lease.router = self.subnet.ip
+            allocation.lease.dns_addresses = [ipaddress.ip_address('8.8.8.8'), ipaddress.ip_address('8.8.4.4')]
             self.allocations[mac] = allocation
 
         return allocation
