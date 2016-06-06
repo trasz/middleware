@@ -260,11 +260,6 @@ class SystemDatasetConfigure(Task):
             )
 
         self.configstore.set('system.dataset.pool', pool)
-        dsid = self.configstore.get('system.dataset.id')
-        self.dispatcher.update_resource(
-            'system-dataset',
-            new_parents=['zfs:{0}/.system-{1}'.format(pool, dsid)]
-        )
 
 
 @private
@@ -302,10 +297,6 @@ class SystemDatasetImport(Task):
 
             self.configstore.set('system.dataset.pool', pool)
             self.configstore.set('system.dataset.id', new_id)
-            self.dispatcher.update_resource(
-                'system-dataset',
-                new_parents=['zfs:{0}/.system-{1}'.format(pool, new_id)]
-            )
             logger.info('New system dataset ID: {0}'.format(new_id))
 
 
@@ -317,6 +308,18 @@ def _init(dispatcher, plugin):
     def on_volumes_changed(args):
         if args['operation'] == 'create':
             pass
+
+    def on_datasets_changed(args):
+        for i in args['ids']:
+            if '.system-' in i:
+                zfs = libzfs.ZFS()
+                for d in zfs.datasets:
+                    if d.mountpoint == SYSTEM_DIR:
+                        dispatcher.update_resource(
+                            'system-dataset',
+                            new_parents=['zfs:{0}'.format(d.name)]
+                        )
+                        return
 
     def volume_pre_destroy(args):
         # Evacuate .system dataset from the pool
@@ -338,6 +341,7 @@ def _init(dispatcher, plugin):
     )
 
     plugin.register_event_handler('volume.changed', on_volumes_changed)
+    plugin.register_event_handler('zfs.dataset.changed', on_datasets_changed)
     plugin.attach_hook('volume.pre_destroy', volume_pre_destroy)
     plugin.attach_hook('volume.pre_detach', volume_pre_destroy)
     plugin.attach_hook('volume.pre_rename', volume_pre_destroy)

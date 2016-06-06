@@ -1421,10 +1421,6 @@ class ReplicationUpdateLinkTask(Task):
         if parse_datetime(local_link['update_date']) < parse_datetime(link['update_date']):
             self.datastore.update('replication.links', link['id'], link)
             self.dispatcher.call_sync('replication.link.link_cache_put', link)
-            self.dispatcher.update_resource(
-                'replication:{0}'.format(link['name']),
-                new_parents=get_replication_resources(self.dispatcher, link)
-            )
 
 
 @description("Performs synchronization of actual role (master/slave) with replication link state")
@@ -1617,6 +1613,11 @@ def _init(dispatcher, plugin):
 
     def on_replication_change(args):
         for i in args['ids']:
+            link = dispatcher.call_sync('replication.link.local_query', [('name', '=', i)], {'single': True})
+            dispatcher.update_resource(
+                'replication:{0}'.format(link['name']),
+                new_parents=get_replication_resources(dispatcher, link)
+            )
             dispatcher.call_task_sync('replication.role_update', i)
 
     def update_link_cache(args):
