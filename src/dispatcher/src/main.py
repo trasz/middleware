@@ -854,7 +854,7 @@ class DispatcherConnection(ServerConnection):
         self.logger.log(level, '[{0}] {1}'.format(self.client_address, msg))
 
     def trace(self, msg):
-        self.logger.log(TraceLogger.TRACE, '[{0}] {1}'.format(self.client_address, msg))
+        self.logger.log(TRACE, '[{0}] {1}'.format(self.client_address, msg))
 
     def on_open(self):
         super(DispatcherConnection, self).on_open()
@@ -1179,7 +1179,7 @@ class DispatcherConnection(ServerConnection):
         if feature not in self.dispatcher.features:
             raise ValueError('Invalid feature')
 
-        self.log(TraceLogger.TRACE, 'Enabling feature {0}'.format(feature))
+        self.log(TRACE, 'Enabling feature {0}'.format(feature))
 
         if feature == 'strict_validation':
             self.dispatcher.rpc.strict_validation = True
