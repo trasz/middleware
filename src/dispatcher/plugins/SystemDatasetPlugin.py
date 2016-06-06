@@ -45,9 +45,6 @@ SYSTEM_DIR = '/var/db/system'
 logger = logging.getLogger('SystemDataset')
 
 
-last_sysds_name = ''
-
-
 def link_directories(dispatcher):
     for name, d in dispatcher.configstore.get('system.dataset.layout').items():
         target = dispatcher.call_sync('system_dataset.request_directory', name)
@@ -308,14 +305,14 @@ def _depends():
 
 
 def _init(dispatcher, plugin):
-    global last_sysds_name
+    last_sysds_name = ''
 
     def on_volumes_changed(args):
         if args['operation'] == 'create':
             pass
 
     def on_datasets_changed(args):
-        global last_sysds_name
+        nonlocal last_sysds_name
         for i in args['ids']:
             if '.system-' in i:
                 zfs = libzfs.ZFS()
