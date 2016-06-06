@@ -656,12 +656,7 @@ def _init(dispatcher, plugin):
             'locked': {'type': 'boolean'},
             'sudo': {'type': 'boolean'},
             'password_disabled': {'type': 'boolean'},
-            'passowrd_changed_at': {
-                'oneOf': [
-                    {'type': 'null'},
-                    {'$ref': 'iso-datetime'}
-                ]
-            },
+            'password_changed_at': {'type': ['datetime', 'null']},
             'group': {'type': ['string', 'null']},
             'shell': {'type': 'string'},
             'home': {'type': 'string'},
