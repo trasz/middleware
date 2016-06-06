@@ -162,6 +162,14 @@ class FreeIPAPlugin(DirectoryServicePlugin):
 
         return parameters['realm']
 
+    def authenticate(self, user, password):
+        logger.debug('authenticate(user={0}, password=<...>)'.format(user))
+        try:
+            self.conn.rebind(join_dn(user, self.user_dn), password)
+            return True
+        except:
+            return False
+
     def get_kerberos_realm(self):
         return {
             'id': FREEIPA_REALM_ID,
