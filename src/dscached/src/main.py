@@ -359,7 +359,7 @@ class AccountService(RpcService):
             except:
                 continue
 
-        return None
+        raise RpcException(errno.ENOENT, 'UID {0} not found'.format(uid))
 
     def getpwnam(self, user_name):
         # Try the cache first
@@ -385,7 +385,7 @@ class AccountService(RpcService):
                 self.context.users_cache.set(item)
                 return item.annotated
 
-        return None
+        raise RpcException(errno.ENOENT, 'User {0} not found'.format(user_name))
 
     def getpwuuid(self, uuid):
         # Try the cache first
@@ -404,7 +404,7 @@ class AccountService(RpcService):
                 self.context.users_cache.set(item)
                 return item.annotated
 
-        return None
+        raise RpcException(errno.ENOENT, 'UUID {0} not found'.format(uuid))
 
     def authenticate(self, user_name, password):
         user = self.getpwnam(user_name)
@@ -453,7 +453,7 @@ class GroupService(RpcService):
             except:
                 continue
 
-        return None
+        raise RpcException(errno.ENOENT, 'Group {0} not found'.format(name))
     
     def getgrgid(self, gid):
         # Try the cache first
@@ -471,7 +471,7 @@ class GroupService(RpcService):
             except:
                 continue
 
-        return None
+        raise RpcException(errno.ENOENT, 'GID {0} not found'.format(gid))
 
     def getgruuid(self, uuid):
         # Try the cache first
@@ -490,7 +490,7 @@ class GroupService(RpcService):
                 self.context.groups_cache.set(item)
                 return item.annotated
 
-        return None
+        raise RpcException(errno.ENOENT, 'UUID {0} not found'.format(uuid))
 
 
 class HostService(RpcService):
