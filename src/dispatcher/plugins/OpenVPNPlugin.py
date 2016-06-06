@@ -300,7 +300,7 @@ class BridgeOpenVPNtoLocalNetwork(Task):
 
 
 def _depends(): 
-    return ['ServiceManagePlugin', 'CryptoPlugin'] 
+    return ['ServiceManagePlugin'] 
 
 
 def _init(dispatcher, plugin):
