@@ -1056,6 +1056,7 @@ class DispatcherConnection(ServerConnection):
 
         user = self.dispatcher.auth.get_user(username)
         if user is None:
+            self.trace('User {0} not found'.format(username))
             self.emit_rpc_error(id, errno.EACCES, "Incorrect username or password")
             return
 
@@ -1075,10 +1076,12 @@ class DispatcherConnection(ServerConnection):
                 lifetime = None
         else:
             if not user.check_password(password):
+                self.trace('Incorrect password for user {0}'.format(username))
                 self.emit_rpc_error(id, errno.EACCES, "Incorrect username or password")
                 return
 
-        if not user.has_role('wheel'):
+        if not user.has_role('wheel@local'):
+            self.trace('User {0} not in group wheel@local'.format(username))
             self.emit_rpc_error(id, errno.EACCES, "Not authorized")
             return
 

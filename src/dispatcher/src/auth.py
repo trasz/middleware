@@ -67,11 +67,11 @@ class Service(object):
 
 class PasswordAuthenticator(object):
     def __init__(self, dispatcher):
-        self.datastore = dispatcher.datastore
+        self.dispatcher = dispatcher
         self.users = {}
 
     def get_user(self, name):
-        entity = self.datastore.get_one('users', ('username', '=', name))
+        entity = self.dispatcher.call_sync('dscached.account.getpwnam', name)
         if entity is None:
             if name in self.users:
                 del self.users[name]
@@ -83,7 +83,7 @@ class PasswordAuthenticator(object):
         user.pwhash = entity['unixhash']
 
         for id in entity['groups'] + [entity['group']]:
-            grp = self.datastore.get_by_id('groups', id)
+            grp = self.dispatcher.call_sync('dscached.group.getgruuid', id)
             if not grp:
                 continue
             user.groups.append(grp['name'])
