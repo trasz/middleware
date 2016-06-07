@@ -37,6 +37,7 @@ import jsonpatch
 import glob
 import imp
 import traceback
+from freenas.dispatcher.jsonenc import dumps
 
 
 DEFAULT_CONFIGFILE = '/usr/local/etc/middleware.conf'
@@ -111,7 +112,7 @@ def apply_migrations(collection, directory, force=False):
             mig_log('Sucessfully migrated object <id:{0}>'.format(i['id']))
             if diff.patch:
                 mig_log('JSON delta:')
-                log_indented(mig_log, json.dumps(diff.patch, indent=4))
+                log_indented(mig_log, dumps(diff.patch, indent=4))
             else:
                 mig_log('Object unchanged after migration')
 
