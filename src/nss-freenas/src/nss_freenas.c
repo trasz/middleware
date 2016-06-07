@@ -57,6 +57,7 @@ static void populate_user(json_t *, struct passwd *, char *, size_t);
 static void populate_group(json_t *, struct group *, char *, size_t);
 static void populate_hostent(json_t *, struct hostent *, char *, size_t, int);
 static int gr_addgid(gid_t, gid_t *, int, int *);
+static void aiforaf(const char *, int, struct addrinfo *, struct addrinfo **);
 
 NSS_METHOD_PROTOTYPE(nss_freenas_getpwnam_r);
 NSS_METHOD_PROTOTYPE(nss_freenas_getpwuid_r);
@@ -710,22 +711,81 @@ nss_freenas_getgroupmembership(void *retval, void *mdata, va_list ap)
 	return (NS_SUCCESS);
 }
 
+/*
+ * Stolen from nss_mdns_freebsd.c in FreeBSD Ports collection
+ *
+ * Original file name: dns/mDNSResponder_nss/files/nss_mdns_freebsd.c
+ * Original author: Kurt Jaeger
+ */
+static void
+aiforaf(const char *name, int af, struct addrinfo *pai, struct addrinfo **aip)
+{
+        struct hostent host;
+        char hostbuf[8*1024];
+        char **addrp;
+        char addrstr[INET6_ADDRSTRLEN];
+        struct addrinfo hints, *res0, *res;
+        json_t *result;
+
+        if (call_dispatcher("dscached.host.gethostbyname", json_pack("[si]",
+            name, af), &result) < 0) {
+                return;
+        }
+
+        if (result == NULL || json_is_null(result)) {
+                if (result != NULL)
+                        json_decref(result);
+                return;
+        }
+
+        populate_hostent(result, &host, hostbuf, sizeof(hostbuf), af);
+
+        for (addrp = host.h_addr_list; *addrp; addrp++) {
+                /* XXX this sucks, but get_ai is not public */
+                if (!inet_ntop(host.h_addrtype, *addrp, addrstr,
+                    sizeof(addrstr)))
+                        continue;
+                hints = *pai;
+                hints.ai_flags = AI_NUMERICHOST;
+                hints.ai_family = af;
+                if (getaddrinfo(addrstr, NULL, &hints, &res0))
+                        continue;
+
+                for (res = res0; res; res = res->ai_next)
+                        res->ai_flags = pai->ai_flags;
+
+                (*aip)->ai_next = res0;
+                while ((*aip)->ai_next)
+                        *aip = (*aip)->ai_next;
+        }
+}
+
 int
 nss_freenas_getaddrinfo(void *retval, void *mdata, va_list ap)
 {
-	const char *hostname;
-	const char *servname;
-	const struct addrinfo *hints;
-	struct addrinfo **res;
-	int *ret;
+        struct addrinfo sentinel, *cur;
+        const char *name;
+        struct addrinfo *ai;
 
-	hostname = va_arg(ap, const char *);
-	servname = va_arg(ap, const char *);
-	hints = va_arg(ap, const struct addrinfo *);
-	res = va_arg(ap, struct addrinfo **);
-	ret = va_arg(ap, int *);
+        name  = va_arg(ap, char *);
+        ai = va_arg(ap, struct addrinfo *);
 
-	return (NS_UNAVAIL);
+        memset(&sentinel, 0, sizeof(sentinel));
+        cur = &sentinel;
+
+        if ((ai->ai_family == AF_UNSPEC) || (ai->ai_family == AF_INET6))
+                aiforaf(name, AF_INET6, ai, &cur);
+
+        if ((ai->ai_family == AF_UNSPEC) || (ai->ai_family == AF_INET))
+                aiforaf(name, AF_INET, ai, &cur);
+
+        if (!sentinel.ai_next) {
+                h_errno = HOST_NOT_FOUND;
+                return NS_NOTFOUND;
+        }
+
+        *((struct addrinfo **)retval) = sentinel.ai_next;
+        return NS_SUCCESS;
 }
 
 int
