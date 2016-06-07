@@ -25,7 +25,7 @@
 #
 #####################################################################
 
-from geventwebsocket import WebSocketApplication, WebSocketServer, Resource
+from geventwebsocket import WebSocketApplication, WebSocketServer, WebSocketError, Resource
 from freenas.dispatcher.transport import ServerTransport, server_transport
 
 
@@ -66,7 +66,10 @@ class ServerApplication(WebSocketApplication):
         self.ws.close()
 
     def send(self, message, fds):
-        self.ws.send(message)
+        try:
+            self.ws.send(message)
+        except WebSocketError:
+            self.close()
 
     def on_open(self):
         self.conn = self.parent.on_connection(self)
