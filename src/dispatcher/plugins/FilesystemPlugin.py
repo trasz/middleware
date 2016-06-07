@@ -269,7 +269,7 @@ class SetPermissionsTask(Task):
 
             if group:
                 try:
-                    group = self.dispatcher.call_sync('dscached.group.getgrnam', user)
+                    group = self.dispatcher.call_sync('dscached.group.getgrnam', group)
                     gid = group['gid']
                 except KeyError:
                     raise TaskException(errno.ENOENT, 'Group {0} not found'.format(group))
