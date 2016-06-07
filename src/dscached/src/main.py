@@ -501,7 +501,14 @@ class HostService(RpcService):
         pass
 
     def gethostbyname(self, name, af):
-        host = self.context.datastore.get_by_id('network.hosts', name)
+        if name in ('localhost', 'localhost.localdomain'):
+            host = {
+                'id': 'localhost',
+                'addresses': ['127.0.0.1', '::1']
+            }
+        else:
+            host = self.context.datastore.get_by_id('network.hosts', name)
+
         if host:
             addrs = filter_af(host['addresses'], af)
             if not addrs:
