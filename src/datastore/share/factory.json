@@ -238,7 +238,6 @@
             "service.openvpn.keepalive_peer_down": 60, 
             "service.openvpn.user": "nobody",
             "service.openvpn.group": "nogroup",
-            "service.openvpn.port" : 1194,
             "service.openvpn.proto": "udp",
             "service.openvpn.comp_lzo" : true,
             "service.openvpn.verb" : 3,
