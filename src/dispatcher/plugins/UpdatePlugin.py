@@ -940,7 +940,7 @@ def _init(dispatcher, plugin):
 
         caltask.update({
             'name': 'update.checkfetch',
-            'args': [True],
+            'args': [],
             'hidden': True,
             'protected': True,
             'description': 'Nightly update check',
