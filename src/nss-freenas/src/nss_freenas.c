@@ -781,11 +781,11 @@ nss_freenas_getaddrinfo(void *retval, void *mdata, va_list ap)
 
         if (!sentinel.ai_next) {
                 h_errno = HOST_NOT_FOUND;
-                return NS_NOTFOUND;
+                return (NS_NOTFOUND);
         }
 
         *((struct addrinfo **)retval) = sentinel.ai_next;
-        return NS_SUCCESS;
+        return (NS_SUCCESS);
 }
 
 int
