@@ -53,7 +53,7 @@ def apply(obj, ds):
     except:
         lmhash = None
         nthash = None
-        lct = None
+        lct = 0
 
     obj.update({
         'lmhash': lmhash,
