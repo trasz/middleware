@@ -579,6 +579,8 @@ class Main(object):
         self.datastore = None
         self.configstore = None
         self.rpc = RpcContext()
+        self.rpc.streaming_enabled = True
+        self.rpc.streaming_burst = 16
         self.client = None
         self.server = None
         self.plugin_dirs = []
