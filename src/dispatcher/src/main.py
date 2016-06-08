@@ -1244,9 +1244,9 @@ class DispatcherConnection(ServerConnection):
 class ShellConnection(WebSocketApplication, EventEmitter):
     BUFSIZE = 1024
 
-    def __init__(self, ws, dispatcher):
+    def __init__(self, ws, parent):
         super(ShellConnection, self).__init__(ws)
-        self.dispatcher = dispatcher
+        self.dispatcher = parent.context
         self.logger = logging.getLogger('ShellConnection')
         self.authenticated = False
         self.master = None
