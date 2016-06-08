@@ -1102,30 +1102,6 @@ class DispatcherConnection(ServerConnection):
             'description': "Client {0} logged in".format(username)
         })
 
-    def on_rpc_response(self, id, data):
-        self.trace('RPC response: id={0} result={1}'.format(id, data))
-        if id not in list(self.client_pending_calls.keys()):
-            return
-
-        call = self.client_pending_calls[id]
-        if call['callback'] is not None:
-            call['callback'](*data)
-
-        if call['event'] is not None:
-            call['event'].set(data)
-
-        del self.client_pending_calls[id]
-
-    def on_rpc_error(self, id, data):
-        if id not in list(self.client_pending_calls.keys()):
-            return
-
-        call = self.client_pending_calls[id]
-        if call['event'] is not None:
-            call['event'].set_exception(RpcException(data['code'], data['message']))
-
-        del self.client_pending_calls[id]
-
     def on_rpc_call(self, id, data):
         if self.user is None:
             self.emit_rpc_error(id, errno.EACCES, 'Not logged in')
@@ -1190,19 +1166,6 @@ class DispatcherConnection(ServerConnection):
 
         self.enabled_features.add(feature)
 
-    def call_client(self, method, callback, *args):
-        id = uuid.uuid4()
-        event = AsyncResult()
-        self.client_pending_calls[str(id)] = {
-            "method": method,
-            "args": args,
-            "callback": callback,
-            "event": event
-        }
-
-        self.emit_rpc_call(id, method, args)
-        return event
-
     def logout(self, reason):
         args = {
             "reason": reason,
@@ -1221,11 +1184,6 @@ class DispatcherConnection(ServerConnection):
             self.dispatcher.logger.debug(
                 'Tried to logout Websocket Connection and the ' +
                 'following error occured {0}'.format(str(werr)))
-
-    def call_client_sync(self, method, *args, **kwargs):
-        timeout = kwargs.pop('timeout', None)
-        event = self.call_client(method, None, *args)
-        return event.get(timeout=timeout)
 
     def emit_event(self, event, args):
         for i in self.event_masks:

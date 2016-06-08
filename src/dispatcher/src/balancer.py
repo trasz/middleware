@@ -128,7 +128,7 @@ class TaskExecutor(object):
                         progress_subtask_info['progress'], progress_subtask_info['message']
                     )
                 else:
-                    st.__setstate__(self.conn.call_client_sync('taskproxy.get_status'))
+                    st.__setstate__(self.conn.call_sync('taskproxy.get_status'))
                 return st
             except RpcException as err:
                 self.balancer.logger.error(
@@ -194,7 +194,7 @@ class TaskExecutor(object):
             except FileNotFoundError:
                 continue
 
-        self.conn.call_client_sync('taskproxy.run', {
+        self.conn.call_sync('taskproxy.run', {
             'id': task.id,
             'user': task.user,
             'class': task.clazz.__name__,
@@ -238,7 +238,7 @@ class TaskExecutor(object):
         self.balancer.logger.info("Trying to abort task #{0}".format(self.task.id))
         # Try to abort via RPC. If this fails, kill process
         try:
-            self.conn.call_client_sync('taskproxy.abort')
+            self.conn.call_sync('taskproxy.abort')
         except RpcException as err:
             self.balancer.logger.warning("Failed to abort task #{0} gracefully: {1}".format(self.task.id, str(err)))
             self.balancer.logger.warning("Killing process {0}".format(self.pid))

@@ -236,17 +236,16 @@ class PluginService(RpcService):
             self.resumed = Event()
 
         def get_metadata(self):
-            return self.connection.call_client_sync(self.service_name + '.get_metadata')
+            return self.connection.call_sync(self.service_name + '.get_metadata')
 
         def enumerate_methods(self):
-            return list(self.connection.call_client_sync(self.service_name + '.enumerate_methods'))
+            return list(self.connection.call_sync(self.service_name + '.enumerate_methods'))
 
         def __getattr__(self, name):
             def call_wrapped(*args):
                 self.resumed.wait()
-                return self.connection.call_client_sync(
+                return self.connection.call_sync(
                     '.'.join([self.service_name, name]),
-                    *args)
 
             return call_wrapped
 
