@@ -90,24 +90,40 @@ class FlatFilePlugin(DirectoryServicePlugin):
             self.__load()
 
     def getpwent(self, filter=None, params=None):
-        return self.passwd.query(*(filter or []), **(params or {}))
+        filter = filter or []
+        filter.append(('uid', '!=', 0))
+        return self.passwd.query(*filter, **(params or {}))
 
     def getpwnam(self, name):
+        if name == 'root':
+            return None
+
         return self.passwd.query(('username', '=', name), single=True)
 
     def getpwuid(self, uid):
+        if uid == 0:
+            return None
+
         return self.passwd.query(('uid', '=', uid), single=True)
 
-    def getpwuui(self, uuid):
+    def getpwuuid(self, uuid):
         return self.passwd.query(('id', '=', uuid), single=True)
 
     def getgrent(self, filter=None, params=None):
-        return self.group.query(*(filter or []), **(params or {}))
+        filter = filter or []
+        filter.append(('gid', '!=', 0))
+        return self.group.query(*filter, **(params or {}))
 
     def getgrnam(self, name):
+        if name == 'wheel':
+            return None
+
         return self.group.query(('name', '=', name), single=True)
 
     def getgrgid(self, gid):
+        if gid == 0:
+            return None
+
         return self.group.query(('gid', '=', gid), single=True)
 
     def getgruuid(self, uuid):
