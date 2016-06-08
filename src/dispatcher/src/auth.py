@@ -25,11 +25,11 @@
 #
 #####################################################################
 
-
 import string
 import random
 import crypt
 import gevent
+from freenas.dispatcher.rpc import RpcException
 from lib.freebsd import sockstat
 
 
@@ -71,10 +71,10 @@ class PasswordAuthenticator(object):
         self.users = {}
 
     def get_user(self, name):
-        entity = self.dispatcher.call_sync('dscached.account.getpwnam', name)
-        if entity is None:
-            if name in self.users:
-                del self.users[name]
+        try:
+            entity = self.dispatcher.call_sync('dscached.account.getpwnam', name)
+        except RpcException:
+            self.users.pop(name, None)
             return None
 
         user = User()
