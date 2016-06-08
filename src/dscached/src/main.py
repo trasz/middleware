@@ -149,22 +149,27 @@ class TTLCacheStore(object):
 
         if item:
             if item.expired:
-                with item.lock:
-                    if item.destroyed:
-                        return
-
-                    for i in item.names:
-                        del self.name_store[i]
-                    del self.uuid_store[item.uuid]
-                    del self.id_store[item.id]
-                    self.misses += 1
-                    return
+                self.flush(item.uuid)
+                self.misses += 1
+                return
 
             self.hits += 1
             return item
 
         self.misses += 1
         return
+
+    def flush(self, uuid):
+        item = self.uuid_store.get(uuid)
+        if item:
+            with item.lock:
+                if item.destroyed:
+                    return
+
+                for i in item.names:
+                    del self.name_store[i]
+                del self.uuid_store[item.uuid]
+                del self.id_store[item.id]
 
     def query(self, filter=None, params=None):
         return self.id_store.query(*(filter or []), **(params or {}))
@@ -177,12 +182,9 @@ class TTLCacheStore(object):
                 self.name_store[i] = item
 
     def expire(self):
-        for id, item in self.id_store.items():
+        for uuid, item in self.uuid_store.items():
             if item.expired:
-                for i in item.names:
-                    del self.name_store[i]
-                del self.uuid_store[item.uuid]
-                del self.id_store[id]
+                self.flush(uuid)
 
     def clear(self):
         self.name_store.clear()
@@ -565,7 +567,6 @@ class Main(object):
         self.search_order = []
         self.cache_enumerations = True
         self.cache_lookups = True
-        self.cache_timer = None
         self.rpc.register_service_instance('dscached.account', AccountService(self))
         self.rpc.register_service_instance('dscached.group', GroupService(self))
         self.rpc.register_service_instance('dscached.host', HostService(self))
@@ -613,51 +614,6 @@ class Main(object):
             aliases.append(obj[name])
 
         return aliases
-
-    def populate_caches(self):
-        self.logger.info('Populating caches started')
-        self.logger.info('Enabled directories: {0}'.format(', '.join(self.get_search_order())))
-        for d in reversed(self.get_enabled_directories()):
-            if not d.enumerate:
-                self.logger.info('Skipping directory {0} (enumerate is set to false)'.format(d.name))
-                continue
-
-            self.logger.info('Populating cache from directory {0}...'.format(d.name))
-            try:
-                counter = 0
-                for i in d.instance.getpwent():
-                    i['gids'] = [g['gid'] for g in d.instance.getgrent([('id', 'in', i['groups'])])]
-                    aliases = self.alias(d, i, 'username')
-                    self.users_cache.set(CacheItem(
-                        i['uid'], i['id'], aliases, i, d,
-                        self.cache_ttl
-                    ))
-                    counter += 1
-            except BaseException as err:
-                self.logger.warning('Cannot fetch accounts from {0}: {1}'.format(d.name, str(err)), exc_info=True)
-            finally:
-                self.logger.info('Populated {0} accounts from {1}'.format(counter, d.name))
-
-            try:
-                counter = 0
-                for i in d.instance.getgrent():
-                    aliases = self.alias(d, i, 'name')
-                    self.groups_cache.set(CacheItem(
-                        i['gid'], i['id'], aliases, i, d,
-                        self.cache_ttl
-                    ))
-                    counter += 1
-            except BaseException as err:
-                self.logger.warning('Cannot fetch groups from {0}: {1}'.format(d.name, str(err)), exc_info=True)
-            finally:
-                self.logger.info('Populated {0} groups from {1}'.format(counter, d.name))
-
-        # Schedule next cache refill
-        refill_in = int(self.cache_ttl / 2)
-        self.cache_timer = Timer(refill_in, self.populate_caches)
-        self.cache_timer.start()
-
-        self.logger.info('Populating caches finished, next cache refill in {0} seconds'.format(refill_in))
 
     def init_datastore(self):
         try:
@@ -771,7 +727,6 @@ class Main(object):
         self.init_server(args.s)
         self.scan_plugins()
         self.init_directories()
-        self.populate_caches()
         self.client.wait_forever()
 
 

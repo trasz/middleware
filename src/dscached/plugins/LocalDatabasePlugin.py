@@ -32,8 +32,19 @@ from plugin import DirectoryServicePlugin
 
 class LocalDatabasePlugin(DirectoryServicePlugin):
     def __init__(self, context):
+        def flush_users(ev):
+            for i in ev['ids']:
+                context.users_cache.flush(i)
+
+        def flush_groups(ev):
+            for i in ev['ids']:
+                context.groups_cache.flush(i)
+
         self.context = context
+        self.client = context.client
         self.datastore = context.datastore
+        self.client.register_event_handler('user.changed', flush_users)
+        self.client.register_event_handler('group.changed', flush_groups)
 
     def getpwent(self, filter=None, params=None):
         return self.datastore.query('users', *(filter or []), **(params or {}))
