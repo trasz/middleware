@@ -172,6 +172,24 @@ class UserCreateTask(Task):
                     "{0} is an invalid email address".format(user['email'])
                 )
 
+        volumes_root = self.dispatcher.call_sync('volume.get_volumes_root')
+        if 'builtin' not in user:
+            user['builtin'] = False
+
+        if user['home'].startswith(volumes_root):
+            if not os.path.exists(user['home']):
+                try:
+                    self.dispatcher.call_sync('volume.decode_path', user['home'])
+                except RpcException as err:
+                    raise VerifyException(err.code, err.message)
+
+        elif not user['builtin'] and user['home'] not in (None, '/nonexistent'):
+            errors.add(
+                (0, 'home'),
+                "Invalid mountpoint specified for home directory: {0}.".format(user['home']) +
+                " Use '{0}' instead as the mountpoint".format(volumes_root)
+            )
+
         if errors:
             raise errors
 
@@ -234,24 +252,15 @@ class UserCreateTask(Task):
                 'Cannot regenerate users file: {0}'.format(e)
             )
 
-        volumes_root = self.dispatcher.call_sync('volume.get_volumes_root')
-        if user['home'].startswith(volumes_root):
-            if not os.path.exists(user['home']):
-                try:
-                    self.dispatcher.call_sync('volume.decode_path', user['home'])
-                except RpcException as err:
-                    raise TaskException(err.code, err.message)
-                os.makedirs(user['home'])
-
-            group = self.datastore.get_by_id('groups', user['group'])
-            os.chown(user['home'], uid, group['gid'])
-            os.chmod(user['home'], 0o755)
-        elif not user['builtin'] and user['home'] not in (None, '/nonexistent'):
-            raise TaskException(
-                errno.ENOENT,
-                "Invalid mountpoint specified for home directory: {0}.".format(user['home']) +
-                " Use '{0}' instead as the mountpoint".format(volumes_root)
-            )
+        if not os.path.exists(user['home']):
+            try:
+                self.dispatcher.call_sync('volume.decode_path', user['home'])
+            except RpcException as err:
+                raise TaskException(err.code, err.message)
+            os.makedirs(user['home'])
+        group = self.datastore.get_by_id('groups', user['group'])
+        os.chown(user['home'], uid, group['gid'])
+        os.chmod(user['home'], 0o755)
 
         self.dispatcher.dispatch_event('user.changed', {
             'operation': 'create',
