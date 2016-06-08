@@ -1213,8 +1213,8 @@ class DispatcherConnection(ServerConnection):
             # the reconnect will just log the session back in
             self.dispatcher.token_store.revoke_token(self.token)
             self.transport.close()
-            if self in self.server.connections:
-                self.server.connections.remove(self)
+            if self in self.parent.connections:
+                self.parent.connections.remove(self)
         except WebSocketError as werr:
             # This error usually implies that the socket is dead
             # so just log it and move on
