@@ -263,6 +263,7 @@ class Context(object):
 
             except RpcException as err:
                 print("RPC failed: {0}".format(str(err)), file=sys.stderr)
+                print(traceback.format_exc(), flush=True)
                 sys.exit(errno.EBADMSG)
             except socket.error as err:
                 print("Cannot connect to dispatcher: {0}".format(str(err)), file=sys.stderr)
