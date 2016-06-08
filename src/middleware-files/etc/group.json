@@ -10,7 +10,7 @@
         },
         "gid": 0,
         "members": [],
-        "id": "0562D3BE-679B-45E3-A220-F9D9A2E938A9",
+        "id": "0562d3be-679b-45e3-a220-f9d9a2e938a9",
         "sudo": false
     },
     {
@@ -24,7 +24,7 @@
         },
         "gid": 1,
         "members": [],
-        "id": "36DD1308-699E-45B9-BA9E-D3253A14E1D5",
+        "id": "36dd1308-699e-45b9-ba9e-d3253a14e1d5",
         "sudo": false
     },
     {
@@ -38,7 +38,7 @@
         },
         "gid": 2,
         "members": [],
-        "id": "3EE33D50-8A95-42A7-B6EC-B201CD51C298",
+        "id": "3ee33d50-8a95-42a7-b6ec-b201cd51c298",
         "sudo": false
     },
     {
@@ -52,7 +52,7 @@
         },
         "gid": 3,
         "members": [],
-        "id": "D2D5E4AB-8F0B-4D2B-B494-630ED71AB169",
+        "id": "d2d5e4ab-8f0b-4d2b-b494-630ed71ab169",
         "sudo": false
     },
     {
@@ -66,7 +66,7 @@
         },
         "gid": 4,
         "members": [],
-        "id": "C239E2E8-CDCD-44AD-890C-DFFCC347ACAC",
+        "id": "c239e2e8-cdcd-44ad-890c-dffcc347acac",
         "sudo": false
     },
     {
@@ -80,7 +80,7 @@
         },
         "gid": 5,
         "members": [],
-        "id": "872D1632-EADD-431F-8C5F-8BD6222B602F",
+        "id": "872d1632-eadd-431f-8c5f-8bd6222b602f",
         "sudo": false
     },
     {
@@ -94,7 +94,7 @@
         },
         "gid": 6,
         "members": [],
-        "id": "070ED099-D9AE-4D82-AAD4-C8CF18C7998B",
+        "id": "070ed099-d9ae-4d82-aad4-c8cf18c7998b",
         "sudo": false
     },
     {
@@ -108,7 +108,7 @@
         },
         "gid": 7,
         "members": [],
-        "id": "566D4055-B736-4AC5-B324-889231381E27",
+        "id": "566d4055-b736-4ac5-b324-889231381e27",
         "sudo": false
     },
     {
@@ -122,7 +122,7 @@
         },
         "gid": 8,
         "members": [],
-        "id": "75BB5D8A-8A36-46B4-A9BA-323EE310733A",
+        "id": "75bb5d8a-8a36-46b4-a9ba-323ee310733a",
         "sudo": false
     },
     {
@@ -136,7 +136,7 @@
         },
         "gid": 9,
         "members": [],
-        "id": "A787B5E4-C875-47EB-BF44-A787581DD98A",
+        "id": "a787b5e4-c875-47eb-bf44-a787581dd98a",
         "sudo": false
     },
     {
@@ -150,7 +150,7 @@
         },
         "gid": 13,
         "members": [],
-        "id": "C5B8F090-DB15-4083-BBE3-07FA541E7DAE",
+        "id": "c5b8f090-db15-4083-bbe3-07fa541e7dae",
         "sudo": false
     },
     {
@@ -164,7 +164,7 @@
         },
         "gid": 14,
         "members": [],
-        "id": "25E95D6D-AA2D-489C-8DAC-DD60ECC5F707",
+        "id": "25e95d6d-aa2d-489c-8dac-dd60ecc5f707",
         "sudo": false
     },
     {
@@ -178,7 +178,7 @@
         },
         "gid": 20,
         "members": [],
-        "id": "ED4F031F-287B-40B2-804B-13856B41C780",
+        "id": "ed4f031f-287b-40b2-804b-13856b41c780",
         "sudo": false
     },
     {
@@ -192,7 +192,7 @@
         },
         "gid": 22,
         "members": [],
-        "id": "C9AC8A31-FAE9-41EE-A8B1-07FA6E509626",
+        "id": "c9ac8a31-fae9-41ee-a8b1-07fa6e509626",
         "sudo": false
     },
     {
@@ -206,7 +206,7 @@
         },
         "gid": 25,
         "members": [],
-        "id": "E41D0AED-EC6A-4C86-8063-4215F923135E",
+        "id": "e41d0aed-ec6a-4c86-8063-4215f923135e",
         "sudo": false
     },
     {
@@ -220,7 +220,7 @@
         },
         "gid": 26,
         "members": [],
-        "id": "14FC9B9E-97EA-45C8-970A-8853987F6BCE",
+        "id": "14fc9b9e-97ea-45c8-970a-8853987f6bce",
         "sudo": false
     },
     {
@@ -234,7 +234,7 @@
         },
         "gid": 31,
         "members": [],
-        "id": "5CE39317-BE43-48C9-A2F3-04BDB3FFDDF8",
+        "id": "5ce39317-be43-48c9-a2f3-04bdb3ffddf8",
         "sudo": false
     },
     {
@@ -248,7 +248,7 @@
         },
         "gid": 52,
         "members": [],
-        "id": "74149B26-0808-4F8F-B711-FBFA8DF8446D",
+        "id": "74149b26-0808-4f8f-b711-fbfa8df8446d",
         "sudo": false
     },
     {
@@ -262,7 +262,7 @@
         },
         "gid": 53,
         "members": [],
-        "id": "FD259280-436B-45A6-B5AC-52BFAD816019",
+        "id": "fd259280-436b-45a6-b5ac-52bfad816019",
         "sudo": false
     },
     {
@@ -276,7 +276,7 @@
         },
         "gid": 59,
         "members": [],
-        "id": "DBC444DE-F5B8-44EC-9153-97017E7A7D1D",
+        "id": "dbc444de-f5b8-44ec-9153-97017e7a7d1d",
         "sudo": false
     },
     {
@@ -290,7 +290,7 @@
         },
         "gid": 62,
         "members": [],
-        "id": "3A545AA3-45F7-4E82-BB9F-613E3DF55FD9",
+        "id": "3a545aa3-45f7-4e82-bb9f-613e3df55fd9",
         "sudo": false
     },
     {
@@ -304,7 +304,7 @@
         },
         "gid": 63,
         "members": [],
-        "id": "BCA1739C-E3E8-4DDC-A35B-D4141BE92EC3",
+        "id": "bca1739c-e3e8-4ddc-a35b-d4141be92ec3",
         "sudo": false
     },
     {
@@ -318,7 +318,7 @@
         },
         "gid": 64,
         "members": [],
-        "id": "F5E3DBDE-FF46-4E1C-B8C6-47713B28487C",
+        "id": "f5e3dbde-ff46-4e1c-b8c6-47713b28487c",
         "sudo": false
     },
     {
@@ -332,7 +332,7 @@
         },
         "gid": 65,
         "members": [],
-        "id": "901C6195-D94A-4CC9-BF1D-954DFB14F17B",
+        "id": "901c6195-d94a-4cc9-bf1d-954dfb14f17b",
         "sudo": false
     },
     {
@@ -346,7 +346,7 @@
         },
         "gid": 66,
         "members": [],
-        "id": "04E287E2-6FB0-45A8-85CB-F548DBF7FFCF",
+        "id": "04e287e2-6fb0-45a8-85cb-f548dbf7ffcf",
         "sudo": false
     },
     {
@@ -360,7 +360,7 @@
         },
         "gid": 68,
         "members": [],
-        "id": "454273BF-487B-4CC3-B6F0-9071253B0663",
+        "id": "454273bf-487b-4cc3-b6f0-9071253b0663",
         "sudo": false
     },
     {
@@ -374,7 +374,7 @@
         },
         "gid": 69,
         "members": [],
-        "id": "15ADE20D-2F95-4BBB-8706-7C64D339F285",
+        "id": "15ade20d-2f95-4bbb-8706-7c64d339f285",
         "sudo": false
     },
     {
@@ -388,7 +388,7 @@
         },
         "gid": 77,
         "members": [],
-        "id": "2941B683-7444-42A4-AA66-F86A8F20A947",
+        "id": "2941b683-7444-42a4-aa66-f86a8f20a947",
         "sudo": false
     },
     {
@@ -402,7 +402,7 @@
         },
         "gid": 80,
         "members": [],
-        "id": "9B9B8F5E-E737-46BC-B215-61F6A0579E9E",
+        "id": "9b9b8f5e-e737-46bc-b215-61f6a0579e9e",
         "sudo": false
     },
     {
@@ -416,7 +416,7 @@
         },
         "gid": 100,
         "members": [],
-        "id": "78C17920-B366-4A48-87A1-E7A64EB00450",
+        "id": "78c17920-b366-4a48-87a1-e7a64eb00450",
         "sudo": false
     },
     {
@@ -430,7 +430,7 @@
         },
         "gid": 142,
         "members": [],
-        "id": "6A5FE6A8-AED3-405D-86F9-CD1936137D2B",
+        "id": "6a5fe6a8-aed3-405d-86f9-cd1936137d2b",
         "sudo": false
     },
     {
@@ -444,7 +444,7 @@
         },
         "gid": 556,
         "members": [],
-        "id": "70216FA9-D279-4E5A-B9D4-DBB2824FD218",
+        "id": "70216fa9-d279-4e5a-b9d4-dbb2824fd218",
         "sudo": false
     },
     {
@@ -458,7 +458,7 @@
         },
         "gid": 666,
         "members": [],
-        "id": "1E5EA5EC-0075-492E-BE6A-0CE85F82F15D",
+        "id": "1e5ea5ec-0075-492e-be6a-0ce85f82f15d",
         "sudo": false
     },
     {
@@ -472,7 +472,7 @@
         },
         "gid": 922,
         "members": [],
-        "id": "4F8F5150-28A0-4215-B822-EC4F4A617F6F",
+        "id": "4f8f5150-28a0-4215-b822-ec4f4a617f6f",
         "sudo": false
     },
     {
@@ -486,7 +486,7 @@
         },
         "gid": 65533,
         "members": [],
-        "id": "8980C534-6A71-4BFB-BC72-54CBD5A186DB",
+        "id": "8980c534-6a71-4bfb-bc72-54cbd5a186db",
         "sudo": false
     },
     {
@@ -500,7 +500,7 @@
         },
         "gid": 65534,
         "members": [],
-        "id": "AE3500A4-C5FD-41D1-BDD7-6831A9D1E4AA",
+        "id": "ae3500a4-c5fd-41d1-bdd7-6831a9d1e4aa",
         "sudo": false
     }
 ]
