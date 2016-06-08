@@ -152,39 +152,29 @@ def _init(dispatcher, plugin):
             'anon_up_bandwidth': {'type': ['integer', 'null']},
             'anon_down_bandwidth': {'type': ['integer', 'null']},
             'tls': {'type': 'boolean'},
-            'tls_policy': {'type': 'string', 'enum': [
-                'ON',
-                'OFF',
-                'DATA',
-                '!DATA',
-                'AUTH',
-                'CTRL',
-                'CTRL+DATA',
-                'CTRL+!DATA',
-                'AUTH+DATA',
-                'AUTH+!DATA',
-            ]},
-            'tls_options': {'type': 'array', 'items': {
-                'type': 'string',
-                'enum': [
-                    'ALLOW_CLIENT_RENEGOTIATIONS',
-                    'ALLOW_DOT_LOGIN',
-                    'ALLOW_PER_USER',
-                    'COMMON_NAME_REQUIRED',
-                    'ENABLE_DIAGNOSTICS',
-                    'EXPORT_CERTIFICATE_DATA',
-                    'NO_CERTIFICATE_REQUEST',
-                    'NO_EMPTY_FRAGMENTS',
-                    'NO_SESSION_REUSE_REQUIRED',
-                    'STANDARD_ENV_VARS',
-                    'DNS_NAME_REQUIRED',
-                    'IP_ADDRESS_REQUIRED',
-                ],
-            }},
+            'tls_policy': {'$ref': 'service-ftp-tlspolicy'},
+            'tls_options': {
+                'type': 'array',
+                'items': {'$ref': 'service-ftp-tlsoptions-items'}
+            },
             'tls_ssl_certificate': {'type': ['string', 'null']},
             'auxiliary': {'type': ['string', 'null']},
         },
         'additionalProperties': False,
+    })
+
+    plugin.register_schema_definition('service-ftp-tlspolicy', {
+        'type': 'string',
+        'enum': ['ON', 'OFF', 'DATA', '!DATA', 'AUTH', 'CTRL',
+                 'CTRL+DATA', 'CTRL+!DATA', 'AUTH+DATA', 'AUTH+!DATA']
+    })
+
+    plugin.register_schema_definition('service-ftp-tlsoptions-items', {
+        'type': 'string',
+        'enum': ['ALLOW_CLIENT_RENEGOTIATIONS', 'ALLOW_DOT_LOGIN', 'ALLOW_PER_USER',
+            'COMMON_NAME_REQUIRED', 'ENABLE_DIAGNOSTICS', 'EXPORT_CERTIFICATE_DATA',
+            'NO_CERTIFICATE_REQUEST', 'NO_EMPTY_FRAGMENTS', 'NO_SESSION_REUSE_REQUIRED',
+            'STANDARD_ENV_VARS', 'DNS_NAME_REQUIRED', 'IP_ADDRESS_REQUIRED']
     })
 
     # Register providers

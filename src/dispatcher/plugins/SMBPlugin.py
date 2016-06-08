@@ -277,10 +277,7 @@ def _init(dispatcher, plugin):
             'description': {'type': 'string'},
             'dos_charset': {'type': 'string'},
             'unix_charset': {'type': 'string'},
-            'log_level': {
-                'type': 'string',
-                'enum': list(LogLevel.__members__.keys())
-            },
+            'log_level': {'$ref': 'service-smb-loglevel'},
             'syslog': {'type': 'boolean'},
             'local_master': {'type': 'boolean'},
             'domain_logons': {'type': 'boolean'},
@@ -302,8 +299,8 @@ def _init(dispatcher, plugin):
             'unixext': {'type': 'boolean'},
             'zeroconf': {'type': 'boolean'},
             'hostlookup': {'type': 'boolean'},
-            'min_protocol': {'type': ['string', 'null'], 'enum': [None] + PROTOCOLS},
-            'max_protocol': {'type': 'string', 'enum': PROTOCOLS},
+            'min_protocol': {'$ref': 'service-smb-minprotocol'},
+            'max_protocol': {'$ref': 'service-smb-maxprotocol'},
             'execute_always': {'type': 'boolean'},
             'obey_pam_restrictions': {'type': 'boolean'},
             'bind_addresses': {
@@ -314,6 +311,21 @@ def _init(dispatcher, plugin):
             'sid': {'type': ['string', 'null']},
         },
         'additionalProperties': False,
+    })
+
+    plugin.register_schema_definition('service-smb-loglevel', {
+        'type': 'string',
+        'enum': list(LogLevel.__members__.keys())
+    })
+
+    plugin.register_schema_definition('service-smb-minprotocol', {
+        'type': ['string', 'null'],
+        'enum': [None] + PROTOCOLS
+    })
+
+    plugin.register_schema_definition('service-smb-maxprotocol', {
+        'type': 'string',
+        'enum': PROTOCOLS
     })
 
     # Register providers
