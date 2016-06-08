@@ -270,7 +270,7 @@ class EventType(object):
     def incref(self):
         if self.refcount == 0 and self.source:
             self.source.enable(self.name)
-            self.logger.debug('Enabling event source: {0}'.format(self.name))
+            self.logger.log(TRACE, 'Enabling event source: {0}'.format(self.name))
 
         self.refcount += 1
 
@@ -291,7 +291,7 @@ class EventType(object):
 
         if self.refcount == 0 and self.source:
             self.source.disable(self.name)
-            self.logger.debug('Disabling event source: {0}'.format(self.name))
+            self.logger.log(TRACE, 'Disabling event source: {0}'.format(self.name))
 
 
 class Dispatcher(object):
