@@ -2271,7 +2271,7 @@ def _init(dispatcher, plugin):
             'volume': ds['pool'],
             'type': ds['type'],
             'mountpoint': ds.get('properties.mountpoint.value'),
-            'mounted': ds.get('properties.mounted.value'),
+            'mounted': yesno_to_bool(ds.get('properties.mounted.value')),
             'volsize': ds.get('properties.volsize.rawvalue'),
             'properties': include(
                 ds['properties'],
@@ -2520,10 +2520,7 @@ def _init(dispatcher, plugin):
             'rname': {'type': 'string'},
             'volume': {'type': 'string'},
             'mountpoint': {'type': 'string'},
-            'mounted': {
-                'type': 'boolean',
-                'readOnly': True
-            },
+            'mounted': {'type': 'boolean'},
             'type': {
                 'type': 'string',
                 'enum': ['FILESYSTEM', 'VOLUME'],
