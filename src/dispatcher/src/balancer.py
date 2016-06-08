@@ -87,11 +87,11 @@ class TaskExecutor(object):
         self.checked_in.set()
 
     def get_status(self):
-        with self.status_lock:
-            if not self.conn:
-                return None
+        self.task_started.wait()
+        if not self.conn:
+            return None
 
-            self.task_started.wait()
+        with self.status_lock:
             try:
                 st = TaskStatus(0)
                 if issubclass(self.task.clazz, MasterProgressTask):
@@ -130,7 +130,6 @@ class TaskExecutor(object):
                 else:
                     st.__setstate__(self.conn.call_client_sync('taskproxy.get_status'))
                 return st
-
             except RpcException as err:
                 self.balancer.logger.error(
                     "Cannot obtain status from task #{0}: {1}".format(self.task.id, str(err))
