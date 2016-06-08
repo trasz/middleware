@@ -295,10 +295,7 @@ def _init(dispatcher, plugin):
         'properties': {
             'id': {'type': 'integer'},
             'class': {'$ref': 'alert-class-id'},
-            'type': {
-                'type': 'string',
-                'enum': ['SYSTEM', 'VOLUME', 'DISK']
-            },
+            'type': {'$ref': 'alert-type'},
             'subtype': {'type': 'string'},
             'severity': {'$ref': 'alert-severity'},
             'target': {'type': 'string'},
@@ -315,6 +312,11 @@ def _init(dispatcher, plugin):
             'send_count': {'type': 'integer'}
         },
         'additionalProperties': False
+    })
+
+    plugin.register_schema_definition('alert-type', {
+        'type': 'string',
+        'enum': ['SYSTEM', 'VOLUME', 'DISK']
     })
 
     plugin.register_schema_definition('alert-emitter-email', {

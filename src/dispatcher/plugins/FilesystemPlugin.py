@@ -378,20 +378,24 @@ def _init(dispatcher, plugin):
     plugin.register_schema_definition('acl-entry', {
         'type': 'object',
         'properties': {
-            'tag': {
-                'type': 'string',
-                'enum': list(acl.ACLEntryTag.__members__.keys())
-            },
-            'type': {
-                'type': 'string',
-                'enum': list(acl.ACLEntryType.__members__.keys())
-            },
+            'tag': {'$ref': 'acl-entry-tag'},
+            'type': {'$ref': 'acl-entry-type'},
             'id': {'type': ['string', 'null']},
             'name': {'type': ['string', 'null']},
             'perms': {'$ref': 'acl-entry-perms'},
             'flags': {'$ref': 'acl-entry-flags'},
             'text': {'type': ['string', 'null']}
         }
+    })
+
+    plugin.register_schema_definition('acl-entry-tag', {
+        'type': 'string',
+        'enum': list(acl.ACLEntryTag.__members__.keys())
+    })
+
+    plugin.register_schema_definition('acl-entry-type', {
+        'type': 'string',
+        'enum': list(acl.ACLEntryType.__members__.keys())
     })
 
     plugin.register_schema_definition('acl-entry-perms', {

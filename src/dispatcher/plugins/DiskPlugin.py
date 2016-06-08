@@ -1427,12 +1427,14 @@ def _init(dispatcher, plugin):
             'smart_options': {'type': 'string'},
             'standby_mode': {'type': ['integer', 'null']},
             'apm_mode': {'type': ['integer', 'null']},
-            'acoustic_level': {
-                'type': 'string',
-                'enum': ['DISABLED', 'MINIMUM', 'MEDIUM', 'MAXIMUM']
-            },
+            'acoustic_level': {'$ref': 'disk-acousticlevel'},
             'status': {'$ref': 'disk-status'},
         }
+    })
+
+    plugin.register_schema_definition('disk-acousticlevel', {
+        'type': 'string',
+        'enum': ['DISABLED', 'MINIMUM', 'MEDIUM', 'MAXIMUM']
     })
 
     plugin.register_schema_definition('disk-status', {
