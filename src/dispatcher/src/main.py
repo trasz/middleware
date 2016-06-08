@@ -47,7 +47,6 @@ import setproctitle
 import traceback
 import tempfile
 import cgi
-import pwd
 import subprocess
 import websocket  # do not remove - we import it only for side effects
 
@@ -58,14 +57,13 @@ from gevent.queue import Queue
 from gevent.lock import RLock
 from gevent.event import AsyncResult, Event
 from gevent.pywsgi import WSGIServer
-from geventwebsocket import (WebSocketServer, WebSocketApplication, Resource,
-                             WebSocketError)
+from geventwebsocket import WebSocketServer, WebSocketApplication, Resource, WebSocketError
 
 from datastore import get_datastore
 from datastore.migrate import migrate_db, MigrationException
 from datastore.config import ConfigStore
 from freenas.dispatcher.jsonenc import loads, dumps
-from freenas.dispatcher.rpc import RpcContext, RpcStreamingResponse, RpcException, ServerLockProxy
+from freenas.dispatcher.rpc import RpcContext, RpcException, ServerLockProxy
 from freenas.dispatcher.server import Server, ServerConnection
 from resources import ResourceGraph
 from services import (
@@ -1262,8 +1260,9 @@ class ShellConnection(WebSocketApplication, EventEmitter):
         env = os.environ.copy()
         env['TERM'] = 'xterm'
 
-        uinfo = pwd.getpwnam(user)
-        if not uinfo:
+        try:
+            uinfo = self.dispatcher.call_sync('dscached.account.getpwnam', user)
+        except RpcException:
             self.ws.close()
             return
 
@@ -1290,7 +1289,7 @@ class ShellConnection(WebSocketApplication, EventEmitter):
         rd = gevent.spawn(read_worker)
 
         if self.pid == 0:
-            os.seteuid(uinfo.pw_uid)
+            os.seteuid(uinfo['uid'])
             os.execve('/bin/sh', ['sh', '-c', shell], env)
 
         self.logger.info('Shell %s spawned as PID %d', shell, self.pid)
