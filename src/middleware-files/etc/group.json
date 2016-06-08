@@ -407,6 +407,20 @@
     },
     {
         "created_at": {
+            "$date": "2016-06-08 14:54:27.938000"
+        },
+        "name": "replication",
+        "builtin": true,
+        "updated_at": {
+            "$date": "2016-06-08 14:54:27.938000"
+        },
+        "gid": 100,
+        "members": [],
+        "id": "78C17920-B366-4A48-87A1-E7A64EB00450",
+        "sudo": false
+    },
+    {
+        "created_at": {
             "$date": "2016-03-08 22:21:50.012000"
         },
         "name": "ladvd",

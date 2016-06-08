@@ -550,6 +550,32 @@
         }
     },
     {
+        "uid": 100,
+        "full_name": "Replication worker",
+        "shell": "/bin/sh",
+        "id": "08C571C4-3C36-4652-AF3B-27D5864F70C0",
+        "password_disabled": false,
+        "group": "78C17920-B366-4A48-87A1-E7A64EB00450",
+        "locked": false,
+        "username": "replication",
+        "nthash": null,
+        "email": null,
+        "sshpubkey": null,
+        "updated_at": {
+            "$date": "2016-06-08 14:54:27.938000"
+        },
+        "builtin": true,
+        "attributes": {},
+        "sudo": false,
+        "groups": ["36DD1308-699E-45B9-BA9E-D3253A14E1D5", "0562D3BE-679B-45E3-A220-F9D9A2E938A9"],
+        "home": "/var/tmp/replication",
+        "unixhash": "*",
+        "smbhash": "*",
+        "created_at": {
+            "$date": "2016-06-08 14:54:27.938000"
+        }
+    },
+    {
         "uid": 142,
         "full_name": "Ladvd User",
         "shell": "/usr/sbin/nologin",
