@@ -30,7 +30,7 @@ TO_BE_REMOVED = [
     'daemon', 'kmem', 'sys', 'tty', 'operator', 'mail', 'bin', 'news', 'man', 'games',
     'ftp', 'staff', 'sshd', 'smmsp', 'mailnull', 'guest', 'proxy', 'bind', 'unbound',
     'proxy', 'authpf', '_pflogd', '_dhcp', 'uucp', 'dialer', 'network', 'audit',
-    'www', 'ladvd', 'messagebus', 'webdav', 'mongodb', 'nogroup', 'nobody'
+    'www', 'ladvd', 'messagebus', 'webdav', 'mongodb', 'nogroup', 'nobody', 'replication'
 ]
 
 

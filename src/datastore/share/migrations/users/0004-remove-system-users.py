@@ -29,7 +29,8 @@
 TO_BE_REMOVED = [
     'daemon', 'operator', 'bin', 'tty', 'kmem', 'games', 'news', 'man', 'ftp',
     'sshd', 'smmsp', 'mailnull', 'bind', 'unbound', '_pflogd', '_dhcp', 'uucp',
-    'pop', 'auditdistd', 'www', 'ladvd', 'messagebus', 'webdav', 'mongodb', 'nobody'
+    'pop', 'auditdistd', 'www', 'ladvd', 'messagebus', 'webdav', 'mongodb', 'nobody',
+    'replication'
 ]
 
 
