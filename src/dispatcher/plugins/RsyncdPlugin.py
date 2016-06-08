@@ -238,7 +238,7 @@ def demote(user_uid, user_gid):
 
 @private
 @description("Runs an Rsync Copy Task with the specified arguments")
-@accepts(h.ref('rsync_copy'))
+@accepts(h.ref('rsync-copy'))
 class RsyncCopyTask(ProgressTask):
     @classmethod
     def early_describe(cls):
@@ -475,11 +475,7 @@ def _init(dispatcher, plugin):
             'name': {'type': 'string'},
             'description': {'type': ['string', 'null']},
             'path': {'type': 'string'},
-            'mode': {'type': 'string', 'enum': [
-                'READONLY',
-                'WRITEONLY',
-                'READWRITE',
-            ]},
+            'mode': {'$ref': 'rsyncd-module-mode'},
             'max_connections': {'type': ['integer', 'null']},
             'user': {'type': 'string'},
             'group': {'type': 'string'},
@@ -490,7 +486,12 @@ def _init(dispatcher, plugin):
         'additionalProperties': False,
     })
 
-    plugin.register_schema_definition('rsync_copy', {
+    plugin.register_schema_definition('rsyncd-module-mode', {
+        'type': 'string',
+        'enum': ['READONLY', 'WRITEONLY', 'READWRITE']
+    })
+
+    plugin.register_schema_definition('rsync-copy', {
         'type': 'object',
         'properties': {
             'user': {'type': 'string'},
@@ -499,14 +500,8 @@ def _init(dispatcher, plugin):
             'path': {'type': 'string'},
             'remote_path': {'type': 'string'},
             'remote_module': {'type': 'string'},
-            'rsync_direction': {
-                'type': 'string',
-                'enum': ['PUSH', 'PULL']
-            },
-            'rsync_mode': {
-                'type': 'string',
-                'enum': ['MODULE', 'SSH']
-            },
+            'rsync_direction': {'$ref': 'rsync-copy-rsyncdirection'},
+            'rsync_mode': {'$ref': 'rsync-copy-rsyncmode'},
             'remote_ssh_port': {'type': 'integer'},
             'rsync_properties': {
                 'type': 'object',
@@ -530,6 +525,16 @@ def _init(dispatcher, plugin):
         ],
         'required': ['user', 'path', 'remote_host', 'rsync_direction', 'rsync_mode'],
         'additionalProperties': False,
+    })
+
+    plugin.register_schema_definition('rsync-copy-rsyncdirection', {
+        'type': 'string',
+        'enum': ['PUSH', 'PULL']
+    })
+
+    plugin.register_schema_definition('rsync-copy-rsyncmode', {
+        'type': 'string',
+        'enum': ['MODULE', 'SSH']
     })
 
     # Register providers

@@ -766,13 +766,7 @@ def _init(dispatcher, plugin):
         'type': 'object',
         'additionalProperties': False,
         'properties': {
-            'type': {
-                'type': 'string',
-                'enum': [
-                    'INET',
-                    'INET6'
-                ]
-            },
+            'type': {'$ref': 'network-interface-alias-type'},
             'address': {'$ref': 'ip-address'},
             'netmask': {'type': 'integer'},
             'broadcast': {
@@ -781,16 +775,26 @@ def _init(dispatcher, plugin):
         }
     })
 
+    plugin.register_schema_definition('network-interface-alias-type', {
+        'type': 'string',
+        'enum': ['INET', 'INET6']
+    })
+
     plugin.register_schema_definition('network-route', {
         'type': 'object',
         'additionalProperties': False,
         'properties': {
             'id': {'type': 'string'},
-            'type': {'type': 'string', 'enum': ['INET', 'INET6']},
+            'type': {'$ref': 'network-route-type'},
             'network': {'$ref': 'ip-address'},
             'netmask': {'type': 'integer'},
             'gateway': {'$ref': 'ip-address'}
         }
+    })
+
+    plugin.register_schema_definition('network-route-type', {
+        'type': 'string',
+        'enum': ['INET', 'INET6']
     })
 
     plugin.register_schema_definition('network-host', {

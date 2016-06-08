@@ -1027,10 +1027,7 @@ class Main(object):
             'type': 'object',
             'properties': {
                 'name': {'type': 'string'},
-                'link_state': {
-                    'type': 'string',
-                    'enum': list(netif.InterfaceLinkState.__members__.keys())
-                },
+                'link_state': {'$ref': 'network-interface-status-linkstate'},
                 'link_address': {'type': 'string'},
                 'mtu': {'type': 'integer'},
                 'media_type': {'type': 'string'},
@@ -1084,6 +1081,11 @@ class Main(object):
                 'parent': {'type': ['string', 'null']},
                 'tag': {'type': ['string', 'null']}
             }
+        })
+
+        self.client.register_schema('network-interface-status-linkstate', {
+            'type': 'string',
+            'enum': list(netif.InterfaceLinkState.__members__.keys())
         })
 
     def main(self):

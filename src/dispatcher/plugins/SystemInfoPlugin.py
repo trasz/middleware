@@ -624,10 +624,7 @@ def _init(dispatcher, plugin):
         'properties': {
             'webui_protocol': {
                 'type': ['array'],
-                'items': {
-                    'type': 'string',
-                    'enum': ['HTTP', 'HTTPS'],
-                },
+                'items': {'$ref': 'system-ui-webuiprotocol-items'}
             },
             'webui_listen': {
                 'type': ['array'],
@@ -641,6 +638,11 @@ def _init(dispatcher, plugin):
         'additionalProperties': False,
     })
 
+    plugin.register_schema_definition('system-ui-webuiprotocol-items', {
+        'type': 'string',
+        'enum': ['HTTP', 'HTTPS'],
+    })
+
     plugin.register_schema_definition('system-time', {
         'type': 'object',
         'additionalProperties': False,
@@ -652,12 +654,17 @@ def _init(dispatcher, plugin):
         }
     })
 
-    plugin.register_schema_definition('power_changed', {
+    plugin.register_schema_definition('power-changed', {
         'type': 'object',
         'additionalProperties': False,
         'properties': {
-            'operation': {'type': 'string', 'enum': ['SHUTDOWN', 'REBOOT']},
+            'operation': {'$ref': 'power-changed-operation'},
         }
+    })
+
+    plugin.register_schema_definition('power-changed-operation', {
+        'type': 'string',
+        'enum': ['SHUTDOWN', 'REBOOT']
     })
 
     # Register event handler
@@ -667,7 +674,7 @@ def _init(dispatcher, plugin):
     plugin.register_event_type('system.general.changed')
     plugin.register_event_type('system.advanced.changed')
     plugin.register_event_type('system.ui.changed')
-    plugin.register_event_type('power.changed', schema=h.ref('power_changed'))
+    plugin.register_event_type('power.changed', schema=h.ref('power-changed'))
 
     # Register providers
     plugin.register_provider("system.advanced", SystemAdvancedProvider)
