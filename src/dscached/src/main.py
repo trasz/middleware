@@ -41,7 +41,7 @@ import ipaddress
 import socket
 import setproctitle
 import netif
-from threading import RLock, Thread, Timer
+from threading import RLock, Thread
 from datetime import datetime, timedelta
 from datastore.config import ConfigStore
 from freenas.dispatcher.client import Client, ClientError
