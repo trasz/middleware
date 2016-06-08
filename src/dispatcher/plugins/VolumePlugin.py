@@ -2443,40 +2443,60 @@ def _init(dispatcher, plugin):
         }
     })
 
-    plugin.register_schema_definition('volume-dataset-compression-property', {
+    plugin.register_schema_definition('volume-dataset-properties-compression', {
         'type': 'object',
         'additionalProperties': True,
         'properties': {
-            'value': {'enum': ['on', 'off', 'lzjb', 'zle', 'lz4', 'gzip', 'gzip-1',
-                               'gzip-2', 'gzip-3', 'gzip-4', 'gzip-5', 'gzip-6',
-                               'gzip-7', 'gzip-8', 'gzip-9']}
+            'value': {'$ref': 'volume-dataset-properties-compression-value'}
         }
     })
 
-    plugin.register_schema_definition('volume-dataset-dedup-property', {
+    plugin.register_schema_definition('volume-dataset-properties-compression-value', {
+        'type': 'string',
+        'enum': ['on', 'off', 'lzjb', 'zle', 'lz4', 'gzip', 'gzip-1',
+                 'gzip-2', 'gzip-3', 'gzip-4', 'gzip-5', 'gzip-6',
+                 'gzip-7', 'gzip-8', 'gzip-9']
+    })
+
+    plugin.register_schema_definition('volume-dataset-properties-dedup', {
         'type': 'object',
         'additionalProperties': True,
         'properties': {
-            'value': {'enum': ['on', 'off', 'verify', 'sha256', 'sha256,verify',
-                               'sha512', 'sha512,verify', 'skein', 'skein,verify',
-                               'edonr,verify']}
+            'value': {'$ref': 'volume-dataset-properties-dedup-value'}
         }
     })
 
-    plugin.register_schema_definition('volume-dataset-casesensitivity-property', {
+    plugin.register_schema_definition('volume-dataset-properties-dedup-value', {
+        'type': 'string',
+        'enum': ['on', 'off', 'verify', 'sha256', 'sha256,verify',
+                'sha512', 'sha512,verify', 'skein', 'skein,verify',
+                'edonr,verify']
+    })
+
+    plugin.register_schema_definition('volume-dataset-properties-casesensitivity', {
         'type': 'object',
         'additionalProperties': True,
         'properties': {
-            'value': {'enum': ['sensitive', 'insensitive', 'mixed']}
+            'value': {'$ref': 'volume-dataset-properties-casesensitivity-value'}
         }
     })
 
-    plugin.register_schema_definition('volume-dataset-atime-property', {
+    plugin.register_schema_definition('volume-dataset-properties-casesensitivity-value', {
+        'type': 'string',
+        'enum': ['sensitive', 'insensitive', 'mixed']
+    })
+
+    plugin.register_schema_definition('volume-dataset-properties-atime', {
         'type': 'object',
         'additionalProperties': True,
         'properties': {
-            'value': {'enum': ['on', 'off']}
+            'value': {'$ref': 'volume-dataset-properties-atime-value'},
         }
+    })
+
+    plugin.register_schema_definition('volume-dataset-properties-atime-value', {
+        'type': 'string',
+        'enum': ['on', 'off']
     })
 
     plugin.register_schema_definition('volume-properties', {
@@ -2544,15 +2564,15 @@ def _init(dispatcher, plugin):
             'available': {'$ref': 'volume-readonly-property'},
             'compression': {'allOf': [
                 {'$ref': 'volume-property'},
-                {'$ref': 'volume-dataset-compression-property'}
+                {'$ref': 'volume-dataset-properties-compression'}
                 ]},
             'atime': {'allOf': [
                 {'$ref': 'volume-property'},
-                {'$ref': 'volume-dataset-atime-property'}
-                ]},
+                {'$ref': 'volume-dataset-properties-atime'}
+            ]},
             'dedup': {'allOf': [
                 {'$ref': 'volume-property'},
-                {'$ref': 'volume-dataset-dedup-property'}
+                {'$ref': 'volume-dataset-properties-dedup'}
                 ]},
             'quota': {'$ref': 'volume-property'},
             'refquota': {'$ref': 'volume-property'},
@@ -2560,7 +2580,7 @@ def _init(dispatcher, plugin):
             'refreservation': {'$ref': 'volume-property'},
             'casesensitivity': {'allOf': [
                 {'$ref': 'volume-property'},
-                {'$ref': 'volume-dataset-casesensitivity-property'},
+                {'$ref': 'volume-dataset-properties-casesensitivity'},
                 ]},
             'volsize': {'$ref': 'volume-property'},
             'volblocksize': {'$ref': 'volume-property'},
