@@ -73,6 +73,16 @@ def filter_af(addresses, af):
     return [a for a in addresses if type(ipaddress.ip_address(a)) is AF_MAP[af]]
 
 
+def alias(d, obj, name):
+    aliases = obj.get('aliases', [])
+    aliases.append(obj[name])
+    if d.domain_name:
+        obj[name] = '{0}@{1}'.format(obj[name], d.domain_name)
+        aliases.append(obj[name])
+
+    return aliases
+
+
 def annotate(user, directory, name_field, cache=None):
     name = '{0}@{1}'.format(user[name_field], directory.domain_name) \
         if directory.domain_name \
@@ -105,16 +115,12 @@ class CacheItem(object):
         return self.created_at + timedelta(seconds=self.ttl) < datetime.utcnow()
 
     @property
-    def ttl_left(self):
-        return self.ttl - (datetime.utcnow() - self.created_at).total_seconds()
-
-    @property
     def annotated(self):
         return extend(self.value, {
             'origin': {
                 'directory': self.directory.name,
                 'cached_at': self.created_at,
-                'ttl': self.ttl_left
+                'ttl': self.ttl
             }
         })
 
@@ -357,9 +363,14 @@ class AccountService(RpcService):
         for d in dirs:
             try:
                 user = d.instance.getpwuid(uid)
-                return self.__annotate(d, user)
             except:
                 continue
+
+            if user:
+                aliases = alias(d, user, 'username')
+                item = CacheItem(user['uid'], user['id'], aliases, copy.copy(user), d, 300)
+                self.context.users_cache.set(item)
+                return item.annotated
 
         raise RpcException(errno.ENOENT, 'UID {0} not found'.format(uid))
 
@@ -383,7 +394,8 @@ class AccountService(RpcService):
                 continue
 
             if user:
-                item = CacheItem(user['uid'], user['id'], user_name, copy.copy(user), d, 300)
+                aliases = alias(d, user, 'username')
+                item = CacheItem(user['uid'], user['id'], aliases, copy.copy(user), d, 300)
                 self.context.users_cache.set(item)
                 return item.annotated
 
@@ -402,7 +414,8 @@ class AccountService(RpcService):
                 continue
 
             if user:
-                item = CacheItem(user['uid'], user['id'], user['username'], copy.copy(user), d, 300)
+                aliases = alias(d, user, 'username')
+                item = CacheItem(user['uid'], user['id'], aliases, copy.copy(user), d, 300)
                 self.context.users_cache.set(item)
                 return item.annotated
 
@@ -451,9 +464,14 @@ class GroupService(RpcService):
         for d in dirs:
             try:
                 group = d.instance.getgrnam(name)
-                return self.__annotate(d, group)
             except:
                 continue
+
+            if group:
+                aliases = alias(d, group, 'name')
+                item = CacheItem(group['gid'], group['id'], aliases, copy.copy(group), d, 300)
+                self.context.groups_cache.set(item)
+                return item.annotated
 
         raise RpcException(errno.ENOENT, 'Group {0} not found'.format(name))
     
@@ -469,9 +487,14 @@ class GroupService(RpcService):
         for d in dirs:
             try:
                 group = d.instance.getgrgid(gid)
-                return self.__annotate(d, group)
             except:
                 continue
+
+            if group:
+                aliases = alias(d, group, 'name')
+                item = CacheItem(group['gid'], group['id'], aliases, copy.copy(group), d, 300)
+                self.context.groups_cache.set(item)
+                return item.annotated
 
         raise RpcException(errno.ENOENT, 'GID {0} not found'.format(gid))
 
@@ -488,7 +511,8 @@ class GroupService(RpcService):
                 continue
 
             if group:
-                item = CacheItem(group['gid'], group['id'], group['name'], copy.copy(group), d, 300)
+                aliases = alias(d, group, 'name')
+                item = CacheItem(group['gid'], group['id'], aliases, copy.copy(group), d, 300)
                 self.context.groups_cache.set(item)
                 return item.annotated
 
@@ -605,15 +629,6 @@ class Main(object):
                 lambda d: d.max_gid and d.max_gid >= gid >= d.min_gid,
                 self.directories
             )
-
-    def alias(self, d, obj, name):
-        aliases = obj.get('aliases', [])
-        aliases.append(obj[name])
-        if d.domain_name:
-            obj[name] = '{0}@{1}'.format(obj[name], d.domain_name)
-            aliases.append(obj[name])
-
-        return aliases
 
     def init_datastore(self):
         try:
