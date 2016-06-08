@@ -46,8 +46,9 @@ class FlatFilePlugin(DirectoryServicePlugin):
         self.context = context
         self.passwd = wrap([])
         self.group = wrap([])
-        self.watch_thread = threading.Thread(target=self.__watch, daemon=True)
-        self.watch_thread.start()
+        self.passwd_filename = None
+        self.group_filename = None
+        self.watch_thread = None
 
     def __load(self):
         try:
@@ -141,6 +142,9 @@ class FlatFilePlugin(DirectoryServicePlugin):
         self.passwd_filename = parameters["passwd_file"]
         self.group_filename = parameters["group_file"]
         self.__load()
+        if not self.watch_thread:
+            self.watch_thread = threading.Thread(target=self.__watch, daemon=True)
+            self.watch_thread.start()
 
 
 def _init(context):
