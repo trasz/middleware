@@ -527,7 +527,7 @@ def _init(dispatcher, plugin):
     # Register tasks
     plugin.register_task_handler("peer.create", PeerCreateTask)
     plugin.register_task_handler("peer.update", PeerUpdateTask)
-    plugin.register_task_handler("peer.delete", PeerUpdateTask)
+    plugin.register_task_handler("peer.delete", PeerDeleteTask)
     plugin.register_task_handler("peer.replication.create", ReplicationPeerCreateTask)
     plugin.register_task_handler("peer.replication.create_local", ReplicationPeerCreateLocalTask)
     plugin.register_task_handler("peer.replication.delete", ReplicationPeerDeleteTask)
