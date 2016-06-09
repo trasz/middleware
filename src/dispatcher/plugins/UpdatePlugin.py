@@ -965,33 +965,43 @@ def _init(dispatcher, plugin):
         },
     })
 
-    plugin.register_schema_definition('update-progress', h.object(properties={
-        'operation': h.enum(str, ['DOWNLOADING', 'INSTALLING']),
-        'details': str,
-        'indeterminate': bool,
-        'percent': int,
-        'reboot': bool,
-        'pkg_name': str,
-        'pkg_version': str,
-        'filesize': int,
-        'num_files_done': int,
-        'num_files_total': int,
-        'error': bool,
-        'finished': bool,
-    }))
+    plugin.register_schema_definition('update-progress', {
+        'type': 'object',
+        'properties': {
+            'operation': {'$ref': 'update-progress-operation'},
+            'details': {'type': 'string'},
+            'indeterminate': {'type': 'boolean'},
+            'percent': {'type': 'integer'},
+            'reboot': {'type': 'boolean'},
+            'pkg_name': {'type': 'string'},
+            'pkg_version': {'type': 'string'},
+            'filesize': {'type': 'integer'},
+            'num_files_done': {'type': 'integer'},
+            'num_files_total': {'type': 'integer'},
+            'error': {'type': 'boolean'},
+            'finished': {'type': 'boolean'}
+        }
+    })
+
+    plugin.register_schema_definition('update-progress-operation', {
+        'type': 'string',
+        'enum': ['DOWNLOADING', 'INSTALLING']
+    })
 
     plugin.register_schema_definition('update-ops', {
         'type': 'object',
         'properties': {
-            'operation': {
-                'type': 'string',
-                'enum': ['delete', 'install', 'upgrade']
-            },
+            'operation': {'$ref': 'update-ops-operation'},
             'new_name': {'type': ['string', 'null']},
             'new_version': {'type': ['string', 'null']},
             'previous_name': {'type': ['string', 'null']},
             'previous_version': {'type': ['string', 'null']},
         }
+    })
+
+    plugin.register_schema_definition('update-ops-operation', {
+        'type': 'string',
+        'enum': ['delete', 'install', 'upgrade']
     })
 
     plugin.register_schema_definition('update-info', {
