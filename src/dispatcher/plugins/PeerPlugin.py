@@ -278,7 +278,7 @@ class ReplicationPeerCreateLocalTask(Task):
         id = self.datastore.insert('peers', peer)
 
         with open(AUTH_FILE, 'a') as auth_file:
-            auth_file.write(peer['pubkey'])
+            auth_file.write(peer['credentials']['pubkey'])
 
         self.dispatcher.dispatch_event('peer.changed', {
             'operation': 'create',
