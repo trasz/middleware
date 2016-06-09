@@ -2391,13 +2391,8 @@ def _init(dispatcher, plugin):
             'encryption': {'$ref': 'encryption'},
             'providers_presence': {
                 'oneOf': [
-                    {
-                        'type': 'string',
-                        'enum': ['ALL', 'PART', 'NONE']
-                    },
-                    {
-                        'type': 'null'
-                    }
+                    {'$ref': 'volume-providerspresence'},
+                    {'type': 'null'}
                 ],
                 'readOnly': True
             },
@@ -2415,6 +2410,11 @@ def _init(dispatcher, plugin):
         }
     })
 
+    plugin.register_schema_definition('volume-providerspresence', {
+        'type': 'string',
+        'enum': ['ALL', 'PART', 'NONE']
+    })
+
     plugin.register_schema_definition('volume-property', {
         'type': 'object',
         'additionalProperties': False,
@@ -2424,12 +2424,16 @@ def _init(dispatcher, plugin):
                 'type': 'string',
                 'readOnly': True
             },
-            'source': {
-                'type': 'string',
-                'enum': ['NONE', 'DEFAULT', 'LOCAL', 'INHERITED'],
-                'readOnly': True
-            }
+            'source': {'allOf': [
+                {'$ref': 'volume-property-source'},
+                {'readOnly': True}
+            ]}
         }
+    })
+
+    plugin.register_schema_definition('volume-property-source', {
+        'type': 'string',
+        'enum': ['NONE', 'DEFAULT', 'LOCAL', 'INHERITED']
     })
 
     plugin.register_schema_definition('volume-readonly-property', {
@@ -2444,11 +2448,10 @@ def _init(dispatcher, plugin):
                 'type': 'string',
                 'readOnly': True
             },
-            'source': {
-                'type': 'string',
-                'enum': ['NONE', 'DEFAULT', 'LOCAL', 'INHERITED'],
-                'readOnly': True
-            }
+            'source': {'allOf': [
+                {'$ref': 'volume-property-source'},
+                {'readOnly': True}
+            ]}
         }
     })
 
@@ -2550,19 +2553,25 @@ def _init(dispatcher, plugin):
             'volume': {'type': 'string'},
             'mountpoint': {'type': 'string'},
             'mounted': {'type': 'boolean'},
-            'type': {
-                'type': 'string',
-                'enum': ['FILESYSTEM', 'VOLUME'],
-                'readOnly': True
-            },
+            'type': {'allOf': [
+                {'$ref': 'volume-dataset-type'},
+                {'readOnly': True}
+            ]},
             'volsize': {'type': ['integer', 'null']},
             'properties': {'$ref': 'volume-dataset-properties'},
             'permissions': {'$ref': 'permissions'},
-            'permissions_type': {
-                'type': 'string',
-                'enum': ['PERM', 'ACL']
-            }
+            'permissions_type': {'$ref': 'volume-dataset-permissionstype'}
         }
+    })
+
+    plugin.register_schema_definition('volume-dataset-type', {
+        'type': 'string',
+        'enum': ['FILESYSTEM', 'VOLUME'],
+    })
+
+    plugin.register_schema_definition('volume-dataset-permissionstype', {
+        'type': 'string',
+        'enum': ['PERM', 'ACL']
     })
 
     plugin.register_schema_definition('volume-dataset-properties', {
@@ -2574,7 +2583,7 @@ def _init(dispatcher, plugin):
             'compression': {'allOf': [
                 {'$ref': 'volume-property'},
                 {'$ref': 'volume-dataset-properties-compression'}
-                ]},
+            ]},
             'atime': {'allOf': [
                 {'$ref': 'volume-property'},
                 {'$ref': 'volume-dataset-properties-atime'}
@@ -2582,7 +2591,7 @@ def _init(dispatcher, plugin):
             'dedup': {'allOf': [
                 {'$ref': 'volume-property'},
                 {'$ref': 'volume-dataset-properties-dedup'}
-                ]},
+            ]},
             'quota': {'$ref': 'volume-property'},
             'refquota': {'$ref': 'volume-property'},
             'reservation': {'$ref': 'volume-property'},
@@ -2590,7 +2599,7 @@ def _init(dispatcher, plugin):
             'casesensitivity': {'allOf': [
                 {'$ref': 'volume-property'},
                 {'$ref': 'volume-dataset-properties-casesensitivity'},
-                ]},
+            ]},
             'volsize': {'$ref': 'volume-property'},
             'volblocksize': {'$ref': 'volume-property'},
             'refcompressratio': {'$ref': 'volume-property'},
@@ -2639,13 +2648,15 @@ def _init(dispatcher, plugin):
             'type': 'object',
             'additionalProperties': False,
             'properties': {
-                'type': {
-                    'type': 'string',
-                    'enum': ['BOOT', 'VOLUME', 'ISCSI'],
-                },
+                'type': {'$ref': 'disks-allocation-type'},
                 'name': {'type': 'string'}
             }
         }
+    })
+
+    plugin.register_schema_definition('disks-allocation-type', {
+        'type': 'string',
+        'enum': ['BOOT', 'VOLUME', 'ISCSI'],
     })
 
     plugin.register_schema_definition('importable-disk', {
