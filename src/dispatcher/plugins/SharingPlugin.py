@@ -580,10 +580,7 @@ def _init(dispatcher, plugin):
             'enabled': {'type': 'boolean'},
             'immutable': {'type': 'boolean'},
             'type': {'type': 'string'},
-            'target_type': {
-                'type': 'string',
-                'enum': ['DATASET', 'ZVOL', 'DIRECTORY', 'FILE']
-            },
+            'target_type': {'$ref': 'share-targettype'},
             'target_path': {'type': 'string'},
             'filesystem_path': {
                 'type': 'string',
@@ -597,6 +594,11 @@ def _init(dispatcher, plugin):
             },
             'properties': {'$ref': 'share-properties'}
         }
+    })
+
+    plugin.register_schema_definition('share-targettype', {
+        'type': 'string',
+        'enum': ['DATASET', 'ZVOL', 'DIRECTORY', 'FILE']
     })
 
     plugin.register_schema_definition('share-client', {
@@ -617,13 +619,24 @@ def _init(dispatcher, plugin):
         'additionalProperties': {
             'type': 'object',
             'properties': {
-                'subtype': {'type': 'string', 'enum': ['FILE', 'BLOCK']},
-                'perm_type': {
-                    'oneOf': [{'type': 'string', 'enum': ['PERM', 'ACL']}, {'type': 'null'}]
-                },
+                'subtype': {'$ref': 'share-types-subtype'},
+                'perm_type': { 'oneOf': [
+                    {'$ref': 'share-types-permtype'},
+                    {'type': 'null'}
+                ]},
             },
             'additionalProperties': False
         }
+    })
+
+    plugin.register_schema_definition('share-types-subtype', {
+        'type': 'string',
+        'enum': ['FILE', 'BLOCK']
+    })
+
+    plugin.register_schema_definition('share-types-permtype', {
+        'type': 'string',
+        'enum': ['PERM', 'ACL']
     })
 
     def volume_pre_destroy(args):

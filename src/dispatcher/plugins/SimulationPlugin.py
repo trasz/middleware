@@ -160,11 +160,13 @@ def _init(dispatcher, plugin):
             'serial': {'type': 'string'},
             'block_size': {'type': 'integer'},
             'online': {'type': 'boolean'},
-            'rpm': {
-                'type': 'string',
-                'enum': ['UNKNOWN', 'SSD', '5400', '7200', '10000', '15000']
-            }
+            'rpm': {'$ref': 'simulator-disk-rpm'}
         }
+    })
+
+    plugin.register_schema_definition('simulator-disk-rpm', {
+        'type': 'string',
+        'enum': ['UNKNOWN', 'SSD', '5400', '7200', '10000', '15000']
     })
 
     dispatcher.call_sync('system_dataset.request_directory', 'simulator')
