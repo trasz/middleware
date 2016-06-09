@@ -121,18 +121,22 @@ def _init(dispatcher, plugin):
             'v3': {'type': 'boolean'},
             'v3_username': {'type': ['string', 'null']},
             'v3_password': {'type': ['string', 'null']},
-            'v3_auth_type': {'type': 'string', 'enum': [
-                'MD5',
-                'SHA',
-            ]},
-            'v3_privacy_protocol': {'type': 'string', 'enum': [
-                'AES',
-                'DES',
-            ]},
+            'v3_auth_type': {'$ref': 'service-snmp-v3authtype'},
+            'v3_privacy_protocol': {'$ref': 'service-snmp-v3privacyprotocol'},
             'v3_privacy_passphrase': {'type': ['string', 'null']},
             'auxiliary': {'type': ['string', 'null']},
         },
         'additionalProperties': False,
+    })
+
+    plugin.register_schema_definition('service-snmp-v3authtype', {
+        'type': 'string',
+        'enum': ['MD5', 'SHA']
+    })
+
+    plugin.register_schema_definition('service-snmp-v3privacyprotocol', {
+        'type': 'string',
+        'enum': ['AES', 'DES']
     })
 
     # Register providers

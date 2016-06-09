@@ -97,32 +97,23 @@ def _init(dispatcher, plugin):
             'allow_password_auth': {'type': 'boolean'},
             'allow_port_forwarding': {'type': 'boolean'},
             'compression': {'type': 'boolean'},
-            'sftp_log_level': {'type': 'string', 'enum': [
-                'QUIET',
-                'FATAL',
-                'ERROR',
-                'INFO',
-                'VERBOSE',
-                'DEBUG',
-                'DEBUG2',
-                'DEBUG3',
-            ]},
-            'sftp_log_facility': {'type': 'string', 'enum': [
-                'DAEMON',
-                'USER',
-                'AUTH',
-                'LOCAL0',
-                'LOCAL1',
-                'LOCAL2',
-                'LOCAL3',
-                'LOCAL4',
-                'LOCAL5',
-                'LOCAL6',
-                'LOCAL7',
-            ]},
+            'sftp_log_level': {'$ref': 'service-sshd-sftploglevel'},
+            'sftp_log_facility': {'$ref': 'service-sshd-sftplogfacility'},
             'auxiliary': {'type': ['string', 'null']},
         },
         'additionalProperties': False,
+    })
+
+    plugin.register_schema_definition('service-sshd-sftploglevel', {
+        'type': 'string',
+        'enum': [ 'QUIET', 'FATAL', 'ERROR', 'INFO',
+                  'VERBOSE', 'DEBUG', 'DEBUG2', 'DEBUG3']
+    })
+
+    plugin.register_schema_definition('service-sshd-sftplogfacility', {
+        'type': 'string',
+        'enum': [ 'DAEMON', 'USER', 'AUTH', 'LOCAL0',
+                  'LOCAL1', 'LOCAL2', 'LOCAL3', 'LOCAL4', 'LOCAL5', 'LOCAL6', 'LOCAL7']
     })
 
     # Register providers
