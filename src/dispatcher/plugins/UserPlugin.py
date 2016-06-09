@@ -41,6 +41,11 @@ from freenas.utils import normalize, crypted_password, nt_password
 EMAIL_REGEX = re.compile(r"\b[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]*[a-zA-Z0-9]\.[a-zA-Z]{2,4}\b")
 
 
+def normalize_name(d, name):
+    if name in d and d[name].endswith('@local'):
+        d[name] = d[name].split('@')[0]
+
+
 def check_unixname(name):
     """Helper method to check if a given name is a valid unix name
         1. Cannot start with dashes
@@ -149,6 +154,7 @@ class UserCreateTask(Task):
 
     def verify(self, user):
         errors = ValidationException()
+        normalize_name(user, 'username')
 
         for code, message in check_unixname(user['username']):
             errors.add((0, 'username'), message, code=code)
@@ -184,6 +190,7 @@ class UserCreateTask(Task):
         else:
             uid = user.pop('uid')
 
+        normalize_name(user, 'username')
         normalize(user, {
             'builtin': False,
             'unixhash': None,
@@ -342,6 +349,7 @@ class UserUpdateTask(Task):
     def verify(self, id, updated_fields):
         user = self.datastore.get_by_id('users', id)
         errors = ValidationException()
+        normalize_name(updated_fields, 'username')
 
         if user is None:
             errors.add(
@@ -376,9 +384,6 @@ class UserUpdateTask(Task):
             errors.add((1, 'groups'), 'User cannot belong to more than 64 auxiliary groups')
 
         if 'username' in updated_fields:
-            if self.datastore.exists('users', ('username', '=', updated_fields['username']), ('id', '!=', id)):
-                errors.add((1, 'username'), 'Different user with given name already exists')
-
             for code, message in check_unixname(updated_fields['username']):
                 errors.add((1, 'username'), message, code=code)
 
@@ -395,6 +400,8 @@ class UserUpdateTask(Task):
         return ['system']
 
     def run(self, id, updated_fields):
+        normalize_name(updated_fields, 'username')
+
         try:
             user = self.datastore.get_by_id('users', id)
             if not user:
@@ -476,6 +483,7 @@ class GroupCreateTask(Task):
 
     def verify(self, group):
         errors = ValidationException()
+        normalize_name(group, 'name')
 
         for code, message in check_unixname(group['name']):
             errors.add((0, 'name'), message, code=code)
@@ -507,6 +515,7 @@ class GroupCreateTask(Task):
             gid = group.pop('gid')
 
         try:
+            normalize_name(group, 'name')
             group['builtin'] = False
             group['gid'] = gid
             group.setdefault('sudo', False)
@@ -544,6 +553,7 @@ class GroupUpdateTask(Task):
 
     def verify(self, id, updated_fields):
         errors = ValidationException()
+        normalize_name(updated_fields, 'name')
 
         if 'name' in updated_fields:
             for code, message in check_unixname(updated_fields['name']):
@@ -564,6 +574,7 @@ class GroupUpdateTask(Task):
 
     def run(self, id, updated_fields):
         try:
+            normalize_name(updated_fields, 'name')
             group = self.datastore.get_by_id('groups', id)
             if group is None:
                 raise TaskException(errno.ENOENT, 'Group {0} does not exist'.format(id))
