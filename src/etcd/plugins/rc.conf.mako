@@ -27,7 +27,7 @@ devd_enable="NO"
 
 # middleware10
 dispatcher_enable="YES"
-dispatcher_flags="--log-level=DEBUG --log-file=/var/log/dispatcher.log"
+dispatcher_flags="--log-level=DEBUG --log-file=/var/log/dispatcher.log --load-disabled False"
 datastore_enable="YES"
 datastore_dbdir="/data"
 datastore_driver="mongodb"

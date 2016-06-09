@@ -295,7 +295,7 @@ class EventType(object):
 
 
 class Dispatcher(object):
-    def __init__(self):
+    def __init__(self, *args, **kwargs):
         self.started_at = None
         self.plugin_dirs = []
         self.event_types = {}
@@ -329,6 +329,7 @@ class Dispatcher(object):
         self.port = 0
         self.file_ws_connectios = None
         self.logdb_proc = None
+        self.load_disabled_plugins = kwargs.get('load_disabled', False)
 
     def init(self):
         self.logger.info('Initializing')
@@ -488,6 +489,9 @@ class Dispatcher(object):
 
     def __discover_plugin_dir(self, dir):
         for root, dirnames, filenames in os.walk(dir):
+            # Skipping disabled plugins, unles explicitly informed to load them
+            if not self.load_disabled_plugins and os.path.basename(root) == 'disabled':
+                continue
             for i in fnmatch.filter(filenames, '*.py') + fnmatch.filter(filenames, '*.so'):
                 self.__try_load_plugin(os.path.join(dir, os.path.join(root, i)))
 
@@ -1491,6 +1495,7 @@ def main():
     parser.add_argument('-p', type=int, metavar='PORT', default=5000, help="WebSockets server port")
     parser.add_argument('-u', type=str, metavar='PATH', default='/var/run/dispatcher.sock', help="Unix domain server path")
     parser.add_argument('-c', type=str, metavar='CONFIG', default=DEFAULT_CONFIGFILE, help='Configuration file path')
+    parser.add_argument('--load-disabled', type=bool, metavar='LOAD_DISABLED', default=False, help='Load disabled plugins')
     args = parser.parse_args()
 
     logging.setLoggerClass(TraceLogger)
@@ -1505,7 +1510,7 @@ def main():
         logging.root.addHandler(handler)
 
     # Initialization and dependency injection
-    d = Dispatcher()
+    d = Dispatcher(load_disabled=args.load_disabled)
     try:
         d.read_config_file(args.c)
     except IOError as err:
