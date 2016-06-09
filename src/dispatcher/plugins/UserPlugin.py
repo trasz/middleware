@@ -79,6 +79,19 @@ class UserProvider(Provider):
     @query('user')
     @generator
     def query(self, filter=None, params=None):
+        # Common use cases optimization
+        if filter and len(filter) == 1 and params and params.get('single'):
+            key, op, value = filter[0]
+            if op == '=':
+                if key == 'id':
+                    return self.dispatcher.call_sync('dscached.account.getpwuuid', value)
+
+                if key == 'uid':
+                    return self.dispatcher.call_sync('dscached.account.getpwuid', value)
+
+                if key == 'username':
+                    return self.dispatcher.call_sync('dscached.account.getpwnam', value)
+
         return self.dispatcher.call_sync('dscached.account.query', filter, params)
 
     def get_profile_picture(self, uid):
@@ -109,6 +122,19 @@ class GroupProvider(Provider):
     @query('group')
     @generator
     def query(self, filter=None, params=None):
+        # Common use cases optimization
+        if filter and len(filter) == 1 and params and params.get('single'):
+            key, op, value = filter[0]
+            if op == '=':
+                if key == 'id':
+                    return self.dispatcher.call_sync('dscached.group.getgruuid', value)
+
+                if key == 'gid':
+                    return self.dispatcher.call_sync('dscached.group.getgruid', value)
+
+                if key == 'name':
+                    return self.dispatcher.call_sync('dscached.group.getgrnam', value)
+
         return self.dispatcher.call_sync('dscached.group.query', filter, params)
 
     @description("Retrieve the next GID available")
