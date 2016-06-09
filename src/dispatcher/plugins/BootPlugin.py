@@ -33,6 +33,7 @@ import bsd
 from datetime import datetime
 from task import Provider, Task, ProgressTask, VerifyException, TaskException, query, TaskDescription
 from cache import EventCacheStore
+from utils import split_dataset
 from freenas.dispatcher.rpc import accepts, returns, description, SchemaHelper as h
 
 sys.path.append('/usr/local/lib')
@@ -274,12 +275,28 @@ def _init(dispatcher, plugin):
 
     def on_dataset_change(args):
         with dispatcher.get_lock('bootenvs'):
-            if args['operation'] in ('delete', 'create'):
+            if args['operation'] == 'create':
                 bootenvs.propagate(args, convert_bootenv)
+
+            if args['operation'] == 'delete':
+                logger.warn(args)
+                for i in args['ids']:
+                    pool, dataset = split_dataset(i)
+                    if pool != boot_pool_name:
+                        continue
+
+                    realname = dataset.split('/')[-1]
+                    ds = bootenvs.query(('realname', '=', realname), single=True)
+                    if ds:
+                        bootenvs.remove(ds['id'])
 
             if args['operation'] == 'update':
                 for i in args['entities']:
-                    realname = i['id'].split('/')[-1]
+                    pool, dataset = split_dataset(i['id'])
+                    if pool != boot_pool_name:
+                        continue
+
+                    realname = dataset.split('/')[-1]
                     ds = bootenvs.query(('realname', '=', realname), single=True)
                     if not ds:
                         continue
