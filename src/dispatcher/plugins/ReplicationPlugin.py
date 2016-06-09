@@ -522,7 +522,7 @@ class ReplicationPrepareSlaveTask(ReplicationBaseTask):
                                     {
                                         'id': vol['id'],
                                         'type': vol['type'],
-                                        'params': {'encryption': False, 'mount': False},
+                                        'params': {'mount': False},
                                         'topology': topology
                                     }
                                 )
