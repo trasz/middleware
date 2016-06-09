@@ -272,7 +272,7 @@ class ReplicationPeerCreateLocalTask(Task):
         return ['system']
 
     def run(self, peer):
-        if self.datastore.exists('replication.peers', ('name', '=', peer['name'])):
+        if self.datastore.exists('peers', ('name', '=', peer['name'])):
             raise TaskException(errno.EEXIST, 'Replication peer entry {0} already exists'.format(peer['name']))
 
         id = self.datastore.insert('peers', peer)
