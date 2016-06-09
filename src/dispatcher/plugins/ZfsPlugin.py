@@ -1435,15 +1435,17 @@ def _init(dispatcher, plugin):
                 'type': 'object',
                 'readOnly': True
             },
-            'type': {
-                'type': 'string',
-                'enum': ['disk', 'file', 'mirror', 'raidz1', 'raidz2', 'raidz3']
-            },
+            'type': {'$ref': 'zfs-vdev-type'},
             'children': {
                 'type': 'array',
                 'items': {'$ref': 'zfs-vdev'}
             }
         }
+    })
+
+    plugin.register_schema_definition('zfs-vdev-type', {
+        'type': 'string',
+        'enum': ['disk', 'file', 'mirror', 'raidz1', 'raidz2', 'raidz3']
     })
 
     # Plugin Schema definitions
@@ -1656,24 +1658,22 @@ def _init(dispatcher, plugin):
         'type': 'object',
         'additionalProperties': False,
         'properties': {
-            'source': {
-                'type': 'string',
-                'enum': ['NONE', 'DEFAULT', 'LOCAL', 'INHERITED', 'RECEIVED']
-            },
+            'source': {'$ref': 'zfs-property-source'},
             'value': {'type': 'string'},
             'rawvalue': {'type': 'string'}
         }
+    })
+
+    plugin.register_schema_definition('zfs-property-source', {
+        'type': 'string',
+        'enum': ['NONE', 'DEFAULT', 'LOCAL', 'INHERITED', 'RECEIVED']
     })
 
     plugin.register_schema_definition('zfs-pool', {
         'type': 'object',
         'additionalProperties': False,
         'properties': {
-            'status': {
-                'type': 'string',
-                'enum': ['ONLINE', 'OFFLINE', 'DEGRADED', 'FAULTED',
-                         'REMOVED', 'UNAVAIL']
-            },
+            'status': {'$ref': 'zfs-pool-status'},
             'name': {'type': 'string'},
             'scan': {'$ref': 'zfs-scan'},
             'hostname': {'type': 'string'},
@@ -1682,6 +1682,11 @@ def _init(dispatcher, plugin):
             'guid': {'type': 'integer'},
             'properties': {'$ref': 'zfs-properties'},
         }
+    })
+
+    plugin.register_schema_definition('zfs-pool-status', {
+        'type': 'string',
+        'enum': ['ONLINE', 'OFFLINE', 'DEGRADED', 'FAULTED', 'REMOVED', 'UNAVAIL']
     })
 
     plugin.register_event_handler('fs.zfs.pool.created', on_pool_create)

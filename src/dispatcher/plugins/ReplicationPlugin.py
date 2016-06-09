@@ -1572,11 +1572,13 @@ def _init(dispatcher, plugin):
             'name': {'type': 'string'},
             'created_at': {'type': 'string'},
             'uuid': {'type': ['string', 'null']},
-            'type': {
-                'type': 'string',
-                'enum': ['FILESYSTEM', 'VOLUME']
-            }
+            'type': {'$ref': 'snapshot-info-type'}
         }
+    })
+
+    plugin.register_schema_definition('snapshot-info-type', {
+        'type': 'string',
+        'enum': ['FILESYSTEM', 'VOLUME']
     })
 
     dispatcher.register_resource(Resource('replication'))

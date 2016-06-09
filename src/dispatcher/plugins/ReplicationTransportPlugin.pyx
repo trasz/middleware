@@ -1659,13 +1659,15 @@ def _init(dispatcher, plugin):
             'name': {'type': 'string'},
             'read_fd': {'type': 'fd'},
             'write_fd': {'type': 'fd'},
-            'level': {
-                'type': 'string',
-                'enum': ['FAST', 'DEFAULT', 'BEST'],
-            },
+            'level': {'$ref': 'compress-plugin-level'},
             'buffer_size': {'type': 'integer'}
         },
         'additionalProperties': False
+    })
+
+    plugin.register_schema_definition('compress-plugin-level', {
+        'type': 'string',
+        'enum': ['FAST', 'DEFAULT', 'BEST']
     })
 
     plugin.register_schema_definition('decompress-plugin', {
