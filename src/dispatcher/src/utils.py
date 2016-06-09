@@ -62,21 +62,27 @@ def delete_config(conf_path, name_mod):
 
 
 def get_replication_client(dispatcher, remote):
-    known_host = dispatcher.call_sync('replication.host.query', [('id', '=', remote)], {'single': True})
-    if not known_host:
+    host = dispatcher.call_sync(
+        'peer.query',
+        [('address', '=', remote), ('type', '=', 'replication')],
+        {'single': True}
+    )
+    if not host:
         raise TaskException(errno.ENOENT, 'There are no known keys to connect to {0}'.format(remote))
 
     with open('/etc/replication/key') as f:
         pkey = RSAKey.from_private_key(f)
 
+    credentials = host['credentials']
+
     try:
         client = Client()
         with tempfile.NamedTemporaryFile('w') as host_key_file:
-            host_key_file.write(known_host['hostkey'])
+            host_key_file.write(credentials['hostkey'])
             host_key_file.flush()
             client.connect(
                 'ws+ssh://replication@{0}'.format(remote),
-                port=known_host['port'],
+                port=credentials['port'],
                 host_key_file=host_key_file.name,
                 pkey=pkey
             )

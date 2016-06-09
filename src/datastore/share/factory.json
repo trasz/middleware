@@ -1136,9 +1136,9 @@
     },
     {
         "metadata": {
-            "name": "replication.known_hosts",
+            "name": "peers",
             "migration": "keep",
-            "pkey-type": "native",
+            "pkey-type": "uuid",
             "attributes": {
                 "type": "config"
             }
