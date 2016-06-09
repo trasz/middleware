@@ -4,7 +4,7 @@
 #
 
 # PROVIDE: etcd
-# REQUIRE: datastore dispatcher
+# REQUIRE: datastore dispatcher dscached
 # BEFORE: FILESYSTEMS
 
 . /etc/rc.subr
