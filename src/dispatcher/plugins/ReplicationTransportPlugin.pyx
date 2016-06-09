@@ -252,8 +252,8 @@ class TransportSendTask(Task):
             raise VerifyException(EINVAL, 'Server address cannot be specified')
 
         host = self.dispatcher.call_sync(
-            'replication.host.query',
-            [('name', '=', client_address)],
+            'peer.query',
+            [('address', '=', client_address), ('type', '=', 'replication')],
             {'single': True}
         )
         if not host:
@@ -544,8 +544,8 @@ class TransportReceiveTask(ProgressTask):
         server_address = transport.get('server_address')
 
         host = self.dispatcher.call_sync(
-            'replication.host.query',
-            [('name', '=', server_address)],
+            'peer.query',
+            [('address', '=', server_address), ('type', '=', 'replication')],
             {'single': True}
         )
         if not host:
