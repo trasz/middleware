@@ -99,6 +99,9 @@ class PeerCreateTask(Task):
         if peer['type'] == 'replication':
             self.join_subtasks(self.run_subtask('peer.replication.create', peer))
         else:
+            if peer['type'] != peer['credentials']['type']:
+                raise TaskException(errno.EINVAL, 'Peer type and credentials type must match')
+
             id = self.datastore.insert('peers', peer)
             self.dispatcher.dispatch_event('peer.changed', {
                 'operation': 'create',
@@ -186,6 +189,9 @@ class ReplicationPeerCreateTask(Task):
         if self.datastore.exists('peers', ('address', '=', peer['address']), ('type', '=', 'replication')):
             raise TaskException(errno.EEXIST, 'Replication peer entry for {0} already exists'.format(peer['address']))
 
+        if peer['credentials']['type'] != 'ssh':
+            raise TaskException(errno.EINVAL, 'SSH credentials type is needed to perform replication peer pairing')
+
         remote = peer.get('address')
         credentials = peer['credentials']
         username = credentials.get('username')
@@ -224,7 +230,8 @@ class ReplicationPeerCreateTask(Task):
             peer['credentials'] = {
                 'pubkey': remote_keys[1],
                 'hostkey': remote_host_key,
-                'port': port
+                'port': port,
+                'type': 'replication'
             }
 
             self.join_subtasks(self.run_subtask(
@@ -236,7 +243,8 @@ class ReplicationPeerCreateTask(Task):
             peer['credentials'] = {
                 'pubkey': local_keys[1],
                 'hostkey': local_host_key,
-                'port': local_ssh_config['port']
+                'port': local_ssh_config['port'],
+                'type': 'replication'
             }
 
             id = self.datastore.query('peers', ('name', '=', peer['name']), select='id')
@@ -482,6 +490,7 @@ def _init(dispatcher, plugin):
     plugin.register_schema_definition('replication-credentials', {
         'type': 'object',
         'properties': {
+            'type': {'enum': ['replication']},
             'port': {'type': 'number'},
             'pubkey': {'type': 'string'},
             'hostkey': {'type': 'string'}
@@ -492,6 +501,7 @@ def _init(dispatcher, plugin):
     plugin.register_schema_definition('ssh-credentials', {
         'type': 'object',
         'properties': {
+            'type': {'enum': ['ssh']},
             'username': {'type': 'string'},
             'port': {'type': 'number'},
             'password': {'type': 'string'},
@@ -504,6 +514,7 @@ def _init(dispatcher, plugin):
     plugin.register_schema_definition('amazon-s3-credentials', {
         'type': 'object',
         'properties': {
+            'type': {'enum': ['amazon-s3']},
             'access_key': {'type': 'string'},
             'secret_key': {'type ': 'string'},
             'region': {'type': ['string', 'null']},
@@ -518,7 +529,7 @@ def _init(dispatcher, plugin):
 
     # Register credentials schema
     plugin.register_schema_definition('peer-credentials', {
-        'discriminator': 'name',
+        'discriminator': 'type',
         'oneOf': [
             {'$ref': '{0}-credentials'.format(name)} for name in dispatcher.call_sync('peer.credentials_types')
         ]
