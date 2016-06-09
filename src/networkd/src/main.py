@@ -960,42 +960,52 @@ class Main(object):
 
         self.client.register_schema('network-lagg-port-flags', {
             'type': 'array',
-            'items': {
-                'type': 'string',
-                'enum': list(netif.LaggPortFlags.__members__.keys())
-            }
+            'items': {'$ref': 'network-lagg-port-flags-items'}
+        })
+
+        self.client.register_schema('network-lagg-port-flags-items', {
+            'type': 'string',
+            'enum': list(netif.LaggPortFlags.__members__.keys())
         })
 
         self.client.register_schema('network-interface-flags', {
             'type': 'array',
-            'items': {
-                'type': 'string',
-                'enum': list(netif.InterfaceFlags.__members__.keys())
-            }
+            'items': {'$ref': 'network-interface-flags-items'}
+        })
+
+        self.client.register_schema('network-interface-flags-items', {
+            'type': 'string',
+            'enum': list(netif.InterfaceFlags.__members__.keys())
         })
 
         self.client.register_schema('network-interface-capabilities', {
             'type': 'array',
-            'items': {
-                'type': 'string',
-                'enum': list(netif.InterfaceCapability.__members__.keys())
-            }
+            'items': {'$ref': 'network-interface-capabilities-items'}
+        })
+
+        self.client.register_schema('network-interface-capabilities-items', {
+            'type': 'string',
+            'enum': list(netif.InterfaceCapability.__members__.keys())
         })
 
         self.client.register_schema('network-interface-mediaopts', {
             'type': 'array',
-            'items': {
-                'type': 'string',
-                'enum': list(netif.InterfaceMediaOption.__members__.keys())
-            }
+            'items': {'$ref': 'network-interface-mediaopts-items'}
+        })
+
+        self.client.register_schema('network-interface-mediaopts-items', {
+            'type': 'string',
+            'enum': list(netif.InterfaceMediaOption.__members__.keys())
         })
 
         self.client.register_schema('network-interface-nd6-flag', {
             'type': 'array',
-            'items': {
-                'type': 'string',
-                'enum': list(netif.NeighborDiscoveryFlags.__members__.keys())
-            }
+            'items': {'$ref': 'network-interface-nd6-flag-items'}
+        })
+
+        self.client.register_schema('network-interface-nd6-flag-items', {
+            'type': 'string',
+            'enum': list(netif.NeighborDiscoveryFlags.__members__.keys())
         })
 
         self.client.register_schema('network-interface-type', {
