@@ -2008,11 +2008,14 @@ class DatasetConfigureTask(Task):
 
 
 @description("Creates a snapshot")
-@accepts(h.all_of(
-    h.ref('volume-snapshot'),
-    h.required('volume', 'dataset', 'name'),
-    h.forbidden('id')
-))
+@accepts(
+    h.all_of(
+        h.ref('volume-snapshot'),
+        h.required('volume', 'dataset', 'name'),
+        h.forbidden('id')
+    ),
+    bool
+)
 class SnapshotCreateTask(Task):
     @classmethod
     def early_describe(cls):
