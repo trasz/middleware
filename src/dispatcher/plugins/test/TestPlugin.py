@@ -167,6 +167,22 @@ class ProgressTestTask(ProgressTask):
             self.set_progress(i, 'fiddling')
 
 
+class FailingTask(ProgressTask):
+    @classmethod
+    def early_describe(cls):
+        return 'Failing task test'
+
+    def describe(self):
+        return TaskDescription('Failing task test')
+
+    def verify(self):
+        return []
+
+    def run(self):
+        time.sleep(1)
+        os.abort()
+
+
 def _init(dispatcher, plugin):
     plugin.register_task_handler('test.test_download', TestDownloadTask)
     plugin.register_task_handler('test.test_warnings', TestWarningsTask)
@@ -174,3 +190,4 @@ def _init(dispatcher, plugin):
     plugin.register_task_handler('test.masterprogresstask', ProgressMasterTask)
     plugin.register_task_handler('test.nestedmasterprogresstask', NestedProgressMasterTask)
     plugin.register_task_handler('test.progress', ProgressTestTask)
+    plugin.register_task_handler('test.failing', FailingTask)
