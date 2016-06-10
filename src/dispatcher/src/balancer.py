@@ -288,6 +288,7 @@ class TaskExecutor(object):
                     self.task.output += line
 
             self.proc.wait()
+            self.checked_in.clear()
 
             if self.proc.returncode == -signal.SIGTERM:
                 self.balancer.logger.info(
