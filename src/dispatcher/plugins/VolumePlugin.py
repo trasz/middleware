@@ -2613,6 +2613,7 @@ def _init(dispatcher, plugin):
 
     plugin.register_schema_definition('volume-snapshot', {
         'type': 'object',
+        'additionalProperties': False,
         'properties': {
             'id': {'type': 'string'},
             'volume': {'type': 'string'},
