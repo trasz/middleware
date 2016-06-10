@@ -134,7 +134,7 @@ class TaskExecutor(object):
                 self.balancer.logger.error(
                     "Cannot obtain status from task #{0}: {1}".format(self.task.id, str(err))
                 )
-                self.proc.terminate()
+                self.terminate()
 
     def put_status(self, status):
         with self.status_lock:
@@ -194,15 +194,29 @@ class TaskExecutor(object):
             except FileNotFoundError:
                 continue
 
-        self.conn.call_sync('taskproxy.run', {
-            'id': task.id,
-            'user': task.user,
-            'class': task.clazz.__name__,
-            'filename': filename,
-            'args': task.args,
-            'debugger': task.debugger,
-            'environment': task.environment
-        })
+        try:
+            self.conn.call_sync('taskproxy.run', {
+                'id': task.id,
+                'user': task.user,
+                'class': task.clazz.__name__,
+                'filename': filename,
+                'args': task.args,
+                'debugger': task.debugger,
+                'environment': task.environment
+            })
+        except RpcException as e:
+            self.balancer.logger.warning('Cannot start task {0} on executor #{1}: {2}'.format(
+                task.id,
+                self.index,
+                str(e)
+            ))
+
+            self.balancer.logger.warning('Killing unresponsive task executor #{0} (pid {1})'.format(
+                self.index,
+                self.proc.pid
+            ))
+
+            self.terminate()
 
         try:
             self.result.get()
@@ -242,7 +256,13 @@ class TaskExecutor(object):
         except RpcException as err:
             self.balancer.logger.warning("Failed to abort task #{0} gracefully: {1}".format(self.task.id, str(err)))
             self.balancer.logger.warning("Killing process {0}".format(self.pid))
+            self.terminate()
+
+    def terminate(self):
+        try:
             self.proc.terminate()
+        except ProcessLookupError:
+            self.balancer.logger.warning('Executor process with PID {0} already dead'.format(self.proc.pid))
 
     def executor(self):
         while not self.exiting:
@@ -287,10 +307,7 @@ class TaskExecutor(object):
     def die(self):
         self.exiting = True
         if self.proc:
-            try:
-                self.proc.terminate()
-            except ProcessLookupError:
-                self.balancer.logger.warning('Executor process with PID {0} already dead'.format(self.proc.pid))
+            self.terminate()
 
 
 class Task(object):
