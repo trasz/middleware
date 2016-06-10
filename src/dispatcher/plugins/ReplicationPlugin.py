@@ -1514,7 +1514,7 @@ def get_replication_resources(dispatcher, link):
 
 
 def _depends():
-    return ['NetworkPlugin', 'ServiceManagePlugin']
+    return ['NetworkPlugin', 'ServiceManagePlugin', 'ZfsPlugin']
 
 
 def _init(dispatcher, plugin):
