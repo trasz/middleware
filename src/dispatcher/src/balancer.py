@@ -37,6 +37,7 @@ import inspect
 import subprocess
 import bsd
 import signal
+from threading import Condition
 from datetime import datetime
 from freenas.dispatcher import validator
 from freenas.dispatcher.fd import FileDescriptor
@@ -71,27 +72,24 @@ class TaskExecutor(object):
         self.proc = None
         self.pid = None
         self.conn = None
-        self.state = None
+        self.state = WorkerState.STARTING
         self.key = str(uuid.uuid4())
-        self.checked_in = Event()
         self.result = AsyncResult()
         self.exiting = False
-        self.task_started = Event()
         self.thread = gevent.spawn(self.executor)
+        self.cv = Condition()
         self.status_lock = RLock()
 
     def checkin(self, conn):
-        self.balancer.logger.debug('Check-in of worker #{0} (key {1})'.format(self.index, self.key))
-        self.conn = conn
-        self.state = WorkerState.IDLE
-        self.checked_in.set()
+        with self.cv:
+            self.balancer.logger.debug('Check-in of worker #{0} (key {1})'.format(self.index, self.key))
+            self.conn = conn
+            self.state = WorkerState.IDLE
+            self.cv.notify_all()
 
     def get_status(self):
-        self.task_started.wait()
-        if not self.conn:
-            return None
-
-        with self.status_lock:
+        with self.cv:
+            self.cv.wait_for(lambda: self.state == WorkerState.EXECUTING)
             try:
                 st = TaskStatus(0)
                 st.__setstate__(self.conn.call_sync('taskproxy.get_status'))
@@ -103,7 +101,7 @@ class TaskExecutor(object):
                 self.terminate()
 
     def put_status(self, status):
-        with self.status_lock:
+        with self.cv:
             # Try to collect rusage at this point, when process is still alive
             try:
                 kinfo = bsd.kinfo_getproc(self.pid)
@@ -138,10 +136,15 @@ class TaskExecutor(object):
         self.task.add_warning(warning)
 
     def run(self, task):
-        self.result = AsyncResult()
-        self.task = task
-        self.task.set_state(TaskState.EXECUTING)
-        self.task_started.set()
+        with self.cv:
+            self.cv.wait_for(lambda: self.state == WorkerState.IDLE)
+            self.result = AsyncResult()
+            self.task = task
+            self.task.set_state(TaskState.EXECUTING)
+            self.state = WorkerState.EXECUTING
+            self.cv.notify_all()
+
+        self.balancer.logger.debug('Actually starting task {0}'.format(task.id))
 
         filename = None
         module_name = inspect.getmodule(task.clazz).__name__
@@ -201,18 +204,24 @@ class TaskExecutor(object):
                     "stacktrace": traceback.format_exc()
                 }))
 
+            with self.cv:
+                self.task.ended.set()
+                self.balancer.task_exited(self.task)
+
+                if self.state == WorkerState.EXECUTING:
+                    self.state = WorkerState.IDLE
+                    self.cv.notify_all()
+
+                return
+
+        with self.cv:
+            self.task.result = self.result.value
+            self.task.set_state(TaskState.FINISHED, TaskStatus(100, ''))
             self.task.ended.set()
             self.balancer.task_exited(self.task)
-            self.task_started.clear()
-            self.state = WorkerState.IDLE
-            return
-
-        self.task.result = self.result.value
-        self.task.set_state(TaskState.FINISHED, TaskStatus(100, ''))
-        self.task.ended.set()
-        self.balancer.task_exited(self.task)
-        self.task_started.clear()
-        self.state = WorkerState.IDLE
+            if self.state == WorkerState.EXECUTING:
+                self.state = WorkerState.IDLE
+                self.cv.notify_all()
 
     def abort(self):
         self.balancer.logger.info("Trying to abort task #{0}".format(self.task.id))
@@ -254,7 +263,10 @@ class TaskExecutor(object):
                     self.task.output += line
 
             self.proc.wait()
-            self.checked_in.clear()
+
+            with self.cv:
+                self.state = WorkerState.STARTING
+                self.cv.notify_all()
 
             if self.proc.returncode == -signal.SIGTERM:
                 self.balancer.logger.info(
@@ -670,20 +682,19 @@ class Balancer(object):
 
     def assign_executor(self, task):
         for i in self.executors:
-            if i.state == WorkerState.IDLE:
-                i.checked_in.wait()
-                self.logger.info("Task %d assigned to executor #%d", task.id, i.index)
-                task.executor = i
-                i.state = WorkerState.EXECUTING
-                return
+            with i.cv:
+                if i.state == WorkerState.IDLE:
+                    self.logger.info("Task %d assigned to executor #%d", task.id, i.index)
+                    task.executor = i
+                    return
 
         # Out of executors! Need to spawn new one
         executor = TaskExecutor(self, len(self.executors))
         self.executors.append(executor)
-        executor.checked_in.wait()
-        executor.state = WorkerState.EXECUTING
-        task.executor = executor
-        self.logger.info("Task %d assigned to executor #%d", task.id, executor.index)
+        with executor.cv:
+            executor.cv.wait_for(lambda: executor.state == WorkerState.IDLE)
+            task.executor = executor
+            self.logger.info("Task %d assigned to executor #%d", task.id, executor.index)
 
     def dispose_executors(self):
         for i in self.executors:
