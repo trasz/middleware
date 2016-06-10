@@ -95,13 +95,13 @@ class TaskExecutor(object):
             try:
                 st = TaskStatus(0)
                 if issubclass(self.task.clazz, MasterProgressTask):
-                    progress_subtask_info = self.conn.call_client_sync(
+                    progress_subtask_info = self.conn.call_sync(
                         'taskproxy.get_master_progress_info'
                     )
                     if progress_subtask_info['increment_progress'] != 0:
                         progress_subtask_info['progress'] += progress_subtask_info['increment_progress']
                         progress_subtask_info['increment_progress'] = 0
-                        self.conn.call_client_sync(
+                        self.conn.call_sync(
                             'taskproxy.set_master_progress_detail',
                             {
                                 'progress': progress_subtask_info['progress'],
