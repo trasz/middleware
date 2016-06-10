@@ -57,12 +57,16 @@ class Task(object):
         self.rlock = RLock()
 
     def task_progress_handler(self, args):
-        id = args['id']
-        if id in self.progress_callbacks:
-            self.progress_callbacks[id](
-                args['percentage'],
-                args['message']
-            )
+        with self.rlock:
+            id = args['id']
+            try:
+                self.progress_callbacks[id](
+                    args['percentage'],
+                    args['message']
+                )
+            except:
+                # ignore
+                pass
 
     @classmethod
     def _get_metadata(cls):
@@ -102,10 +106,10 @@ class Task(object):
             return tid
 
     def join_subtasks(self, *tasks):
-        with self.rlock:
-            try:
-                return self.dispatcher.join_subtasks(*tasks)
-            finally:
+        try:
+            return self.dispatcher.join_subtasks(*tasks)
+        finally:
+            with self.rlock:
                 for t in tasks:
                     self.subtasks.remove(t)
                     self.progress_callbacks.pop(t, None)
