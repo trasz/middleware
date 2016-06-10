@@ -274,7 +274,7 @@ class ZpoolScrubTask(Task):
         pool = zfs.get(pool)
         return get_disk_names(self.dispatcher, pool)
 
-    def run(self, pool, threshold=None):
+    def run(self, pool):
         self.pool = pool
         self.dispatcher.register_event_handler("fs.zfs.scrub.finish", self.__scrub_finished)
         self.dispatcher.register_event_handler("fs.zfs.scrub.abort", self.__scrub_aborted)
@@ -283,12 +283,6 @@ class ZpoolScrubTask(Task):
         try:
             zfs = get_zfs()
             pool = zfs.get(self.pool)
-            # Skip in case a scrub did already run in the last `threshold` days
-            if threshold:
-                last_run = pool.scrub.end_time
-                if last_run and (datetime.now() - last_run).days < threshold:
-                    self.finish_event.set()
-                    return
             pool.start_scrub()
             self.started = True
         except libzfs.ZFSException as err:
