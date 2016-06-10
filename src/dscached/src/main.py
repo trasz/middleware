@@ -77,7 +77,7 @@ def alias(d, obj, name):
     aliases = obj.get('aliases', [])
     aliases.append(obj[name])
     if d.domain_name:
-        aliases.append(obj[name])
+        aliases.append('{0}@{1}'.format(obj[name], d.domain_name))
 
     return aliases
 
