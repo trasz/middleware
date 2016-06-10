@@ -30,7 +30,7 @@ import threading
 import uuid
 import errno
 import time
-from task import Task, TaskDescription, TaskWarning, ProgressTask, MasterProgressTask
+from task import Task, TaskDescription, TaskWarning, ProgressTask
 from freenas.dispatcher.fd import FileDescriptor
 from freenas.dispatcher.rpc import accepts, description
 
@@ -84,6 +84,7 @@ class TestWarningsTask(Task):
         )
 
 
+"""
 @accepts(int)
 @description("Dummy Progress Task to test shit 1")
 class ProgressChildTask(ProgressTask):
@@ -148,6 +149,7 @@ class NestedProgressMasterTask(MasterProgressTask):
         self.set_progress(0, 'Starting Master Progress Test Task...')
         self.join_subtasks(self.run_subtask('test.masterprogresstask', weight=0.67))
         self.join_subtasks(self.run_subtask('test.pchildtest', 1, weight=0.33))
+"""
 
 
 class ProgressTestTask(ProgressTask):
@@ -186,8 +188,10 @@ class FailingTask(ProgressTask):
 def _init(dispatcher, plugin):
     plugin.register_task_handler('test.test_download', TestDownloadTask)
     plugin.register_task_handler('test.test_warnings', TestWarningsTask)
+    """
     plugin.register_task_handler('test.pchildtest', ProgressChildTask)
     plugin.register_task_handler('test.masterprogresstask', ProgressMasterTask)
     plugin.register_task_handler('test.nestedmasterprogresstask', NestedProgressMasterTask)
+    """
     plugin.register_task_handler('test.progress', ProgressTestTask)
     plugin.register_task_handler('test.failing', FailingTask)
