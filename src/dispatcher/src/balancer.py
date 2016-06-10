@@ -121,7 +121,7 @@ class TaskExecutor(object):
                 error = status['error']
                 cls = TaskException
 
-                if error['type'] == 'task.TaskAbortException':
+                if error['type'] == 'TaskAbortException':
                     cls = TaskAbortException
 
                 if error['type'] == 'ValidationException':

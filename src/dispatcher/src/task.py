@@ -54,6 +54,7 @@ class Task(object):
         self.logger = logging.getLogger(self.__class__.__name__)
         self.subtasks = []
         self.progress_callbacks = {}
+        self.do_abort = False
         self.rlock = RLock()
 
     def task_progress_handler(self, args):
@@ -108,6 +109,11 @@ class Task(object):
     def join_subtasks(self, *tasks):
         try:
             return self.dispatcher.join_subtasks(*tasks)
+        except:
+            if self.do_abort:
+                raise TaskAbortException(errno.EINTR, 'Aborted')
+
+            raise
         finally:
             with self.rlock:
                 for t in tasks:
@@ -118,8 +124,10 @@ class Task(object):
         return self.dispatcher.abort_subtask(id)
 
     def abort_subtasks(self):
-        for t in self.subtasks:
-            self.abort_subtask(t)
+        with self.rlock:
+            self.do_abort = True
+            for t in self.subtasks:
+                self.abort_subtask(t)
 
     def chain(self, task, *args):
         self.dispatcher.balancer.submit(task, *args)
