@@ -45,7 +45,7 @@ from cache import EventCacheStore
 from lib.system import system, SubprocessException
 from lib.freebsd import fstyp
 from task import (
-    Provider, Task, ProgressTask, MasterProgressTask, TaskException, TaskWarning, VerifyException, query,
+    Provider, Task, ProgressTask, TaskException, TaskWarning, VerifyException, query,
     TaskDescription
 )
 from freenas.dispatcher.rpc import (
@@ -1731,7 +1731,7 @@ class VolumeRestoreKeysTask(Task):
 
 @description("Scrubs the volume")
 @accepts(str)
-class VolumeScrubTask(MasterProgressTask):
+class VolumeScrubTask(ProgressTask):
     @classmethod
     def early_describe(cls):
         return "Performing a scrub of a volume"
@@ -1747,18 +1747,10 @@ class VolumeScrubTask(MasterProgressTask):
         return ['disk:{0}'.format(d) for d, _ in get_disks(vol['topology'])]
 
     def abort(self):
-        # We only have one task in here so just wait till it joins and/or ends
-        # to begin the abort
-        subtask = next(iter(self.progress_subtasks.values()))
-        while True:
-            if subtask.joining.wait(1):
-                break
-            if subtask.ended.wait(0.1):
-                break
-        self.abort_subtask(subtask.tid)
+        self.abort_subtasks()
 
     def run(self, id):
-        self.join_subtasks(self.run_subtask('zfs.pool.scrub', id))
+        self.join_subtasks(self.run_subtask('zfs.pool.scrub', id, progress_callback=self.set_progress))
 
 
 @description("Makes vdev in a volume offline")

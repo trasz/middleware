@@ -42,9 +42,10 @@ from freenas.dispatcher.rpc import (
 )
 from gevent import subprocess
 from task import (
-    Provider, Task, ProgressTask, MasterProgressTask, TaskException, TaskDescription,
+    Provider, Task, ProgressTask, TaskException, TaskDescription,
     VerifyException, TaskWarning
 )
+
 if '/usr/local/lib' not in sys.path:
     sys.path.append('/usr/local/lib')
 from freenasOS import Configuration, Train, Manifest
@@ -865,7 +866,7 @@ class UpdateVerifyTask(ProgressTask):
 @description("Checks for updates from the update server and downloads them if available")
 @accepts()
 @returns(bool)
-class CheckFetchUpdateTask(MasterProgressTask):
+class CheckFetchUpdateTask(ProgressTask):
     @classmethod
     def early_describe(cls):
         return "Checking for updates"
@@ -885,10 +886,10 @@ class CheckFetchUpdateTask(MasterProgressTask):
 
     def run(self):
         self.set_progress(0, 'Checking for new updates from update server...')
-        self.join_subtasks(self.run_subtask('update.check', weight=0.1))
+        self.join_subtasks(self.run_subtask('update.check'))
         if self.dispatcher.call_sync('update.is_update_available'):
             self.message = "New updates found. Downloading them now..."
-            self.join_subtasks(self.run_subtask('update.download', weight=0.9))
+            self.join_subtasks(self.run_subtask('update.download'))
 
             self.set_progress(100, 'Updates successfully Downloaded')
 
@@ -898,7 +899,7 @@ class CheckFetchUpdateTask(MasterProgressTask):
 
 @description("Checks for new updates, fetches if available, installs new/or downloaded updates")
 @accepts(bool)
-class UpdateNowTask(MasterProgressTask):
+class UpdateNowTask(ProgressTask):
     @classmethod
     def early_describe(cls):
         return "Checking for updates and updating"
@@ -911,10 +912,10 @@ class UpdateNowTask(MasterProgressTask):
 
     def run(self, reboot_post_install=False):
         self.set_progress(0, 'Checking for new updates...')
-        self.join_subtasks(self.run_subtask('update.checkfetch', weight=0.5))
+        self.join_subtasks(self.run_subtask('update.checkfetch'))
         if self.dispatcher.call_sync('update.is_update_available'):
             self.message = "Installing downloaded updates now..."
-            self.join_subtasks(self.run_subtask('update.apply', reboot_post_install, weight=0.5))
+            self.join_subtasks(self.run_subtask('update.apply', reboot_post_install))
         else:
             self.add_warning(TaskWarning(errno.ENOENT, 'No Updates Available for Install'))
             self.set_progress(100)
