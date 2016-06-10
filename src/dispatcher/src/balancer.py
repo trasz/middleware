@@ -299,7 +299,6 @@ class Task(object):
         self.thread = None
         self.instance = None
         self.parent = None
-        self.subtask_ids = []
         self.result = None
         self.output = ''
         self.rusage = None
@@ -565,10 +564,7 @@ class Balancer(object):
 
         task.set_state(TaskState.CREATED)
         self.task_list.append(task)
-        # If we actually have a non `None` parent task then, add
-        # the current subtask to the parent task's subtasks list too
-        if parent is not None:
-            parent.subtask_ids.append(task.id)
+
         task.start()
         return task
 
@@ -588,9 +584,6 @@ class Balancer(object):
         else:
             try:
                 task.executor.abort()
-                # Also try to abort any subtasks that might have been running
-                for st in task.subtask_ids:
-                    self.abort(st)
             except:
                 pass
         if success:
