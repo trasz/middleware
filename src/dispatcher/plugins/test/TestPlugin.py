@@ -66,7 +66,6 @@ class TestDownloadTask(Task):
 
 
 class TestWarningsTask(Task):
-
     @classmethod
     def early_describe(cls):
         return 'Task Warning Tests'
@@ -88,7 +87,6 @@ class TestWarningsTask(Task):
 @accepts(int)
 @description("Dummy Progress Task to test shit 1")
 class ProgressChildTask(ProgressTask):
-
     @classmethod
     def early_describe(cls):
         return 'Dummy Progress Task'
@@ -113,7 +111,6 @@ class ProgressChildTask(ProgressTask):
 @accepts()
 @description("Dummy Progess Master Task to test shit")
 class ProgressMasterTask(MasterProgressTask):
-
     @classmethod
     def early_describe(cls):
         return 'Dummy Master Progress Task'
@@ -135,7 +132,6 @@ class ProgressMasterTask(MasterProgressTask):
 @accepts()
 @description("Dummy Progess Master Task to test shit")
 class NestedProgressMasterTask(MasterProgressTask):
-
     @classmethod
     def early_describe(cls):
         return 'Dummy Master Progress Nested Task'
@@ -154,9 +150,27 @@ class NestedProgressMasterTask(MasterProgressTask):
         self.join_subtasks(self.run_subtask('test.pchildtest', 1, weight=0.33))
 
 
+class ProgressTestTask(ProgressTask):
+    @classmethod
+    def early_describe(cls):
+        return 'Progress task test'
+
+    def describe(self):
+        return TaskDescription('Progress task test')
+
+    def verify(self):
+        return []
+
+    def run(self):
+        for i in range(0, 100):
+            time.sleep(0.1)
+            self.set_progress(i, 'fiddling')
+
+
 def _init(dispatcher, plugin):
     plugin.register_task_handler('test.test_download', TestDownloadTask)
     plugin.register_task_handler('test.test_warnings', TestWarningsTask)
     plugin.register_task_handler('test.pchildtest', ProgressChildTask)
     plugin.register_task_handler('test.masterprogresstask', ProgressMasterTask)
     plugin.register_task_handler('test.nestedmasterprogresstask', NestedProgressMasterTask)
+    plugin.register_task_handler('test.progress', ProgressTestTask)
