@@ -2018,10 +2018,10 @@ class SnapshotCreateTask(Task):
     def early_describe(cls):
         return "Creating a snapshot"
 
-    def describe(self, snapshot):
+    def describe(self, snapshot, recursive=False):
         return TaskDescription("Creating the snapshot {name}", name=snapshot['name'])
 
-    def verify(self, snapshot):
+    def verify(self, snapshot, recursive=False):
         return ['zfs:{0}'.format(snapshot['dataset'])]
 
     def run(self, snapshot, recursive=False):
