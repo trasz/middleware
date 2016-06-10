@@ -1082,8 +1082,8 @@ class DispatcherConnection(ServerConnection):
                 self.emit_rpc_error(id, errno.EACCES, "Incorrect username or password")
                 return
 
-        if not user.has_role('wheel@local'):
-            self.trace('User {0} not in group wheel@local'.format(username))
+        if not user.has_role('wheel'):
+            self.trace('User {0} not in group wheel'.format(username))
             self.emit_rpc_error(id, errno.EACCES, "Not authorized")
             return
 

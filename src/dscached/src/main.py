@@ -77,19 +77,13 @@ def alias(d, obj, name):
     aliases = obj.get('aliases', [])
     aliases.append(obj[name])
     if d.domain_name:
-        obj[name] = '{0}@{1}'.format(obj[name], d.domain_name)
         aliases.append(obj[name])
 
     return aliases
 
 
 def annotate(user, directory, name_field, cache=None):
-    name = '{0}@{1}'.format(user[name_field], directory.domain_name) \
-        if directory.domain_name \
-        else user[name_field]
-
     return extend(user, {
-        name_field: name,
         'origin': {
             'directory': directory.name,
             'cached_at': None,
