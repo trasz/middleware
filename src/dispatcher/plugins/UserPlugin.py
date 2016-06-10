@@ -230,6 +230,9 @@ class UserCreateTask(Task):
             'attributes': {}
         })
 
+        if user['home'] is None:
+            user['home'] = '/nonexistent'
+
         password = user.pop('password', None)
         if password:
             user.update({
@@ -696,7 +699,7 @@ def _init(dispatcher, plugin):
             'password_changed_at': {'type': ['datetime', 'null']},
             'group': {'type': ['string', 'null']},
             'shell': {'type': 'string'},
-            'home': {'type': 'string'},
+            'home': {'type': ['string', 'null']},
             'password': {'type': ['string', 'null']},
             'unixhash': {'type': ['string', 'null']},
             'lmhash': {'type': ['string', 'null']},
