@@ -295,7 +295,7 @@ class EventType(object):
 
 
 class Dispatcher(object):
-    def __init__(self):
+    def __init__(self, *args, **kwargs):
         self.started_at = None
         self.plugin_dirs = []
         self.event_types = {}
@@ -329,6 +329,7 @@ class Dispatcher(object):
         self.port = 0
         self.file_ws_connectios = None
         self.logdb_proc = None
+        self.load_disabled_plugins = kwargs.get('load_disabled', False)
 
     def init(self):
         self.logger.info('Initializing')
@@ -488,6 +489,9 @@ class Dispatcher(object):
 
     def __discover_plugin_dir(self, dir):
         for root, dirnames, filenames in os.walk(dir):
+            # Skipping disabled plugins, unles explicitly informed to load them
+            if not self.load_disabled_plugins and os.path.basename(root) == 'disabled':
+                continue
             for i in fnmatch.filter(filenames, '*.py') + fnmatch.filter(filenames, '*.so'):
                 self.__try_load_plugin(os.path.join(dir, os.path.join(root, i)))
 
@@ -1078,8 +1082,8 @@ class DispatcherConnection(ServerConnection):
                 self.emit_rpc_error(id, errno.EACCES, "Incorrect username or password")
                 return
 
-        if not user.has_role('wheel@local'):
-            self.trace('User {0} not in group wheel@local'.format(username))
+        if not user.has_role('wheel'):
+            self.trace('User {0} not in group wheel'.format(username))
             self.emit_rpc_error(id, errno.EACCES, "Not authorized")
             return
 
@@ -1101,30 +1105,6 @@ class DispatcherConnection(ServerConnection):
             'username': username,
             'description': "Client {0} logged in".format(username)
         })
-
-    def on_rpc_response(self, id, data):
-        self.trace('RPC response: id={0} result={1}'.format(id, data))
-        if id not in list(self.client_pending_calls.keys()):
-            return
-
-        call = self.client_pending_calls[id]
-        if call['callback'] is not None:
-            call['callback'](*data)
-
-        if call['event'] is not None:
-            call['event'].set(data)
-
-        del self.client_pending_calls[id]
-
-    def on_rpc_error(self, id, data):
-        if id not in list(self.client_pending_calls.keys()):
-            return
-
-        call = self.client_pending_calls[id]
-        if call['event'] is not None:
-            call['event'].set_exception(RpcException(data['code'], data['message']))
-
-        del self.client_pending_calls[id]
 
     def on_rpc_call(self, id, data):
         if self.user is None:
@@ -1190,19 +1170,6 @@ class DispatcherConnection(ServerConnection):
 
         self.enabled_features.add(feature)
 
-    def call_client(self, method, callback, *args):
-        id = uuid.uuid4()
-        event = AsyncResult()
-        self.client_pending_calls[str(id)] = {
-            "method": method,
-            "args": args,
-            "callback": callback,
-            "event": event
-        }
-
-        self.emit_rpc_call(id, method, args)
-        return event
-
     def logout(self, reason):
         args = {
             "reason": reason,
@@ -1213,19 +1180,14 @@ class DispatcherConnection(ServerConnection):
             # the reconnect will just log the session back in
             self.dispatcher.token_store.revoke_token(self.token)
             self.transport.close()
-            if self in self.server.connections:
-                self.server.connections.remove(self)
+            if self in self.parent.connections:
+                self.parent.connections.remove(self)
         except WebSocketError as werr:
             # This error usually implies that the socket is dead
             # so just log it and move on
             self.dispatcher.logger.debug(
                 'Tried to logout Websocket Connection and the ' +
                 'following error occured {0}'.format(str(werr)))
-
-    def call_client_sync(self, method, *args, **kwargs):
-        timeout = kwargs.pop('timeout', None)
-        event = self.call_client(method, None, *args)
-        return event.get(timeout=timeout)
 
     def emit_event(self, event, args):
         for i in self.event_masks:
@@ -1533,6 +1495,7 @@ def main():
     parser.add_argument('-p', type=int, metavar='PORT', default=5000, help="WebSockets server port")
     parser.add_argument('-u', type=str, metavar='PATH', default='/var/run/dispatcher.sock', help="Unix domain server path")
     parser.add_argument('-c', type=str, metavar='CONFIG', default=DEFAULT_CONFIGFILE, help='Configuration file path')
+    parser.add_argument('--load-disabled', type=bool, metavar='LOAD_DISABLED', default=False, help='Load disabled plugins')
     args = parser.parse_args()
 
     logging.setLoggerClass(TraceLogger)
@@ -1547,7 +1510,7 @@ def main():
         logging.root.addHandler(handler)
 
     # Initialization and dependency injection
-    d = Dispatcher()
+    d = Dispatcher(load_disabled=args.load_disabled)
     try:
         d.read_config_file(args.c)
     except IOError as err:

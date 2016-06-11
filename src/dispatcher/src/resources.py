@@ -28,8 +28,8 @@
 
 import logging
 import networkx as nx
-import gevent
 from gevent.lock import RLock
+from freenas.utils.trace_logger import TRACE
 
 
 class Resource(object):
@@ -153,7 +153,7 @@ class ResourceGraph(object):
 
     def can_acquire(self, *names):
         with self.mutex:
-            self.logger.debug('Trying to acquire following resources: %s', ','.join(names))
+            self.logger.log(TRACE, 'Trying to acquire following resources: %s', ','.join(names))
     
             for name in names:
                 res = self.get_resource(name)

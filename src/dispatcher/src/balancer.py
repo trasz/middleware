@@ -37,6 +37,7 @@ import inspect
 import subprocess
 import bsd
 import signal
+from threading import Condition
 from datetime import datetime
 from freenas.dispatcher import validator
 from freenas.dispatcher.fd import FileDescriptor
@@ -49,7 +50,7 @@ from freenas.utils import first_or_default
 from resources import Resource
 from task import (
     TaskException, TaskAbortException, VerifyException, ValidationException,
-    TaskStatus, TaskState, TaskDescription, MasterProgressTask
+    TaskStatus, TaskState, TaskDescription
 )
 import collections
 
@@ -71,73 +72,36 @@ class TaskExecutor(object):
         self.proc = None
         self.pid = None
         self.conn = None
-        self.state = None
+        self.state = WorkerState.STARTING
         self.key = str(uuid.uuid4())
-        self.checked_in = Event()
         self.result = AsyncResult()
         self.exiting = False
-        self.task_started = Event()
         self.thread = gevent.spawn(self.executor)
+        self.cv = Condition()
         self.status_lock = RLock()
 
     def checkin(self, conn):
-        self.balancer.logger.debug('Check-in of worker #{0} (key {1})'.format(self.index, self.key))
-        self.conn = conn
-        self.state = WorkerState.IDLE
-        self.checked_in.set()
+        with self.cv:
+            self.balancer.logger.debug('Check-in of worker #{0} (key {1})'.format(self.index, self.key))
+            self.conn = conn
+            self.state = WorkerState.IDLE
+            self.cv.notify_all()
 
     def get_status(self):
-        self.task_started.wait()
-        if not self.conn:
-            return None
-
-        with self.status_lock:
+        with self.cv:
+            self.cv.wait_for(lambda: self.state == WorkerState.EXECUTING)
             try:
                 st = TaskStatus(0)
-                if issubclass(self.task.clazz, MasterProgressTask):
-                    progress_subtask_info = self.conn.call_client_sync(
-                        'taskproxy.get_master_progress_info'
-                    )
-                    if progress_subtask_info['increment_progress'] != 0:
-                        progress_subtask_info['progress'] += progress_subtask_info['increment_progress']
-                        progress_subtask_info['increment_progress'] = 0
-                        self.conn.call_client_sync(
-                            'taskproxy.set_master_progress_detail',
-                            {
-                                'progress': progress_subtask_info['progress'],
-                                'increment_progress': progress_subtask_info['increment_progress']
-                            }
-                        )
-                    if progress_subtask_info['active_tids']:
-                        progress_to_increment = 0
-                        concurent_weight = progress_subtask_info['concurent_subtask_detail']['average_weight']
-                        for tid in progress_subtask_info['concurent_subtask_detail']['tids']:
-                            subtask_status = self.balancer.get_task(tid).executor.get_status()
-                            progress_to_increment += subtask_status.percentage * concurent_weight * \
-                                progress_subtask_info['subtask_weights'][str(tid)]
-                        for tid in set(progress_subtask_info['active_tids']).symmetric_difference(
-                            set(progress_subtask_info['concurent_subtask_detail']['tids'])
-                        ):
-                            subtask_status = self.balancer.get_task(tid).executor.get_status()
-                            progress_to_increment += subtask_status.percentage * \
-                                progress_subtask_info['subtask_weights'][str(tid)]
-                        progress_subtask_info['progress'] += int(progress_to_increment)
-                        if progress_subtask_info['pass_subtask_details']:
-                            progress_subtask_info['message'] = subtask_status.message
-                    st = TaskStatus(
-                        progress_subtask_info['progress'], progress_subtask_info['message']
-                    )
-                else:
-                    st.__setstate__(self.conn.call_client_sync('taskproxy.get_status'))
+                st.__setstate__(self.conn.call_sync('taskproxy.get_status'))
                 return st
             except RpcException as err:
                 self.balancer.logger.error(
                     "Cannot obtain status from task #{0}: {1}".format(self.task.id, str(err))
                 )
-                self.proc.terminate()
+                self.terminate()
 
     def put_status(self, status):
-        with self.status_lock:
+        with self.cv:
             # Try to collect rusage at this point, when process is still alive
             try:
                 kinfo = bsd.kinfo_getproc(self.pid)
@@ -155,7 +119,7 @@ class TaskExecutor(object):
                 error = status['error']
                 cls = TaskException
 
-                if error['type'] == 'task.TaskAbortException':
+                if error['type'] == 'TaskAbortException':
                     cls = TaskAbortException
 
                 if error['type'] == 'ValidationException':
@@ -172,10 +136,15 @@ class TaskExecutor(object):
         self.task.add_warning(warning)
 
     def run(self, task):
-        self.result = AsyncResult()
-        self.task = task
-        self.task.set_state(TaskState.EXECUTING)
-        self.task_started.set()
+        with self.cv:
+            self.cv.wait_for(lambda: self.state == WorkerState.IDLE)
+            self.result = AsyncResult()
+            self.task = task
+            self.task.set_state(TaskState.EXECUTING)
+            self.state = WorkerState.EXECUTING
+            self.cv.notify_all()
+
+        self.balancer.logger.debug('Actually starting task {0}'.format(task.id))
 
         filename = None
         module_name = inspect.getmodule(task.clazz).__name__
@@ -194,15 +163,29 @@ class TaskExecutor(object):
             except FileNotFoundError:
                 continue
 
-        self.conn.call_client_sync('taskproxy.run', {
-            'id': task.id,
-            'user': task.user,
-            'class': task.clazz.__name__,
-            'filename': filename,
-            'args': task.args,
-            'debugger': task.debugger,
-            'environment': task.environment
-        })
+        try:
+            self.conn.call_sync('taskproxy.run', {
+                'id': task.id,
+                'user': task.user,
+                'class': task.clazz.__name__,
+                'filename': filename,
+                'args': task.args,
+                'debugger': task.debugger,
+                'environment': task.environment
+            })
+        except RpcException as e:
+            self.balancer.logger.warning('Cannot start task {0} on executor #{1}: {2}'.format(
+                task.id,
+                self.index,
+                str(e)
+            ))
+
+            self.balancer.logger.warning('Killing unresponsive task executor #{0} (pid {1})'.format(
+                self.index,
+                self.proc.pid
+            ))
+
+            self.terminate()
 
         try:
             self.result.get()
@@ -221,28 +204,40 @@ class TaskExecutor(object):
                     "stacktrace": traceback.format_exc()
                 }))
 
+            with self.cv:
+                self.task.ended.set()
+                self.balancer.task_exited(self.task)
+
+                if self.state == WorkerState.EXECUTING:
+                    self.state = WorkerState.IDLE
+                    self.cv.notify_all()
+
+                return
+
+        with self.cv:
+            self.task.result = self.result.value
+            self.task.set_state(TaskState.FINISHED, TaskStatus(100, ''))
             self.task.ended.set()
             self.balancer.task_exited(self.task)
-            self.task_started.clear()
-            self.state = WorkerState.IDLE
-            return
-
-        self.task.result = self.result.value
-        self.task.set_state(TaskState.FINISHED, TaskStatus(100, ''))
-        self.task.ended.set()
-        self.balancer.task_exited(self.task)
-        self.task_started.clear()
-        self.state = WorkerState.IDLE
+            if self.state == WorkerState.EXECUTING:
+                self.state = WorkerState.IDLE
+                self.cv.notify_all()
 
     def abort(self):
         self.balancer.logger.info("Trying to abort task #{0}".format(self.task.id))
         # Try to abort via RPC. If this fails, kill process
         try:
-            self.conn.call_client_sync('taskproxy.abort')
+            self.conn.call_sync('taskproxy.abort')
         except RpcException as err:
             self.balancer.logger.warning("Failed to abort task #{0} gracefully: {1}".format(self.task.id, str(err)))
             self.balancer.logger.warning("Killing process {0}".format(self.pid))
+            self.terminate()
+
+    def terminate(self):
+        try:
             self.proc.terminate()
+        except ProcessLookupError:
+            self.balancer.logger.warning('Executor process with PID {0} already dead'.format(self.proc.pid))
 
     def executor(self):
         while not self.exiting:
@@ -269,6 +264,10 @@ class TaskExecutor(object):
 
             self.proc.wait()
 
+            with self.cv:
+                self.state = WorkerState.STARTING
+                self.cv.notify_all()
+
             if self.proc.returncode == -signal.SIGTERM:
                 self.balancer.logger.info(
                     'Executor process with PID {0} was terminated gracefully'.format(
@@ -287,10 +286,7 @@ class TaskExecutor(object):
     def die(self):
         self.exiting = True
         if self.proc:
-            try:
-                self.proc.terminate()
-            except ProcessLookupError:
-                self.balancer.logger.warning('Executor process with PID {0} already dead'.format(self.proc.pid))
+            self.terminate()
 
 
 class Task(object):
@@ -315,7 +311,6 @@ class Task(object):
         self.thread = None
         self.instance = None
         self.parent = None
-        self.subtask_ids = []
         self.result = None
         self.output = ''
         self.rusage = None
@@ -581,10 +576,7 @@ class Balancer(object):
 
         task.set_state(TaskState.CREATED)
         self.task_list.append(task)
-        # If we actually have a non `None` parent task then, add
-        # the current subtask to the parent task's subtasks list too
-        if parent is not None:
-            parent.subtask_ids.append(task.id)
+
         task.start()
         return task
 
@@ -604,9 +596,6 @@ class Balancer(object):
         else:
             try:
                 task.executor.abort()
-                # Also try to abort any subtasks that might have been running
-                for st in task.subtask_ids:
-                    self.abort(st)
             except:
                 pass
         if success:
@@ -693,20 +682,19 @@ class Balancer(object):
 
     def assign_executor(self, task):
         for i in self.executors:
-            if i.state == WorkerState.IDLE:
-                i.checked_in.wait()
-                self.logger.info("Task %d assigned to executor #%d", task.id, i.index)
-                task.executor = i
-                i.state = WorkerState.EXECUTING
-                return
+            with i.cv:
+                if i.state == WorkerState.IDLE:
+                    self.logger.info("Task %d assigned to executor #%d", task.id, i.index)
+                    task.executor = i
+                    return
 
         # Out of executors! Need to spawn new one
         executor = TaskExecutor(self, len(self.executors))
         self.executors.append(executor)
-        executor.checked_in.wait()
-        executor.state = WorkerState.EXECUTING
-        task.executor = executor
-        self.logger.info("Task %d assigned to executor #%d", task.id, executor.index)
+        with executor.cv:
+            executor.cv.wait_for(lambda: executor.state == WorkerState.IDLE)
+            task.executor = executor
+            self.logger.info("Task %d assigned to executor #%d", task.id, executor.index)
 
     def dispose_executors(self):
         for i in self.executors:

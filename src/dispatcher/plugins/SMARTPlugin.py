@@ -91,17 +91,17 @@ def _init(dispatcher, plugin):
             'type': {'enum': ['service-smartd']},
             'enable': {'type': 'boolean'},
             'interval': {'type': 'integer'},
-            'power_mode': {'type': 'string', 'enum': [
-                'NEVER',
-                'SLEEP',
-                'STANDBY',
-                'IDLE',
-            ]},
+            'power_mode': {'$ref': 'service-smartd-powermode'},
             'temp_difference': {'type': ['integer', 'null']},
             'temp_informational': {'type': ['integer', 'null']},
             'temp_critical': {'type': ['integer', 'null']},
         },
         'additionalProperties': False,
+    })
+
+    plugin.register_schema_definition('service-smartd-powermode', {
+        'type': 'string',
+        'enum': ['NEVER', 'SLEEP', 'STANDBY', 'IDLE']
     })
 
     # Register providers

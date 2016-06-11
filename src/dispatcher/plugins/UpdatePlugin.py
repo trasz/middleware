@@ -42,12 +42,13 @@ from freenas.dispatcher.rpc import (
 )
 from gevent import subprocess
 from task import (
-    Provider, Task, ProgressTask, MasterProgressTask, TaskException, TaskDescription,
+    Provider, Task, ProgressTask, TaskException, TaskDescription,
     VerifyException, TaskWarning
 )
+
 if '/usr/local/lib' not in sys.path:
     sys.path.append('/usr/local/lib')
-from freenasOS import Configuration, Train
+from freenasOS import Configuration, Train, Manifest
 from freenasOS.Exceptions import (
     UpdateManifestNotFound, ManifestInvalidSignature, UpdateBootEnvironmentException,
     UpdatePackageException, UpdateIncompleteCacheException, UpdateBusyCacheException,
@@ -201,7 +202,15 @@ def check_updates(dispatcher, configstore, cache_dir=None, check_now=False):
             changelog = ''
         notes = update.Notes()
         notice = update.Notice()
+        version = update.Version()
+
         downloaded = False if check_now else True
+        dispatcher.call_sync(
+            'update.update_alert_set',
+            'UpdateDownloaded' if downloaded else 'UpdateAvailable',
+            version
+        )
+
     else:
         logger.debug("No update available")
         changelog = None
@@ -447,6 +456,54 @@ class UpdateProvider(Provider):
     @returns(h.any_of(None, str, bool, h.array(str)))
     def update_cache_getter(self, key):
         return update_cache.get(key, timeout=1)
+
+    @private
+    @accepts(str, str, h.any_of(None, str))
+    def update_alert_set(self, update_class, update_version, desc=None):
+        # Formulating a query to find any alerts in the current `update_class`
+        # which could be either of ('UpdateAvailable', 'UpdateDownloaded', 'UpdateInstalled')
+        # as well as any alerts for the specified update version string.
+        # The reason I do this is because say an Update is Downloaded (FreeNAS-10-2016051047)
+        # and there is either a previous alert for an older downloaded update OR there is a
+        # previous alert for the same version itself but for it being available instead of being
+        # downloaded already, both of these previous alerts would need to be cancelled and
+        # replaced by 'UpdateDownloaded' for FreeNAS-10-2016051047.
+        existing_update_alerts = self.dispatcher.call_sync(
+            'alert.query',
+            [
+                ('active', '=', True),
+                ('or', ('class', '=', update_class), ('target', '=', update_version))
+            ]
+        )
+        if desc is None:
+            if update_class == 'UpdateAvailable':
+                desc = 'Latest Update: {0} is available for download'.format(update_version)
+            elif update_class == 'UpdateDownloaded':
+                desc = 'Update containing {0} is downloaded and ready for install'.format(update_version)
+            elif update_class == 'UpdateInstalled':
+                desc = 'Update containing {0} is installed and activated for next boot'.format(update_version)
+            else:
+                # what state is this?
+                raise RpcException(
+                    errno.EINVAL, 'Unknown update alert class: {0}'.format(update_class)
+                )
+        alert_payload = {
+            'class': update_class,
+            'target': update_version,
+            'description': desc
+        }
+
+        alert_exists = False
+        # Purposely deleting stale alerts later on since if anything (in constructing the payload)
+        # above this fails the exception prevents alert.cancel from being called.
+        for update_alert in existing_update_alerts:
+            if update_alert['class'] == update_class and update_alert["target"] == update_version:
+                alert_exists = True
+                continue
+            self.dispatcher.call_sync('alert.cancel', update_alert['id'])
+
+        if not alert_exists:
+            self.dispatcher.call_sync('alert.emit', alert_payload)
 
 
 @description("Set the System Updater Cofiguration Settings")
@@ -727,6 +784,18 @@ class UpdateApplyTask(ProgressTask):
                 )
             except RpcException:
                 cache_dir = '/var/tmp/update'
+        new_manifest = Manifest.Manifest(require_signature=True)
+        try:
+            new_manifest.LoadPath(cache_dir + '/MANIFEST')
+        except ManifestInvalidSignature as e:
+            logger.error("Cached manifest has invalid signature: %s" % str(e))
+            raise TaskException(errno.EINVAL, str(e))
+        except FileNotFoundError as e:
+            raise TaskException(
+                errno.EIO,
+                'No Manifest file found at path: {0}'.format(cache_dir + '/MANIFEST')
+            )
+        version = new_manifest.Version()
         # Note: for now we force reboots always, TODO: Fix in M3-M4
         try:
             result = ApplyUpdate(
@@ -751,6 +820,7 @@ class UpdateApplyTask(ProgressTask):
             raise TaskException(errno.ENOENT, 'No downloaded Updates available to apply.')
         handler.finished = True
         handler.emit_update_details()
+        self.dispatcher.call_sync('update.update_alert_set', 'UpdateInstalled', version)
         self.message = "Updates Finished Installing Successfully"
         if reboot_post_install:
             self.message = "Scheduling user specified reboot post succesfull update"
@@ -794,20 +864,17 @@ class UpdateVerifyTask(ProgressTask):
 
 
 @description("Checks for updates from the update server and downloads them if available")
-@accepts(h.any_of(
-    bool,
-    None,
-))
+@accepts()
 @returns(bool)
-class CheckFetchUpdateTask(MasterProgressTask):
+class CheckFetchUpdateTask(ProgressTask):
     @classmethod
     def early_describe(cls):
         return "Checking for updates"
 
-    def describe(self, mail=False):
+    def describe(self):
         return TaskDescription("Checking for updates")
 
-    def verify(self, mail=False):
+    def verify(self):
         block = self.dispatcher.resource_graph.get_resource(update_resource_string)
         if block is not None and block.busy:
             raise VerifyException(errno.EBUSY, (
@@ -817,27 +884,12 @@ class CheckFetchUpdateTask(MasterProgressTask):
 
         return []
 
-    def run(self, mail=False):
+    def run(self):
         self.set_progress(0, 'Checking for new updates from update server...')
-        self.join_subtasks(self.run_subtask('update.check', weight=0.1))
+        self.join_subtasks(self.run_subtask('update.check'))
         if self.dispatcher.call_sync('update.is_update_available'):
             self.message = "New updates found. Downloading them now..."
-            self.join_subtasks(self.run_subtask('update.download', weight=0.9))
-
-            if mail:
-                changelog = self.dispatcher.call_sync('update.obtain_changelog')
-                train = self.dispatcher.call_sync('update.get_config').get('train')
-                mailconfig = self.dispatcher.call_sync('mail.get_config')
-
-                # Do a brief check on mail's config (not all exhaustive)
-                if mailconfig['from'].strip() and mailconfig['server'].strip():
-                    self.dispatcher.call_sync('mail.send', {
-                        'subject': 'Update Available',
-                        'message': 'A new update is available for the {0} train.\n\nChangelog:\n{1}'.format(
-                            train,
-                            '\n'.join(changelog),
-                        ),
-                    })
+            self.join_subtasks(self.run_subtask('update.download'))
 
             self.set_progress(100, 'Updates successfully Downloaded')
 
@@ -847,7 +899,7 @@ class CheckFetchUpdateTask(MasterProgressTask):
 
 @description("Checks for new updates, fetches if available, installs new/or downloaded updates")
 @accepts(bool)
-class UpdateNowTask(MasterProgressTask):
+class UpdateNowTask(ProgressTask):
     @classmethod
     def early_describe(cls):
         return "Checking for updates and updating"
@@ -860,10 +912,10 @@ class UpdateNowTask(MasterProgressTask):
 
     def run(self, reboot_post_install=False):
         self.set_progress(0, 'Checking for new updates...')
-        self.join_subtasks(self.run_subtask('update.checkfetch', weight=0.5))
+        self.join_subtasks(self.run_subtask('update.checkfetch'))
         if self.dispatcher.call_sync('update.is_update_available'):
             self.message = "Installing downloaded updates now..."
-            self.join_subtasks(self.run_subtask('update.apply', reboot_post_install, weight=0.5))
+            self.join_subtasks(self.run_subtask('update.apply', reboot_post_install))
         else:
             self.add_warning(TaskWarning(errno.ENOENT, 'No Updates Available for Install'))
             self.set_progress(100)
@@ -873,7 +925,7 @@ class UpdateNowTask(MasterProgressTask):
 
 
 def _depends():
-    return ['CalendarTasksPlugin', 'MailPlugin', 'SystemDatasetPlugin']
+    return ['CalendarTasksPlugin', 'SystemDatasetPlugin', 'AlertPlugin']
 
 
 def _init(dispatcher, plugin):
@@ -889,7 +941,7 @@ def _init(dispatcher, plugin):
 
         caltask.update({
             'name': 'update.checkfetch',
-            'args': [True],
+            'args': [],
             'hidden': True,
             'protected': True,
             'description': 'Nightly update check',
@@ -914,33 +966,43 @@ def _init(dispatcher, plugin):
         },
     })
 
-    plugin.register_schema_definition('update-progress', h.object(properties={
-        'operation': h.enum(str, ['DOWNLOADING', 'INSTALLING']),
-        'details': str,
-        'indeterminate': bool,
-        'percent': int,
-        'reboot': bool,
-        'pkg_name': str,
-        'pkg_version': str,
-        'filesize': int,
-        'num_files_done': int,
-        'num_files_total': int,
-        'error': bool,
-        'finished': bool,
-    }))
+    plugin.register_schema_definition('update-progress', {
+        'type': 'object',
+        'properties': {
+            'operation': {'$ref': 'update-progress-operation'},
+            'details': {'type': 'string'},
+            'indeterminate': {'type': 'boolean'},
+            'percent': {'type': 'integer'},
+            'reboot': {'type': 'boolean'},
+            'pkg_name': {'type': 'string'},
+            'pkg_version': {'type': 'string'},
+            'filesize': {'type': 'integer'},
+            'num_files_done': {'type': 'integer'},
+            'num_files_total': {'type': 'integer'},
+            'error': {'type': 'boolean'},
+            'finished': {'type': 'boolean'}
+        }
+    })
+
+    plugin.register_schema_definition('update-progress-operation', {
+        'type': 'string',
+        'enum': ['DOWNLOADING', 'INSTALLING']
+    })
 
     plugin.register_schema_definition('update-ops', {
         'type': 'object',
         'properties': {
-            'operation': {
-                'type': 'string',
-                'enum': ['delete', 'install', 'upgrade']
-            },
+            'operation': {'$ref': 'update-ops-operation'},
             'new_name': {'type': ['string', 'null']},
             'new_version': {'type': ['string', 'null']},
             'previous_name': {'type': ['string', 'null']},
             'previous_version': {'type': ['string', 'null']},
         }
+    })
+
+    plugin.register_schema_definition('update-ops-operation', {
+        'type': 'string',
+        'enum': ['delete', 'install', 'upgrade']
     })
 
     plugin.register_schema_definition('update-info', {

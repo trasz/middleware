@@ -940,20 +940,14 @@ def _init(dispatcher, plugin):
                     'cached': {'type': 'boolean'}
                 }
             },
-            'type': {
-                'type': 'string',
-                'enum': ['JAIL', 'VM', 'DOCKER']
-            },
+            'type': {'$ref': 'container-type'},
             'config': {
                 'type': 'object',
                 'additionalProperties': False,
                 'properties': {
                     'memsize': {'type': 'integer'},
                     'ncpus': {'type': 'integer'},
-                    'bootloader': {
-                        'type': 'string',
-                        'enum': ['BHYVELOAD', 'GRUB']
-                    },
+                    'bootloader': {'$ref': 'container-config-bootloader'},
                     'boot_device': {'type': ['string', 'null']},
                     'boot_partition': {'type': ['string', 'null']},
                     'boot_directory': {'type': ['string', 'null']},
@@ -967,43 +961,60 @@ def _init(dispatcher, plugin):
         }
     })
 
+
+    plugin.register_schema_definition('container-type', {
+        'type': 'string',
+        'enum': ['JAIL', 'VM', 'DOCKER']
+    })
+
+    plugin.register_schema_definition('container-config-bootloader', {
+        'type': 'string',
+        'enum': ['BHYVELOAD', 'GRUB']
+    })
+
     plugin.register_schema_definition('container-device', {
         'type': 'object',
         'additionalProperties': False,
         'properties': {
             'name': {'type': 'string'},
-            'type': {
-                'type': 'string',
-                'enum': ['DISK', 'CDROM', 'NIC', 'VOLUME']
-            },
+            'type': {'$ref': 'container-device-type'},
             'properties': {'type': 'object'}
         },
         'required': ['name', 'type', 'properties']
+    })
+
+    plugin.register_schema_definition('container-device-type', {
+        'type': 'string',
+        'enum': ['DISK', 'CDROM', 'NIC', 'VOLUME']
     })
 
     plugin.register_schema_definition('container-device-nic', {
         'type': 'object',
         'additionalProperties': False,
         'properties': {
-            'mode': {
-                'type': 'string',
-                'enum': ['BRIDGED', 'NAT', 'HOSTONLY', 'MANAGEMENT']
-            },
+            'mode': {'$ref': 'container-device-nic-mode'},
             'link_address': {'type': 'string'},
             'bridge': {'type': ['string', 'null']}
         }
+    })
+
+    plugin.register_schema_definition('container-device-nic-mode', {
+        'type': 'string',
+        'enum': ['BRIDGED', 'NAT', 'HOSTONLY', 'MANAGEMENT']
     })
 
     plugin.register_schema_definition('container-device-disk', {
         'type': 'object',
         'additionalProperties': False,
         'properties': {
-            'mode': {
-                'type': 'string',
-                'enum': ['AHCI', 'VIRTIO']
-            },
+            'mode': {'$ref': 'container-device-disk-mode'},
             'size': {'type': 'integer'}
         }
+    })
+
+    plugin.register_schema_definition('container-device-disk-mode', {
+        'type': 'string',
+        'enum': ['AHCI', 'VIRTIO']
     })
 
     plugin.register_schema_definition('container-device-cdrom', {
@@ -1018,13 +1029,15 @@ def _init(dispatcher, plugin):
         'type': 'object',
         'additionalProperties': False,
         'properties': {
-            'type': {
-                'type': 'string',
-                'enum': ['VT9P', 'NFS']
-            },
+            'type': {'$ref': 'container-device-volume-type'},
             'auto': {'type': ['boolean', 'null']},
             'destination': {'type': ['string', 'null']}
         }
+    })
+
+    plugin.register_schema_definition('container-device-volume-type', {
+        'type': 'string',
+        'enum': ['VT9P', 'NFS']
     })
 
     def volume_pre_detach(args):

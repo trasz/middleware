@@ -25,7 +25,6 @@
 #
 #####################################################################
 
-import cython
 import socket
 import logging
 import os
@@ -34,12 +33,10 @@ import time
 import base64
 from freenas.dispatcher import AsyncResult
 from freenas.utils import first_or_default
-from freenas.dispatcher.client import Client
 from freenas.dispatcher.fd import FileDescriptor
-from paramiko import AuthenticationException
-from freenas.dispatcher.rpc import RpcException, SchemaHelper as h, description, accepts, private
+from freenas.dispatcher.rpc import SchemaHelper as h, description, accepts, private
 from utils import get_replication_client, call_task_and_check_state
-from task import Task, ProgressTask, Provider, TaskException, TaskWarning, VerifyException, query, TaskDescription
+from task import Task, ProgressTask, Provider, TaskException, VerifyException, TaskDescription
 from libc.stdlib cimport malloc, free
 from posix.unistd cimport read, write
 from libc.stdint cimport *
@@ -143,10 +140,6 @@ cdef uint32_t transport_header_magic = 0xdeadbeef
 logger = logging.getLogger('ReplicationTransportPlugin')
 
 
-REPL_HOME = '/var/tmp/replication'
-AUTH_FILE = os.path.join(REPL_HOME, '.ssh/authorized_keys')
-
-
 encryption_data = {}
 
 
@@ -167,9 +160,6 @@ cipher_types = {
         'iv_size': 128
     }
 }
-
-
-ssh_port = None
 
 
 cdef uint32_t read_fd(int fd, void *buf, uint32_t nbytes, uint32_t curr_pos) nogil:
@@ -204,26 +194,6 @@ cdef uint32_t write_fd(int fd, void *buf, uint32_t nbytes) nogil:
         done += ret
         if done == nbytes:
             return done
-
-
-@description('Provides information about known peers')
-class HostProvider(Provider):
-    @query('known-host')
-    def query(self, filter=None, params=None):
-        return self.datastore.query('replication.known_hosts', *(filter or []), **(params or {}))
-
-    @private
-    def get_keys(self):
-        key_paths = ['/etc/ssh/ssh_host_rsa_key.pub', '/etc/replication/key.pub']
-        keys = []
-        try:
-            for key_path in key_paths:
-                with open(key_path) as f:
-                     keys.append(f.read())
-        except FileNotFoundError:
-            raise RpcException(ENOENT, 'Key file {0} not found'.format(key_path))
-
-        return [i for i in keys]
 
 
 @description('Provides information about replication transport layer')
@@ -282,8 +252,8 @@ class TransportSendTask(Task):
             raise VerifyException(EINVAL, 'Server address cannot be specified')
 
         host = self.dispatcher.call_sync(
-            'replication.host.query',
-            [('name', '=', client_address)],
+            'peer.query',
+            [('address', '=', client_address), ('type', '=', 'replication')],
             {'single': True}
         )
         if not host:
@@ -574,8 +544,8 @@ class TransportReceiveTask(ProgressTask):
         server_address = transport.get('server_address')
 
         host = self.dispatcher.call_sync(
-            'replication.host.query',
-            [('name', '=', server_address)],
+            'peer.query',
+            [('address', '=', server_address), ('type', '=', 'replication')],
             {'single': True}
         )
         if not host:
@@ -1646,233 +1616,6 @@ class TransportThrottleTask(Task):
         close_fds(self.fds)
 
 
-@description('Exchange keys with remote machine for replication purposes')
-@accepts(str, str, str, int)
-class HostsPairCreateTask(Task):
-    @classmethod
-    def early_describe(cls):
-        return 'Exchanging SSH keys with remote host'
-
-    def describe(self, username, remote, password, port=22):
-        return TaskDescription('Exchanging SSH keys with the remote {name}', name=remote)
-
-    def verify(self, username, remote, password, port=22):
-        if self.datastore.exists('replication.known_hosts', ('id', '=', remote)):
-            raise VerifyException(EEXIST, 'Known hosts entry for {0} already exists'.format(remote))
-
-        return ['system']
-
-    def run(self, username, remote, password, port=22):
-        remote_client = Client()
-        try:
-            remote_client.connect('ws+ssh://{0}@{1}'.format(username, remote), port=port, password=password)
-            remote_client.login_service('replicator')
-        except (AuthenticationException, OSError, ConnectionRefusedError):
-            raise TaskException(ECONNABORTED, 'Cannot connect to {0}:{1}'.format(remote, port))
-
-        local_keys = self.dispatcher.call_sync('replication.host.get_keys')
-        remote_keys = remote_client.call_sync('replication.host.get_keys')
-        ip_at_remote_side = remote_client.call_sync('management.get_sender_address').split(',', 1)[0]
-
-        remote_host_key = remote + ' ' + remote_keys[0].rsplit(' ', 1)[0]
-        local_host_key = ip_at_remote_side + ' ' + local_keys[0].rsplit(' ', 1)[0]
-
-        local_ssh_config = self.dispatcher.call_sync('service.sshd.get_config')
-
-        call_task_and_check_state(
-            remote_client,
-            'replication.known_host.create',
-            {
-                'name': ip_at_remote_side,
-                'id': ip_at_remote_side,
-                'pubkey': local_keys[1],
-                'hostkey': local_host_key,
-                'port': local_ssh_config['port']
-            }
-        )
-
-        self.join_subtasks(self.run_subtask(
-            'replication.known_host.create',
-            {
-                'name': remote,
-                'id': remote,
-                'pubkey': remote_keys[1],
-                'hostkey': remote_host_key,
-                'port': port
-            }
-        ))
-
-        remote_client.disconnect()
-
-
-@private
-@description('Create known host entry in database')
-@accepts(h.ref('known-host'))
-class KnownHostCreateTask(Task):
-    @classmethod
-    def early_describe(cls):
-        return 'Creating a known host entry'
-
-    def describe(self, known_host):
-        return TaskDescription('Creating a known host entry for the remote {name}', name=known_host['name'])
-
-    def verify(self, known_host):
-        if self.datastore.exists('replication.known_hosts', ('id', '=', known_host['name'])):
-            raise VerifyException(EEXIST, 'Known hosts entry for {0} already exists'.format(known_host['name']))
-
-        return ['system']
-
-    def run(self, known_host):
-        id = self.datastore.insert('replication.known_hosts', known_host)
-
-        with open(AUTH_FILE, 'a') as auth_file:
-            auth_file.write(known_host['pubkey'])
-
-        self.dispatcher.dispatch_event('replication.host.changed', {
-            'operation': 'create',
-            'ids': [id]
-        })
-
-@description('Remove keys making local and remote accessible from each other for replication user')
-@accepts(str)
-class HostsPairDeleteTask(Task):
-    @classmethod
-    def early_describe(cls):
-        return 'Deleting SSH association'
-
-    def describe(self, remote):
-        return TaskDescription('Deleting SSH association with the remote {name}', name=remote)
-
-    def verify(self, remote):
-        if not self.datastore.exists('replication.known_hosts', ('id', '=', remote)):
-            raise VerifyException(ENOENT, 'Known hosts entry for {0} does not exist'.format(remote))
-
-        return ['system']
-
-    def run(self, remote):
-        remote_client = None
-        try:
-            remote_client = get_replication_client(self.dispatcher, remote)
-
-            ip_at_remote_side = remote_client.call_sync('management.get_sender_address').split(',', 1)[0]
-            call_task_and_check_state(
-                remote_client,
-                'replication.known_host.delete',
-                ip_at_remote_side
-            )
-        except RpcException as e:
-            self.add_warning(TaskWarning(
-                e.code,
-                'Remote {0} is unreachable. Delete operation is performed at local side only.'.format(remote)
-            ))
-        except ValueError as e:
-            self.add_warning(TaskWarning(
-                EINVAL,
-                str(e)
-            ))
-
-        self.join_subtasks(self.run_subtask(
-            'replication.known_host.delete',
-            remote
-        ))
-
-        if remote_client:
-            remote_client.disconnect()
-
-
-@private
-@description('Remove known host entry from database')
-@accepts(str)
-class KnownHostDeleteTask(Task):
-    @classmethod
-    def early_describe(cls):
-        return 'Deleting known host entry'
-
-    def describe(self, name):
-        return TaskDescription('Deleting the known host entry for the remote {name}', name=name)
-
-    def verify(self, name):
-        if not self.datastore.exists('replication.known_hosts', ('id', '=', name)):
-            raise VerifyException(ENOENT, 'Known hosts entry for {0} does not exist'.format(name))
-
-        return ['system']
-
-    def run(self, name):
-        known_host = self.dispatcher.call_sync('replication.host.query', [('id', '=', name)], {'single': True})
-        known_host_pubkey = known_host['pubkey']
-        self.datastore.delete('replication.known_hosts', name)
-
-        with open(AUTH_FILE, 'r') as auth_file:
-            auth_keys = auth_file.read()
-
-        new_auth_keys = ''
-        for line in auth_keys.splitlines():
-            if not known_host_pubkey in line:
-                new_auth_keys = new_auth_keys + '\n' + line
-
-        with open(AUTH_FILE, 'w') as auth_file:
-            auth_file.write(new_auth_keys)
-
-        self.dispatcher.dispatch_event('replication.host.changed', {
-            'operation': 'delete',
-            'ids': [name]
-        })
-
-
-@private
-@description('Update SSH port number in remote known host entry')
-@accepts(str, int)
-class HostsPairPortUpdateTask(Task):
-    @classmethod
-    def early_describe(cls):
-        return 'Updating the SSH port number in the known host entry'
-
-    def describe(self, name, port):
-        return TaskDescription('Updating the SSH port number in the known host entry of the {name}', name=name)
-
-    def verify(self, name, port):
-        if not self.datastore.exists('replication.known_hosts', ('id', '=', name)):
-            raise VerifyException(ENOENT, 'Known hosts entry for {0} does not exist'.format(name))
-
-        return ['system']
-
-    def run(self, name, port):
-        remote_client = get_replication_client(self.dispatcher, name)
-        ip_at_remote_side = remote_client.call_sync('management.get_sender_address').split(',', 1)[0]
-
-        call_task_and_check_state(remote_client, 'replication.known_host.update_port', ip_at_remote_side, port)
-        remote_client.disconnect()
-
-
-@private
-@description('Update SSH port number in known host entry')
-@accepts(str, int)
-class KnownHostPortUpdateTask(Task):
-    @classmethod
-    def early_describe(cls):
-        return 'Updating the SSH port number used for communication with remote host'
-
-    def describe(self, name, port):
-        return TaskDescription('Updating the SSH port number used to connect to the {name}', name=name)
-
-    def verify(self, name, port):
-        if not self.datastore.exists('replication.known_hosts', ('id', '=', name)):
-            raise VerifyException(ENOENT, 'Known hosts entry for {0} does not exist'.format(name))
-
-        return ['system']
-
-    def run(self, name, port):
-        known_host = self.dispatcher.call_sync('replication.host.query', [('id', '=', name)], {'single': True})
-        known_host['port'] = port
-
-        self.datastore.update('replication.known_hosts', name, known_host)
-
-        self.dispatcher.dispatch_event('replication.host.changed', {
-            'operation': 'update',
-            'ids': [name]
-        })
-
-
 def close_fds(fds):
     if isinstance(fds, int):
         fds = [fds]
@@ -1882,12 +1625,8 @@ def close_fds(fds):
     except OSError:
         pass
 
-def _depends():
-    return ['SSHPlugin']
 
 def _init(dispatcher, plugin):
-    global ssh_port
-    ssh_port = dispatcher.call_sync('service.sshd.get_config')['port']
     # Register schemas
     plugin.register_schema_definition('replication-transport', {
         'type': 'object',
@@ -1920,13 +1659,15 @@ def _init(dispatcher, plugin):
             'name': {'type': 'string'},
             'read_fd': {'type': 'fd'},
             'write_fd': {'type': 'fd'},
-            'level': {
-                'type': 'string',
-                'enum': ['FAST', 'DEFAULT', 'BEST'],
-            },
+            'level': {'$ref': 'compress-plugin-level'},
             'buffer_size': {'type': 'integer'}
         },
         'additionalProperties': False
+    })
+
+    plugin.register_schema_definition('compress-plugin-level', {
+        'type': 'string',
+        'enum': ['FAST', 'DEFAULT', 'BEST']
     })
 
     plugin.register_schema_definition('decompress-plugin', {
@@ -1972,21 +1713,8 @@ def _init(dispatcher, plugin):
         'additionalProperties': False
     })
 
-    plugin.register_schema_definition('known-host', {
-        'type': 'object',
-        'properties': {
-            'name': {'type': 'string'},
-            'id': {'type': 'string'},
-            'pubkey': {'type': 'string'},
-            'hostkey': {'type': 'string'},
-            'port': {'type': 'number'}
-        },
-        'additionalProperties': False
-    })
-
     # Register providers
     plugin.register_provider('replication.transport', TransportProvider)
-    plugin.register_provider('replication.host', HostProvider)
 
     # Register transport plugin schema
     plugin.register_schema_definition('replication-transport-plugin', {
@@ -2004,35 +1732,3 @@ def _init(dispatcher, plugin):
     plugin.register_task_handler("replication.transport.encrypt", TransportEncryptTask)
     plugin.register_task_handler("replication.transport.decrypt", TransportDecryptTask)
     plugin.register_task_handler("replication.transport.throttle", TransportThrottleTask)
-    plugin.register_task_handler("replication.hosts_pair.create", HostsPairCreateTask)
-    plugin.register_task_handler("replication.known_host.create", KnownHostCreateTask)
-    plugin.register_task_handler("replication.hosts_pair.delete", HostsPairDeleteTask)
-    plugin.register_task_handler("replication.known_host.delete", KnownHostDeleteTask)
-    plugin.register_task_handler("replication.hosts_pair.update_port", HostsPairPortUpdateTask)
-    plugin.register_task_handler("replication.known_host.update_port", KnownHostPortUpdateTask)
-
-    # Register event types
-    plugin.register_event_type('replication.host.changed')
-
-    #Event handlers methods
-    def on_ssh_change(args):
-        global ssh_port
-        new_ssh_port = dispatcher.call_sync('service.sshd.get_config')['port']
-        if ssh_port != new_ssh_port:
-            ssh_port = new_ssh_port
-            hosts = dispatcher.call_sync('replication.host.query', [], {'select': 'name'})
-            for host in hosts:
-                dispatcher.call_task_sync('replication.hosts_pair.update_port', host, new_ssh_port)
-
-    #Register event handlers
-    plugin.register_event_handler('service.sshd.changed', on_ssh_change)
-
-    #Create home directory and authorized keys file for replication user
-    if not os.path.exists(REPL_HOME):
-        os.mkdir(REPL_HOME)
-    ssh_dir = os.path.join(REPL_HOME, '.ssh')
-    if not os.path.exists(ssh_dir):
-        os.mkdir(ssh_dir)
-    with open(AUTH_FILE, 'w') as auth_file:
-        for host in dispatcher.call_sync('replication.host.query'):
-            auth_file.write(host['pubkey'])

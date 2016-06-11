@@ -462,27 +462,13 @@ def _init(dispatcher, plugin):
     plugin.register_schema_definition('crypto-certificate', {
         'type': 'object',
         'properties': {
-            'type': {'type': 'string', 'enum': [
-                'CA_EXISTING',
-                'CA_INTERMEDIATE',
-                'CA_INTERNAL',
-                'CERT_CSR',
-                'CERT_EXISTING',
-                'CERT_INTERMEDIATE',
-                'CERT_INTERNAL',
-            ]},
+            'type': {'$ref': 'crypto-certificate-type'},
             'name': {'type': 'string'},
             'certificate': {'type': 'string'},
             'privatekey': {'type': 'string'},
             'csr': {'type': 'string'},
             'key_length': {'type': 'integer'},
-            'digest_algorithm': {'type': 'string', 'enum': [
-                'SHA1',
-                'SHA224',
-                'SHA256',
-                'SHA384',
-                'SHA512',
-            ]},
+            'digest_algorithm': {'$ref': 'crypto-certificate-digestalgorithm'},
             'lifetime': {'type': 'integer'},
             'country': {'type': 'string'},
             'state': {'type': 'string'},
@@ -501,6 +487,17 @@ def _init(dispatcher, plugin):
             'csr_path': {'type': ['string', 'null'], 'readOnly': True},
         },
         'additionalProperties': False,
+    })
+
+    plugin.register_schema_definition('crypto-certificate-type', {
+        'type': 'string',
+        'enum': ['CA_EXISTING', 'CA_INTERMEDIATE', 'CA_INTERNAL',
+                 'CERT_CSR', 'CERT_EXISTING', 'CERT_INTERMEDIATE', 'CERT_INTERNAL']
+    })
+
+    plugin.register_schema_definition('crypto-certificate-digestalgorithm', {
+        'type': 'string',
+        'enum': ['SHA1', 'SHA224', 'SHA256', 'SHA384', 'SHA512']
     })
 
     plugin.register_provider('crypto.certificate', CertificateProvider)

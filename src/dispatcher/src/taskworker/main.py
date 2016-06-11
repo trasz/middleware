@@ -131,14 +131,6 @@ class TaskProxyService(RpcService):
         self.context.running.wait()
         return self.context.instance.get_status()
 
-    def set_master_progress_detail(self, detail):
-        self.context.running.wait()
-        self.context.instance.set_master_progress_detail(detail)
-
-    def get_master_progress_info(self):
-        self.context.running.wait()
-        return self.context.instance.get_master_progress_info()
-
     def abort(self):
         if not hasattr(self.context.instance, 'abort'):
             raise RpcException(errno.ENOTSUP, 'Abort not supported')
@@ -175,6 +167,10 @@ class Context(object):
             obj['error'] = serialize_error(exception)
 
         self.conn.call_sync('task.put_status', obj)
+
+    def task_progress_handler(self, args):
+        if self.instance:
+            self.instance.task_progress_handler(args)
 
     def collect_fds(self, obj):
         if isinstance(obj, dict):
@@ -213,6 +209,7 @@ class Context(object):
         self.conn.login_service('task.{0}'.format(os.getpid()))
         self.conn.enable_server()
         self.conn.rpc.register_service_instance('taskproxy', self.service)
+        self.conn.register_event_handler('task.progress', self.task_progress_handler)
         self.conn.call_sync('task.checkin', key)
         setproctitle.setproctitle('task executor (idle)')
 

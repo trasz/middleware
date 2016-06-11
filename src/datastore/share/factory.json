@@ -1136,9 +1136,9 @@
     },
     {
         "metadata": {
-            "name": "replication.known_hosts",
+            "name": "peers",
             "migration": "keep",
-            "pkey-type": "native",
+            "pkey-type": "uuid",
             "attributes": {
                 "type": "config"
             }
@@ -1330,6 +1330,16 @@
                 "type": "SYSTEM",
                 "subtype": "UPDATES",
                 "severity": "INFO"
+            },
+            "UpdateDownloaded": {
+                "type": "SYSTEM",
+                "subtype": "UPDATES",
+                "severity": "INFO"
+            },
+            "UpdateInstalled": {
+                "type": "SYSTEM",
+                "subtype": "UPDATES",
+                "severity": "WARNING"
             },
             "VolumeUpgradePossible": {
                 "type": "VOLUME",

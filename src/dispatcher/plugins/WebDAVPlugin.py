@@ -106,10 +106,7 @@ def _init(dispatcher, plugin):
             'enable': {'type': 'boolean'},
             'protocol': {
                 'type': ['array'],
-                'items': {
-                    'type': 'string',
-                    'enum': ['HTTP', 'HTTPS'],
-                },
+                'items': {'$ref': 'service-webdav-protocol-items'},
             },
             'http_port': {
                 'type': 'integer',
@@ -122,13 +119,20 @@ def _init(dispatcher, plugin):
                 'maximum': 65535
             },
             'password': {'type': 'string'},
-            'authentication': {'type': 'string', 'enum': [
-                'BASIC',
-                'DIGEST',
-            ]},
+            'authentication': {'$ref': 'service-webdav-authentication'},
             'certificate': {'type': ['string', 'null']},
         },
         'additionalProperties': False,
+    })
+
+    plugin.register_schema_definition('service-webdav-protocol-items', {
+        'type': 'string',
+        'enum': ['HTTP', 'HTTPS']
+    })
+
+    plugin.register_schema_definition('service-webdav-authentication', {
+        'type': 'string',
+        'enum': ['BASIC', 'DIGEST']
     })
 
     # Register providers

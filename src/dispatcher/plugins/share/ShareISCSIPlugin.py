@@ -532,20 +532,24 @@ def _init(dispatcher, plugin):
             'ctl_lun': {'type': 'integer'},
             'naa': {'type': 'string'},
             'size': {'type': 'integer'},
-            'block_size': {
-                'type': 'integer',
-                'enum': [512, 1024, 2048, 4096]
-            },
+            'block_size': {'$ref': 'share-iscsi-blocksize'},
             'physical_block_size': {'type': 'boolean'},
             'available_space_threshold': {'type': 'integer'},
             'tpc': {'type': 'boolean'},
             'vendor_id': {'type': ['string', 'null']},
             'device_id': {'type': ['string', 'null']},
-            'rpm': {
-                'type': 'string',
-                'enum': ['UNKNOWN', 'SSD', '5400', '7200', '10000', '15000']
-            }
+            'rpm': {'$ref': 'share-iscsi-rpm'}
         }
+    })
+
+    plugin.register_schema_definition('share-iscsi-blocksize', {
+        'type': 'integer',
+        'enum': [512, 1024, 2048, 4096]
+    })
+
+    plugin.register_schema_definition('share-iscsi-rpm', {
+        'type': 'string',
+        'enum': ['UNKNOWN', 'SSD', '5400', '7200', '10000', '15000']
     })
 
     plugin.register_schema_definition('share-iscsi-target', {
@@ -599,10 +603,7 @@ def _init(dispatcher, plugin):
         'properties': {
             'id': {'type': 'string'},
             'description': {'type': 'string'},
-            'type': {
-                'type': 'string',
-                'enum': ['NONE', 'DENY', 'CHAP', 'CHAP_MUTUAL']
-            },
+            'type': {'$ref': 'share-iscsi-auth-type'},
             'users': {
                 'type': ['array', 'null'],
                 'items': {'$ref': 'share-iscsi-user'}
@@ -616,6 +617,11 @@ def _init(dispatcher, plugin):
                 'items': {'type': 'string'}
             },
         }
+    })
+
+    plugin.register_schema_definition('share-iscsi-auth-type', {
+        'type': 'string',
+        'enum': ['NONE', 'DENY', 'CHAP', 'CHAP_MUTUAL']
     })
 
     plugin.register_schema_definition('share-iscsi-user', {

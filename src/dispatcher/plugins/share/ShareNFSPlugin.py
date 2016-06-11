@@ -224,12 +224,14 @@ def _init(dispatcher, plugin):
             },
             'security': {
                 'type': 'array',
-                'items': {
-                    'type': 'string',
-                    'enum': ['sys', 'krb5', 'krb5i', 'krb5p']
-                }
+                'items': {'$ref': 'share-nfs-security-items'}
             }
         }
+    })
+
+    plugin.register_schema_definition('share-nfs-security-items', {
+        'type': 'string',
+        'enum': ['sys', 'krb5', 'krb5i', 'krb5p']
     })
 
     plugin.register_task_handler("share.nfs.create", CreateNFSShareTask)

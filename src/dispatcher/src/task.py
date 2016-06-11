@@ -29,9 +29,8 @@ import copy
 import errno
 import logging
 from freenas.dispatcher.rpc import RpcService, RpcException, RpcWarning
-from freenas.utils import SmartEventSet
 from datastore.config import ConfigStore
-from threading import Event, Lock
+from threading import Lock, RLock
 import collections
 
 
@@ -53,6 +52,22 @@ class Task(object):
         self.datastore = datastore
         self.configstore = ConfigStore(datastore)
         self.logger = logging.getLogger(self.__class__.__name__)
+        self.subtasks = []
+        self.progress_callbacks = {}
+        self.do_abort = False
+        self.rlock = RLock()
+
+    def task_progress_handler(self, args):
+        with self.rlock:
+            id = args['id']
+            try:
+                self.progress_callbacks[id](
+                    args['percentage'],
+                    args['message']
+                )
+            except:
+                # ignore
+                pass
 
     @classmethod
     def _get_metadata(cls):
@@ -78,16 +93,41 @@ class Task(object):
         return self.dispatcher.add_warning(warning)
 
     def verify_subtask(self, classname, *args):
-        return self.dispatcher.verify_subtask(self, classname, args)
+        with self.rlock:
+            return self.dispatcher.verify_subtask(self, classname, args)
 
-    def run_subtask(self, classname, *args):
-        return self.dispatcher.run_subtask(self, classname, args)
+    def run_subtask(self, classname, *args, **kwargs):
+        with self.rlock:
+            callback = kwargs.pop('progress_callback', None)
+            tid = self.dispatcher.run_subtask(self, classname, args)
+            if callback:
+                self.progress_callbacks[tid] = callback
+
+            self.subtasks.append(tid)
+            return tid
 
     def join_subtasks(self, *tasks):
-        return self.dispatcher.join_subtasks(*tasks)
+        try:
+            return self.dispatcher.join_subtasks(*tasks)
+        except:
+            if self.do_abort:
+                raise TaskAbortException(errno.EINTR, 'Aborted')
+
+            raise
+        finally:
+            with self.rlock:
+                for t in tasks:
+                    self.subtasks.remove(t)
+                    self.progress_callbacks.pop(t, None)
 
     def abort_subtask(self, id):
         return self.dispatcher.abort_subtask(id)
+
+    def abort_subtasks(self):
+        with self.rlock:
+            self.do_abort = True
+            for t in self.subtasks:
+                self.abort_subtask(t)
 
     def chain(self, task, *args):
         self.dispatcher.balancer.submit(task, *args)
@@ -106,82 +146,6 @@ class ProgressTask(Task):
         self.progress = percentage
         if message:
             self.message = message
-
-
-class ProgressSubtask(object):
-
-    def __init__(self, *args, **kwargs):
-        self.tid = kwargs.get('tid')
-        if 'weight' in kwargs and 0.0 <= kwargs['weight'] <= 1.0:
-            self.weight = kwargs['weight']
-        else:
-            self.weight = 1
-        self.classname = kwargs.get('classname')
-        self.joining = Event()
-        self.ended = Event()
-        self.result = None
-
-
-class MasterProgressTask(ProgressTask):
-
-    def __init__(self, dispatcher, datastore):
-        super(MasterProgressTask, self).__init__(dispatcher, datastore)
-        self.progress_subtasks = {}
-        self.concurent_subtask_detail = {
-            'tids': [],
-            'average_weight': 1,
-        }
-        self.active_tids = []
-        self.increment_progress = 0
-        # only works well if a single subtask is executing at a time
-        # else might lead to confusion
-        self.pass_subtask_details = True
-        self.state_lock = Lock()
-
-    def get_master_progress_info(self):
-        with self.state_lock:
-            state_obj = {
-                'subtask_weights': {x: v.weight for x, v in self.progress_subtasks.items()},
-                'increment_progress': self.increment_progress,
-                'active_tids': self.active_tids,
-                'concurent_subtask_detail': self.concurent_subtask_detail,
-                'progress': self.progress,
-                'message': self.message,
-                'pass_subtask_details': self.pass_subtask_details
-            }
-        return state_obj
-
-    def set_master_progress_detail(self, detail):
-        with self.state_lock:
-            self.progress = int(detail.get('progress', self.progress))
-            self.increment_progress = int(detail.get('increment_progress', self.increment_progress))
-
-    def run_subtask(self, classname, *args, **kwargs):
-        weight = kwargs.pop('weight', 1)
-        tid = self.dispatcher.run_subtask(self, classname, args)
-        subtask = ProgressSubtask(tid=tid, weight=weight, classname=classname)
-        with self.state_lock:
-            self.progress_subtasks[tid] = subtask
-            self.active_tids.append(tid)
-        return tid
-
-    def join_subtasks(self, *tasks):
-        subtask_results = []
-        for tid in tasks:
-            with SmartEventSet(self.progress_subtasks[tid].joining):
-                result = self.dispatcher.join_subtasks(tid)
-            with self.state_lock:
-                self.progress_subtasks[tid].ended.set()
-                self.progress_subtasks[tid].result = result
-                subtask_results.extend(result)
-                self.active_tids.remove(tid)
-                self.increment_progress = self.progress_subtasks[tid].weight * 100
-                if tid in self.concurent_subtask_detail['tids']:
-                    self.concurent_subtask_detail['task_ids'].remove(tid)
-                    self.increment_progress *= self.concurent_subtask_detail['average_weight']
-                self.increment_progress = int(self.increment_progress)
-
-        return subtask_results
 
 
 class TaskException(RpcException):

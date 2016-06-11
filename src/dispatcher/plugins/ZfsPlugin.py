@@ -274,7 +274,7 @@ class ZpoolScrubTask(Task):
         pool = zfs.get(pool)
         return get_disk_names(self.dispatcher, pool)
 
-    def run(self, pool, threshold=None):
+    def run(self, pool):
         self.pool = pool
         self.dispatcher.register_event_handler("fs.zfs.scrub.finish", self.__scrub_finished)
         self.dispatcher.register_event_handler("fs.zfs.scrub.abort", self.__scrub_aborted)
@@ -283,12 +283,6 @@ class ZpoolScrubTask(Task):
         try:
             zfs = get_zfs()
             pool = zfs.get(self.pool)
-            # Skip in case a scrub did already run in the last `threshold` days
-            if threshold:
-                last_run = pool.scrub.end_time
-                if last_run and (datetime.now() - last_run).days < threshold:
-                    self.finish_event.set()
-                    return
             pool.start_scrub()
             self.started = True
         except libzfs.ZFSException as err:
@@ -1435,15 +1429,17 @@ def _init(dispatcher, plugin):
                 'type': 'object',
                 'readOnly': True
             },
-            'type': {
-                'type': 'string',
-                'enum': ['disk', 'file', 'mirror', 'raidz1', 'raidz2', 'raidz3']
-            },
+            'type': {'$ref': 'zfs-vdev-type'},
             'children': {
                 'type': 'array',
                 'items': {'$ref': 'zfs-vdev'}
             }
         }
+    })
+
+    plugin.register_schema_definition('zfs-vdev-type', {
+        'type': 'string',
+        'enum': ['disk', 'file', 'mirror', 'raidz1', 'raidz2', 'raidz3']
     })
 
     # Plugin Schema definitions
@@ -1656,24 +1652,22 @@ def _init(dispatcher, plugin):
         'type': 'object',
         'additionalProperties': False,
         'properties': {
-            'source': {
-                'type': 'string',
-                'enum': ['NONE', 'DEFAULT', 'LOCAL', 'INHERITED', 'RECEIVED']
-            },
+            'source': {'$ref': 'zfs-property-source'},
             'value': {'type': 'string'},
             'rawvalue': {'type': 'string'}
         }
+    })
+
+    plugin.register_schema_definition('zfs-property-source', {
+        'type': 'string',
+        'enum': ['NONE', 'DEFAULT', 'LOCAL', 'INHERITED', 'RECEIVED']
     })
 
     plugin.register_schema_definition('zfs-pool', {
         'type': 'object',
         'additionalProperties': False,
         'properties': {
-            'status': {
-                'type': 'string',
-                'enum': ['ONLINE', 'OFFLINE', 'DEGRADED', 'FAULTED',
-                         'REMOVED', 'UNAVAIL']
-            },
+            'status': {'$ref': 'zfs-pool-status'},
             'name': {'type': 'string'},
             'scan': {'$ref': 'zfs-scan'},
             'hostname': {'type': 'string'},
@@ -1682,6 +1676,11 @@ def _init(dispatcher, plugin):
             'guid': {'type': 'integer'},
             'properties': {'$ref': 'zfs-properties'},
         }
+    })
+
+    plugin.register_schema_definition('zfs-pool-status', {
+        'type': 'string',
+        'enum': ['ONLINE', 'OFFLINE', 'DEGRADED', 'FAULTED', 'REMOVED', 'UNAVAIL']
     })
 
     plugin.register_event_handler('fs.zfs.pool.created', on_pool_create)

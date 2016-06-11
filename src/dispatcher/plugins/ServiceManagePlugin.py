@@ -497,12 +497,14 @@ def _init(dispatcher, plugin):
             'id': {'type': 'string'},
             'pid': {'type': 'integer'},
             'builtin': {'type': 'boolean'},
-            'state': {
-                'type': 'string',
-                'enum': ['RUNNING', 'STOPPED', 'UNKNOWN']
-            },
+            'state': {'$ref': 'service-state'},
             'config': {'$ref': 'service-config'}
         }
+    })
+
+    plugin.register_schema_definition('service-state', {
+        'type': 'string',
+        'enum': ['RUNNING', 'STOPPED', 'UNKNOWN']
     })
 
     plugin.register_schema_definition('service-config', {

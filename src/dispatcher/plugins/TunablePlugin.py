@@ -263,15 +263,18 @@ def _init(dispatcher, plugin):
         'type': 'object',
         'properties': {
             'id': {'type': 'string'},
-            'type': {'type': 'string', 'enum': [
-                'LOADER', 'RC', 'SYSCTL',
-            ]},
+            'type': {'$ref': 'tunable-type'},
             'var': {'type': 'string'},
             'value': {'type': 'string'},
             'comment': {'type': 'string'},
             'enabled': {'type': 'boolean'},
         },
         'additionalProperties': False,
+    })
+
+    plugin.register_schema_definition('tunable-type', {
+        'type': 'string',
+        'enum': ['LOADER', 'RC', 'SYSCTL']
     })
 
     # Register events

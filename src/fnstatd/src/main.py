@@ -497,7 +497,6 @@ class Main(object):
                 self.connect()
 
         self.client = Client()
-        self.client.use_bursts = True
         self.client.on_error(on_error)
         self.connect()
 

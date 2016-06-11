@@ -45,7 +45,7 @@ from cache import EventCacheStore
 from lib.system import system, SubprocessException
 from lib.freebsd import fstyp
 from task import (
-    Provider, Task, ProgressTask, MasterProgressTask, TaskException, TaskWarning, VerifyException, query,
+    Provider, Task, ProgressTask, TaskException, TaskWarning, VerifyException, query,
     TaskDescription
 )
 from freenas.dispatcher.rpc import (
@@ -1731,7 +1731,7 @@ class VolumeRestoreKeysTask(Task):
 
 @description("Scrubs the volume")
 @accepts(str)
-class VolumeScrubTask(MasterProgressTask):
+class VolumeScrubTask(ProgressTask):
     @classmethod
     def early_describe(cls):
         return "Performing a scrub of a volume"
@@ -1747,18 +1747,10 @@ class VolumeScrubTask(MasterProgressTask):
         return ['disk:{0}'.format(d) for d, _ in get_disks(vol['topology'])]
 
     def abort(self):
-        # We only have one task in here so just wait till it joins and/or ends
-        # to begin the abort
-        subtask = next(iter(self.progress_subtasks.values()))
-        while True:
-            if subtask.joining.wait(1):
-                break
-            if subtask.ended.wait(0.1):
-                break
-        self.abort_subtask(subtask.tid)
+        self.abort_subtasks()
 
     def run(self, id):
-        self.join_subtasks(self.run_subtask('zfs.pool.scrub', id))
+        self.join_subtasks(self.run_subtask('zfs.pool.scrub', id, progress_callback=self.set_progress))
 
 
 @description("Makes vdev in a volume offline")
@@ -1988,9 +1980,9 @@ class DatasetConfigureTask(Task):
         if 'properties' in updated_params:
             props = exclude(
                 updated_params['properties'],
-                'used', 'usedbydataset', 'usedbysnapshots', 'usedbychildren', 'logicalused', 'logicalreferenced',
-                'written', 'usedbyrefreservation', 'referenced', 'available', 'dedup', 'casesensitivity',
-                'compressratio', 'refcompressratio'
+                'used', 'usedbydataset', 'usedbysnapshots', 'usedbychildren', 'logicalused',
+                'logicalreferenced', 'written', 'usedbyrefreservation', 'referenced', 'available',
+                'casesensitivity', 'compressratio', 'refcompressratio'
             )
             self.join_subtasks(self.run_subtask('zfs.update', ds['id'], props))
 
@@ -2016,20 +2008,23 @@ class DatasetConfigureTask(Task):
 
 
 @description("Creates a snapshot")
-@accepts(h.all_of(
-    h.ref('volume-snapshot'),
-    h.required('volume', 'dataset', 'name'),
-    h.forbidden('id')
-))
+@accepts(
+    h.all_of(
+        h.ref('volume-snapshot'),
+        h.required('volume', 'dataset', 'name'),
+        h.forbidden('id')
+    ),
+    bool
+)
 class SnapshotCreateTask(Task):
     @classmethod
     def early_describe(cls):
         return "Creating a snapshot"
 
-    def describe(self, snapshot):
+    def describe(self, snapshot, recursive=False):
         return TaskDescription("Creating the snapshot {name}", name=snapshot['name'])
 
-    def verify(self, snapshot):
+    def verify(self, snapshot, recursive=False):
         return ['zfs:{0}'.format(snapshot['dataset'])]
 
     def run(self, snapshot, recursive=False):
@@ -2391,19 +2386,28 @@ def _init(dispatcher, plugin):
             'encryption': {'$ref': 'encryption'},
             'providers_presence': {
                 'oneOf': [
-                    {
-                        'type': 'string',
-                        'enum': ['ALL', 'PART', 'NONE']
-                    },
-                    {
-                        'type': 'null'
-                    }
+                    {'$ref': 'volume-providerspresence'},
+                    {'type': 'null'}
                 ],
                 'readOnly': True
             },
             'properties': {'$ref': 'volume-properties', 'readOnly': True},
-            'attributes': {'type': 'object'}
+            'attributes': {'type': 'object'},
+            'params': {
+                'type': ['object', 'null'],
+                'properties': {
+                    'mount': {'type': 'boolean'},
+                    'mountpoint': {'type': 'string'},
+                    'blocksize': {'type': 'number'},
+                    'swapsize': {'type': 'number'}
+                }
+            }
         }
+    })
+
+    plugin.register_schema_definition('volume-providerspresence', {
+        'type': 'string',
+        'enum': ['ALL', 'PART', 'NONE']
     })
 
     plugin.register_schema_definition('volume-property', {
@@ -2415,12 +2419,16 @@ def _init(dispatcher, plugin):
                 'type': 'string',
                 'readOnly': True
             },
-            'source': {
-                'type': 'string',
-                'enum': ['NONE', 'DEFAULT', 'LOCAL', 'INHERITED'],
-                'readOnly': True
-            }
+            'source': {'allOf': [
+                {'$ref': 'volume-property-source'},
+                {'readOnly': True}
+            ]}
         }
+    })
+
+    plugin.register_schema_definition('volume-property-source', {
+        'type': 'string',
+        'enum': ['NONE', 'DEFAULT', 'LOCAL', 'INHERITED']
     })
 
     plugin.register_schema_definition('volume-readonly-property', {
@@ -2435,48 +2443,67 @@ def _init(dispatcher, plugin):
                 'type': 'string',
                 'readOnly': True
             },
-            'source': {
-                'type': 'string',
-                'enum': ['NONE', 'DEFAULT', 'LOCAL', 'INHERITED'],
-                'readOnly': True
-            }
+            'source': {'allOf': [
+                {'$ref': 'volume-property-source'},
+                {'readOnly': True}
+            ]}
         }
     })
 
-    plugin.register_schema_definition('volume-dataset-compression-property', {
+    plugin.register_schema_definition('volume-dataset-properties-compression', {
         'type': 'object',
         'additionalProperties': True,
         'properties': {
-            'value': {'enum': ['on', 'off', 'lzjb', 'zle', 'lz4', 'gzip', 'gzip-1',
-                               'gzip-2', 'gzip-3', 'gzip-4', 'gzip-5', 'gzip-6',
-                               'gzip-7', 'gzip-8', 'gzip-9']}
+            'value': {'$ref': 'volume-dataset-properties-compression-value'}
         }
     })
 
-    plugin.register_schema_definition('volume-dataset-dedup-property', {
+    plugin.register_schema_definition('volume-dataset-properties-compression-value', {
+        'type': 'string',
+        'enum': ['on', 'off', 'lzjb', 'zle', 'lz4', 'gzip', 'gzip-1',
+                 'gzip-2', 'gzip-3', 'gzip-4', 'gzip-5', 'gzip-6',
+                 'gzip-7', 'gzip-8', 'gzip-9']
+    })
+
+    plugin.register_schema_definition('volume-dataset-properties-dedup', {
         'type': 'object',
         'additionalProperties': True,
         'properties': {
-            'value': {'enum': ['on', 'off', 'verify', 'sha256', 'sha256,verify',
-                               'sha512', 'sha512,verify', 'skein', 'skein,verify',
-                               'edonr,verify']}
+            'value': {'$ref': 'volume-dataset-properties-dedup-value'}
         }
     })
 
-    plugin.register_schema_definition('volume-dataset-casesensitivity-property', {
+    plugin.register_schema_definition('volume-dataset-properties-dedup-value', {
+        'type': 'string',
+        'enum': ['on', 'off', 'verify', 'sha256', 'sha256,verify',
+                'sha512', 'sha512,verify', 'skein', 'skein,verify',
+                'edonr,verify']
+    })
+
+    plugin.register_schema_definition('volume-dataset-properties-casesensitivity', {
         'type': 'object',
         'additionalProperties': True,
         'properties': {
-            'value': {'enum': ['sensitive', 'insensitive', 'mixed']}
+            'value': {'$ref': 'volume-dataset-properties-casesensitivity-value'}
         }
     })
 
-    plugin.register_schema_definition('volume-dataset-atime-property', {
+    plugin.register_schema_definition('volume-dataset-properties-casesensitivity-value', {
+        'type': 'string',
+        'enum': ['sensitive', 'insensitive', 'mixed']
+    })
+
+    plugin.register_schema_definition('volume-dataset-properties-atime', {
         'type': 'object',
         'additionalProperties': True,
         'properties': {
-            'value': {'enum': ['on', 'off']}
+            'value': {'$ref': 'volume-dataset-properties-atime-value'},
         }
+    })
+
+    plugin.register_schema_definition('volume-dataset-properties-atime-value', {
+        'type': 'string',
+        'enum': ['on', 'off']
     })
 
     plugin.register_schema_definition('volume-properties', {
@@ -2521,19 +2548,25 @@ def _init(dispatcher, plugin):
             'volume': {'type': 'string'},
             'mountpoint': {'type': 'string'},
             'mounted': {'type': 'boolean'},
-            'type': {
-                'type': 'string',
-                'enum': ['FILESYSTEM', 'VOLUME'],
-                'readOnly': True
-            },
+            'type': {'allOf': [
+                {'$ref': 'volume-dataset-type'},
+                {'readOnly': True}
+            ]},
             'volsize': {'type': ['integer', 'null']},
             'properties': {'$ref': 'volume-dataset-properties'},
             'permissions': {'$ref': 'permissions'},
-            'permissions_type': {
-                'type': 'string',
-                'enum': ['PERM', 'ACL']
-            }
+            'permissions_type': {'$ref': 'volume-dataset-permissionstype'}
         }
+    })
+
+    plugin.register_schema_definition('volume-dataset-type', {
+        'type': 'string',
+        'enum': ['FILESYSTEM', 'VOLUME'],
+    })
+
+    plugin.register_schema_definition('volume-dataset-permissionstype', {
+        'type': 'string',
+        'enum': ['PERM', 'ACL']
     })
 
     plugin.register_schema_definition('volume-dataset-properties', {
@@ -2544,24 +2577,24 @@ def _init(dispatcher, plugin):
             'available': {'$ref': 'volume-readonly-property'},
             'compression': {'allOf': [
                 {'$ref': 'volume-property'},
-                {'$ref': 'volume-dataset-compression-property'}
-                ]},
+                {'$ref': 'volume-dataset-properties-compression'}
+            ]},
             'atime': {'allOf': [
                 {'$ref': 'volume-property'},
-                {'$ref': 'volume-dataset-atime-property'}
-                ]},
+                {'$ref': 'volume-dataset-properties-atime'}
+            ]},
             'dedup': {'allOf': [
                 {'$ref': 'volume-property'},
-                {'$ref': 'volume-dataset-dedup-property'}
-                ]},
+                {'$ref': 'volume-dataset-properties-dedup'}
+            ]},
             'quota': {'$ref': 'volume-property'},
             'refquota': {'$ref': 'volume-property'},
             'reservation': {'$ref': 'volume-property'},
             'refreservation': {'$ref': 'volume-property'},
             'casesensitivity': {'allOf': [
                 {'$ref': 'volume-property'},
-                {'$ref': 'volume-dataset-casesensitivity-property'},
-                ]},
+                {'$ref': 'volume-dataset-properties-casesensitivity'},
+            ]},
             'volsize': {'$ref': 'volume-property'},
             'volblocksize': {'$ref': 'volume-property'},
             'refcompressratio': {'$ref': 'volume-property'},
@@ -2580,6 +2613,7 @@ def _init(dispatcher, plugin):
 
     plugin.register_schema_definition('volume-snapshot', {
         'type': 'object',
+        'additionalProperties': False,
         'properties': {
             'id': {'type': 'string'},
             'volume': {'type': 'string'},
@@ -2610,13 +2644,15 @@ def _init(dispatcher, plugin):
             'type': 'object',
             'additionalProperties': False,
             'properties': {
-                'type': {
-                    'type': 'string',
-                    'enum': ['BOOT', 'VOLUME', 'ISCSI'],
-                },
+                'type': {'$ref': 'disks-allocation-type'},
                 'name': {'type': 'string'}
             }
         }
+    })
+
+    plugin.register_schema_definition('disks-allocation-type', {
+        'type': 'string',
+        'enum': ['BOOT', 'VOLUME', 'ISCSI'],
     })
 
     plugin.register_schema_definition('importable-disk', {

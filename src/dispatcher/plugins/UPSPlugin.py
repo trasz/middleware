@@ -229,20 +229,14 @@ def _init(dispatcher, plugin):
         'properties': {
             'type': {'enum': ['service-ups']},
             'enable': {'type': 'boolean'},
-            'mode': {'type': 'string', 'enum': [
-                'MASTER',
-                'SLAVE',
-            ]},
+            'mode': {'$ref': 'service-ups-mode'},
             'identifier': {'type': 'string'},
             'remote_host': {'type': ['string', 'null']},
             'remote_port': {'type': 'integer'},
             'driver': {'type': 'string'},
             'driver_port': {'type': ['string', 'null']},
             'description': {'type': ['string', 'null']},
-            'shutdown_mode': {'type': 'string', 'enum': [
-                'LOWBATT',
-                'BATT',
-            ]},
+            'shutdown_mode': {'$ref': 'service-ups-shutdownmode'},
             'shutdown_timer': {'type': 'integer'},
             'monitor_user': {'type': 'string'},
             'monitor_password': {'type': 'string'},
@@ -256,6 +250,16 @@ def _init(dispatcher, plugin):
         },
         'additionalProperties': False,
     })
+
+    plugin.register_schema_definition('service-ups-mode', {
+        'type': 'string',
+        'enum': ['MASTER', 'SLAVE']
+    })
+    plugin.register_schema_definition('service-ups-shutdownmode', {
+        'type': 'string',
+        'enum': ['LOWBATT', 'BATT']
+    })
+
 
     # Register providers
     plugin.register_provider("service.ups", UPSProvider)
