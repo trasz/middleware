@@ -1980,9 +1980,9 @@ class DatasetConfigureTask(Task):
         if 'properties' in updated_params:
             props = exclude(
                 updated_params['properties'],
-                'used', 'usedbydataset', 'usedbysnapshots', 'usedbychildren', 'logicalused', 'logicalreferenced',
-                'written', 'usedbyrefreservation', 'referenced', 'available', 'dedup', 'casesensitivity',
-                'compressratio', 'refcompressratio'
+                'used', 'usedbydataset', 'usedbysnapshots', 'usedbychildren', 'logicalused',
+                'logicalreferenced', 'written', 'usedbyrefreservation', 'referenced', 'available',
+                'casesensitivity', 'compressratio', 'refcompressratio'
             )
             self.join_subtasks(self.run_subtask('zfs.update', ds['id'], props))
 
