@@ -51,12 +51,13 @@ class PeerProvider(Provider):
 
     @private
     def get_ssh_keys(self):
+        key_path = None
         key_paths = ['/etc/ssh/ssh_host_rsa_key.pub', '/etc/replication/key.pub']
         keys = []
         try:
             for key_path in key_paths:
                 with open(key_path) as f:
-                     keys.append(f.read())
+                    keys.append(f.read())
         except FileNotFoundError:
             raise RpcException(errno.ENOENT, 'Key file {0} not found'.format(key_path))
 
