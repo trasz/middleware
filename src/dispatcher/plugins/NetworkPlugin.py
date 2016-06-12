@@ -710,7 +710,7 @@ def _init(dispatcher, plugin):
             'dhcp': {'type': 'boolean'},
             'rtadv': {'type': 'boolean'},
             'noipv6': {'type': 'boolean'},
-            'mtu': {'type': 'integer'},
+            'mtu': {'type': ['integer', 'null']},
             'media': {'type': ['string', 'null']},
             'mediaopts': {'$ref': 'network-interface-mediaopts'},
             'capabilities': {
