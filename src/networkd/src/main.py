@@ -902,7 +902,7 @@ class Main(object):
                     'dhcp': False,
                     'noipv6': False,
                     'rtadv': False,
-                    'mtu': None,
+                    'mtu': i.mtu,
                     'media': None,
                     'aliases': []
                 })
