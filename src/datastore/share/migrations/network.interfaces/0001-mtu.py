@@ -27,7 +27,7 @@
 
 
 def probe(obj, ds):
-    return not obj['id'].startswith(('lagg', 'vlan', 'tun'))
+    return not obj['id'].startswith(('lagg', 'vlan', 'tun')) and not obj.get('mtu')
 
 
 def apply(obj, ds):
