@@ -1,2 +1,3 @@
 etc/rc.d/containerd
 sbin/containerd
+share/containerd/firmware/BHYVE_UEFI_20160526.fd
