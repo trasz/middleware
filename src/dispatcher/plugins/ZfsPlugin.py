@@ -833,15 +833,25 @@ class ZfsDatasetCreateTask(Task):
         self.check_type(type)
         return ['zpool:{0}'.format(pool_name)]
 
-    def run(self, path, type, params=None):
+    def run(self, path, type, props=None):
         self.check_type(type)
         try:
-            params = params or {}
+            props = props or {}
+            params = {}
             sparse = False
 
-            if params.get('sparse'):
+            if props.get('sparse'):
                 sparse = True
-                del params['sparse']
+                del props['sparse']
+
+            for k, v in props.items():
+                if v.get('value'):
+                    params[k] = v['value']
+                    continue
+
+                if v.get('parsed'):
+                    params[k] = libzfs.serialize_zfs_prop(k, v['parsed'])
+                    continue
 
             zfs = get_zfs()
             pool = zfs.get(path.split('/')[0])
