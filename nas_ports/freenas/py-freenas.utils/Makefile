@@ -20,7 +20,7 @@ USE_PYTHON=	autoplist distutils
 EXTRACT_ONLY=
 
 MAKE_ENV=	VERSION=${PRODUCT_VERSION}
-WRKSRC=		/usr/middleware_src/utils
+WRKSRC=		/usr/middleware_src/py-freenas.utils
 
 checksum fetch:
 	${ECHO_CMD} ${.TARGET} not needed because building direct
