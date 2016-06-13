@@ -31,11 +31,12 @@ import logging
 import json
 import gevent
 import libzfs
-from datetime import datetime
 from threading import Event
 from cache import EventCacheStore
-from task import (Provider, Task, TaskStatus, TaskException,
-                  VerifyException, TaskAbortException, query, TaskDescription)
+from task import (
+    Provider, Task, TaskStatus, TaskException,
+    VerifyException, TaskAbortException, query, TaskDescription
+)
 from freenas.dispatcher.rpc import RpcException, accepts, returns, description, private
 from freenas.dispatcher.rpc import SchemaHelper as h
 from balancer import TaskState
@@ -50,6 +51,7 @@ VOLATILE_ZFS_PROPERTIES = [
     'usedbydataset', 'usedbychildren', 'usedbyrefreservation', 'refcompressratio',
     'written', 'logicalused', 'logicalreferenced'
 ]
+
 logger = logging.getLogger('ZfsPlugin')
 pools = None
 datasets = None
@@ -933,10 +935,17 @@ class ZfsConfigureTask(ZfsBaseTask):
             dataset = zfs.get_object(name)
             for k, v in list(properties.items()):
                 if k in dataset.properties:
-                    if v['value'] is None:
+                    if v.get('source') == 'INHERITED':
                         dataset.properties[k].inherit()
-                    else:
+                        continue
+
+                    if v.get('parsed'):
+                        dataset.properties[k].parsed = v['parsed']
+                        continue
+
+                    if v.get('value'):
                         dataset.properties[k].value = v['value']
+                        continue
                 else:
                     prop = libzfs.ZFSUserProperty(v['value'])
                     dataset.properties[k] = prop
