@@ -1863,9 +1863,12 @@ class DatasetCreateTask(Task):
         params = exclude(
                 dataset['properties'],
                 'used', 'usedbydataset', 'usedbysnapshots', 'usedbychildren', 'logicalused', 'logicalreferenced',
-                'written', 'usedbyrefreservation', 'referenced', 'available', 'compressratio', 'refcompressratio')
+                'written', 'usedbyrefreservation', 'referenced', 'available', 'compressratio', 'refcompressratio'
+        )
+
         for k, v in list(params.items()):
             params[k] = v['value']
+
         props.update(params)
         self.join_subtasks(self.run_subtask(
             'zfs.create_dataset',
