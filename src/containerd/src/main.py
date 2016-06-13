@@ -207,9 +207,6 @@ class VirtualMachine(object):
     def stop(self, force=False):
         self.logger.info('Stopping VM {0}'.format(self.name))
 
-        for i in self.tap_interfaces:
-            self.cleanup_tap(i)
-
         if self.bhyve_process:
             try:
                 if force:
@@ -311,6 +308,8 @@ class VirtualMachine(object):
 
             break
 
+        for i in self.tap_interfaces:
+            self.cleanup_tap(i)
         self.set_state(VirtualMachineState.STOPPED)
 
     def console_worker(self):
