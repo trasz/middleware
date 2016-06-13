@@ -2463,9 +2463,11 @@ def _init(dispatcher, plugin):
 
     plugin.register_schema_definition('volume-dataset-properties-compression-value', {
         'type': 'string',
-        'enum': ['on', 'off', 'lzjb', 'zle', 'lz4', 'gzip', 'gzip-1',
-                 'gzip-2', 'gzip-3', 'gzip-4', 'gzip-5', 'gzip-6',
-                 'gzip-7', 'gzip-8', 'gzip-9']
+        'enum': [
+            'on', 'off', 'lzjb', 'zle', 'lz4', 'gzip', 'gzip-1',
+            'gzip-2', 'gzip-3', 'gzip-4', 'gzip-5', 'gzip-6',
+            'gzip-7', 'gzip-8', 'gzip-9'
+        ]
     })
 
     plugin.register_schema_definition('volume-dataset-properties-dedup', {
@@ -2478,9 +2480,11 @@ def _init(dispatcher, plugin):
 
     plugin.register_schema_definition('volume-dataset-properties-dedup-value', {
         'type': 'string',
-        'enum': ['on', 'off', 'verify', 'sha256', 'sha256,verify',
-                'sha512', 'sha512,verify', 'skein', 'skein,verify',
-                'edonr,verify']
+        'enum': [
+            'on', 'off', 'verify', 'sha256', 'sha256,verify',
+            'sha512', 'sha512,verify', 'skein', 'skein,verify',
+            'edonr,verify'
+        ]
     })
 
     plugin.register_schema_definition('volume-dataset-properties-casesensitivity', {
