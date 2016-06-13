@@ -61,6 +61,13 @@ update_cache = CacheStore()
 update_resource_string = 'update:operations'
 
 
+UPDATE_ALERT_TITLE_MAP = {
+    'UpdateAvailable': 'Update Available',
+    'UpdateDownloaded': 'Update Downloaded',
+    'UpdateInstalled': 'Update Installed'
+}
+
+
 def parse_changelog(changelog, start='', end=''):
     "Utility function to parse an available changelog"
     regexp = r'### START (\S+)(.+?)### END \1'
@@ -475,8 +482,10 @@ class UpdateProvider(Provider):
                 ('or', ('class', '=', update_class), ('target', '=', update_version))
             ]
         )
+        title = UPDATE_ALERT_TITLE_MAP.get(update_class, 'Update Alert')
         if desc is None:
             if update_class == 'UpdateAvailable':
+
                 desc = 'Latest Update: {0} is available for download'.format(update_version)
             elif update_class == 'UpdateDownloaded':
                 desc = 'Update containing {0} is downloaded and ready for install'.format(update_version)
@@ -489,6 +498,7 @@ class UpdateProvider(Provider):
                 )
         alert_payload = {
             'class': update_class,
+            'title': title,
             'target': update_version,
             'description': desc
         }
