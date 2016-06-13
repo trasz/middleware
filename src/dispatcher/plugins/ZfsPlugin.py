@@ -1461,8 +1461,6 @@ def _init(dispatcher, plugin):
         'enum': ['disk', 'file', 'mirror', 'raidz1', 'raidz2', 'raidz3']
     })
 
-    # Plugin Schema definitions
-
     plugin.register_schema_definition('zfs-topology', {
         'type': 'object',
         'additionalProperties': False,
@@ -1511,129 +1509,6 @@ def _init(dispatcher, plugin):
         }
     })
 
-    # A dict containing the zfs property name: dict of their properties
-    # (optional if empty the zfsprop_schema_creator defaults kickin)
-    # for example 'comment': [{'source': string, 'value': 'boolean'}]
-    zfsprops_dict = {
-        'comment': {},
-        'freeing': {},
-        'listsnapshots': {},
-        'leaked': {},
-        'version': {},
-        'free': {},
-        'delegation': {},
-        'dedupditto': {},
-        'failmode': {},
-        'autoexpand': {},
-        'allocated': {},
-        'guid': {},
-        'altroot': {},
-        'size': {},
-        'fragmentation': {},
-        'capacity': {},
-        'name': {},
-        'maxblocksize': {},
-        'cachefile': {},
-        'bootfs': {},
-        'autoreplace': {},
-        'readonly': {},
-        'dedupratio': {},
-        'health': {},
-        'expandsize': {},
-    }
-
-    zfsproperty_schema = {'type': 'object', 'properties': {}}
-
-    for key, value in zfsprops_dict.items():
-        zfsproperty_schema['properties'][key] = zfsprop_schema_creator(**value)
-
-    plugin.register_schema_definition('zfs-properties', zfsproperty_schema)
-
-    # A dict containing the zfs dataset property name: dict of their properties
-    # (optional if empty the zfsprop_schema_creator defaults kickin)
-    # for example 'comment': [{'source': string, 'value': 'boolean'}]
-    zfs_datasetprops_dict = {
-        'origin': {},
-        'referenced': {},
-        'numclones': {},
-        'primarycache': {},
-        'logbias': {},
-        'inconsistent': {},
-        'reservation': {},
-        'casesensitivity': {},
-        'guid': {},
-        'usedbysnapshots': {},
-        'stmf_sbd_lu': {},
-        'mounted': {},
-        'compression': {},
-        'snapdir': {},
-        'copies': {},
-        'aclinherit': {},
-        'compressratio': {},
-        'recordsize': {},
-        'mlslabel': {},
-        'jailed': {},
-        'snapshot_count': {},
-        'volsize': {},
-        'clones': {},
-        'atime': {},
-        'usedbychildren': {},
-        'volblocksize': {},
-        'objsetid': {},
-        'name': {},
-        'defer_destroy': {},
-        'type': {},
-        'devices': {},
-        'useraccounting': {},
-        'iscsioptions': {},
-        'setuid': {},
-        'usedbyrefreservation': {},
-        'logicalused': {},
-        'userrefs': {},
-        'creation': {},
-        'sync': {},
-        'volmode': {},
-        'sharenfs': {},
-        'sharesmb': {},
-        'createtxg': {},
-        'mountpoint': {},
-        'xattr': {},
-        'utf8only': {},
-        'aclmode': {},
-        'exec': {},
-        'dedup': {},
-        'snapshot_limit': {},
-        'readonly': {},
-        'version': {},
-        'filesystem_limit': {},
-        'secondarycache': {},
-        'prevsnap': {},
-        'available': {},
-        'used': {},
-        'written': {},
-        'refquota': {},
-        'refcompressratio': {},
-        'quota': {},
-        'vscan': {},
-        'canmount': {},
-        'normalization': {},
-        'usedbydataset': {},
-        'unique': {},
-        'checksum': {},
-        'redundant_metadata': {},
-        'filesystem_count': {},
-        'refreservation': {},
-        'logicalreferenced': {},
-        'nbmand': {},
-    }
-
-    zfs_datasetproperty_schema = {'type': 'object', 'properties': {}}
-
-    for key, value in zfs_datasetprops_dict.items():
-        zfs_datasetproperty_schema['properties'][key] = zfsprop_schema_creator(**value)
-
-    plugin.register_schema_definition('zfs-datasetproperties', zfs_datasetproperty_schema)
-
     plugin.register_schema_definition('zfs-dataset', {
         'type': 'object',
         'additionalProperties': False,
@@ -1641,7 +1516,10 @@ def _init(dispatcher, plugin):
             'name': {'type': 'string'},
             'pool': {'type': 'string'},
             'type': {'$ref': 'dataset-type'},
-            'properties': {'$ref': 'zfs-datasetproperties'},
+            'properties': {
+                'type': 'object',
+                'additionalProperties': 'zfs-property'
+            },
             'children': {
                 'type': 'array',
                 'items': {'$ref': 'zfs-dataset'},
@@ -1667,19 +1545,20 @@ def _init(dispatcher, plugin):
         }
     })
 
+    plugin.register_schema_definition('zfs-property-source', {
+        'type': 'string',
+        'enum': ['NONE', 'DEFAULT', 'LOCAL', 'INHERITED', 'RECEIVED']
+    })
+
     plugin.register_schema_definition('zfs-property', {
         'type': 'object',
         'additionalProperties': False,
         'properties': {
             'source': {'$ref': 'zfs-property-source'},
             'value': {'type': 'string'},
-            'rawvalue': {'type': 'string'}
+            'rawvalue': {'type': 'string'},
+            'parsed': {'type': ['string', 'integer', 'boolean', 'datetime', 'null']}
         }
-    })
-
-    plugin.register_schema_definition('zfs-property-source', {
-        'type': 'string',
-        'enum': ['NONE', 'DEFAULT', 'LOCAL', 'INHERITED', 'RECEIVED']
     })
 
     plugin.register_schema_definition('zfs-pool', {

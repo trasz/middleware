@@ -2202,6 +2202,209 @@ def fernet_decrypt(password, in_data):
     return f.decrypt(in_data)
 
 
+def register_property_schemas(plugin):
+    VOLUME_PROPERTIES = {
+        'size': {
+            'type': 'integer',
+            'readOnly': True
+        },
+        'capacity': {
+            'type': 'integer',
+            'readOnly': True
+        },
+        'health': {
+            'type': 'string',
+            'enum': ['ONLINE', 'DEGRADED', 'FAULTED', 'OFFLINE', 'REMOVED', 'UNAVAIL']
+        },
+        'version': {
+            'type': ['integer', 'null'],
+            'readOnly': True
+        },
+        'delegation': {
+            'type': 'boolean'
+        },
+        'failmode': {
+            'type': 'string',
+            'enum': ['wait', 'continue', 'panic'],
+        },
+        'autoreplace': {
+            'type': 'boolean'
+        },
+        'dedupratio': {
+            'type': 'string',
+            'readOnly': True
+        },
+        'free': {
+            'type': 'integer',
+            'readOnly': True
+        },
+        'allocated': {
+            'type': 'integer',
+            'readOnly': True
+        },
+        'readonly': {
+            'type': 'boolean'
+        },
+        'comment': {
+            'type': 'string'
+        },
+        'expandsize': {
+            'type': 'integer',
+            'readOnly': True
+        },
+        'fragmentation': {
+            'type': 'string',
+            'readOnly': True
+        },
+        'leaked': {
+            'type': 'integer',
+            'readOnly': True
+        }
+    }
+
+    DATASET_PROPERTIES = {
+        'used': {
+            'type': 'integer',
+            'readOnly': True
+        },
+        'available': {
+            'type': 'integer',
+            'readOnly': True
+        },
+        'compression': {
+            'type': ['string', 'null'],
+            'enum': [
+                'on', 'off', 'lzjb', 'zle', 'lz4', 'gzip', 'gzip-1', 'gzip-2', 'gzip-3',
+                'gzip-4', 'gzip-5', 'gzip-6', 'gzip-7', 'gzip-8', 'gzip-9'
+            ]
+        },
+        'atime': {
+            'type': 'boolean'
+        },
+        'dedup': {
+            'type': 'string',
+            'enum': [
+                'on', 'off', 'verify', 'sha256', 'sha256,verify', 'sha512', 'sha512,verify',
+                'skiein', 'skein,verify', 'edonr,verify'
+            ]
+        },
+        'quota': {
+            'type': ['integer', 'null']
+        },
+        'refquota': {
+            'type': ['integer', 'null'],
+        },
+        'reservation': {
+            'type': ['integer', 'null'],
+        },
+        'refreservation': {
+            'type': ['integer', 'null'],
+        },
+        'casesensitivity': {
+            'type': 'string',
+            'enum': ['sensitive', 'insensitive', 'mixed']
+        },
+        'volsize': {
+            'type': 'integer',
+            'readOnly': True
+        },
+        'volblocksize': {
+            'type': 'string'
+        },
+        'refcompressratio': {
+            'type': 'string',
+            'readOnly': True
+        },
+        'numclones': {
+            'type': 'string',
+            'readOnly': True
+        },
+        'compressratio': {
+            'type': 'string',
+            'readOnly': True
+        },
+        'written': {
+            'type': 'integer',
+            'readOnly': True
+        },
+        'referenced': {
+            'type': 'integer',
+            'readOnly': True
+        },
+        'usedbyrefreservation': {
+            'type': 'integer',
+            'readOnly': True
+        },
+        'usedbysnapshots': {
+            'type': 'integer',
+            'readOnly': True
+        },
+        'usedbydataset': {
+            'type': 'integer',
+            'readOnly': True
+        },
+        'usedbychildren': {
+            'type': 'integer',
+            'readOnly': True
+        },
+        'logicalused': {
+            'type': 'integer',
+            'readOnly': True
+        },
+        'logicalreferenced': {
+            'type': 'integer',
+            'readOnly': True
+        }
+    }
+
+    SNAPSHOT_PROPERTIES = {
+        'used': {
+            'type': 'integer',
+            'readOnly': True
+        },
+        'referenced': {
+            'type': 'integer',
+            'readOnly': True
+        },
+        'compressratio': {
+            'type': 'string',
+            'readOnly': True
+        },
+        'clones': {
+            'type': 'integer',
+            'readOnly': True
+        },
+        'creation': {
+            'type': 'datetime',
+            'readOnly': True
+        }
+    }
+
+    for i, props in {
+        'volume': VOLUME_PROPERTIES,
+        'volume-dataset': DATASET_PROPERTIES,
+        'volume-snapshot': SNAPSHOT_PROPERTIES
+    }.items():
+        for name, prop in props.items():
+            plugin.register_schema_definition('{0}-property-{1}-value'.format(i, name), prop)
+            plugin.register_schema_definition('{0}-property-{1}'.format(i, name), {
+                'type': 'object',
+                'additionalProperties': False,
+                'properties': {
+                    'source': {'$ref': 'volume-property-source'},
+                    'rawvalue': {'type': 'string', 'readOnly': True},
+                    'value': {'type': 'string'},
+                    'parsed': {'$ref': '{0}-property-{1}-value'.format(i, name)}
+                }
+            })
+
+        plugin.register_schema_definition('{0}-properties'.format(i), {
+            'type': 'object',
+            'additionalProperties': False,
+            'properties': {name: {'$ref': '{0}-property-{1}'.format(i, name)} for name in props},
+        })
+
+
 def _depends():
     return ['DevdPlugin', 'ZfsPlugin', 'AlertPlugin', 'DiskPlugin']
 
@@ -2386,7 +2589,7 @@ def _init(dispatcher, plugin):
             'topology': {'$ref': 'zfs-topology'},
             'scan': {'$ref': 'zfs-scan'},
             'encrypted': {'type': 'boolean'},
-            'encryption': {'$ref': 'encryption'},
+            'encryption': {'$ref': 'volume-encryption'},
             'providers_presence': {
                 'oneOf': [
                     {'$ref': 'volume-providerspresence'},
@@ -2413,129 +2616,12 @@ def _init(dispatcher, plugin):
         'enum': ['ALL', 'PART', 'NONE']
     })
 
-    plugin.register_schema_definition('volume-property', {
-        'type': 'object',
-        'additionalProperties': False,
-        'properties': {
-            'value': {'type': 'string'},
-            'rawvalue': {
-                'type': 'string',
-                'readOnly': True
-            },
-            'source': {'allOf': [
-                {'$ref': 'volume-property-source'},
-                {'readOnly': True}
-            ]}
-        }
-    })
-
     plugin.register_schema_definition('volume-property-source', {
         'type': 'string',
         'enum': ['NONE', 'DEFAULT', 'LOCAL', 'INHERITED']
     })
 
-    plugin.register_schema_definition('volume-readonly-property', {
-        'type': 'object',
-        'additionalProperties': False,
-        'properties': {
-            'value': {
-                'type': 'string',
-                'readOnly': True
-            },
-            'rawvalue': {
-                'type': 'string',
-                'readOnly': True
-            },
-            'source': {'allOf': [
-                {'$ref': 'volume-property-source'},
-                {'readOnly': True}
-            ]}
-        }
-    })
-
-    plugin.register_schema_definition('volume-dataset-properties-compression', {
-        'type': 'object',
-        'additionalProperties': True,
-        'properties': {
-            'value': {'$ref': 'volume-dataset-properties-compression-value'}
-        }
-    })
-
-    plugin.register_schema_definition('volume-dataset-properties-compression-value', {
-        'type': 'string',
-        'enum': [
-            'on', 'off', 'lzjb', 'zle', 'lz4', 'gzip', 'gzip-1',
-            'gzip-2', 'gzip-3', 'gzip-4', 'gzip-5', 'gzip-6',
-            'gzip-7', 'gzip-8', 'gzip-9'
-        ]
-    })
-
-    plugin.register_schema_definition('volume-dataset-properties-dedup', {
-        'type': 'object',
-        'additionalProperties': True,
-        'properties': {
-            'value': {'$ref': 'volume-dataset-properties-dedup-value'}
-        }
-    })
-
-    plugin.register_schema_definition('volume-dataset-properties-dedup-value', {
-        'type': 'string',
-        'enum': [
-            'on', 'off', 'verify', 'sha256', 'sha256,verify',
-            'sha512', 'sha512,verify', 'skein', 'skein,verify',
-            'edonr,verify'
-        ]
-    })
-
-    plugin.register_schema_definition('volume-dataset-properties-casesensitivity', {
-        'type': 'object',
-        'additionalProperties': True,
-        'properties': {
-            'value': {'$ref': 'volume-dataset-properties-casesensitivity-value'}
-        }
-    })
-
-    plugin.register_schema_definition('volume-dataset-properties-casesensitivity-value', {
-        'type': 'string',
-        'enum': ['sensitive', 'insensitive', 'mixed']
-    })
-
-    plugin.register_schema_definition('volume-dataset-properties-atime', {
-        'type': 'object',
-        'additionalProperties': True,
-        'properties': {
-            'value': {'$ref': 'volume-dataset-properties-atime-value'},
-        }
-    })
-
-    plugin.register_schema_definition('volume-dataset-properties-atime-value', {
-        'type': 'string',
-        'enum': ['on', 'off']
-    })
-
-    plugin.register_schema_definition('volume-properties', {
-        'type': 'object',
-        'additionalProperties': False,
-        'properties': {
-            'size': {'$ref': 'volume-property'},
-            'capacity': {'$ref': 'volume-property'},
-            'health': {'$ref': 'volume-property'},
-            'version': {'$ref': 'volume-property'},
-            'delegation': {'$ref': 'volume-property'},
-            'failmode': {'$ref': 'volume-property'},
-            'autoreplace': {'$ref': 'volume-property'},
-            'dedupratio': {'$ref': 'volume-property'},
-            'free': {'$ref': 'volume-property'},
-            'allocated': {'$ref': 'volume-property'},
-            'readonly': {'$ref': 'volume-property'},
-            'comment': {'$ref': 'volume-property'},
-            'expandsize': {'$ref': 'volume-property'},
-            'fragmentation': {'$ref': 'volume-property'},
-            'leaked': {'$ref': 'volume-property'}
-        }
-    })
-
-    plugin.register_schema_definition('encryption', {
+    plugin.register_schema_definition('volume-encryption', {
         'type': 'object',
         'readOnly': True,
         'properties': {
@@ -2576,48 +2662,6 @@ def _init(dispatcher, plugin):
         'enum': ['PERM', 'ACL']
     })
 
-    plugin.register_schema_definition('volume-dataset-properties', {
-        'type': 'object',
-        'additionalProperties': False,
-        'properties': {
-            'used': {'$ref': 'volume-readonly-property'},
-            'available': {'$ref': 'volume-readonly-property'},
-            'compression': {'allOf': [
-                {'$ref': 'volume-property'},
-                {'$ref': 'volume-dataset-properties-compression'}
-            ]},
-            'atime': {'allOf': [
-                {'$ref': 'volume-property'},
-                {'$ref': 'volume-dataset-properties-atime'}
-            ]},
-            'dedup': {'allOf': [
-                {'$ref': 'volume-property'},
-                {'$ref': 'volume-dataset-properties-dedup'}
-            ]},
-            'quota': {'$ref': 'volume-property'},
-            'refquota': {'$ref': 'volume-property'},
-            'reservation': {'$ref': 'volume-property'},
-            'refreservation': {'$ref': 'volume-property'},
-            'casesensitivity': {'allOf': [
-                {'$ref': 'volume-property'},
-                {'$ref': 'volume-dataset-properties-casesensitivity'},
-            ]},
-            'volsize': {'$ref': 'volume-property'},
-            'volblocksize': {'$ref': 'volume-property'},
-            'refcompressratio': {'$ref': 'volume-property'},
-            'numclones': {'$ref': 'volume-property'},
-            'compressratio': {'$ref': 'volume-readonly-property'},
-            'written': {'$ref': 'volume-property'},
-            'referenced': {'$ref': 'volume-readonly-property'},
-            'usedbyrefreservation': {'$ref': 'volume-readonly-property'},
-            'usedbysnapshots': {'$ref': 'volume-readonly-property'},
-            'usedbydataset': {'$ref': 'volume-readonly-property'},
-            'usedbychildren': {'$ref': 'volume-readonly-property'},
-            'logicalused': {'$ref': 'volume-property'},
-            'logicalreferenced': {'$ref': 'volume-property'}
-        }
-    })
-
     plugin.register_schema_definition('volume-snapshot', {
         'type': 'object',
         'additionalProperties': False,
@@ -2630,18 +2674,6 @@ def _init(dispatcher, plugin):
             'lifetime': {'type': ['integer', 'null']},
             'properties': {'$ref': 'volume-snapshot-properties'},
             'holds': {'type': 'object'}
-        }
-    })
-
-    plugin.register_schema_definition('volume-snapshot-properties', {
-        'type': 'object',
-        'additionalProperties': False,
-        'properties': {
-            'used': {'$ref': 'volume-readonly-property'},
-            'referenced': {'$ref': 'volume-readonly-property'},
-            'compressratio': {'$ref': 'volume-readonly-property'},
-            'clones': {'$ref': 'volume-property'},
-            'creation': {'$ref': 'volume-readonly-property'}
         }
     })
 
@@ -2725,6 +2757,8 @@ def _init(dispatcher, plugin):
             },
         }
     })
+
+    register_property_schemas(plugin)
 
     plugin.register_provider('volume', VolumeProvider)
     plugin.register_provider('volume.dataset', DatasetProvider)
