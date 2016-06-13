@@ -204,6 +204,26 @@ class UserCreateTask(Task):
                     "{0} is an invalid email address".format(user['email'])
                 )
 
+        volumes_root = self.dispatcher.call_sync('volume.get_volumes_root')
+        if 'builtin' not in user:
+            user['builtin'] = False
+
+        if user['home'].startswith(volumes_root):
+            user['home'] = os.path.normpath(user['home'])
+            if len(user['home'].split('/')) < 3:
+                 errors.add(
+                     (0, 'home'),
+                     "Invalid mountpoint specified for home directory: {0}.".format(user['home']) +
+                     " Provide directory located in '{0}' instead as the mountpoint".format(volumes_root)
+                 )
+
+        elif not user['builtin'] and user['home'] not in (None, '/nonexistent'):
+            errors.add(
+                (0, 'home'),
+                "Invalid mountpoint specified for home directory: {0}.".format(user['home']) +
+                " Provide directory located in '{0}' instead as the mountpoint".format(volumes_root)
+            )
+
         if errors:
             raise errors
 
@@ -270,24 +290,17 @@ class UserCreateTask(Task):
                 'Cannot regenerate users file: {0}'.format(e)
             )
 
-        volumes_root = self.dispatcher.call_sync('volume.get_volumes_root')
-        if user['home'].startswith(volumes_root):
+        if user['home'] not in (None, '/nonexistent') and not user['builtin']:
+            user['home'] = os.path.normpath(user['home'])
             if not os.path.exists(user['home']):
                 try:
                     self.dispatcher.call_sync('volume.decode_path', user['home'])
                 except RpcException as err:
                     raise TaskException(err.code, err.message)
                 os.makedirs(user['home'])
-
             group = self.datastore.get_by_id('groups', user['group'])
             os.chown(user['home'], uid, group['gid'])
             os.chmod(user['home'], 0o755)
-        elif not user['builtin'] and user['home'] not in (None, '/nonexistent'):
-            raise TaskException(
-                errno.ENOENT,
-                "Invalid mountpoint specified for home directory: {0}.".format(user['home']) +
-                " Use '{0}' instead as the mountpoint".format(volumes_root)
-            )
 
         self.dispatcher.dispatch_event('user.changed', {
             'operation': 'create',
@@ -423,6 +436,25 @@ class UserUpdateTask(Task):
                     "{0} is an invalid email address".format(updated_fields['email'])
                 )
 
+        if 'home' in updated_fields:
+            volumes_root = self.dispatcher.call_sync('volume.get_volumes_root')
+
+            if updated_fields['home'].startswith(volumes_root):
+                updated_fields['home'] = os.path.normpath(updated_fields['home'])
+                if len(updated_fields['home'].split('/')) < 3:
+                    errors.add(
+                     (0, 'home'),
+                     "Invalid mountpoint specified for home directory: {0}.".format(updated_fields['home']) +
+                     " Provide directory located in '{0}' instead as the mountpoint".format(volumes_root)
+                    )
+
+            elif updated_fields['home'] not in (None, '/nonexistent'):
+                errors.add(
+                (0, 'home'),
+                "Invalid mountpoint specified for home directory: {0}.".format(updated_fields['home']) +
+                " Provide directory located in '{0}' instead as the mountpoint".format(volumes_root)
+                )
+
         if errors:
             raise errors
 
@@ -460,16 +492,16 @@ class UserUpdateTask(Task):
         except RpcException as e:
             raise TaskException(e.code, 'Cannot regenerate users file: {0}'.format(e.message))
 
-        volumes_root = self.dispatcher.call_sync('volume.get_volumes_root')
-        if user['home'].startswith(volumes_root):
-            group = self.datastore.get_by_id('groups', user['group'])
+        group = self.datastore.get_by_id('groups', user['group'])
+        if user['home'] not in (None, '/nonexistent') and not user['builtin']:
+            user['home'] = os.path.normpath(user['home'])
             if not os.path.exists(user['home']):
                 try:
                     self.dispatcher.call_sync('volume.decode_path', user['home'])
                 except RpcException as err:
                     raise TaskException(err.code, err.message)
                 if (home_before != '/nonexistent' and home_before != user['home']
-                   and os.path.exists(home_before)):
+                    and os.path.exists(home_before)):
                     system('mv', home_before, user['home'])
                 else:
                     os.makedirs(user['home'])
@@ -478,12 +510,6 @@ class UserUpdateTask(Task):
             elif user['home'] != home_before:
                 os.chown(user['home'], user['uid'], group['gid'])
                 os.chmod(user['home'], 0o755)
-        elif not user['builtin'] and user['home'] not in (None, '/nonexistent'):
-            raise TaskException(
-                errno.ENOENT,
-                "Invalid mountpoint specified for home directory: {0}. ".format(user['home']) +
-                "Use '{0}' instead as the mountpoint".format(volumes_root)
-            )
 
         self.dispatcher.dispatch_event('user.changed', {
             'operation': 'update',
