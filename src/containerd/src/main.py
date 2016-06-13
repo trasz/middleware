@@ -173,8 +173,27 @@ class VirtualMachine(object):
 
             if nic['type'] == 'BRIDGE':
                 if nic['bridge']:
-                        bridge = netif.get_interface(nic['bridge'])
-                        bridge.add_member(iface.name)
+                    try:
+                        target_if = netif.get_interface(nic['bridge'])
+                    except KeyError:
+                        raise RpcException(errno.ENOENT, 'Target interface {0} does not exist'.format(nic['bridge']))
+
+                    if isinstance(target_if, netif.BridgeInterface):
+                        target_if.add_member(iface.name)
+                    else:
+                        bridges = list(b for b in netif.list_interfaces().keys() if 'brg' in b)
+                        for b in bridges:
+                            bridge = netif.get_interface(b, bridge=True)
+                            if nic['bridge'] in bridge.members:
+                                bridge.add_member(iface.name)
+                                break
+                        else:
+                            new_bridge = netif.get_interface(netif.create_interface('bridge'))
+                            new_bridge.rename('brg{0}'.format(len(bridges)))
+                            new_bridge.description = 'vm bridge to {0}'.format(nic['bridge'])
+                            new_bridge.up()
+                            new_bridge.add_member(nic['bridge'])
+                            new_bridge.add_member(iface.name)
 
             if nic['type'] == 'MANAGEMENT':
                 mgmt = netif.get_interface('mgmt0', bridge=True)
@@ -191,6 +210,16 @@ class VirtualMachine(object):
             return
 
     def cleanup_tap(self, iface):
+        bridges = list(b for b in netif.list_interfaces().keys() if 'brg' in b)
+        for b in bridges:
+            bridge = netif.get_interface(b, bridge=True)
+            if iface.name in bridge.members:
+                bridge.delete_member(iface.name)
+
+            if len([b for b in bridge.members]) == 1:
+                bridge.down()
+                netif.destroy_interface(bridge.name)
+
         iface.down()
         netif.destroy_interface(iface.name)
 
