@@ -1362,7 +1362,7 @@ def _init(dispatcher, plugin):
                 sync_snapshot_cache(dispatcher, args['new_ds'], args['ds'])
             else:
                 logger.info('Dataset {0} renamed to: {1}'.format(args['ds'], args['new_ds']))
-                sync_dataset_cache(dispatcher, args['new_ds'])
+                sync_dataset_cache(dispatcher, args['new_ds'], args['ds'])
 
     def on_dataset_setprop(args):
         with dispatcher.get_lock('zfs-cache'):
@@ -1387,13 +1387,20 @@ def _init(dispatcher, plugin):
                 sync_dataset_cache(dispatcher, args['ds'])
 
     def on_vfs_mount_or_unmount(type, args):
-        ds = datasets.query(('properties.mountpoint.value', '=', args['path']), single=True)
-        if not ds:
-            return
-
         with dispatcher.get_lock('zfs-cache'):
-            logger.info('Dataset {0} {1}ed'.format(ds['name'], type))
-            sync_dataset_cache(dispatcher, ds['name'])
+            ds = datasets.query(('properties.mountpoint.value', '=', args['path']), single=True)
+            if not ds:
+                return
+
+            with dispatcher.get_lock('zfs-cache'):
+                logger.info('Dataset {0} {1}ed'.format(ds['name'], type))
+                if type == 'mount':
+                    ds['mounted'] = True
+
+                if type == 'unmount':
+                    ds['mounted'] = False
+
+                datasets.put(ds['id'], ds)
 
     def on_device_attached(args):
         for p in pools.validvalues():
