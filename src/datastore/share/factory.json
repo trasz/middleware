@@ -247,6 +247,8 @@
             "service.nginx.http.redirect_https": false,
             "service.nginx.http.port": 80,
             "service.nginx.http.enable": true,
+            "service.nginx.https.enable": false,
+            "service.nginx.https.port": 443,
             "service.nginx.listen": [
                 "0.0.0.0",
                 "[::]"
