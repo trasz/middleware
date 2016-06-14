@@ -354,6 +354,7 @@ class AccountService(RpcService):
     def query(self, filter=None, params=None):
         for d in self.context.get_enabled_directories():
             for user in d.instance.getpwent(filter, params):
+                resolve_primary_group(self.context, user)
                 yield annotate(user, d, 'username')
     
     def getpwuid(self, uid):
