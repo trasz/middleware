@@ -409,6 +409,18 @@ class SystemUIConfigureTask(Task):
         return TaskDescription('Configuring System UI settings')
 
     def verify(self, props):
+        errors = ValidationException()
+        # Need to actually check for a valid cert here instead of just checking if not None
+        if (
+            'HTTPS' in props.get('webui_protocol', []) and
+            props.get('webui_https_certificate') is None
+        ):
+            errors.add(
+                (0, 'webui_https_certificate'),
+                'HTTPS protocol specified for UI without certificate'
+            )
+        if errors:
+            raise errors
         return ['system']
 
     def run(self, props):
@@ -628,7 +640,7 @@ def _init(dispatcher, plugin):
             },
             'webui_listen': {
                 'type': ['array'],
-                'items': {'type': 'string'},
+                'items': {'$ref': 'ip-address'},
             },
             'webui_http_redirect_https': {'type': 'boolean'},
             'webui_http_port': {'type': 'integer'},
