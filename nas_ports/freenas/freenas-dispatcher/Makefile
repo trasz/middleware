@@ -59,10 +59,10 @@ do-install:
 
 post-install:
 	${PYTHON_CMD} -m compileall ${STAGEDIR}${PREFIX}/lib/dispatcher
-	(cd ${STAGEDIR}${PREFIX}/lib/dispatcher; ${FIND} -E . -type f -regex ".*((.pyc?)|(.so))+" \
+	(cd ${STAGEDIR}${PREFIX}/lib/dispatcher; ${FIND} -E . -type f -regex \
+		".*((.pyc?)|(.so)|(.jso?n?)|(.html)|(.map)|(.css)|(.png)|(.jpg)|(.gif)|(.md)|(.txt)|(.swf)|(.eot)|(.svg)|(.ttf)|(.woff2?)|(.c))+$$" \
 		| ${SED} -e 's,^\./,,g' \
-		| ${AWK} '{print length, $$0}' | ${SORT} -rn \
-		| ${AWK} '{print "lib/dispatcher/"$$2 }' >> ${TMPPLIST})
+		| ${AWK} '{print "lib/dispatcher/"$$0 }' >> ${TMPPLIST})
 
 
 .include <bsd.port.mk>
