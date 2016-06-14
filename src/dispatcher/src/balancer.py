@@ -92,7 +92,7 @@ class TaskExecutor(object):
             self.cv.wait_for(lambda: self.state == WorkerState.EXECUTING)
             try:
                 st = TaskStatus(0)
-                st.__setstate__(self.conn.call_sync('taskproxy.get_status'))
+                st.__setstate__(self.conn.call_sync('taskproxy.get_status', timeout=5))
                 return st
             except RpcException as err:
                 self.balancer.logger.error(
