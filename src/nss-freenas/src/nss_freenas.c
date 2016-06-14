@@ -689,7 +689,7 @@ nss_freenas_getgroupmembership(void *retval, void *mdata, va_list ap)
 
 	if (call_dispatcher("dscached.account.getgroupmembership",
             json_pack("[s]", uname), &membership) < 0) {
-                *groupc = 0;
+                gr_addgid(group, groups, maxgrp, groupc);
                 return (NS_SUCCESS);
         }
 
@@ -699,6 +699,8 @@ nss_freenas_getgroupmembership(void *retval, void *mdata, va_list ap)
 		*groupc = 0;
 		return (NS_NOTFOUND);
 	}
+
+        gr_addgid(group, groups, maxgrp, groupc);
 
 	json_array_foreach(membership, idx, gid) {
 		gr_addgid(json_integer_value(gid), groups, maxgrp, groupc);
