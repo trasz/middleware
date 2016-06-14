@@ -429,6 +429,19 @@ class AccountService(RpcService):
 
         raise RpcException(errno.ENOENT, 'UUID {0} not found'.format(uuid))
 
+    def getgroupmembership(self, user_name):
+        result = []
+        user = self.getpwnam(user_name)
+
+        for g in user.get('groups', []):
+            try:
+                group = self.context.group_service.getgruuid(g)
+                result.append(group['gid'])
+            except:
+                continue
+
+        return result
+
     def authenticate(self, user_name, password):
         user = self.getpwnam(user_name)
         if not user:
