@@ -424,21 +424,30 @@ class SystemUIConfigureTask(Task):
         return ['system']
 
     def run(self, props):
-        self.configstore.set(
-            'service.nginx.http.enable',
-            True if 'HTTP' in props.get('webui_protocol', []) else False,
-        )
-        self.configstore.set(
-            'service.nginx.https.enable',
-            True if 'HTTPS' in props.get('webui_protocol', []) else False,
-        )
-        self.configstore.set('service.nginx.listen', props.get('webui_listen'))
-        self.configstore.set('service.nginx.http.port', props.get('webui_http_port'))
-        self.configstore.set(
-            'service.nginx.http.redirect_https', props.get('webui_http_redirect_https'))
-        self.configstore.set(
-            'service.nginx.https.certificate', props.get('webui_https_certificate'))
-        self.configstore.set('service.nginx.https.port', props.get('webui_https_port'))
+        webui_protocol = props.get('webui_protocol', [])
+        if webui_protocol:
+            self.configstore.set(
+                'service.nginx.http.enable',
+                True if 'HTTP' in webui_protocol else False,
+            )
+            self.configstore.set(
+                'service.nginx.https.enable',
+                True if 'HTTPS' in webui_protocol else False,
+            )
+        if 'webui_listen' in props:
+            self.configstore.set('service.nginx.listen', props.get('webui_listen'))
+        if 'webui_http_port' in props:
+            self.configstore.set('service.nginx.http.port', props.get('webui_http_port'))
+        if 'webui_http_redirect_https' in props:
+            self.configstore.set(
+                'service.nginx.http.redirect_https', props.get('webui_http_redirect_https')
+            )
+        if 'webui_https_certificate' in props:
+            self.configstore.set(
+                'service.nginx.https.certificate', props.get('webui_https_certificate')
+            )
+        if 'webui_https_port' in props:
+            self.configstore.set('service.nginx.https.port', props.get('webui_https_port'))
 
         try:
             self.dispatcher.call_sync(
