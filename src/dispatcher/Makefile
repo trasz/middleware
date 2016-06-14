@@ -18,4 +18,6 @@ install:
 	cp -R pydev/ ${STAGEDIR}${PREFIX}/lib/dispatcher/pydev/
 	cp -R libexec/ ${STAGEDIR}${PREFIX}/libexec/dispatcher/
 	${PYTHON} setup_plugins.py install --install-lib=${STAGEDIR}${PREFIX}/lib/dispatcher/plugins/
+	cp -R plugins/*.html ${STAGEDIR}${PREFIX}/lib/dispatcher/plugins/
+	cp -R plugins/*.c ${STAGEDIR}${PREFIX}/lib/dispatcher/plugins/
 	cp ${BROWSERIFY_BUNDLE} ${STAGEDIR}${PREFIX}/lib/dispatcher/src/frontend/static/middleware.js
