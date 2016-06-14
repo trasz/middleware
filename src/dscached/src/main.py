@@ -52,6 +52,7 @@ from freenas.utils.debug import DebugService
 from freenas.utils.query import QueryDict
 
 
+NOGROUP_GID = 65533
 DEFAULT_CONFIGFILE = '/usr/local/etc/middleware.conf'
 DEFAULT_SOCKET_ADDRESS = 'unix:///var/run/dscached.sock'
 AF_MAP = {
@@ -80,6 +81,16 @@ def alias(d, obj, name):
         aliases.append('{0}@{1}'.format(obj[name], d.domain_name))
 
     return aliases
+
+
+def resolve_primary_group(context, obj):
+    obj['gid'] = NOGROUP_GID
+    if obj.get('group'):
+        try:
+            group = context.group_service.getgruuid(obj['group'])
+            obj['gid'] = group['gid']
+        except:
+            pass
 
 
 def annotate(user, directory, name_field, cache=None):
@@ -361,6 +372,7 @@ class AccountService(RpcService):
                 continue
 
             if user:
+                resolve_primary_group(self.context, user)
                 aliases = alias(d, user, 'username')
                 item = CacheItem(user['uid'], user['id'], aliases, copy.copy(user), d, 300)
                 self.context.users_cache.set(item)
@@ -388,6 +400,7 @@ class AccountService(RpcService):
                 continue
 
             if user:
+                resolve_primary_group(self.context, user)
                 aliases = alias(d, user, 'username')
                 item = CacheItem(user['uid'], user['id'], aliases, copy.copy(user), d, 300)
                 self.context.users_cache.set(item)
@@ -408,6 +421,7 @@ class AccountService(RpcService):
                 continue
 
             if user:
+                resolve_primary_group(self.context, user)
                 aliases = alias(d, user, 'username')
                 item = CacheItem(user['uid'], user['id'], aliases, copy.copy(user), d, 300)
                 self.context.users_cache.set(item)
@@ -587,8 +601,10 @@ class Main(object):
         self.search_order = []
         self.cache_enumerations = True
         self.cache_lookups = True
-        self.rpc.register_service_instance('dscached.account', AccountService(self))
-        self.rpc.register_service_instance('dscached.group', GroupService(self))
+        self.account_service = AccountService(self)
+        self.group_service = GroupService(self)
+        self.rpc.register_service_instance('dscached.account', self.account_service)
+        self.rpc.register_service_instance('dscached.group', self.group_service)
         self.rpc.register_service_instance('dscached.host', HostService(self))
         self.rpc.register_service_instance('dscached.management', ManagementService(self))
         self.rpc.register_service_instance('dscached.debug', DebugService())
