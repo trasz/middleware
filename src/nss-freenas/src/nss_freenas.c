@@ -678,7 +678,7 @@ nss_freenas_getgroupmembership(void *retval, void *mdata, va_list ap)
 	int maxgrp;
 	int *groupc;
 	int *ret;
-	json_t *user, *grouplist, *gid;
+	json_t *membership, *gid;
 	size_t idx;
 
 	uname = va_arg(ap, const char *);
@@ -687,24 +687,20 @@ nss_freenas_getgroupmembership(void *retval, void *mdata, va_list ap)
 	maxgrp = va_arg(ap, int);
 	groupc = va_arg(ap, int *);
 
-	if (call_dispatcher("dscached.account.getpwnam", json_pack("[s]", uname),
-	    &user) < 0)
-		user = flat_find_user(uname, NULL, (uid_t)-1);
+	if (call_dispatcher("dscached.account.getgroupmembership",
+            json_pack("[s]", uname), &membership) < 0) {
+                *groupc = 0;
+                return (NS_SUCCESS);
+        }
 
-	if (user == NULL || json_is_null(user)) {
-		if (user != NULL)
-			json_decref(user);
+	if (membership == NULL || json_is_null(membership)) {
+		if (membership != NULL)
+			json_decref(membership);
 		*groupc = 0;
 		return (NS_NOTFOUND);
 	}
 
-	grouplist = json_object_get(user, "gids");
-	if (grouplist == NULL) {
-		*groupc = 0;
-		return (NS_SUCCESS);
-	}
-
-	json_array_foreach(grouplist, idx, gid) {
+	json_array_foreach(membership, idx, gid) {
 		gr_addgid(json_integer_value(gid), groups, maxgrp, groupc);
 	}
 
