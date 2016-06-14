@@ -876,7 +876,6 @@ lib/dispatcher/src/frontend/static/bootstrap/js/bootstrap.js
 lib/dispatcher/src/frontend/static/bootstrap/js/bootstrap.min.js
 lib/dispatcher/src/frontend/static/bootstrap/js/npm.js
 libexec/dispatcher/ssh_transport_catcher
-lib/dispatcher/plugins/ReplicationTransportPlugin.so
 etc/rc.d/dispatcher
 sbin/dispatcherd
 sbin/dispatcherctl

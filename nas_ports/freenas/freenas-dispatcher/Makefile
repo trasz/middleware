@@ -59,8 +59,7 @@ do-install:
 
 post-install:
 	${PYTHON_CMD} -m compileall ${STAGEDIR}${PREFIX}/lib/dispatcher
-	#cd ${STAGEDIR}${PREFIX}/lib/dispatcher && ${FIND} -E . -regex ".*.pyc?" | ${SED} 's,^./,lib/dispatcher/,g' >> ${TMPPLIST}
-	(cd ${STAGEDIR}${PREFIX}/lib/dispatcher; ${FIND} -E . -type f -regex ".*.pyc?" \
+	(cd ${STAGEDIR}${PREFIX}/lib/dispatcher; ${FIND} -E . -type f -regex ".*((.pyc?)|(.so))+" \
 		| ${SED} -e 's,^\./,,g' \
 		| ${AWK} '{print length, $$0}' | ${SORT} -rn \
 		| ${AWK} '{print "lib/dispatcher/"$$2 }' >> ${TMPPLIST})
