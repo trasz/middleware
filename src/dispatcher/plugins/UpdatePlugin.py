@@ -556,11 +556,11 @@ class UpdateConfigureTask(Task):
         })
 
 
-@description((
+@description(
     "Checks for Available Updates and returns if update is availabe "
     "and if yes returns information on operations that will be "
     "performed during the update"
-))
+)
 @accepts(h.object(properties={'check_now': bool}))
 class CheckUpdateTask(Task):
     @classmethod
