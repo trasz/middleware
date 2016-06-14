@@ -31,7 +31,7 @@ USE_PYTHON=	autoplist distutils
 EXTRACT_ONLY=
 
 MAKE_ENV=	VERSION=${PRODUCT_VERSION}
-WRKSRC=		/usr/middleware_src/cli
+WRKSRC=		/usr/middleware_src/py-freenas.cli
 
 PLIST_FILES=	bin/cli bin/logincli
 
