@@ -30,6 +30,7 @@ import errno
 import logging
 import json
 import gevent
+import gevent.threadpool
 import libzfs
 from threading import Event
 from cache import EventCacheStore
@@ -53,6 +54,7 @@ VOLATILE_ZFS_PROPERTIES = [
 ]
 
 logger = logging.getLogger('ZfsPlugin')
+threadpool = gevent.threadpool.ThreadPool(5)
 pools = None
 datasets = None
 snapshots = None
@@ -69,7 +71,7 @@ class ZpoolProvider(Provider):
     @returns(h.array(h.ref('zfs-pool')))
     def find(self):
         zfs = get_zfs()
-        return list([p.__getstate__() for p in zfs.find_import()])
+        return list([p.__getstate__() for p in threadpool.apply(zfs.find_import)])
 
     @accepts()
     @returns(h.ref('zfs-pool'))
@@ -187,7 +189,6 @@ class ZfsDatasetProvider(Provider):
                 raise RpcException(errno.ENOENT, str(err))
 
             raise RpcException(zfs_error_to_errno(err.code), str(err))
-
 
     @accepts(str)
     @returns(h.array(
