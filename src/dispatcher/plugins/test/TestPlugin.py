@@ -185,13 +185,40 @@ class FailingTask(ProgressTask):
         os.abort()
 
 
+class TestAbortTask(Task):
+    @classmethod
+    def early_describe(cls):
+        return 'Abort task test'
+
+    def describe(self):
+        return TaskDescription('Abort task test')
+
+    def verify(self):
+        return []
+
+    def run(self):
+        self.join_subtasks(self.run_subtask('test.abort.subtask'))
+
+
+class TestAbortSubtask(Task):
+    @classmethod
+    def early_describe(cls):
+        return 'Abort subtask test'
+
+    def describe(self):
+        return TaskDescription('Abort subtask test')
+
+    def verify(self):
+        return []
+
+    def run(self):
+        time.sleep(20)
+
+
 def _init(dispatcher, plugin):
     plugin.register_task_handler('test.test_download', TestDownloadTask)
     plugin.register_task_handler('test.test_warnings', TestWarningsTask)
-    """
-    plugin.register_task_handler('test.pchildtest', ProgressChildTask)
-    plugin.register_task_handler('test.masterprogresstask', ProgressMasterTask)
-    plugin.register_task_handler('test.nestedmasterprogresstask', NestedProgressMasterTask)
-    """
     plugin.register_task_handler('test.progress', ProgressTestTask)
     plugin.register_task_handler('test.failing', FailingTask)
+    plugin.register_task_handler('test.abort', TestAbortTask)
+    plugin.register_task_handler('test.abort.subtask', TestAbortSubtask)
