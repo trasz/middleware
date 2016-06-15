@@ -275,8 +275,8 @@ def _init(dispatcher, plugin):
             },
             'workgroup': {'type': 'string'},
             'description': {'type': 'string'},
-            'dos_charset': {'type': 'string'},
-            'unix_charset': {'type': 'string'},
+            'dos_charset': {'$ref': 'service-smb-doscharset'},
+            'unix_charset': {'$ref': 'service-smb-unixcharset'},
             'log_level': {'$ref': 'service-smb-loglevel'},
             'syslog': {'type': 'boolean'},
             'local_master': {'type': 'boolean'},
@@ -311,6 +311,17 @@ def _init(dispatcher, plugin):
             'sid': {'type': ['string', 'null']},
         },
         'additionalProperties': False,
+    })
+
+    plugin.register_schema_definition('service-smb-doscharset', {
+        'type': 'string',
+        'enum': ['CP437', 'CP850', 'CP852', 'CP866', 'CP932', 'CP949',
+                 'CP950', 'CP1029', 'CP1251', 'ASCII']
+    })
+
+    plugin.register_schema_definition('service-smb-unixcharset', {
+        'type': 'string',
+        'enum': ['UTF-8', 'iso-8859-1', 'iso-8859-15', 'gb2312', 'EUC-JP', 'ASCII']
     })
 
     plugin.register_schema_definition('service-smb-loglevel', {
