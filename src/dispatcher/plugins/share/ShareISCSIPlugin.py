@@ -583,16 +583,18 @@ def _init(dispatcher, plugin):
             'tag': {'type': 'integer'},
             'description': {'type': 'string'},
             'discovery_auth_group': {'type': 'string'},
-            'listen': {
-                'type': 'array',
-                'items': {
-                    'type': 'object',
-                    'additionalProperties': False,
-                    'properties': {
-                        'address': {'type': 'string'},
-                        'port': {'type': 'integer'}
-                    }
-                }
+            'listen': {'$ref': 'share-iscsi-portal-listen'}
+        }
+    })
+
+    plugin.register_schema_definition('share-iscsi-portal-listen', {
+        'type': 'array',
+        'items': {
+            'type': 'object',
+            'additionalProperties': False,
+            'properties': {
+                'address': {'type': 'string'},
+                'port': {'type': 'integer'}
             }
         }
     })
