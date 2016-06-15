@@ -88,16 +88,10 @@ class TaskExecutor(object):
             self.state = WorkerState.IDLE
             self.cv.notify_all()
 
-    def get_status(self):
-        try:
-            st = TaskStatus(0)
-            st.__setstate__(self.conn.call_sync('taskproxy.get_status', timeout=5))
-            return st
-        except RpcException as err:
-            self.balancer.logger.error(
-                "Cannot obtain status from task #{0}: {1}".format(self.task.id, str(err))
-            )
-            self.terminate()
+    def put_progress(self, progress):
+        st = TaskStatus(0)
+        st.__setstate__(progress)
+        self.task.set_state(progress=st)
 
     def put_status(self, status):
         with self.cv:
@@ -313,6 +307,7 @@ class Task(object):
         self.result = None
         self.output = ''
         self.rusage = None
+        self.slock = RLock()
         self.ended = Event()
         self.debugger = None
         self.executor = None
@@ -362,45 +357,44 @@ class Task(object):
 
         # Start actual task
         gevent.spawn(self.executor.run, self)
-
-        # Start progress watcher
-        gevent.spawn(self.progress_watcher)
-
         return self.thread
 
     def join(self, timeout=None):
         self.ended.wait(timeout)
 
-    def set_state(self, state, progress=None, error=None):
-        event = {'id': self.id, 'name': self.name, 'state': state}
-        self.state = state
+    def set_state(self, state=None, progress=None, error=None):
+        with self.slock:
+            if state:
+                self.state = state
 
-        if error:
-            self.error = error
+            event = {'id': self.id, 'name': self.name, 'state': self.state}
 
-        if state == TaskState.EXECUTING:
-            self.started_at = datetime.utcnow()
-            event['started_at'] = self.started_at
+            if error:
+                self.error = error
 
-        if state == TaskState.FINISHED:
-            self.finished_at = datetime.utcnow()
-            self.progress = TaskStatus(100)
-            event['finished_at'] = self.finished_at
-            event['result'] = self.result
+            if self.state == TaskState.EXECUTING:
+                self.started_at = datetime.utcnow()
+                event['started_at'] = self.started_at
 
-        if state in (TaskState.FAILED, TaskState.ABORTED):
-            self.progress = TaskStatus(0)
+            if self.state == TaskState.FINISHED:
+                self.finished_at = datetime.utcnow()
+                self.progress = TaskStatus(100)
+                event['finished_at'] = self.finished_at
+                event['result'] = self.result
 
-        self.dispatcher.dispatch_event('task.created' if state == TaskState.CREATED else 'task.updated', event)
-        self.dispatcher.datastore.update('tasks', self.id, self)
-        self.dispatcher.dispatch_event('task.changed', {
-            'operation': 'create' if state == TaskState.CREATED else 'update',
-            'ids': [self.id]
-        })
+            if self.state in (TaskState.FAILED, TaskState.ABORTED):
+                self.progress = TaskStatus(0)
 
-        if progress and state not in (TaskState.FINISHED, TaskState.FAILED, TaskState.ABORTED):
-            self.progress = progress
-            self.__emit_progress()
+            self.dispatcher.dispatch_event('task.created' if self.state == TaskState.CREATED else 'task.updated', event)
+            self.dispatcher.datastore.update('tasks', self.id, self)
+            self.dispatcher.dispatch_event('task.changed', {
+                'operation': 'create' if state == TaskState.CREATED else 'update',
+                'ids': [self.id]
+            })
+
+            if progress and self.state not in (TaskState.FINISHED, TaskState.FAILED, TaskState.ABORTED):
+                self.progress = progress
+                self.__emit_progress()
 
     def set_output(self, output):
         self.output = output
@@ -425,20 +419,6 @@ class Task(object):
             return self.description
 
         return TaskDescription(str(self.description))
-
-    def progress_watcher(self):
-        while True:
-            if self.ended.wait(1):
-                return
-
-            with self.executor.cv:
-                if self.executor.state != WorkerState.EXECUTING or self.executor.task.id != self.id:
-                    break
-
-                progress = self.executor.get_status()
-                if progress:
-                    self.progress = progress
-                    self.__emit_progress()
 
 
 class Balancer(object):

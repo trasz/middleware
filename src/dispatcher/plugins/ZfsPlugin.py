@@ -29,13 +29,14 @@ import os
 import errno
 import logging
 import json
+import time
 import gevent
 import gevent.threadpool
 import libzfs
-from threading import Event
+from threading import Thread, Event
 from cache import EventCacheStore
 from task import (
-    Provider, Task, TaskStatus, TaskException,
+    Provider, Task, ProgressTask, TaskStatus, TaskException,
     VerifyException, TaskAbortException, query, TaskDescription
 )
 from freenas.dispatcher.rpc import RpcException, accepts, returns, description, private
@@ -247,7 +248,7 @@ class ZfsSnapshotProvider(Provider):
 @private
 @description("Scrubs ZFS pool")
 @accepts(str, int)
-class ZpoolScrubTask(Task):
+class ZpoolScrubTask(ProgressTask):
     def __init__(self, dispatcher, datastore):
         super(ZpoolScrubTask, self).__init__(dispatcher, datastore)
         self.pool = None
@@ -283,6 +284,9 @@ class ZpoolScrubTask(Task):
         self.dispatcher.register_event_handler("fs.zfs.scrub.abort", self.__scrub_aborted)
         self.finish_event.clear()
 
+        t = Thread(target=self.watch, daemon=True)
+        t.start()
+
         try:
             zfs = get_zfs()
             pool = zfs.get(self.pool)
@@ -307,28 +311,34 @@ class ZpoolScrubTask(Task):
         self.finish_event.set()
         return True
 
-    def get_status(self):
-        if not self.started:
-            return TaskStatus(0, "Waiting to start...")
+    def watch(self):
+        while True:
+            time.sleep(1)
 
-        try:
-            zfs = get_zfs()
-            pool = zfs.get(self.pool)
-            scrub = pool.scrub
-        except libzfs.ZFSException as err:
-            raise TaskException(zfs_error_to_errno(err.code), str(err))
+            if not self.started:
+                self.set_progress(0, "Waiting to start...")
+                continue
 
-        if scrub.state == libzfs.ScanState.SCANNING:
-            self.progress = scrub.percentage
-            return TaskStatus(self.progress, "In progress...")
+            try:
+                zfs = get_zfs()
+                pool = zfs.get(self.pool)
+                scrub = pool.scrub
+            except libzfs.ZFSException as err:
+                raise TaskException(zfs_error_to_errno(err.code), str(err))
 
-        if scrub.state == libzfs.ScanState.CANCELED:
-            self.finish_event.set()
-            return TaskStatus(self.progress, "Canceled")
+            if scrub.state == libzfs.ScanState.SCANNING:
+                self.set_progress(scrub.percentage, "In progress...")
+                continue
 
-        if scrub.state == libzfs.ScanState.FINISHED:
-            self.finish_event.set()
-            return TaskStatus(100, "Finished")
+            if scrub.state == libzfs.ScanState.CANCELED:
+                self.set_progress(100, "Canceled")
+                self.finish_event.set()
+                return
+
+            if scrub.state == libzfs.ScanState.FINISHED:
+                self.set_progress(100, "Finished")
+                self.finish_event.set()
+                return
 
 
 @private

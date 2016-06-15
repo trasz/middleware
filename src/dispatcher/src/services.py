@@ -439,6 +439,15 @@ class TaskService(RpcService):
 
     @private
     @pass_sender
+    def put_progress(self, progress, sender):
+        executor = self.__balancer.get_executor_by_sender(sender)
+        if not executor:
+            raise RpcException(errno.EPERM, 'Not authorized')
+
+        executor.put_progress(progress)
+
+    @private
+    @pass_sender
     def put_status(self, status, sender):
         executor = self.__balancer.get_executor_by_sender(sender)
         if not executor:

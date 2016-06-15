@@ -86,6 +86,9 @@ class DispatcherWrapper(object):
     def __add_warning(self, warning):
         self.dispatcher.call_sync('task.put_warning', serialize_error(warning))
 
+    def __put_progress(self, progress):
+        self.dispatcher.call_sync('task.put_progress', progress.__getstate__())
+
     def __register_resource(self, resource, parents):
         self.dispatcher.call_sync('task.register_resource', resource.name, parents)
 
@@ -113,6 +116,9 @@ class DispatcherWrapper(object):
 
         if item == 'add_warning':
             return self.__add_warning
+
+        if item == 'put_progress':
+            return self.__put_progress
 
         if item == 'register_resource':
             return self.__register_resource

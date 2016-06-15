@@ -86,8 +86,8 @@ class Task(object):
     def describe(self, *args, **kwargs):
         return
 
-    def get_status(self):
-        return TaskStatus(50, 'Executing...')
+    def put_progress(self, progress):
+        self.dispatcher.put_progress(progress)
 
     def add_warning(self, warning):
         return self.dispatcher.add_warning(warning)
@@ -139,13 +139,8 @@ class ProgressTask(Task):
         self.progress = 0
         self.message = 'EXECUTING...'
 
-    def get_status(self):
-        return TaskStatus(self.progress, self.message)
-
-    def set_progress(self, percentage, message=None):
-        self.progress = percentage
-        if message:
-            self.message = message
+    def set_progress(self, percentage, message=None, extra=None):
+        self.put_progress(TaskStatus(percentage, message, extra))
 
 
 class TaskException(RpcException):
