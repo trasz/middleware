@@ -197,7 +197,7 @@ def wait_server(server=DEFAULT_SERVER, timeout=DEFAULT_TIMEOUT):
             cols, rows = shutil.get_terminal_size()
             print('[####################] Finished.'.ljust(cols))
             sys.exit(0)
-        except socket.error as err:
+        except socket.error:
             time.sleep(1)
             timeout -= 1
             continue
