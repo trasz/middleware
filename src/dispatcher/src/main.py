@@ -41,7 +41,6 @@ import logging.handlers
 import argparse
 import signal
 import time
-import uuid
 import errno
 import setproctitle
 import traceback
