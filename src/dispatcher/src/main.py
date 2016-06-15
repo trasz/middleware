@@ -543,7 +543,7 @@ class Dispatcher(object):
                 args['timestamp'] = time.time()
 
             for srv in self.ws_servers:
-                srv.broadcast_event(name, args)
+                gevent.spawn(srv.broadcast_event, name, args)
 
             if name in self.event_handlers:
                 for h in self.event_handlers[name]:
