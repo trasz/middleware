@@ -220,11 +220,21 @@ class TaskExecutor(object):
         self.balancer.logger.info("Trying to abort task #{0}".format(self.task.id))
         # Try to abort via RPC. If this fails, kill process
         try:
+            # If task supports abort protocol we don't need to worry about subtasks - it's task
+            # responsibility to kill them
             self.conn.call_sync('taskproxy.abort')
         except RpcException as err:
             self.balancer.logger.warning("Failed to abort task #{0} gracefully: {1}".format(self.task.id, str(err)))
             self.balancer.logger.warning("Killing process {0}".format(self.pid))
             self.terminate()
+
+            # Now kill all the subtasks
+            for subtask in filter(lambda t: t.parent is self.task, self.balancer.task_list):
+                self.balancer.logger.warning("Aborting subtask {0} because parent task {1} died".format(
+                    subtask.id,
+                    self.task.id
+                ))
+                self.balancer.abort(subtask.id)
 
     def terminate(self):
         try:
