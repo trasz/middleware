@@ -25,6 +25,8 @@
 #
 #####################################################################
 
+import Cython.Compiler.Options
+Cython.Compiler.Options.annotate = True
 import platform
 from distutils.core import setup
 from distutils.extension import Extension
@@ -50,5 +52,8 @@ extensions = [
 setup(
     name='mach',
     version='1.0',
+    packages=[''],
+    package_dir={'': 'src'},
+    package_data={'': ['*.html', '*.c']},
     ext_modules=cythonize(extensions)
 )

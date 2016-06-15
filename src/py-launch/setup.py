@@ -24,6 +24,8 @@
 # SUCH DAMAGE.
 #
 
+import Cython.Compiler.Options
+Cython.Compiler.Options.annotate = True
 import platform
 from distutils.core import setup
 from distutils.extension import Extension
@@ -48,5 +50,7 @@ extensions = [
 setup(
     name='launchd',
     version='1.0',
+    packages=[''],
+    package_data={'': ['*.html', '*.c']},
     ext_modules=cythonize(extensions)
 )
