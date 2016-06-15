@@ -642,7 +642,7 @@ class Dispatcher(object):
         self.resource_graph.add_resource(res, parents)
 
     def update_resource(self, name, new_parents):
-        self.logger.debug('Resource updated: {0}, new parents: {1}'.format(name, ', '.join(new_parents)))
+        self.logger.log(TRACE, 'Resource updated: {0}, new parents: {1}'.format(name, ', '.join(new_parents)))
         self.resource_graph.update_resource(name, new_parents)
 
     def unregister_resource(self, name):
