@@ -30,7 +30,7 @@ import errno
 import logging
 from freenas.dispatcher.rpc import RpcService, RpcException, RpcWarning
 from datastore.config import ConfigStore
-from threading import Lock, RLock
+from threading import RLock
 import collections
 
 
