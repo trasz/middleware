@@ -401,7 +401,12 @@ class ZpoolCreateTask(Task):
         nvroot = convert_topology(zfs, topology)
 
         try:
-            pool = zfs.create(name, nvroot, opts, fsopts)
+            self.dispatcher.exec_and_wait_for_event(
+                'zfs.pool.changed',
+                lambda args: name in args['ids'],
+                lambda: zfs.create(name, nvroot, opts, fsopts),
+                60
+            )
         except libzfs.ZFSException as err:
             raise TaskException(zfs_error_to_errno(err.code), str(err))
 
