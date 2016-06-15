@@ -1392,15 +1392,14 @@ def _init(dispatcher, plugin):
             if not ds:
                 return
 
-            with dispatcher.get_lock('zfs-cache'):
-                logger.info('Dataset {0} {1}ed'.format(ds['name'], type))
-                if type == 'mount':
-                    ds['mounted'] = True
+            logger.info('Dataset {0} {1}ed'.format(ds['name'], type))
+            if type == 'mount':
+                ds['mounted'] = True
 
-                if type == 'unmount':
-                    ds['mounted'] = False
+            if type == 'unmount':
+                ds['mounted'] = False
 
-                datasets.put(ds['id'], ds)
+            datasets.put(ds['id'], ds)
 
     def on_device_attached(args):
         for p in pools.validvalues():
