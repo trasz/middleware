@@ -528,8 +528,10 @@ class VolumeCreateTask(ProgressTask):
             ))
 
             self.set_progress(60)
+
             if mount:
                 self.join_subtasks(self.run_subtask('zfs.mount', name))
+
             self.set_progress(80)
 
             pool = self.dispatcher.call_sync('zfs.pool.query', [('name', '=', name)], {'single': True})
