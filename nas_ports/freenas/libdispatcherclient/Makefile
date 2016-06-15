@@ -20,7 +20,7 @@ EXTRACT_ONLY=
 NO_BUILD=	yes
 MAKE_JOBS_UNSAFE= yes
 ALL_TARGET=	obj all
-WRKSRC=		/usr/middleware_src/py-freenas.dispatcher/c
+WRKSRC=		/usr/middleware_src/dispatcher/client/c
 
 checksum fetch:
 	${ECHO_CMD} ${.TARGET} not needed because building direct
