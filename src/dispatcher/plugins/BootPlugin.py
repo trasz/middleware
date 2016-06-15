@@ -279,7 +279,6 @@ def _init(dispatcher, plugin):
                 bootenvs.propagate(args, convert_bootenv)
 
             if args['operation'] == 'delete':
-                logger.warn(args)
                 for i in args['ids']:
                     pool, dataset = split_dataset(i)
                     if pool != boot_pool_name:
