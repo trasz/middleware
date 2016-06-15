@@ -137,6 +137,9 @@ class ResourceGraph(object):
             yield i.name
 
     def acquire(self, *names):
+        if not names:
+            return
+
         with self.mutex:
             self.logger.debug('Acquiring following resources: %s', ','.join(names))
     
@@ -152,6 +155,9 @@ class ResourceGraph(object):
                 res.busy = True
 
     def can_acquire(self, *names):
+        if not names:
+            return True
+
         with self.mutex:
             self.logger.log(TRACE, 'Trying to acquire following resources: %s', ','.join(names))
     
@@ -170,6 +176,9 @@ class ResourceGraph(object):
             return True
 
     def release(self, *names):
+        if not names:
+            return
+
         with self.mutex:
             self.logger.debug('Releasing following resources: %s', ','.join(names))
     
