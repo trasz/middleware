@@ -24,7 +24,7 @@ USE_PYTHON=	autoplist distutils
 EXTRACT_ONLY=
 
 MAKE_ENV=	VERSION=${PRODUCT_VERSION}
-WRKSRC=		/usr/middleware_src/dispatcher/client/python
+WRKSRC=		/usr/middleware_src/py-freenas.dispatcher/python
 
 checksum fetch:
 	${ECHO_CMD} ${.TARGET} not needed because building direct
