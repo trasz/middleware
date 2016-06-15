@@ -1752,7 +1752,10 @@ class VolumeScrubTask(ProgressTask):
         self.abort_subtasks()
 
     def run(self, id):
-        self.join_subtasks(self.run_subtask('zfs.pool.scrub', id, progress_callback=self.set_progress))
+        self.join_subtasks(self.run_subtask(
+            'zfs.pool.scrub', id,
+            progress_callback=self.set_progress
+        ))
 
 
 @description("Makes vdev in a volume offline")
