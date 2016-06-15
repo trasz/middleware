@@ -553,19 +553,6 @@ class Dispatcher(object):
                         self.report_error('Event handler for event {0} failed'.format(name), err)
                         self.logger.exception('Event handler for event %s failed', name)
 
-            if 'nolog' in args and args['nolog']:
-                return
-
-            # Persist event
-            event_data = args.copy()
-            del event_data['timestamp']
-
-            self.datastore.insert('events', {
-                'name': name,
-                'timestamp': args['timestamp'],
-                'args': event_data
-            })
-
     def emit_event(self, name, args):
         return self.dispatch_event(name, args)
 
