@@ -593,6 +593,10 @@ def collect_debug(dispatcher):
     yield AttachCommandOutput('vmstat', ['/usr/bin/vmstat', '-i'])
 
 
+def _depends():
+    return ['ServiceManagePlugin']
+
+
 def _init(dispatcher, plugin):
     def on_hostname_change(args):
         if 'hostname' not in args:
