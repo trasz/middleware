@@ -60,6 +60,7 @@ TASKWORKER_PATH = '/usr/local/libexec/taskworker'
 
 class WorkerState(object):
     IDLE = 'IDLE'
+    ASSIGNED = 'ASSIGNED'
     EXECUTING = 'EXECUTING'
     STARTING = 'STARTING'
 
@@ -88,17 +89,15 @@ class TaskExecutor(object):
             self.cv.notify_all()
 
     def get_status(self):
-        with self.cv:
-            self.cv.wait_for(lambda: self.state == WorkerState.EXECUTING)
-            try:
-                st = TaskStatus(0)
-                st.__setstate__(self.conn.call_sync('taskproxy.get_status', timeout=5))
-                return st
-            except RpcException as err:
-                self.balancer.logger.error(
-                    "Cannot obtain status from task #{0}: {1}".format(self.task.id, str(err))
-                )
-                self.terminate()
+        try:
+            st = TaskStatus(0)
+            st.__setstate__(self.conn.call_sync('taskproxy.get_status', timeout=5))
+            return st
+        except RpcException as err:
+            self.balancer.logger.error(
+                "Cannot obtain status from task #{0}: {1}".format(self.task.id, str(err))
+            )
+            self.terminate()
 
     def put_status(self, status):
         with self.cv:
@@ -137,7 +136,7 @@ class TaskExecutor(object):
 
     def run(self, task):
         with self.cv:
-            self.cv.wait_for(lambda: self.state == WorkerState.IDLE)
+            self.cv.wait_for(lambda: self.state == WorkerState.ASSIGNED)
             self.result = AsyncResult()
             self.task = task
             self.task.set_state(TaskState.EXECUTING)
@@ -431,20 +430,11 @@ class Task(object):
         while True:
             if self.ended.wait(1):
                 return
-            #elif (hasattr(self.instance, 'suggested_timeout') and
-            #      time.time() - self.started_at > self.instance.suggested_timeout):
-            #    self.set_state(TaskState.FAILED, TaskStatus(0, "FAILED"))
-            #    self.ended.set()
-            #    self.error = {
-            #       'type': "ETIMEDOUT",
-            #       'message': "The task was killed due to a timeout",
-            #    }
-            #    self.progress = self.instance.get_status()
-            #    self.set_state(TaskState.FAILED, TaskStatus(self.progress.percentage, "TIMEDOUT"))
-            #    self.ended.set()
-            #    self.dispatcher.balancer.task_exited(self)
-            #    self.dispatcher.balancer.logger.debug("Task ID: %d, Name: %s was TIMEDOUT", self.id, self.name)
-            else:
+
+            with self.executor.cv:
+                if self.executor.state != WorkerState.EXECUTING or self.executor.task.id != self.id:
+                    break
+
                 progress = self.executor.get_status()
                 if progress:
                     self.progress = progress
@@ -686,6 +676,7 @@ class Balancer(object):
                 if i.state == WorkerState.IDLE:
                     self.logger.info("Task %d assigned to executor #%d", task.id, i.index)
                     task.executor = i
+                    i.state = WorkerState.ASSIGNED
                     return
 
         # Out of executors! Need to spawn new one
@@ -693,6 +684,7 @@ class Balancer(object):
         self.executors.append(executor)
         with executor.cv:
             executor.cv.wait_for(lambda: executor.state == WorkerState.IDLE)
+            executor.state = WorkerState.ASSIGNED
             task.executor = executor
             self.logger.info("Task %d assigned to executor #%d", task.id, executor.index)
 
