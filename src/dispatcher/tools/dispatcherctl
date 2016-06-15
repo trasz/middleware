@@ -32,6 +32,7 @@ import argh
 import json
 import time
 import socket
+import shutil
 from freenas.dispatcher.client import Client
 from freenas.dispatcher.jsonenc import dump
 from freenas.dispatcher.rpc import RpcException
@@ -168,6 +169,7 @@ def wait_server(server=DEFAULT_SERVER, timeout=DEFAULT_TIMEOUT):
         try:
             total = 0
             done = 0
+            finished = False
 
             def callback(name, args):
                 nonlocal done
@@ -177,7 +179,11 @@ def wait_server(server=DEFAULT_SERVER, timeout=DEFAULT_TIMEOUT):
                     total += 1
 
                 if name == 'server.plugin.initialized':
-                    print('[{0}/{1}] Plugin loaded: {2}'.format(done, total, args['name']))
+                    norm_progress = int(20 * float(done / total))
+                    progress_bar = ''.join('#' if i <= norm_progress else ' ' for i in range(20))
+                    cols, rows = shutil.get_terminal_size()
+                    if not finished:
+                        print('[{0}] Plugin loaded: {1}'.format(progress_bar, args['name']).ljust(cols), end='\r')
                     done += 1
 
             c = Client()
@@ -187,6 +193,9 @@ def wait_server(server=DEFAULT_SERVER, timeout=DEFAULT_TIMEOUT):
             total = len(c.call_sync('management.get_plugin_names'))
             c.subscribe_events('server.plugin.initialized', 'server.plugin.loaded')
             c.call_sync('management.wait_ready', timeout=timeout)
+            finished = True
+            cols, rows = shutil.get_terminal_size()
+            print('[####################] Finished.'.ljust(cols))
             sys.exit(0)
         except socket.error as err:
             time.sleep(1)
