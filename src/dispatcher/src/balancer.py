@@ -658,7 +658,8 @@ class Balancer(object):
             self.task_list.append(task)
             self.distribution_lock.release()
             self.schedule_tasks()
-            self.logger.debug("Task %d assigned to resources %s", task.id, ','.join(task.resources))
+            if task.resources:
+                self.logger.debug("Task %d assigned to resources %s", task.id, ','.join(task.resources))
 
     def assign_executor(self, task):
         for i in self.executors:
