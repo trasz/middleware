@@ -35,6 +35,8 @@ from task import Provider, Task, ProgressTask, VerifyException, TaskException, q
 from cache import EventCacheStore
 from utils import split_dataset
 from freenas.dispatcher.rpc import accepts, returns, description, SchemaHelper as h
+from freenas.utils import first_or_default
+from freenas.utils.query import wrap
 
 sys.path.append('/usr/local/lib')
 from freenasOS.Update import (
@@ -158,15 +160,18 @@ class BootAttachDisk(ProgressTask):
     def early_describe(cls):
         return "Attaching disk to the boot pool"
 
-    def describe(self, guid, disk):
+    def describe(self, disk):
         return TaskDescription("Attaching the {name} disk to the boot pool", name=disk)
 
-    def verify(self, guid, disk):
+    def verify(self, disk):
         boot_pool_name = self.configstore.get('system.boot_pool_name')
         return ['zpool:{0}'.format(boot_pool_name), 'disk:{0}'.format(disk)]
 
-    def run(self, guid, disk):
+    def run(self, disk):
+        pool = wrap(self.dispatcher.call_sync('boot.pool.get_config'))
+        guid = pool['groups.data.0.guid']
         disk_id = self.dispatcher.call_sync('disk.path_to_id', disk)
+
         # Format disk
         self.join_subtasks(self.run_subtask('disk.format.boot', disk_id))
         self.set_progress(30)
@@ -200,10 +205,16 @@ class BootDetachDisk(Task):
         return TaskDescription("Detaching the {name} disk from the Boot Pool", name=disk['name'])
 
     def verify(self, disk):
-        pass
+        boot_pool_name = self.configstore.get('system.boot_pool_name')
+        return ['zpool:{0}'.format(boot_pool_name), 'disk:{0}'.format(disk)]
 
     def run(self, disk):
-        pass
+        pool = wrap(self.dispatcher.call_sync('boot.pool.get_config'))
+        vdev = first_or_default(lambda path: os.path.join(disk, '/dev') == path, pool['groups.data'])
+        if not vdev:
+            raise TaskException(errno.ENOENT, 'Disk {0} not found in the boot pool'.format(disk))
+
+        self.join_subtasks(self.run_subtask('zfs.pool.detach', vdev['guid']))
 
 
 def _depends():
