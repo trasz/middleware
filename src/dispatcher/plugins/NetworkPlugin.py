@@ -127,7 +127,7 @@ class NetworkConfigureTask(Task):
         node.update(settings)
 
         try:
-            self.dispatcher.call_sync('networkd.configuration.configure_network')
+            self.dispatcher.call_sync('networkd.configuration.configure_network', timeout=60)
             self.dispatcher.call_sync('etcd.generation.generate_group', 'network')
         except RpcException as e:
             raise TaskException(errno.ENXIO, 'Cannot reconfigure interface: {0}'.format(str(e)))
@@ -190,7 +190,7 @@ class CreateInterfaceTask(Task):
         self.datastore.insert('network.interfaces', iface)
 
         try:
-            self.dispatcher.call_sync('networkd.configuration.configure_network')
+            self.dispatcher.call_sync('networkd.configuration.configure_network', timeout=60)
         except RpcException as e:
             raise TaskException(errno.ENXIO, 'Cannot reconfigure network: {0}'.format(str(e)))
 
@@ -226,7 +226,7 @@ class DeleteInterfaceTask(Task):
     def run(self, id):
         self.datastore.delete('network.interfaces', id)
         try:
-            self.dispatcher.call_sync('networkd.configuration.configure_network')
+            self.dispatcher.call_sync('networkd.configuration.configure_network', timeout=60)
         except RpcException as e:
             raise TaskException(errno.ENXIO, 'Cannot reconfigure network: {0}'.format(str(e)))
 
