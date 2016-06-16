@@ -256,7 +256,9 @@
             "service.nginx.enable": true,
             "service.powerd.enable": false,
             "service.webdav.enable": false,
-            "service.webdav.protocol": "HTTP",
+            "service.webdav.protocol": [
+                "HTTP"
+            ],
             "service.webdav.http_port": 8080,
             "service.webdav.https_port": 8081,
             "service.webdav.password": "davtest",
