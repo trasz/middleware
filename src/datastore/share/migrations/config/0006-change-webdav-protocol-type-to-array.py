@@ -29,7 +29,9 @@
 def probe(obj, ds):
     return obj['id'] == 'service.webdav.protocol'
 
+
 def apply(obj, ds):
-    obj['value'] = ["HTTP"]
+    if isinstance(obj['value'], str):
+        obj['value'] = [obj['value']]
 
     return obj
