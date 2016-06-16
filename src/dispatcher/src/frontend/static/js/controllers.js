@@ -17,6 +17,10 @@ function LoginController($scope, $location, $routeParams, $route, $rootScope) {
         };
         sock.onLogin = function(){
             sock.call("discovery.get_services", null, function (services) {
+                console.log("this is login controller");
+                console.log("=============================");
+                console.log(services);
+                console.log("=============================");
                 if (services.hasOwnProperty('code') && services['code'] == 13) {
                     $scope.login_status = false;
                     console.log("login failed");
@@ -125,6 +129,45 @@ function RpcController($scope, $location, $routeParams, $route,$rootScope, Modal
       //then it should clear all previous text left inside textarea
       $("#method").val('');
       $("#result").val('');
+    }
+}
+
+function DispatcherDumpstackController($scope, $location, $routeParams, $route, $rootScope) {
+    document.title = "Dispatcher dumpstack";
+    console.log("123");
+    if (!sessionStorage.getItem("freenas:username")){
+        $location.path('/login'+$route.current.$$route.originalPath);
+    }
+    var sock = new middleware.DispatcherClient(document.domain);
+    sock.connect();
+    $scope.init = function () {
+        console.log("init func");
+        sock.onError = function(err) {
+            try {
+                $location.path('/login'+$route.current.$$route.originalPath);
+            } catch (e) {
+                console.log(e);
+                $("#socket_status").attr("src", "/static/images/service_issue_diamond.png");
+                $("#refresh_page_glyph").show();
+            }
+        };
+        sock.onConnect = function() {
+            sock.login(
+                sessionStorage.getItem("freenas:username"),
+                sessionStorage.getItem("freenas:password")
+            );
+        };
+        sock.onLogin = function() {
+            sock.call("debug.dump_stacks", null, function (result) {
+                var dump_stacks = [];
+                $.each(result, function(idx, i) {
+                    dump_stacks.push(i);
+                });
+                $scope.$apply(function(){
+                    $scope.dump_stacks = dump_stacks;
+                });
+            });
+        };
     }
 }
 
@@ -666,6 +709,7 @@ function TasksController($scope, $interval, $location, $routeParams, $route, $ro
             var item_list = [];
             var service_list = [];
             sock.call("discovery.get_tasks", null, function (tasks) {
+                console.log(tasks     );
                 $.each(tasks, function(key, value) {
                     value['name'] = key;
                     value['schema'] = angular.toJson(value['schema'], 4);

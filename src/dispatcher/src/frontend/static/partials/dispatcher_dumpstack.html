@@ -1,0 +1,11 @@
+<div ng-init="init()">
+</div>
+<div class="">
+    <ul >
+      <li ng-repeat="err_log in dump_stacks track by $index ">
+         <pre>
+{{err_log}}
+         </pre>
+      </li>
+    </ul>
+</div>

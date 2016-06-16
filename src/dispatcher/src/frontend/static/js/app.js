@@ -51,6 +51,10 @@ DebuggerApp.config(['$routeProvider', function($routeProvider) {
       templateUrl: '../static/partials/filebrowser.html' ,
       controller: FileBrowserController
     }).
+    when('/dispatcher_dumpstack',{
+      templateUrl: '../static/partials/dispatcher_dumpstack.html',
+      controller: DispatcherDumpstackController
+    }).
     when('/apidocs/rpc', {
       templateUrl: '../static/partials/apidoc_rpc.html',
       controller: RPCdocController
@@ -110,17 +114,3 @@ DebuggerApp.controller('ModalController',['$scope', '$element', 'close', functio
         }, 500); // close, but give 500ms for bootstrap to animate
     };
 }]);
-
-
-DebuggerApp.run(function ($route, $location, $rootScope) {
-    var postLogInRoute;
-
-    $rootScope.$on('$routeChangeStart', function (event, nextRoute, currentRoute) {
-        if ($rootScope.username) {
-            console.log("logged in");
-        }else {
-            console.log("log in failed");
-        }
-        console.log("routechangestart in root.on");
-    });
-});
