@@ -1856,18 +1856,18 @@ class DatasetCreateTask(Task):
 
         if dataset['type'] == 'FILESYSTEM':
             props = {
-                'org.freenas:permissions_type': dataset['permissions_type'],
-                'aclmode': 'restricted' if dataset['permissions_type'] == 'ACL' else 'passthrough'
+                'org.freenas:permissions_type': {'value': dataset['permissions_type']},
+                'aclmode': {'value': 'restricted' if dataset['permissions_type'] == 'ACL' else 'passthrough'}
             }
 
         if dataset['type'] == 'VOLUME':
-            props['volsize'] = str(dataset['volsize'])
+            props['volsize'] = {'value': str(dataset['volsize'])}
 
-        props = exclude(
+        props.update(exclude(
             dataset['properties'],
             'used', 'usedbydataset', 'usedbysnapshots', 'usedbychildren', 'logicalused', 'logicalreferenced',
             'written', 'usedbyrefreservation', 'referenced', 'available', 'compressratio', 'refcompressratio'
-        )
+        ))
 
         props['org.freenas:uuid'] = {'value': str(uuid.uuid4())}
 
