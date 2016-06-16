@@ -2,7 +2,8 @@
 </div>
 <div class="">
     <ul >
-      <li ng-repeat="err_log in dump_stacks track by $index ">
+      <label>Search: <input ng-model="searchText" placeholder="input to search"></label>
+      <li ng-repeat="err_log in dump_stacks | filter:searchText track by $index ">
          <pre>
 {{err_log}}
          </pre>

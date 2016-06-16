@@ -134,14 +134,12 @@ function RpcController($scope, $location, $routeParams, $route,$rootScope, Modal
 
 function DispatcherDumpstackController($scope, $location, $routeParams, $route, $rootScope) {
     document.title = "Dispatcher dumpstack";
-    console.log("123");
     if (!sessionStorage.getItem("freenas:username")){
         $location.path('/login'+$route.current.$$route.originalPath);
     }
     var sock = new middleware.DispatcherClient(document.domain);
     sock.connect();
     $scope.init = function () {
-        console.log("init func");
         sock.onError = function(err) {
             try {
                 $location.path('/login'+$route.current.$$route.originalPath);
