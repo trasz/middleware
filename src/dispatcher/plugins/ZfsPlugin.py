@@ -965,11 +965,11 @@ class ZfsConfigureTask(ZfsBaseTask):
                         dataset.properties[k].inherit()
                         continue
 
-                    if v.get('parsed'):
+                    if 'parsed' in v:
                         dataset.properties[k].parsed = v['parsed']
                         continue
 
-                    if v.get('value'):
+                    if 'value' in v:
                         dataset.properties[k].value = v['value']
                         continue
                 else:
