@@ -491,6 +491,7 @@ class Dispatcher(object):
             # Skipping disabled plugins, unles explicitly informed to load them
             if not self.load_disabled_plugins and os.path.basename(root) == 'disabled':
                 continue
+
             for i in fnmatch.filter(filenames, '*.py') + fnmatch.filter(filenames, '*.so'):
                 self.__try_load_plugin(os.path.join(dir, os.path.join(root, i)))
 
