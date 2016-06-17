@@ -960,6 +960,9 @@ class ZfsConfigureTask(ZfsBaseTask):
             zfs = get_zfs()
             dataset = zfs.get_object(name)
             for k, v in list(properties.items()):
+                if k == 'volblocksize' and dataset.type == libzfs.DatasetType.FILESYSTEM:
+                    continue
+
                 if k in dataset.properties:
                     if v.get('source') == 'INHERITED':
                         dataset.properties[k].inherit()
