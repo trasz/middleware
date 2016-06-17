@@ -1868,7 +1868,7 @@ class DatasetCreateTask(Task):
         props = {}
         normalize(dataset, {
             'type': 'FILESYSTEM',
-            'permissions_type': 'CHMOD',
+            'permissions_type': 'PERM',
             'mounted': True,
             'properties': {}
         })
