@@ -1996,6 +1996,9 @@ class DatasetConfigureTask(Task):
         pool_name, _, _ = id.partition('/')
         ds = wrap(self.dispatcher.call_sync('zfs.dataset.query', [('id', '=', id)], {'single': True}))
 
+        if not ds:
+            raise TaskException(errno.ENOENT, 'Dataset {0} not found'.format(id))
+
         if 'id' in updated_params:
             self.join_subtasks(self.run_subtask('zfs.rename', ds['id'], updated_params['id']))
             ds['id'] = updated_params['id']
@@ -2020,7 +2023,7 @@ class DatasetConfigureTask(Task):
                 self.switch_to_chmod(ds['id'])
 
         if 'permissions' in updated_params:
-            fs_path = os.path.join(VOLUMES_ROOT, id)
+            fs_path = os.path.join(VOLUMES_ROOT, ds['id'])
             self.join_subtasks(self.run_subtask('file.set_permissions', fs_path, updated_params['permissions']))
 
         if 'mounted' in updated_params:
