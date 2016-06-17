@@ -844,7 +844,7 @@ class ZfsDatasetCreateTask(Task):
     def verify(self, path, type, params=None):
         pool_name = path.split('/')[0]
         if not pool_exists(pool_name):
-            raise VerifyException('Pool {0} not found'.format(pool_name))
+            raise VerifyException(errno.ENOENT, 'Pool {0} not found'.format(pool_name))
 
         self.check_type(type)
         return ['zpool:{0}'.format(pool_name)]
