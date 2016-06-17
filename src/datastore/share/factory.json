@@ -875,6 +875,7 @@
                 },
                 "builtin": false,
                 "pidfile": "/var/run/httpd.pid",
+                "task": "service.webdav.update",
                 "name": "webdav"
             },
             "1c668931-3e2e-48d3-927d-39d71c34e3f2": {
