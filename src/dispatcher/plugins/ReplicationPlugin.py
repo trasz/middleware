@@ -1659,7 +1659,12 @@ def _init(dispatcher, plugin):
 
     def update_resources(args):
         links = dispatcher.call_sync('replication.link.local_query')
-        updated_pools = list(set([d.split('/', 1)[0] for d in args['ids']]))
+        if args.get('operation') == 'rename':
+            # In this case 'id' is list [oldname, newname]
+            updated_pools = list(set([d[1].split('/', 1)[0] for d in args['ids']]))
+        else:
+            updated_pools = list(set([d.split('/', 1)[0] for d in args['ids']]))
+
         for link in links:
             related_pools = list(set([d.split('/', 1)[0] for d in link['datasets']]))
             if any(p in related_pools for p in updated_pools):
