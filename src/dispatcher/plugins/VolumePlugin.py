@@ -558,7 +558,7 @@ class VolumeCreateTask(ProgressTask):
 
 
 @description("Creates new volume and automatically guesses disks layout")
-@accepts(str, str, str, h.array(str), h.array(str), h.array(str), h.one_of(bool, None), h.one_of(str, None))
+@accepts(str, str, str, h.one_of(h.array(str), str), h.array(str), h.array(str), h.one_of(bool, None), h.one_of(str, None))
 class VolumeAutoCreateTask(Task):
     @classmethod
     def early_describe(cls):
@@ -573,13 +573,32 @@ class VolumeAutoCreateTask(Task):
                 errno.EEXIST,
                 'Volume with same name already exists'
             )
-
-        return ['disk:{0}'.format(disk_spec_to_path(self.dispatcher, i)) for i in disks]
+        if isinstance(disks, str) and disks == 'auto':
+            return ['disk:{0}'.format(disk) for disk in self.dispatcher.call_sync('disk.query', {'select': 'path'})]
+        else:
+            return ['disk:{0}'.format(disk_spec_to_path(self.dispatcher, i)) for i in disks]
 
     def run(self, name, type, layout, disks, cache_disks=None, log_disks=None, encryption=False, password=None):
         vdevs = []
         ltype = VOLUME_LAYOUTS[layout]
         ndisks = DISKS_PER_VDEV[ltype]
+
+        if isinstance(disks, str) and disks == 'auto':
+            available_disks = self.dispatcher.call_sync(
+                'disk.query',
+                [('path', 'in', self.dispatcher.call_sync('volume.get_available_disks'))]
+            )
+            available_disks = sorted(
+                available_disks,
+                key=lambda item: (not item['status']['is_ssd'], item['mediasize'], item['status']['max_rotation']),
+                reverse=True
+            )
+            disks = wrap(available_disks).query(
+                ('status.is_ssd', '=', available_disks[0]['status']['is_ssd']),
+                ('status.max_rotation', '=', available_disks[0]['status']['max_rotation']),
+                ('mediasize', '=', available_disks[0]['mediasize']),
+                select='path'
+            )
 
         if len(disks) == 1:
             ltype = 'disk'
