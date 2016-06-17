@@ -50,22 +50,27 @@ class BhyveClient(object):
 
     def connect(self):
         self.socket.connect(self.path)
+        self.thread = threading.Thread(target=self.recv_thread)
+        self.thread.daemon = True
+        self.thread.start()
 
     def disconnect(self):
         self.socket.disconnect()
 
     def call(self, service, method, args):
         call = Call()
-        call.id = max(self.calls.keys())
+        call.id = max(self.calls.keys()) if self.calls else 1
 
         msg = nv.NVList({
-            'id': id,
+            'id': call.id,
             'service': service,
             'method': method,
             'args': args
         })
 
+        self.calls[call.id] = call
         msg.send(self.socket)
+
         return call.result.wait()
 
     def recv_thread(self):
@@ -82,7 +87,7 @@ class BhyveClient(object):
                 error = msg['error']
 
                 if error == 0:
-                    call.result.set(msg['response'])
+                    call.result.set(msg.get('response', nv.NVType.NVLIST, None))
                     continue
                 else:
                     call.resul.set_exception(BhyveException())
