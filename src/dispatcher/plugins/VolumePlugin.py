@@ -2296,17 +2296,17 @@ def register_property_schemas(plugin):
             'type': ['string', 'null'],
             'enum': [
                 'on', 'off', 'lzjb', 'zle', 'lz4', 'gzip', 'gzip-1', 'gzip-2', 'gzip-3',
-                'gzip-4', 'gzip-5', 'gzip-6', 'gzip-7', 'gzip-8', 'gzip-9'
+                'gzip-4', 'gzip-5', 'gzip-6', 'gzip-7', 'gzip-8', 'gzip-9', None
             ]
         },
         'atime': {
-            'type': 'boolean'
+            'type': ['boolean', 'null']
         },
         'dedup': {
-            'type': 'string',
+            'type': ['string', 'null'],
             'enum': [
                 'on', 'off', 'verify', 'sha256', 'sha256,verify', 'sha512', 'sha512,verify',
-                'skiein', 'skein,verify', 'edonr,verify'
+                'skiein', 'skein,verify', 'edonr,verify', None
             ]
         },
         'quota': {
@@ -2322,8 +2322,8 @@ def register_property_schemas(plugin):
             'type': ['integer', 'null'],
         },
         'casesensitivity': {
-            'type': 'string',
-            'enum': ['sensitive', 'insensitive', 'mixed']
+            'type': ['string', 'null'],
+            'enum': ['sensitive', 'insensitive', 'mixed', None]
         },
         'volsize': {
             'type': 'integer',
@@ -2414,7 +2414,7 @@ def register_property_schemas(plugin):
                 'properties': {
                     'source': {'$ref': 'volume-property-source'},
                     'rawvalue': {'type': 'string', 'readOnly': True},
-                    'value': {'type': 'string'},
+                    'value': {'type': ['string', 'null']},
                     'parsed': {'$ref': '{0}-property-{1}-value'.format(i, name)}
                 }
             })
