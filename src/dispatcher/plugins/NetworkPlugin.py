@@ -164,7 +164,11 @@ class CreateInterfaceTask(Task):
             'noipv6': False,
             'mtu': None,
             'media': None,
-            'aliases': []
+            'aliases': [],
+            'capabilities': {
+                'add': [],
+                'del': []
+            }
         })
 
         if type == 'VLAN':
