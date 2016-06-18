@@ -510,6 +510,10 @@ class ContainerUpdateTask(ContainerBaseTask):
                 else:
                     self.create_device(container, res)
 
+            for res in container['devices']:
+                if not first_or_default(lambda i: i['name'] == res['name'], updated_params['devices']):
+                    self.delete_device(container, res)
+
         if not updated_params.get('enabled', True):
             self.join_subtasks(self.run_subtask('container.stop', id))
 
