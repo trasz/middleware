@@ -68,6 +68,7 @@ from ec2 import EC2MetadataServer
 gevent.monkey.patch_all()
 
 
+BOOTROM_PATH = '/usr/local/share/containerd/firmware/BHYVE_UEFI_20160526.fd'
 MGMT_ADDR = ipaddress.ip_interface('172.20.0.1/16')
 MGMT_INTERFACE = 'mgmt0'
 NAT_ADDR = ipaddress.ip_interface('172.21.0.1/16')
@@ -161,6 +162,9 @@ class VirtualMachine(object):
             '-s', '31,lpc', '-l', 'com1,{0}'.format(self.nmdm[0]),
             self.name
         ]
+
+        if self.config['bootloader'] == 'UEFI':
+            args += ['-l', 'bootrom,{0}'.format(BOOTROM_PATH)]
 
         self.logger.debug('bhyve args: {0}'.format(args))
         return args
@@ -318,9 +322,10 @@ class VirtualMachine(object):
                     close_fds=True
                 )
 
-            out, err = self.bhyve_process.communicate()
-            self.bhyve_process.wait()
-            self.logger.debug('bhyveload: {0}'.format(out))
+            if self.config['bootloader'] != 'UEFI':
+                out, err = self.bhyve_process.communicate()
+                self.bhyve_process.wait()
+                self.logger.debug('bhyveload: {0}'.format(out))
 
             self.logger.debug('Starting bhyve...')
             args = self.build_args()

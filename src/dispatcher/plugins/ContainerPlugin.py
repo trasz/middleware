@@ -966,7 +966,6 @@ def _init(dispatcher, plugin):
         }
     })
 
-
     plugin.register_schema_definition('container-type', {
         'type': 'string',
         'enum': ['JAIL', 'VM', 'DOCKER']
@@ -974,7 +973,7 @@ def _init(dispatcher, plugin):
 
     plugin.register_schema_definition('container-config-bootloader', {
         'type': 'string',
-        'enum': ['BHYVELOAD', 'GRUB']
+        'enum': ['BHYVELOAD', 'GRUB', 'UEFI']
     })
 
     plugin.register_schema_definition('container-device', {
