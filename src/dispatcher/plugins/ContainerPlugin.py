@@ -654,7 +654,7 @@ class ContainerStopTask(Task):
         return ['system']
 
     def run(self, id, force=False):
-        self.dispatcher.call_sync('containerd.management.stop_container', id, force)
+        self.dispatcher.call_sync('containerd.management.stop_container', id, force, timeout=120)
         self.dispatcher.dispatch_event('container.changed', {
             'operation': 'update',
             'ids': [id]
