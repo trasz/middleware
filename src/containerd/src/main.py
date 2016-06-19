@@ -593,6 +593,7 @@ class Main(object):
         self.logger = logging.getLogger('containerd')
         self.bridge_interface = None
         self.used_nmdms = []
+        self.ec2 = None
         self.cv = threading.Condition()
 
     def init_datastore(self):
