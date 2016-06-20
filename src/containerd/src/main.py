@@ -119,6 +119,7 @@ class VirtualMachine(object):
         self.logger = logging.getLogger('VM:{0}'.format(self.name))
 
     def build_args(self):
+        xhci_devices = {}
         args = [
             '/usr/sbin/bhyve', '-A', '-H', '-P', '-c', str(self.config['ncpus']), '-m', str(self.config['memsize']),
             '-s', '0:0,hostbridge'
@@ -157,6 +158,19 @@ class VirtualMachine(object):
 
                 args += ['-s', '{0}:0,virtio-net,{1},mac={2}'.format(index, iface, mac)]
                 index += 1
+
+            if i['type'] == 'GRAPHICS':
+                port = self.context.allocate_vnc_port()
+                w, h = i['properties']['resolution'].split('x')
+                args += ['-s', '{0}:0,fbuf,tcp=127.0.0.1:{1},w={2},h={3},vncserver'.format(index, port, w, h)]
+                index += 1
+
+            if i['type'] == 'USB':
+                xhci_devices[i['properties']['device']] = i.get('config')
+
+        if xhci_devices:
+            args += ['-s', '{0}:0,xhci,{1}'.format(index, ','.join(xhci_devices.keys()))]
+            index += 1
 
         args += ['-s', '31,lpc', '-l', 'com1,{0}'.format(self.nmdm[0])]
 
@@ -591,6 +605,7 @@ class Main(object):
         self.logger = logging.getLogger('containerd')
         self.bridge_interface = None
         self.used_nmdms = []
+        self.vnc_ports = []
         self.ec2 = None
         self.cv = threading.Condition()
 
@@ -611,6 +626,18 @@ class Main(object):
 
     def release_nmdm(self, index):
         self.used_nmdms.remove(index)
+
+    def allocate_vnc_port(self):
+        if not self.vnc_ports:
+            self.vnc_ports.append(5900)
+            return 5900
+
+        port = max(self.vnc_ports) + 1
+        self.vnc_ports.append(port)
+        return port
+
+    def release_vnc_port(self, port):
+        self.vnc_ports.remove(port)
 
     def connect(self):
         while True:
