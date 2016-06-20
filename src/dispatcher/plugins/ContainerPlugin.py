@@ -357,6 +357,9 @@ class ContainerCreateTask(ContainerBaseTask):
             'ncpus': 1
         })
 
+        if container['config']['ncpus'] > 16:
+            raise TaskException(errno.EINVAL, 'Upper limit of VM cores exceeded. Maximum permissible value is 16.')
+
         self.init_dataset(container)
         for res in container['devices']:
             self.create_device(container, res)
@@ -478,6 +481,9 @@ class ContainerUpdateTask(ContainerBaseTask):
         return ['system']
 
     def run(self, id, updated_params):
+        if 'config' in updated_params and updated_params['config']['ncpus'] > 16:
+            raise TaskException(errno.EINVAL, 'Upper limit of VM cores exceeded. Maximum permissible value is 16.')
+
         container = self.datastore.get_by_id('containers', id)
         if container['immutable']:
             raise TaskException(errno.EACCES, 'Cannot modify immutable container {0}.'.format(id))
