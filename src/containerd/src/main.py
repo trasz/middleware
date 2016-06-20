@@ -158,14 +158,12 @@ class VirtualMachine(object):
                 args += ['-s', '{0}:0,virtio-net,{1},mac={2}'.format(index, iface, mac)]
                 index += 1
 
-        args += [
-            '-s', '31,lpc', '-l', 'com1,{0}'.format(self.nmdm[0]),
-            self.name
-        ]
+        args += ['-s', '31,lpc', '-l', 'com1,{0}'.format(self.nmdm[0])]
 
         if self.config['bootloader'] == 'UEFI':
             args += ['-l', 'bootrom,{0}'.format(BOOTROM_PATH)]
 
+        args.append(self.name)
         self.logger.debug('bhyve args: {0}'.format(args))
         return args
 
