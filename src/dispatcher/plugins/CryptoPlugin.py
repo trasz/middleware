@@ -439,23 +439,31 @@ class CertificateDeleteTask(Task):
         return ['system']
 
     def run(self, id):
-        ids = [id]
-        try:
-            for i in self.datastore.query('crypto.certificates', ('signing_ca_id', '=', id)):
-                ids.append(i['id'])
-                self.datastore.delete('crypto.certificates', i['id'])
+        def get_subject_cert_id_and_name():
+            return self.datastore.query('crypto.certificates', ('id', '=', id), select=('id', 'name'))
 
-            self.datastore.delete('crypto.certificates', id)
+        def get_related_certs_ids_and_names():
+            return self.datastore.query('crypto.certificates', ('signing_ca_id', '=', id), select=('id', 'name'))
+
+        certs = get_related_certs_ids_and_names()
+        certs.extend(get_subject_cert_id_and_name())
+
+        for (cid, cname) in certs:
+            if not self.dispatcher.run_hook('crypto.pre_delete', cid):
+                raise TaskException(errno.EBUSY, 'Certificate in use: {0}'.format(str(cname)))
+
+        try:
+            for (cid, _) in certs:
+                self.datastore.delete('crypto.certificates', cid)
             self.dispatcher.call_sync('etcd.generation.generate_group', 'crypto')
+            self.dispatcher.dispatch_event('crypto.certificate.changed', {
+                'operation': 'delete',
+                'ids': [cid for (cid, _) in certs]
+            })
         except DatastoreException as e:
             raise TaskException(errno.EBADMSG, 'Cannot delete certificate: {0}'.format(str(e)))
         except RpcException as e:
             raise TaskException(errno.ENXIO, 'Cannot generate certificate: {0}'.format(str(e)))
-
-        self.dispatcher.dispatch_event('crypto.certificate.changed', {
-            'operation': 'delete',
-            'ids': ids
-        })
 
 
 def _init(dispatcher, plugin):
@@ -506,6 +514,8 @@ def _init(dispatcher, plugin):
     plugin.register_task_handler('crypto.certificate.update', CertificateUpdateTask)
     plugin.register_task_handler('crypto.certificate.import', CertificateImportTask)
     plugin.register_task_handler('crypto.certificate.delete', CertificateDeleteTask)
+
+    plugin.register_hook('crypto.pre_delete')
 
     # Register event types
     plugin.register_event_type('crypto.certificate.changed')
