@@ -115,7 +115,7 @@ class IPFSConfigureTask(Task):
 
         if 'path' in ipfs:
             if ipfs['path'] in [None, ''] or ipfs['path'].isspace():
-                errors.add((0, path), "The provided path: '{0}' is not valid".format(ipfs['path']))
+                errors.add((0, ipfs['path']), "The provided path: '{0}' is not valid".format(ipfs['path']))
 
         if errors:
             raise errors
