@@ -1053,6 +1053,29 @@ def _init(dispatcher, plugin):
         'enum': ['VT9P', 'NFS']
     })
 
+    plugin.register_schema_definition('container-device-graphics', {
+        'type': 'object',
+        'additionalProperties': False,
+        'properties': {
+            'resolution': {'$ref': 'container-device-graphics-resolution'}
+        }
+    })
+
+    plugin.register_schema_definition('container-device-graphics-resolution', {
+        'type': 'string',
+        'enum': [
+            '1920x1200'
+            '1920x1080'
+            '1600x1200'
+            '1600x900'
+            '1280x1024'
+            '1280x720'
+            '1024x768'
+            '800x600'
+            '640x480'
+        ]
+    })
+
     def volume_pre_detach(args):
         for vm in dispatcher.call_sync('container.query'):
             if vm['target'] == args['name']:
