@@ -1076,6 +1076,22 @@ def _init(dispatcher, plugin):
         ]
     })
 
+    plugin.register_schema_definition('container-device-usb', {
+        'type': 'object',
+        'additionalProperties': False,
+        'properties': {
+            'device': {'type': 'string'},
+            'config': {
+                'type': 'object'  # XXX: not sure what goes there
+            }
+        }
+    })
+
+    plugin.register_schema_definition('container-device-usb-device', {
+        'type': 'string',
+        'enum': ['tablet']
+    })
+
     def volume_pre_detach(args):
         for vm in dispatcher.call_sync('container.query'):
             if vm['target'] == args['name']:
