@@ -998,7 +998,7 @@ def _init(dispatcher, plugin):
 
     plugin.register_schema_definition('container-device-type', {
         'type': 'string',
-        'enum': ['DISK', 'CDROM', 'NIC', 'VOLUME']
+        'enum': ['DISK', 'CDROM', 'NIC', 'VOLUME', 'GRAPHICS', 'USB']
     })
 
     plugin.register_schema_definition('container-device-nic', {
