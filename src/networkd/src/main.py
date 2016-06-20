@@ -398,6 +398,10 @@ class ConfigurationService(RpcService):
             if dhcp:
                 iface['dhcp'] = dhcp.__getstate__()
 
+            # Bridge interfaces don't report link state, so pretend they always have a link.
+            if iface['name'].startswith('bridge'):
+                iface['link_state'] = 'LINK_STATE_UP'
+
             return iface
 
         return {name: extend(name, i) for name, i in netif.list_interfaces().items()}
