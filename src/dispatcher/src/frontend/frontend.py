@@ -25,12 +25,8 @@
 #
 #####################################################################
 
-
-import json
-import inspect
-from flask import Flask, render_template, redirect, url_for
+from flask import Flask, render_template
 from flask_bootstrap import Bootstrap
-from freenas.utils import materialized_paths_to_tree
 
 
 app = Flask(__name__)
@@ -42,9 +38,11 @@ Bootstrap(app)
 def index():
     return render_template('base.html')
 
+
 @app.route('/start')
 def start():
     return render_template('starter.html')
+
 
 @app.route('/demo')
 def demo():
