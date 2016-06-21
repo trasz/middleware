@@ -37,26 +37,6 @@ from task import Provider, Task, TaskException, ValidationException, VerifyExcep
 from OpenSSL import crypto
 
 
-def get_next_x509_serial_number():
-    return int(time.time())
-
-
-def create_certificate(cert_info):
-    cert = crypto.X509()
-    cert.get_subject().C = cert_info['country']
-    cert.get_subject().ST = cert_info['state']
-    cert.get_subject().L = cert_info['city']
-    cert.get_subject().O = cert_info['organization']
-    cert.get_subject().CN = cert_info['common']
-    cert.get_subject().emailAddress = cert_info['email']
-    if not cert_info.get('serial'):
-        cert.set_serial_number(get_next_x509_serial_number())
-    cert.gmtime_adj_notBefore(0)
-    cert.gmtime_adj_notAfter(cert_info['lifetime'] * (60 * 60 * 24))
-
-    return cert
-
-
 def export_privatekey(buf, passphrase=None):
     key = crypto.load_privatekey(
         crypto.FILETYPE_PEM,
@@ -71,22 +51,17 @@ def export_privatekey(buf, passphrase=None):
     ).decode('utf-8')
 
 
-def generate_key(key_length):
-    k = crypto.PKey()
-    k.generate_key(crypto.TYPE_RSA, key_length)
-    return k
-
-
 def load_certificate(buf):
     cert = crypto.load_certificate(crypto.FILETYPE_PEM, buf)
 
-    cert_info = {}
-    cert_info['country'] = cert.get_subject().C
-    cert_info['state'] = cert.get_subject().ST
-    cert_info['city'] = cert.get_subject().L
-    cert_info['organization'] = cert.get_subject().O
-    cert_info['common'] = cert.get_subject().CN
-    cert_info['email'] = cert.get_subject().emailAddress
+    cert_info = {
+        'country': cert.get_subject().C,
+        'state': cert.get_subject().ST,
+        'city': cert.get_subject().L,
+        'organization': cert.get_subject().O,
+        'common': cert.get_subject().CN,
+        'email': cert.get_subject().emailAddress
+    }
 
     signature_algorithm = cert.get_signature_algorithm().decode('utf-8')
     m = re.match('^(.+)[Ww]ith', signature_algorithm)
@@ -108,9 +83,7 @@ def load_privatekey(buf, passphrase=None):
 class CertificateProvider(Provider):
     @query('crypto-certificate')
     def query(self, filter=None, params=None):
-
         def extend(certificate):
-
             buf = certificate.get('csr' if certificate['type'] == 'CERT_CSR' else 'certificate')
             if buf:
                 if certificate['type'] == 'CERT_CSR':
@@ -177,7 +150,8 @@ class CertificateCreateTask(Task):
 
         if certificate['type'] == 'CERT_INTERNAL':
             if self.datastore.exists('crypto.certificates', ('name', '=', certificate['name'])):
-                raise VerifyException(errno.EEXIST, 'Certificate named "{0}" already exists'.format(certificate['name']))
+                raise VerifyException(errno.EEXIST,
+                                      'Certificate named "{0}" already exists'.format(certificate['name']))
 
             if certificate['signing_ca_name'] != 'selfsigned':
                 if not self.datastore.exists('crypto.certificates', ('name', '=', certificate['signing_ca_name'])):
@@ -190,6 +164,57 @@ class CertificateCreateTask(Task):
         return ['system']
 
     def run(self, certificate):
+        def get_x509_inst(cert_info):
+            cert = crypto.X509()
+            map_x509_subject_info(cert, cert_info)
+            if not cert_info.get('serial'):
+                cert.set_serial_number(get_next_x509_serial_number())
+            cert.gmtime_adj_notBefore(0)
+            cert.gmtime_adj_notAfter(cert_info['lifetime'] * (60 * 60 * 24))
+            return cert
+
+        def get_x509req_inst(cert_info):
+            req = crypto.X509Req()
+            map_x509_subject_info(req, cert_info)
+            return req
+
+        def get_next_x509_serial_number():
+            return int(time.time())
+
+        def map_x509_subject_info(x509, info):
+            x509.get_subject().C = info['country']
+            x509.get_subject().ST = info['state']
+            x509.get_subject().L = info['city']
+            x509.get_subject().O = info['organization']
+            x509.get_subject().CN = info['common']
+            x509.get_subject().emailAddress = info['email']
+
+        def add_x509_extensions(x509, cert_type):
+            if cert_type == 'CERT_INTERNAL':
+                x509.add_extensions([
+                    crypto.X509Extension("subjectKeyIdentifier".encode('utf-8'), False, "hash".encode('utf-8'),
+                                         subject=x509)
+                ])
+            if cert_type == 'CA_INTERNAL':
+                x509.add_extensions([
+                    crypto.X509Extension("basicConstraints".encode('utf-8'), True, "CA:TRUE".encode('utf-8')),
+                    crypto.X509Extension("keyUsage".encode('utf-8'), True, "keyCertSign, cRLSign".encode('utf-8')),
+                    crypto.X509Extension("subjectKeyIdentifier".encode('utf-8'), False, "hash".encode('utf-8'),
+                                         subject=x509),
+                ])
+            if cert_type == 'CA_INTERMEDIATE':
+                x509.add_extensions([
+                    crypto.X509Extension("basicConstraints".encode('utf-8'), True, "CA:TRUE".encode('utf-8')),
+                    crypto.X509Extension("keyUsage".encode('utf-8'), True, "keyCertSign, cRLSign".encode('utf-8')),
+                    crypto.X509Extension("subjectKeyIdentifier".encode('utf-8'), False, "hash".encode('utf-8'),
+                                         subject=x509),
+                ])
+
+        def generate_key(key_length):
+            k = crypto.PKey()
+            k.generate_key(crypto.TYPE_RSA, key_length)
+            return k
+
         try:
             certificate['key_length'] = certificate.get('key_length', 2048)
             certificate['digest_algorithm'] = certificate.get('digest_algorithm', 'SHA256')
@@ -197,101 +222,45 @@ class CertificateCreateTask(Task):
 
             key = generate_key(certificate['key_length'])
 
-            if certificate['type'] == 'CERT_INTERNAL':
-
-                cert = create_certificate(certificate)
-                cert.set_pubkey(key)
-                cert.add_extensions([
-                    crypto.X509Extension("subjectKeyIdentifier".encode('utf-8'), False, "hash".encode('utf-8'),
-                                         subject=cert)
-                ])
-
-                if certificate['signing_ca_name'] != 'selfsigned':
-                    signing_cert = self.datastore.get_one('crypto.certificates', ('name', '=', certificate['signing_ca_name']))
-                    signkey = load_privatekey(signing_cert['privatekey'])
-                    certificate['signing_ca_id'] = signing_cert['id']
-                    cacert = crypto.load_certificate(crypto.FILETYPE_PEM, signing_cert['certificate'])
-                    cert.set_issuer(cacert.get_subject())
-                    cert.sign(signkey, str(certificate['digest_algorithm']))
-                else:
-                    cert.set_issuer(cert.get_subject())
-                    cert.sign(key, str(certificate['digest_algorithm']))
-
-                certificate['certificate'] = crypto.dump_certificate(crypto.FILETYPE_PEM, cert).decode('utf-8')
-                certificate['privatekey'] = crypto.dump_privatekey(crypto.FILETYPE_PEM, key).decode('utf-8')
-                certificate['serial'] = cert.get_serial_number()
-
-                pkey = self.datastore.insert('crypto.certificates', certificate)
-
             if certificate['type'] == 'CERT_CSR':
+                x509 = get_x509req_inst(certificate)
+                x509.set_pubkey(key)
+                x509.sign(key, str(certificate['digest_algorithm']))
 
-                req = crypto.X509Req()
-                req.get_subject().C = certificate['country']
-                req.get_subject().ST = certificate['state']
-                req.get_subject().L = certificate['city']
-                req.get_subject().O = certificate['organization']
-                req.get_subject().CN = certificate['common']
-                req.get_subject().emailAddress = certificate['email']
+                certificate['csr'] = crypto.dump_certificate_request(crypto.FILETYPE_PEM, x509).decode('utf-8')
+                certificate['privatekey'] = crypto.dump_privatekey(crypto.FILETYPE_PEM, key).decode('utf-8')
+            else:
+                x509 = get_x509_inst(certificate)
+                x509.set_pubkey(key)
+                add_x509_extensions(x509, certificate['type'])
 
-                req.set_pubkey(key)
-                req.sign(key, str(certificate['digest_algorithm']))
+                if 'signing_ca_name' in certificate and certificate['signing_ca_name'] != 'selfsigned':
+                    signing_cert_db_entry = self.datastore.get_one('crypto.certificates',
+                                                                   ('name', '=', certificate['signing_ca_name']))
+                    certificate['signing_ca_id'] = signing_cert_db_entry['id']
+                    signing_x509 = crypto.load_certificate(crypto.FILETYPE_PEM, signing_cert_db_entry['certificate'])
+                    signkey = load_privatekey(signing_cert_db_entry['privatekey'])
+                else:
+                    signing_x509 = x509
+                    signkey = key
 
-                certificate['csr'] = crypto.dump_certificate_request(crypto.FILETYPE_PEM, req).decode('utf-8')
+                x509.set_issuer(signing_x509.get_subject())
+                x509.sign(signkey, str(certificate['digest_algorithm']))
+
+                certificate['serial'] = x509.get_serial_number()
+                certificate['certificate'] = crypto.dump_certificate(crypto.FILETYPE_PEM, x509).decode('utf-8')
                 certificate['privatekey'] = crypto.dump_privatekey(crypto.FILETYPE_PEM, key).decode('utf-8')
 
-                pkey = self.datastore.insert('crypto.certificates', certificate)
-
-            if certificate['type'] == 'CA_INTERNAL':
-
-                cert = create_certificate(certificate)
-                cert.set_pubkey(key)
-                cert.add_extensions([
-                    crypto.X509Extension("basicConstraints".encode('utf-8'), True, "CA:TRUE".encode('utf-8')),
-                    crypto.X509Extension("keyUsage".encode('utf-8'), True, "keyCertSign, cRLSign".encode('utf-8')),
-                    crypto.X509Extension("subjectKeyIdentifier".encode('utf-8'), False, "hash".encode('utf-8'), subject=cert),
-                ])
-                cert.set_issuer(cert.get_subject())
-                cert.sign(key, str(certificate['digest_algorithm']))
-
-                certificate['certificate'] = crypto.dump_certificate(crypto.FILETYPE_PEM, cert).decode('utf-8')
-                certificate['privatekey'] = crypto.dump_privatekey(crypto.FILETYPE_PEM, key).decode('utf-8')
-                certificate['serial'] = cert.get_serial_number()
-
-                pkey = self.datastore.insert('crypto.certificates', certificate)
-
-            if certificate['type'] == 'CA_INTERMEDIATE':
-
-                signing_cert = self.datastore.get_one('crypto.certificates', ('name', '=', certificate['signing_ca_name']))
-                signkey = load_privatekey(signing_cert['privatekey'])
-                cert = create_certificate(certificate)
-                cert.set_pubkey(key)
-                cert.add_extensions([
-                    crypto.X509Extension("basicConstraints".encode('utf-8'), True, "CA:TRUE".encode('utf-8')),
-                    crypto.X509Extension("keyUsage".encode('utf-8'), True, "keyCertSign, cRLSign".encode('utf-8')),
-                    crypto.X509Extension("subjectKeyIdentifier".encode('utf-8'), False, "hash".encode('utf-8'), subject=cert),
-                ])
-                cacert = crypto.load_certificate(crypto.FILETYPE_PEM, signing_cert['certificate'])
-                cert.set_issuer(cacert.get_subject())
-                cert.sign(signkey, str(certificate['digest_algorithm']))
-
-                certificate['certificate'] = crypto.dump_certificate(crypto.FILETYPE_PEM, cert).decode('utf-8')
-                certificate['privatekey'] = crypto.dump_privatekey(crypto.FILETYPE_PEM, key).decode('utf-8')
-                certificate['serial'] = cert.get_serial_number()
-                certificate['signing_ca_id'] = signing_cert['id']
-
-                pkey = self.datastore.insert('crypto.certificates', certificate)
-
+            pkey = self.datastore.insert('crypto.certificates', certificate)
             self.dispatcher.call_sync('etcd.generation.generate_group', 'crypto')
-
+            self.dispatcher.dispatch_event('crypto.certificate.changed', {
+                'operation': 'create',
+                'ids': [pkey]
+            })
         except DatastoreException as e:
             raise TaskException(errno.EBADMSG, 'Cannot create certificate: {0}'.format(str(e)))
         except RpcException as e:
             raise TaskException(errno.ENXIO, 'Cannot generate certificate: {0}'.format(str(e)))
-
-        self.dispatcher.dispatch_event('crypto.certificate.changed', {
-            'operation': 'create',
-            'ids': [pkey]
-        })
 
         return pkey
 
@@ -310,7 +279,6 @@ class CertificateImportTask(Task):
         return TaskDescription("Importing certificate {name}", name=certificate['name'])
 
     def verify(self, certificate):
-
         if self.datastore.exists('crypto.certificates', ('name', '=', certificate['name'])):
             raise VerifyException(errno.EEXIST, 'Certificate named "{0}" already exists'.format(certificate['name']))
 
@@ -330,7 +298,6 @@ class CertificateImportTask(Task):
         return ['system']
 
     def run(self, certificate):
-
         certificate.update(load_certificate(certificate['certificate']))
 
         if 'privatekey' in certificate:
@@ -366,7 +333,6 @@ class CertificateUpdateTask(Task):
         return TaskDescription("Updating certificate {name}", name=id)
 
     def verify(self, id, updated_fields):
-
         certificate = self.datastore.get_by_id('crypto.certificates', id)
         if certificate is None:
             raise VerifyException(errno.ENOENT, 'Certificate ID {0} does not exist'.format(id))
@@ -388,7 +354,6 @@ class CertificateUpdateTask(Task):
         return ['system']
 
     def run(self, id, updated_fields):
-
         try:
             certificate = self.datastore.get_by_id('crypto.certificates', id)
             if certificate['type'] == 'CERT_CSR':
