@@ -49,6 +49,7 @@ import select
 import tempfile
 import ipaddress
 import pf
+import urllib.parse
 from bsd import kld, sysctl
 from gevent.queue import Queue, Channel
 from gevent.event import Event
@@ -114,6 +115,7 @@ class VirtualMachine(object):
         self.console_queues = []
         self.console_thread = None
         self.tap_interfaces = {}
+        self.vnc_port = None
         self.thread = None
         self.exiting = False
         self.logger = logging.getLogger('VM:{0}'.format(self.name))
@@ -160,9 +162,9 @@ class VirtualMachine(object):
                 index += 1
 
             if i['type'] == 'GRAPHICS':
-                port = self.context.allocate_vnc_port()
+                self.vnc_port = self.context.allocate_vnc_port()
                 w, h = i['properties']['resolution'].split('x')
-                args += ['-s', '{0}:0,fbuf,tcp=127.0.0.1:{1},w={2},h={3},vncserver'.format(index, port, w, h)]
+                args += ['-s', '{0}:0,fbuf,tcp=127.0.0.1:{1},w={2},h={3},vncserver'.format(index, self.vnc_port, w, h)]
                 index += 1
 
             if i['type'] == 'USB':
@@ -591,6 +593,59 @@ class ConsoleConnection(WebSocketApplication, EventEmitter):
             self.inq.put(i)
 
 
+class VncConnection(WebSocketApplication, EventEmitter):
+    def __init__(self, ws, context):
+        super(VncConnection, self).__init__(ws)
+        self.context = context
+        self.logger = logging.getLogger('VncConnection')
+        self.cfd = None
+        self.vm = None
+
+    @classmethod
+    def protocol_name(cls):
+        return 'binary'
+
+    def on_open(self, *args, **kwargs):
+        qs = dict(urllib.parse.parse_qsl(self.ws.environ['QUERY_STRING']))
+        token = qs.get('token')
+        if not token:
+            self.ws.close()
+            return
+
+        cid = self.context.tokens.get(token)
+        if not cid:
+            self.logger.warn('Invalid token {0}, closing connection'.format(token))
+            self.ws.close()
+            return
+
+        def read():
+            buffer = bytearray(4096)
+            while True:
+                d = self.cfd.recv(4096)
+                if not d:
+                    return
+
+                self.ws.send(d)
+
+        self.vm = self.context.containers[cid]
+        self.logger.info('Opening VNC console to {0} (token {1})'.format(self.vm.name, token))
+
+        self.cfd = socket.socket(socket.AF_INET, socket.SOCK_STREAM, socket.IPPROTO_TCP)
+        self.cfd.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
+        self.cfd.connect(('127.0.0.1', self.vm.vnc_port))
+        gevent.spawn(read)
+
+    def on_message(self, message, *args, **kwargs):
+        if message is None:
+            self.ws.close()
+
+        self.cfd.send(message)
+
+    def on_close(self, *args, **kwargs):
+        self.cfd.shutdown(socket.SHUT_RDWR)
+        self.cfd.close()
+
+
 class Main(object):
     def __init__(self):
         self.client = None
@@ -792,10 +847,12 @@ class Main(object):
         kwargs = {}
         s4 = WebSocketServer(('', args.p), ServerResource({
             '/console': ConsoleConnection,
+            '/vnc': VncConnection,
         }, context=self), **kwargs)
 
         s6 = WebSocketServer(('::', args.p), ServerResource({
             '/console': ConsoleConnection,
+            '/vnc': VncConnection
         }, context=self), **kwargs)
 
         serv_threads = [gevent.spawn(s4.serve_forever), gevent.spawn(s6.serve_forever)]
