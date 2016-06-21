@@ -627,11 +627,11 @@ class VncConnection(WebSocketApplication, EventEmitter):
         def read():
             buffer = bytearray(4096)
             while True:
-                d = self.cfd.recv(4096)
-                if not d:
+                n = self.cfd.recv_into(buffer)
+                if n == 0:
                     return
 
-                self.ws.send(d)
+                self.ws.send(buffer[:n])
 
         self.vm = self.context.containers[cid]
         self.logger.info('Opening VNC console to {0} (token {1})'.format(self.vm.name, token))
@@ -644,6 +644,7 @@ class VncConnection(WebSocketApplication, EventEmitter):
     def on_message(self, message, *args, **kwargs):
         if message is None:
             self.ws.close()
+            return
 
         self.cfd.send(message)
 
