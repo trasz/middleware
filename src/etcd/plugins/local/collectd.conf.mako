@@ -68,9 +68,19 @@ LoadPlugin write_graphite
         Port "2003"
         StoreRates true
         AlwaysAppendDS true
-   </Node>
+    </Node>
 </Plugin>
 
 <LoadPlugin python>
     Globals true
 </LoadPlugin>
+
+<Plugin python>
+    ModulePath "/usr/local/lib/fnstatd/plugins"
+    LogTraces true
+    Interactive false
+    Import "collectd-zfs"
+
+    <Module collectd-zfs>
+    </Module>
+</Plugin>
