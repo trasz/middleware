@@ -1,0 +1,9 @@
+plugins/ReplicationTransportPlugin.so
+src/frontend/static
+libexec
+tests
+tools
+Makefile
+requirements.txt
+setup_plugins.py
+etc

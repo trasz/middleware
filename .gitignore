@@ -70,3 +70,4 @@ src/gui/freenas9-conf - Copy.json
 src/gui/freenas9-conf - MiniHome.json
 src/gui/freenas10-conf - mini.json
 src/gui/log/
+tools/freenasdev.conf

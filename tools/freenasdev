@@ -1,0 +1,185 @@
+#!/bin/sh
+# A bunch of functions to make life easier for the FreeNAS Devs
+
+
+function myrsync() {
+	if [ $# -lt 2 ]; then
+		echo "rsync command needs two arguments: source (1st) and dest(2nd)"
+	else
+		rsync_opts="--info=progress2 -rlptvz --delete ${1} -e \"ssh\" ${2}"
+		shift 2
+		if [ $# -eq 0 ];
+		then
+			rsync_opts="$@ ${rsync_opts}"
+		fi
+		rsync ${rsync_opts}
+	fi
+}
+
+function myrsyncnodel() {
+	if [ $# -lt 2 ]; then
+		echo "rsync command needs two arguments: source (1st) and dest(2nd)"
+	else
+		rsync_opts="--info=progress2 -rlptvz ${1} -e \"ssh\" ${2}"
+		shift 2
+		if [ $# -eq 0 ];
+		then
+			rsync_opts="$@ ${rsync_opts}"
+		fi
+		rsync ${rsync_opts}
+	fi
+}
+
+function freenasrsync_ws4py() {
+	myrsync ${REPO_PARENT_PATH}/WebSocket-for-Python/ws4py "root@${1}":/usr/local/lib/python3.4/site-packages/
+}
+
+function freenasrsync_updater() {
+	myrsync ${REPO_PARENT_PATH}/middleware/src/freenas-pkgtools/lib/ "root@${1}:/usr/local/lib/freenasOS/"
+	myrsyncnodel ${REPO_PARENT_PATH}/middleware/src/freenas-pkgtools/freenas-update/freenas-update.py "root@${1}:/usr/local/bin/freenas-update"
+	ssh root@${1} '/bin/chmod +x /usr/local/bin/freenas-update'
+}
+
+function freenasrsync_cli() {
+	myrsync ${REPO_PARENT_PATH}/cli/freenas/cli/ "root@${1}":/usr/local/lib/python3.4/site-packages/freenas/cli/
+	myrsyncnodel ${REPO_PARENT_PATH}/cli/tools/ "root@${1}":/usr/local/bin/
+	ssh root@${1} '/bin/chmod +x /usr/local/bin/cli /usr/local/bin/logincli'
+}
+
+function freenasrsync_utils() {
+	myrsync ${REPO_PARENT_PATH}/py-freenas-utils/freenas/utils/ "root@${1}":/usr/local/lib/python3.4/site-packages/freenas/utils/
+}
+
+
+function freenasrsync_client() {
+	# python dispatcher client stuff
+	myrsync ${REPO_PARENT_PATH}/dispatcher-client/python/freenas/dispatcher/ "root@${1}":/usr/local/lib/python3.4/site-packages/freenas/dispatcher/
+
+	# javascript dispatcher client stuff
+	if [[ "${2}" == "js" ]];
+	then
+		cur_dir=$(pwd)
+		cd ${REPO_PARENT_PATH}/dispatcher-client/javascript
+		sudo npm install --unsafe-perm -g .
+		NODE_PATH=/opt/local/lib/node_modules browserify --standalone middleware -r dispatcher-client -o ./middleware.js
+		myrsync ${REPO_PARENT_PATH}/dispatcher-client/javascript/middleware.js "root@${1}":/usr/local/lib/dispatcher/src/frontend/static/middleware.js
+		cd ${cur_dir}
+	fi
+}
+
+function freenasrsync_dispatcher() {
+	# Main Source and Plugins
+	myrsync ${REPO_PARENT_PATH}/middleware/src/dispatcher/ "root@${1}":/usr/local/lib/dispatcher/ --exclude-from="${REPO_PARENT_PATH}/middleware/tools/dispatcher_rsync_exclude_list.txt"
+	myrsyncnodel ${REPO_PARENT_PATH}/middleware/src/dispatcher/src/frontend/static/ "root@${1}":/usr/local/lib/dispatcher/src/frontend/static/
+	# myrsync ${REPO_PARENT_PATH}/middleware/src/dispatcher/plugins "root@${1}":/usr/local/lib/dispatcher/
+
+	# Libexec stuff
+	myrsync ${REPO_PARENT_PATH}/middleware/src/dispatcher/libexec/ "root@${1}":/usr/local/libexec/dispatcher/
+	myrsync ${REPO_PARENT_PATH}/middleware/src/dispatcher/tools/taskworker "root@${1}":/usr/local/libexec/taskworker
+
+	# rc.d dispatcher stuff
+	myrsync ${REPO_PARENT_PATH}/middleware/src/dispatcher/etc/dispatcher "root@${1}":/usr/local/etc/rc.d/dispatcher
+	myrsync ${REPO_PARENT_PATH}/middleware/src/dispatcher/etc/middleware.conf "root@${1}":/usr/local/etc/middleware.conf
+
+	# sbin stuff
+	myrsyncnodel ${REPO_PARENT_PATH}/middleware/src/dispatcher/tools/ "root@${1}":/usr/local/sbin/ --exclude taskworker
+
+	# Fix all perms and such
+	ssh root@${1} '/bin/chmod +x /usr/local/sbin/dispatcherd /usr/local/libexec/taskworker /usr/local/etc/rc.d/dispatcher'
+
+	# If the dispatcher client repo exists then rsync that over too
+	if [ -d "${REPO_PARENT_PATH}/dispatcher-client" ];
+	then
+		freenasrsync_client ${@:1}
+	fi
+}
+
+
+function freenasrsync_networkd() {
+	myrsync ${REPO_PARENT_PATH}/middleware/src/networkd/src "root@${1}":/usr/local/lib/networkd/
+	myrsync ${REPO_PARENT_PATH}/middleware/src/networkd/etc/networkd "root@${1}":/usr/local/etc/rc.d/networkd
+	myrsync ${REPO_PARENT_PATH}/middleware/src/networkd/sbin/networkd "root@${1}":/usr/local/sbin/networkd
+	ssh root@${1} '/bin/chmod +x /usr/local/etc/rc.d/networkd /usr/local/etc/rc.d/networkd'
+}
+
+
+function freenasrsync_etcd() {
+	myrsync ${REPO_PARENT_PATH}/middleware/src/etcd/src "root@${1}":/usr/local/lib/etcd/
+	myrsync ${REPO_PARENT_PATH}/middleware/src/etcd/plugins "root@${1}":/usr/local/lib/etcd/
+	myrsyncnodel ${REPO_PARENT_PATH}/middleware/src/etcd/etc/etcd "root@${1}":/usr/local/etc/rc.d/etcd
+	myrsyncnodel ${REPO_PARENT_PATH}/middleware/src/etcd/tools/etcd "root@${1}":/usr/local/sbin/etcd        
+	ssh root@${1} '/bin/chmod +x /usr/local/etc/rc.d/etcd /usr/local/sbin/etcd'
+}
+
+function freenasrsync_datastore() {
+	myrsync ${REPO_PARENT_PATH}/middleware/src/datastore/drivers/ "root@${1}":/usr/local/lib/datastore/drivers/
+	myrsync ${REPO_PARENT_PATH}/middleware/src/datastore/share/ "root@${1}":/usr/local/share/datastore/
+	myrsync ${REPO_PARENT_PATH}/middleware/src/datastore/datastore/ "root@${1}":/usr/local/lib/python3.4/site-packages/datastore/
+	myrsyncnodel ${REPO_PARENT_PATH}/middleware/src/datastore/sbin/ "root@${1}":/usr/local/sbin/
+	myrsyncnodel ${REPO_PARENT_PATH}/middleware/src/datastore/etc/ "root@${1}":/usr/local/etc/
+
+	# Fix all perms and such
+	ssh root@${1} 'cd /usr/local/sbin/ && /bin/chmod +x dsmigrate dsinit dsdump dspasswd dsprinttask dsrestore dsutil dswatch'
+}
+
+function freenasrsync() {
+	if [[ "${1}" == "" ]];
+	then
+		echo "rsync target must be specified. Example freenasrsync dispatcher"
+		return 1
+	fi
+	if [[ "${2}" == "" ]]; 
+	then
+		echo "Gimme an IP address stupid!"
+	   return 1
+	else
+		rsync_cmd="freenasrsync_${1}"
+		shift
+		${rsync_cmd} $@
+	fi
+	return $?
+}
+
+function freenascheckout() {
+	if [[ "${1}" == "" ]];
+	then
+		for repo in "middleware" "cli" "dispatcher-client" "WebSocket-for-Python" "py-freenas-utils"
+		do
+			git --work-tree="${REPO_PARENT_PATH}/${repo}" --git-dir="${REPO_PARENT_PATH}/${repo}/.git" pull --rebase
+		done
+	fi
+}
+
+function config_file_example() {
+	echo "Example freenasdev.conf file:";
+	echo "REPO_PARENT_PATH=\"/Users/suraj/Documents/iX\"";
+}
+### Main shell script body
+
+# Hack to get script's path
+ABSPATH=$(cd "$(dirname "$0")"; pwd);
+CONFIGFILE="${ABSPATH}/freenasdev.conf";
+
+if [[ -e ${CONFIGFILE} ]];
+then
+	source ${CONFIGFILE}
+	if [ -z ${REPO_PARENT_PATH} ];
+	then
+		echo "Please specify REPO_PARENT_PATH via a key value pair in the CONFIGFILE: ${CONFIGFILE}";
+		config_file_example;
+		exit 1;
+	fi
+else
+	echo \
+"Please create a key value pair based CONFIGFILE over at ${CONFIGFILE} and at minimum"\
+" assign it REPO_PARENT_PATH=path_to_folder_containing_freenas_repos";
+	config_file_example;
+	exit 1
+fi
+
+
+cmd="freenas${1}"
+shift
+${cmd} $@
+
+exit $?
