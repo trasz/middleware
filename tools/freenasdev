@@ -2,7 +2,7 @@
 # A bunch of functions to make life easier for the FreeNAS Devs
 
 
-function myrsync() {
+myrsync() {
 	if [ $# -lt 2 ]; then
 		echo "rsync command needs two arguments: source (1st) and dest(2nd)"
 	else
@@ -16,7 +16,7 @@ function myrsync() {
 	fi
 }
 
-function myrsyncnodel() {
+myrsyncnodel() {
 	if [ $# -lt 2 ]; then
 		echo "rsync command needs two arguments: source (1st) and dest(2nd)"
 	else
@@ -30,28 +30,28 @@ function myrsyncnodel() {
 	fi
 }
 
-function freenasrsync_ws4py() {
+freenasrsync_ws4py() {
 	myrsync ${REPO_PARENT_PATH}/WebSocket-for-Python/ws4py "root@${1}":/usr/local/lib/python3.4/site-packages/
 }
 
-function freenasrsync_updater() {
+freenasrsync_updater() {
 	myrsync ${REPO_PARENT_PATH}/middleware/src/freenas-pkgtools/lib/ "root@${1}:/usr/local/lib/freenasOS/"
 	myrsyncnodel ${REPO_PARENT_PATH}/middleware/src/freenas-pkgtools/freenas-update/freenas-update.py "root@${1}:/usr/local/bin/freenas-update"
 	ssh root@${1} '/bin/chmod +x /usr/local/bin/freenas-update'
 }
 
-function freenasrsync_cli() {
+freenasrsync_cli() {
 	myrsync ${REPO_PARENT_PATH}/cli/freenas/cli/ "root@${1}":/usr/local/lib/python3.4/site-packages/freenas/cli/
 	myrsyncnodel ${REPO_PARENT_PATH}/cli/tools/ "root@${1}":/usr/local/bin/
 	ssh root@${1} '/bin/chmod +x /usr/local/bin/cli /usr/local/bin/logincli'
 }
 
-function freenasrsync_utils() {
+freenasrsync_utils() {
 	myrsync ${REPO_PARENT_PATH}/py-freenas-utils/freenas/utils/ "root@${1}":/usr/local/lib/python3.4/site-packages/freenas/utils/
 }
 
 
-function freenasrsync_client() {
+freenasrsync_client() {
 	# python dispatcher client stuff
 	myrsync ${REPO_PARENT_PATH}/dispatcher-client/python/freenas/dispatcher/ "root@${1}":/usr/local/lib/python3.4/site-packages/freenas/dispatcher/
 
@@ -67,7 +67,7 @@ function freenasrsync_client() {
 	fi
 }
 
-function freenasrsync_dispatcher() {
+freenasrsync_dispatcher() {
 	# Main Source and Plugins
 	myrsync ${REPO_PARENT_PATH}/middleware/src/dispatcher/ "root@${1}":/usr/local/lib/dispatcher/ --exclude-from="${REPO_PARENT_PATH}/middleware/tools/dispatcher_rsync_exclude_list.txt"
 	myrsyncnodel ${REPO_PARENT_PATH}/middleware/src/dispatcher/src/frontend/static/ "root@${1}":/usr/local/lib/dispatcher/src/frontend/static/
@@ -95,7 +95,7 @@ function freenasrsync_dispatcher() {
 }
 
 
-function freenasrsync_networkd() {
+freenasrsync_networkd() {
 	myrsync ${REPO_PARENT_PATH}/middleware/src/networkd/src "root@${1}":/usr/local/lib/networkd/
 	myrsync ${REPO_PARENT_PATH}/middleware/src/networkd/etc/networkd "root@${1}":/usr/local/etc/rc.d/networkd
 	myrsync ${REPO_PARENT_PATH}/middleware/src/networkd/sbin/networkd "root@${1}":/usr/local/sbin/networkd
@@ -103,7 +103,7 @@ function freenasrsync_networkd() {
 }
 
 
-function freenasrsync_etcd() {
+freenasrsync_etcd() {
 	myrsync ${REPO_PARENT_PATH}/middleware/src/etcd/src "root@${1}":/usr/local/lib/etcd/
 	myrsync ${REPO_PARENT_PATH}/middleware/src/etcd/plugins "root@${1}":/usr/local/lib/etcd/
 	myrsyncnodel ${REPO_PARENT_PATH}/middleware/src/etcd/etc/etcd "root@${1}":/usr/local/etc/rc.d/etcd
@@ -111,7 +111,7 @@ function freenasrsync_etcd() {
 	ssh root@${1} '/bin/chmod +x /usr/local/etc/rc.d/etcd /usr/local/sbin/etcd'
 }
 
-function freenasrsync_datastore() {
+freenasrsync_datastore() {
 	myrsync ${REPO_PARENT_PATH}/middleware/src/datastore/drivers/ "root@${1}":/usr/local/lib/datastore/drivers/
 	myrsync ${REPO_PARENT_PATH}/middleware/src/datastore/share/ "root@${1}":/usr/local/share/datastore/
 	myrsync ${REPO_PARENT_PATH}/middleware/src/datastore/datastore/ "root@${1}":/usr/local/lib/python3.4/site-packages/datastore/
@@ -122,7 +122,7 @@ function freenasrsync_datastore() {
 	ssh root@${1} 'cd /usr/local/sbin/ && /bin/chmod +x dsmigrate dsinit dsdump dspasswd dsprinttask dsrestore dsutil dswatch'
 }
 
-function freenasrsync() {
+freenasrsync() {
 	if [[ "${1}" == "" ]];
 	then
 		echo "rsync target must be specified. Example freenasrsync dispatcher"
@@ -140,17 +140,21 @@ function freenasrsync() {
 	return $?
 }
 
-function freenascheckout() {
+freenascheckout() {
 	if [[ "${1}" == "" ]];
 	then
 		for repo in "middleware" "cli" "dispatcher-client" "WebSocket-for-Python" "py-freenas-utils"
 		do
-			git --work-tree="${REPO_PARENT_PATH}/${repo}" --git-dir="${REPO_PARENT_PATH}/${repo}/.git" pull --rebase
+			if [ -d "${REPO_PARENT_PATH}/${repo}" ];
+			then
+				echo "Updating ${repo} git repo"
+				git --work-tree="${REPO_PARENT_PATH}/${repo}" --git-dir="${REPO_PARENT_PATH}/${repo}/.git" pull --rebase
+			fi
 		done
 	fi
 }
 
-function config_file_example() {
+config_file_example() {
 	echo "Example freenasdev.conf file:";
 	echo "REPO_PARENT_PATH=\"/Users/suraj/Documents/iX\"";
 }
