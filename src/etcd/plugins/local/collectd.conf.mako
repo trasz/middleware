@@ -70,3 +70,7 @@ LoadPlugin write_graphite
         AlwaysAppendDS true
    </Node>
 </Plugin>
+
+<LoadPlugin python>
+    Globals true
+</LoadPlugin>
