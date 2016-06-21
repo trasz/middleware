@@ -2,13 +2,31 @@
 <html>
 <head>
 	<meta charset="utf-8">
-	<title>VNC console {{ token }}</title>
+	<title>FreeNAS container console</title>
     <script src="static/util.js"></script>
+    <style type="text/css">
+        html, body {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            display: table;
+            background-color: black;
+        }
+
+        #wrapper {
+            display: table-cell;
+            text-align: center;
+            vertical-align: middle;
+        }
+    </style>
 </head>
 <body>
-    <canvas id="vnc">
-        Canvas not supported.
-    </canvas>
+    <div id="wrapper">
+        <canvas id="vnc">
+            Canvas not supported.
+        </canvas>
+    </div>
     <script>
         var INCLUDE_URI = "/containerd/webvnc/static/";
         Util.load_scripts([
