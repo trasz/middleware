@@ -484,6 +484,11 @@ class ManagementService(RpcService):
         return token
 
     @private
+    def request_webvnc_console(self, id):
+        token = self.request_console(id)
+        return 'http://{0}/containerd/webvnc/{1}'.format(socket.gethostname(), token)
+
+    @private
     def get_mgmt_allocations(self):
         return [i.__getstate__() for i in self.context.mgmt.allocations.values()]
 
