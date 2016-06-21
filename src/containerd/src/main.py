@@ -50,6 +50,7 @@ import tempfile
 import ipaddress
 import pf
 import urllib.parse
+from vnc import app
 from bsd import kld, sysctl
 from gevent.queue import Queue, Channel
 from gevent.event import Event
@@ -848,11 +849,13 @@ class Main(object):
         s4 = WebSocketServer(('', args.p), ServerResource({
             '/console': ConsoleConnection,
             '/vnc': VncConnection,
+            '/webvnc/[\w]+': app
         }, context=self), **kwargs)
 
         s6 = WebSocketServer(('::', args.p), ServerResource({
             '/console': ConsoleConnection,
-            '/vnc': VncConnection
+            '/vnc': VncConnection,
+            '/webvnc/[\w]+': app
         }, context=self), **kwargs)
 
         serv_threads = [gevent.spawn(s4.serve_forever), gevent.spawn(s6.serve_forever)]

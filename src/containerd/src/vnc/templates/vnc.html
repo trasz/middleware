@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<meta charset="utf-8">
+	<title>VNC console {{ token }}</title>
+    <script src="static/util.js"></script>
+</head>
+<body>
+    <canvas id="vnc">
+        Canvas not supported.
+    </canvas>
+    <script>
+        var INCLUDE_URI = "/containerd/webvnc/static/";
+        Util.load_scripts([
+            "webutil.js", "base64.js", "websock.js", "des.js",
+            "keysymdef.js", "keyboard.js", "input.js", "display.js",
+            "inflator.js", "rfb.js", "keysym.js"
+        ]);
+
+        window.onscriptsload = function () {
+            var rfb = new RFB({
+                "target": document.getElementById("vnc")
+            });
+
+            rfb.connect(window.location.host, 80, null, "/containerd/vnc?token={{ token }}");
+        }
+    </script>
+</body>
+</html>
