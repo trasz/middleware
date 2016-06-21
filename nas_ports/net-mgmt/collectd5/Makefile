@@ -3,7 +3,7 @@
 
 PORTNAME=	collectd
 PORTVERSION=	5.5.0
-PORTREVISION=	5
+PORTREVISION=	6
 CATEGORIES=	net-mgmt
 MASTER_SITES=	https://collectd.org/files/ \
 		http://collectd.org/files/
@@ -202,7 +202,7 @@ PING_LIB_DEPENDS=		liboping.so:${PORTSDIR}/net/liboping
 PING_CONFIGURE_ENABLE=		ping
 PING_CONFIGURE_WITH=		liboping=${LOCALBASE}
 
-PYTHON_USES=			python:2
+PYTHON_USES=			python:3
 PYTHON_CONFIGURE_ENABLE=	python
 PYTHON_CONFIGURE_WITH=		python=${PYTHON_CMD}
 
