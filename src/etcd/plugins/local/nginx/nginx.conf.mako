@@ -77,6 +77,7 @@ http {
         }
 
         location /containerd {
+            rewrite /containerd/(.+) /$1 break;
             proxy_pass http://127.0.0.1:5500;
             proxy_http_version 1.1;
             proxy_set_header Host $host;
