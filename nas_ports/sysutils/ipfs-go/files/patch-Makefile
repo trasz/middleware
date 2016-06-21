@@ -1,0 +1,23 @@
+--- src/github.com/ipfs/go-ipfs/Makefile.orig	2016-06-21 01:00:59.000000000 +0200
++++ src/github.com/ipfs/go-ipfs/Makefile	2016-06-21 12:09:56.000000000 +0200
+@@ -53,16 +53,16 @@
+ 	godep save -r ./...
+ 
+ install: deps
+-	make -C cmd/ipfs install
++	gmake -C cmd/ipfs install
+ 
+ build: deps
+-	make -C cmd/ipfs build
++	gmake -C cmd/ipfs build
+ 
+ nofuse: deps
+-	make -C cmd/ipfs nofuse
++	gmake -C cmd/ipfs nofuse
+ 
+ clean:
+-	make -C cmd/ipfs clean
++	gmake -C cmd/ipfs clean
+ 
+ uninstall:
+ 	make -C cmd/ipfs uninstall

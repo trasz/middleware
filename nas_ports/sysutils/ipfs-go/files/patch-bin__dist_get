@@ -1,0 +1,20 @@
+--- src/github.com/ipfs/go-ipfs/bin/dist_get.orig	2016-06-21 01:08:08.000000000 +0200
++++ src/github.com/ipfs/go-ipfs/bin/dist_get		2016-06-21 02:19:30.000000000 +0200
+@@ -52,7 +52,7 @@
+ 		tar.gz)
+ 			if have_binary tar; then
+ 				echo "==> using 'tar' to extract binary from archive"
+-				cat "$ua_infile" | tar -O -z -x "$ua_distname/$ua_distname" > "$ua_outfile"
++				cat "$ua_infile" | tar -f - -O -z -x "$ua_distname/$ua_distname" > "$ua_outfile"
+ 			else
+ 				die "no binary on system for extracting tar files"
+ 			fi
+@@ -91,7 +91,7 @@
+ 	m_archive="$4"
+ 	m_govars=$(get_go_vars) || die "could not get go env vars"
+ 
+-	echo "https://ipfs.io$m_root/$m_name/$m_vers/${m_name}_${m_vers}_$m_govars.$m_archive"
++	echo "http://ipfs.io$m_root/$m_name/$m_vers/${m_name}_${m_vers}_$m_govars.$m_archive"
+ }
+ 
+ distroot="$1"
