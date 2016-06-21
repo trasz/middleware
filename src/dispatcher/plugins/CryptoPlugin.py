@@ -171,6 +171,10 @@ class CertificateCreateTask(Task):
         return TaskDescription("Creating certificate {name}", name=certificate['name'])
 
     def verify(self, certificate):
+        if certificate['type'] in ('CERT_INTERNAL', 'CA_INTERMEDIATE'):
+            if 'signing_ca_name' not in certificate:
+                raise VerifyException(errno.ENOENT, '"signing_ca_name" field value not specified')
+
         if certificate['type'] == 'CERT_INTERNAL':
             if self.datastore.exists('crypto.certificates', ('name', '=', certificate['name'])):
                 raise VerifyException(errno.EEXIST, 'Certificate named "{0}" already exists'.format(certificate['name']))
@@ -182,12 +186,6 @@ class CertificateCreateTask(Task):
 
             if '"' in certificate['name']:
                 raise VerifyException(errno.EINVAL, 'Provide certificate name without : `"`')
-
-        if certificate['type'] in ('CERT_INTERNAL', 'CA_INTERMEDIATE'):
-            if certificate['signing_ca_name'] != 'selfsigned':
-                if 'signing_ca_name' not in certificate or not self.datastore.exists('crypto.certificates', ('name', '=', certificate['signing_ca_name'])):
-                    raise VerifyException(errno.ENOENT,
-                                          'Signing certificate "{0}" not found'.format(certificate['signing_ca_name']))
 
         return ['system']
 
