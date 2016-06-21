@@ -629,6 +629,7 @@ class VncConnection(WebSocketApplication, EventEmitter):
             while True:
                 n = self.cfd.recv_into(buffer)
                 if n == 0:
+                    self.cfd.close()
                     return
 
                 self.ws.send(buffer[:n])
@@ -650,7 +651,6 @@ class VncConnection(WebSocketApplication, EventEmitter):
 
     def on_close(self, *args, **kwargs):
         self.cfd.shutdown(socket.SHUT_RDWR)
-        self.cfd.close()
 
 
 class Main(object):
