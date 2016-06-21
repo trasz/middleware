@@ -27,17 +27,14 @@
 
 import collectd
 import libzfs
-import time
 
 
 zfs = None
-bandwidth = None
 
 
 def init():
-    global zfs, bandwidth
+    global zfs
     zfs = libzfs.ZFS()
-    bandwidth = {}
 
 
 def read():
@@ -54,24 +51,16 @@ def read():
                     dispatch_value(pool.name, stat + '_' + zio_name, value)
 
                     if stat == 'bytes':
-                        bandwidth_key = pool.name + zio_name
-                        b = bandwidth.get(bandwidth_key)
-                        t = time.time()
-                        v = 0
-                        if b:
-                            v = int(float(value - b[0]) / float(t - b[1]))
-
-                        dispatch_value(pool.name, 'bandwidth' + '_' + zio_name, v)
-                        bandwidth[bandwidth_key] = [value, t]
+                        dispatch_value(pool.name, 'bandwidth' + '_' + zio_name, value, 'derive')
             else:
                 dispatch_value(pool.name, stat, root_vdev_stats[stat])
 
 
-def dispatch_value(name, instance, value):
+def dispatch_value(name, instance, value, data_type='gauge'):
     val = collectd.Values()
     val.plugin = 'zfs'
     val.plugin_instance = name
-    val.type = 'gauge'
+    val.type = data_type
     val.type_instance = instance
     val.values = [value, ]
     val.meta = {'0': True}
