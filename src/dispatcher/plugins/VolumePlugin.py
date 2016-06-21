@@ -2308,8 +2308,7 @@ def register_property_schemas(plugin):
         'dedup': {
             'type': ['string', 'null'],
             'enum': [
-                'on', 'off', 'verify', 'sha256', 'sha256,verify', 'sha512', 'sha512,verify',
-                'skiein', 'skein,verify', 'edonr,verify', None
+                'on', 'off', 'verify', None
             ]
         },
         'quota': {
