@@ -189,11 +189,11 @@ class VirtualMachine(object):
         return args
 
     def init_vnc_socket(self):
-        self.vnc_socket = '/var/run/containerd/{0}.vnc.sock'.format(self.id)
-        if os.path.exists(self.vnc_socket):
-            os.unlink(self.vnc_socket)
+        s = '/var/run/containerd/{0}.vnc.sock'.format(self.id)
+        if os.path.exists(s):
+            os.unlink(s)
 
-        return self.vnc_socket
+        return s
 
     def init_tap(self, name, nic, mac):
         try:
