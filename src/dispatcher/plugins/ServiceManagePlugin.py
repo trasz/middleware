@@ -123,15 +123,25 @@ class ServiceInfoProvider(Provider):
 
         rc_scripts = svc['rcng']['rc-scripts']
 
-        try:
-            if type(rc_scripts) is str:
+        if type(rc_scripts) is str:
+            try:
                 system("/usr/sbin/service", rc_scripts, 'onestart')
-
-            if type(rc_scripts) is list:
-                for i in rc_scripts:
+            except SubprocessException as e:
+                raise RpcException(
+                    errno.ENOENT,
+                    "Whilst starting service {0} command 'service {1} onestart'".format(service, rc_scripts) +
+                    " failed with error: {0}".format(e.err)
+                )
+        elif type(rc_scripts) is list:
+            for i in rc_scripts:
+                try:
                     system("/usr/sbin/service", i, 'onestart')
-        except SubprocessException:
-            pass
+                except SubprocessException as e:
+                    raise RpcException(
+                        errno.ENOENT,
+                        "Whilst starting service {0} command 'service {1} onestart'".format(service, i) +
+                        " failed the following error occured: {0}".format(e.err)
+                    )
 
     @private
     @accepts(str)
@@ -146,15 +156,26 @@ class ServiceInfoProvider(Provider):
 
         rc_scripts = svc['rcng']['rc-scripts']
 
-        try:
-            if type(rc_scripts) is str:
+        if type(rc_scripts) is str:
+            try:
                 system("/usr/sbin/service", rc_scripts, 'onestop')
+            except SubprocessException as e:
+                raise RpcException(
+                    errno.ENOENT,
+                    "Whilst stopping service {0} command 'service {1} onestop'".format(service, rc_scripts) +
+                    " failed with error: {0}".format(e.err)
+                )
 
-            if type(rc_scripts) is list:
-                for i in rc_scripts:
+        elif type(rc_scripts) is list:
+            for i in rc_scripts:
+                try:
                     system("/usr/sbin/service", i, 'onestop')
-        except SubprocessException:
-            pass
+                except SubprocessException as e:
+                    raise RpcException(
+                        errno.ENOENT,
+                        "Whilst stopping service {0} command 'service {1} onestop'".format(service, i) +
+                        " failed the following error occured: {0}".format(e.err)
+                    )
 
     @private
     @accepts(str)
@@ -173,18 +194,26 @@ class ServiceInfoProvider(Provider):
         if type(rc_scripts) is str:
             try:
                 system("/usr/sbin/service", rc_scripts, 'onereload')
-            except SubprocessException:
-                pass
+            except SubprocessException as e:
+                raise RpcException(
+                    errno.ENOENT,
+                    "Whilst reloading service {0} command 'service {1} onereload'".format(service, rc_scripts) +
+                    " failed with error: {0}".format(e.err)
+                )
 
-        if type(rc_scripts) is list:
+        elif type(rc_scripts) is list:
             for i in rc_scripts:
                 if i not in reload_scripts:
                         continue
 
                 try:
                     system("/usr/sbin/service", i, 'onereload')
-                except SubprocessException:
-                    pass
+                except SubprocessException as e:
+                    raise RpcException(
+                        errno.ENOENT,
+                        "Whilst reloading service {0} command 'service {1} onereload'".format(service, i) +
+                        " failed the following error occured: {0}".format(e.err)
+                    )
 
     @private
     @accepts(str)
@@ -207,15 +236,26 @@ class ServiceInfoProvider(Provider):
 
         rc_scripts = svc['rcng']['rc-scripts']
 
-        try:
-            if type(rc_scripts) is str:
+        if type(rc_scripts) is str:
+            try:
                 system("/usr/sbin/service", rc_scripts, 'onerestart')
+            except SubprocessException as e:
+                raise RpcException(
+                    errno.ENOENT,
+                    "Whilst restarting service {0} command 'service {1} onerestart'".format(service, rc_scripts) +
+                    " failed with error: {0}".format(e.err)
+                )
 
-            if type(rc_scripts) is list:
-                for i in rc_scripts:
+        elif type(rc_scripts) is list:
+            for i in rc_scripts:
+                try:
                     system("/usr/sbin/service", i, 'onerestart')
-        except SubprocessException:
-            pass
+                except SubprocessException as e:
+                    raise RpcException(
+                        errno.ENOENT,
+                        "Whilst restarting service {0} command 'service {1} onerestart'".format(service, i) +
+                        " failed the following error occured: {0}".format(e.err)
+                    )
 
     @private
     @accepts(str, bool, bool)
