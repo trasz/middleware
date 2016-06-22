@@ -8,7 +8,7 @@ myrsync() {
 	else
 		rsync_opts="--info=progress2 -rlptvz --delete ${1} -e \"ssh\" ${2}"
 		shift 2
-		if [ $# -eq 0 ];
+		if [ $# -gt 0 ];
 		then
 			rsync_opts="$@ ${rsync_opts}"
 		fi
@@ -22,7 +22,7 @@ myrsyncnodel() {
 	else
 		rsync_opts="--info=progress2 -rlptvz ${1} -e \"ssh\" ${2}"
 		shift 2
-		if [ $# -eq 0 ];
+		if [ $# -gt 0 ];
 		then
 			rsync_opts="$@ ${rsync_opts}"
 		fi
