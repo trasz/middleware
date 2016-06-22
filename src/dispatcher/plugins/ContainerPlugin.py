@@ -982,7 +982,7 @@ def _init(dispatcher, plugin):
 
     plugin.register_schema_definition('container-config-bootloader', {
         'type': 'string',
-        'enum': ['BHYVELOAD', 'GRUB', 'UEFI']
+        'enum': ['BHYVELOAD', 'GRUB', 'UEFI', 'UEFI_CSM']
     })
 
     plugin.register_schema_definition('container-device', {

@@ -71,6 +71,7 @@ gevent.monkey.patch_all()
 
 
 BOOTROM_PATH = '/usr/local/share/containerd/firmware/BHYVE_UEFI_20160526.fd'
+BOOTROM_CSM_PATH = '/usr/local/share/containerd/firmware/BHYVE_UEFI_CSM_20151002.fd'
 MGMT_ADDR = ipaddress.ip_interface('172.20.0.1/16')
 MGMT_INTERFACE = 'mgmt0'
 NAT_ADDR = ipaddress.ip_interface('172.21.0.1/16')
@@ -179,6 +180,9 @@ class VirtualMachine(object):
 
         if self.config['bootloader'] == 'UEFI':
             args += ['-l', 'bootrom,{0}'.format(BOOTROM_PATH)]
+
+        if self.config['bootloader'] == 'UEFI_CSM':
+            args += ['-l', 'bootrom,{0}'.format(BOOTROM_CSM_PATH)]
 
         args.append(self.name)
         self.logger.debug('bhyve args: {0}'.format(args))
@@ -337,7 +341,7 @@ class VirtualMachine(object):
                     close_fds=True
                 )
 
-            if self.config['bootloader'] != 'UEFI':
+            if self.config['bootloader'] not in ['UEFI', 'UEFI_CSM']:
                 out, err = self.bhyve_process.communicate()
                 self.bhyve_process.wait()
                 self.logger.debug('bhyveload: {0}'.format(out))
