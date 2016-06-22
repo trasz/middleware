@@ -145,7 +145,7 @@ class CertificateCreateTask(Task):
 
     def verify(self, certificate):
         certificate['selfsigned'] = certificate.get('selfsigned', False)
-        certificate['signing_ca_name'] = certificate.get('signing_ca_name',False)
+        certificate['signing_ca_name'] = certificate.get('signing_ca_name', False)
 
         if '"' in certificate['name']:
             raise VerifyException(errno.EINVAL, 'Provide certificate name without : `"`')
@@ -226,7 +226,7 @@ class CertificateCreateTask(Task):
             return k
 
         try:
-            certificate['selfsigned'] = certificate.get('selfsigned',False)
+            certificate['selfsigned'] = certificate.get('selfsigned', False)
             certificate['key_length'] = certificate.get('key_length', 2048)
             certificate['digest_algorithm'] = certificate.get('digest_algorithm', 'SHA256')
             certificate['lifetime'] = certificate.get('lifetime', 3650)
@@ -236,7 +236,7 @@ class CertificateCreateTask(Task):
             if certificate['type'] == 'CERT_CSR':
                 x509 = get_x509req_inst(certificate)
                 x509.set_pubkey(key)
-                x509.sign(key, str(certificate['digest_algorithm']))
+                x509.sign(key, certificate['digest_algorithm'])
 
                 certificate['csr'] = crypto.dump_certificate_request(crypto.FILETYPE_PEM, x509).decode('utf-8')
                 certificate['privatekey'] = crypto.dump_privatekey(crypto.FILETYPE_PEM, key).decode('utf-8')
@@ -256,7 +256,7 @@ class CertificateCreateTask(Task):
                     signkey = load_privatekey(signing_cert_db_entry['privatekey'])
 
                 x509.set_issuer(signing_x509.get_subject())
-                x509.sign(signkey, str(certificate['digest_algorithm']))
+                x509.sign(signkey, certificate['digest_algorithm'])
 
                 certificate['serial'] = x509.get_serial_number()
                 certificate['certificate'] = crypto.dump_certificate(crypto.FILETYPE_PEM, x509).decode('utf-8')
