@@ -144,22 +144,32 @@ class CertificateCreateTask(Task):
         return TaskDescription("Creating certificate {name}", name=certificate['name'])
 
     def verify(self, certificate):
-        if certificate['type'] in ('CERT_INTERNAL', 'CA_INTERMEDIATE'):
-            if 'signing_ca_name' not in certificate:
+        certificate['selfsigned'] = certificate.get('selfsigned', False)
+        certificate['signing_ca_name'] = certificate.get('signing_ca_name',False)
+
+        if '"' in certificate['name']:
+            raise VerifyException(errno.EINVAL, 'Provide certificate name without : `"`')
+
+        if self.datastore.exists('crypto.certificates', ('name', '=', certificate['name'])):
+            raise VerifyException(errno.EEXIST,
+                                  'Certificate named "{0}" already exists'.format(certificate['name']))
+
+        if certificate['type'] in ('CERT_INTERNAL', 'CA_INTERNAL', 'CA_INTERMEDIATE'):
+            if not certificate['selfsigned'] and not certificate['signing_ca_name']:
+                raise VerifyException(errno.ENOENT,
+                                      'Either "selfsigned" or "signing_ca_name" field value must be specified')
+            if certificate['selfsigned'] and certificate['signing_ca_name']:
+                raise VerifyException(errno.ENOENT,
+                                      'Only one of "selfsigned","signing_ca_name" fields should be specified')
+
+        if certificate['type'] == 'CA_INTERMEDIATE':
+            if not certificate['signing_ca_name']:
                 raise VerifyException(errno.ENOENT, '"signing_ca_name" field value not specified')
 
-        if certificate['type'] == 'CERT_INTERNAL':
-            if self.datastore.exists('crypto.certificates', ('name', '=', certificate['name'])):
-                raise VerifyException(errno.EEXIST,
-                                      'Certificate named "{0}" already exists'.format(certificate['name']))
-
-            if certificate['signing_ca_name'] != 'selfsigned':
-                if not self.datastore.exists('crypto.certificates', ('name', '=', certificate['signing_ca_name'])):
-                    raise VerifyException(errno.ENOENT,
-                                          'Signing certificate "{0}" not found'.format(certificate['signing_ca_name']))
-
-            if '"' in certificate['name']:
-                raise VerifyException(errno.EINVAL, 'Provide certificate name without : `"`')
+        if certificate['signing_ca_name']:
+            if not self.datastore.exists('crypto.certificates', ('name', '=', certificate['signing_ca_name'])):
+                raise VerifyException(errno.ENOENT,
+                                      'Signing certificate "{0}" not found'.format(certificate['signing_ca_name']))
 
         return ['system']
 
@@ -216,6 +226,7 @@ class CertificateCreateTask(Task):
             return k
 
         try:
+            certificate['selfsigned'] = certificate.get('selfsigned',False)
             certificate['key_length'] = certificate.get('key_length', 2048)
             certificate['digest_algorithm'] = certificate.get('digest_algorithm', 'SHA256')
             certificate['lifetime'] = certificate.get('lifetime', 3650)
@@ -234,15 +245,15 @@ class CertificateCreateTask(Task):
                 x509.set_pubkey(key)
                 add_x509_extensions(x509, certificate['type'])
 
-                if 'signing_ca_name' in certificate and certificate['signing_ca_name'] != 'selfsigned':
+                if certificate['selfsigned']:
+                    signing_x509 = x509
+                    signkey = key
+                else:
                     signing_cert_db_entry = self.datastore.get_one('crypto.certificates',
                                                                    ('name', '=', certificate['signing_ca_name']))
                     certificate['signing_ca_id'] = signing_cert_db_entry['id']
                     signing_x509 = crypto.load_certificate(crypto.FILETYPE_PEM, signing_cert_db_entry['certificate'])
                     signkey = load_privatekey(signing_cert_db_entry['privatekey'])
-                else:
-                    signing_x509 = x509
-                    signkey = key
 
                 x509.set_issuer(signing_x509.get_subject())
                 x509.sign(signkey, str(certificate['digest_algorithm']))
@@ -448,6 +459,7 @@ def _init(dispatcher, plugin):
             'email': {'type': 'string'},
             'common': {'type': 'string'},
             'serial': {'type': 'integer'},
+            'selfsigned': {'type': 'boolean'},
             'signing_ca_name': {'type': 'string'},
             'signing_ca_id': {'type': 'string'},
             'dn': {'type': 'string', 'readOnly': True},
