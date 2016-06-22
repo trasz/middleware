@@ -103,7 +103,7 @@ class ISCSIPortalProvider(Provider):
 
 
 @private
-@accepts(h.ref('iscsi-share'))
+@accepts(h.ref('share-iscsi'))
 @description("Adds new iSCSI share")
 class CreateISCSIShareTask(Task):
     @classmethod
@@ -152,7 +152,7 @@ class CreateISCSIShareTask(Task):
 
 
 @private
-@accepts(str, h.ref('iscsi-share'))
+@accepts(str, h.ref('share-iscsi'))
 @description("Updates existing iSCSI share")
 class UpdateISCSIShareTask(Task):
     @classmethod
@@ -216,7 +216,7 @@ class DeleteiSCSIShareTask(Task):
 
 
 @private
-@accepts(h.ref('iscsi-share'))
+@accepts(h.ref('share-iscsi'))
 @description("Imports existing iSCSI share")
 class ImportiSCSIShareTask(CreateISCSIShareTask):
     @classmethod
