@@ -158,17 +158,22 @@ class CreateShareTask(Task):
         if not self.dispatcher.call_sync('share.supported_types').get(share['type']):
             raise VerifyException(errno.ENXIO, 'Unknown sharing type {0}'.format(share['type']))
 
-        share_path = self.dispatcher.call_sync('share.expand_path', share['target_path'], share['target_type'])
-        if share['target_type'] != 'FILE':
-            share_path = os.path.dirname(share_path)
-        if not os.path.exists(share_path):
-            raise VerifyException(errno.ENOENT, 'Selected share target {0} does not exist or cannot be created'.format(
-                share['target_path']
-            ))
-
         return ['system']
 
     def run(self, share):
+        if share['target_type'] == 'ZVOL':
+            shareable = bool(self.dispatcher.call_sync('volume.dataset.query', [('name', '=', share['target_path'])]))
+        else:
+            share_path = self.dispatcher.call_sync('share.expand_path', share['target_path'], share['target_type'])
+            if share['target_type'] != 'FILE':
+                share_path = os.path.dirname(share_path)
+            shareable = os.path.exists(share_path)
+
+        if not shareable:
+            raise TaskException(errno.ENOENT, 'Selected share target {0} does not exist or cannot be created'.format(
+                share['target_path']
+            ))
+
         root = self.dispatcher.call_sync('volume.get_volumes_root')
         share_type = self.dispatcher.call_sync('share.supported_types').get(share['type'])
 
