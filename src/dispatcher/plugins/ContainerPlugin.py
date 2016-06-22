@@ -509,6 +509,7 @@ class ContainerUpdateTask(ContainerBaseTask):
         if 'devices' in updated_params:
             if container.get('template'):
                 self.join_subtasks(self.run_subtask('container.cache.update', container['template']['name']))
+
             for res in updated_params['devices']:
                 existing = first_or_default(lambda i: i['name'] == res['name'], container['devices'])
                 if existing:

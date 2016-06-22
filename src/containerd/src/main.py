@@ -117,7 +117,7 @@ class VirtualMachine(object):
         self.console_queues = []
         self.console_thread = None
         self.tap_interfaces = {}
-        self.vnc_port = None
+        self.vnc_socket = None
         self.thread = None
         self.exiting = False
         self.logger = logging.getLogger('VM:{0}'.format(self.name))
@@ -164,9 +164,9 @@ class VirtualMachine(object):
                 index += 1
 
             if i['type'] == 'GRAPHICS':
-                self.vnc_port = self.context.allocate_vnc_port()
+                self.vnc_socket = self.init_vnc_socket()
                 w, h = i['properties']['resolution'].split('x')
-                args += ['-s', '{0}:0,fbuf,tcp=127.0.0.1:{1},w={2},h={3},vncserver'.format(index, self.vnc_port, w, h)]
+                args += ['-s', '{0}:0,fbuf,unix={1},w={2},h={3},vncserver'.format(index, self.vnc_socket, w, h)]
                 index += 1
 
             if i['type'] == 'USB':
@@ -187,6 +187,13 @@ class VirtualMachine(object):
         args.append(self.name)
         self.logger.debug('bhyve args: {0}'.format(args))
         return args
+
+    def init_vnc_socket(self):
+        self.vnc_socket = '/var/run/containerd/{0}.vnc.sock'.format(self.id)
+        if os.path.exists(self.vnc_socket):
+            os.unlink(self.vnc_socket)
+
+        return self.vnc_socket
 
     def init_tap(self, name, nic, mac):
         try:
@@ -633,7 +640,7 @@ class VncConnection(WebSocketApplication, EventEmitter):
             while True:
                 n = self.cfd.recv_into(buffer)
                 if n == 0:
-                    self.cfd.close()
+                    self.ws.close()
                     return
 
                 self.ws.send(buffer[:n])
@@ -641,9 +648,8 @@ class VncConnection(WebSocketApplication, EventEmitter):
         self.vm = self.context.containers[cid]
         self.logger.info('Opening VNC console to {0} (token {1})'.format(self.vm.name, token))
 
-        self.cfd = socket.socket(socket.AF_INET, socket.SOCK_STREAM, socket.IPPROTO_TCP)
-        self.cfd.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
-        self.cfd.connect(('127.0.0.1', self.vm.vnc_port))
+        self.cfd = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM, 0)
+        self.cfd.connect(self.vm.vnc_socket)
         gevent.spawn(read)
 
     def on_message(self, message, *args, **kwargs):
@@ -671,7 +677,6 @@ class Main(object):
         self.logger = logging.getLogger('containerd')
         self.bridge_interface = None
         self.used_nmdms = []
-        self.vnc_ports = []
         self.ec2 = None
         self.cv = threading.Condition()
 
@@ -692,18 +697,6 @@ class Main(object):
 
     def release_nmdm(self, index):
         self.used_nmdms.remove(index)
-
-    def allocate_vnc_port(self):
-        if not self.vnc_ports:
-            self.vnc_ports.append(5900)
-            return 5900
-
-        port = max(self.vnc_ports) + 1
-        self.vnc_ports.append(port)
-        return port
-
-    def release_vnc_port(self, port):
-        self.vnc_ports.remove(port)
 
     def connect(self):
         while True:
@@ -845,6 +838,8 @@ class Main(object):
                 vtx_enabled = True
         except OSError:
             pass
+
+        os.makedirs('/var/run/containerd', exist_ok=True)
 
         self.config = args.c
         self.init_datastore()
