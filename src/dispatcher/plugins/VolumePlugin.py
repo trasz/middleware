@@ -260,20 +260,23 @@ class VolumeProvider(Provider):
 
     @description("Extracts volume name, dataset name and relative path from full path")
     @accepts(str)
-    @returns(h.tuple(str, str, str))
+    @returns(h.tuple(str, str, h.one_of(str, None)))
     def decode_path(self, path):
         path = os.path.normpath(path)[1:]
         tokens = path.split(os.sep)
+
+        if tokens[0:2] == ['dev', 'zvol']:
+            return tokens[2], '/'.join(tokens[2:]), None
 
         if tokens[0] != VOLUMES_ROOT[1:]:
             raise RpcException(errno.EINVAL, 'Invalid path')
 
         volname = tokens[1]
         vol = self.dispatcher.call_sync('volume.query', [('id', '=', volname)], {'single': True})
-        if vol:
-            datasets = self.dispatcher.call_sync('volume.dataset.query', [('volume', '=', volname)], {'select': 'id'})
-        else:
+        if not vol:
             raise RpcException(errno.ENOENT, "Volume '{0}' does not exist".format(volname))
+
+        datasets = self.dispatcher.call_sync('volume.dataset.query', [('volume', '=', volname)], {'select': 'id'})
         n = len(tokens)
 
         while n > 0:
