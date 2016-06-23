@@ -2499,7 +2499,7 @@ def _init(dispatcher, plugin):
             'type': ds['type'],
             'mountpoint': ds.get('properties.mountpoint.value'),
             'mounted': yesno_to_bool(ds.get('properties.mounted.value')),
-            'volsize': ds.get('properties.volsize.rawvalue'),
+            'volsize': ds.get('properties.volsize.parsed'),
             'properties': include(
                 ds['properties'],
                 'used', 'available', 'compression', 'atime', 'dedup',
