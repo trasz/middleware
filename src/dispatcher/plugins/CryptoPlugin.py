@@ -414,10 +414,16 @@ class CertificateDeleteTask(Task):
         def get_subject_cert_id_and_name():
             return self.datastore.query('crypto.certificates', ('id', '=', id), select=('id', 'name'))
 
-        def get_related_certs_ids_and_names():
-            return self.datastore.query('crypto.certificates', ('signing_ca_id', '=', id), select=('id', 'name'))
+        def get_related_certs_ids_and_names(id):
+            certs = self.datastore.query('crypto.certificates', ('signing_ca_id', '=', id), select=('id', 'name'))
+            if not certs:
+                return []
+            nested = []
+            for (cid, _) in certs:
+                nested.extend(get_related_certs_ids_and_names(cid))
+            return certs + nested
 
-        certs = get_related_certs_ids_and_names()
+        certs = get_related_certs_ids_and_names(id)
         certs.extend(get_subject_cert_id_and_name())
 
         for (cid, cname) in certs:
