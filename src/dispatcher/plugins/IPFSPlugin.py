@@ -35,6 +35,25 @@ from task import Task, Provider, TaskException, ValidationException, TaskDescrip
 
 logger = logging.getLogger('IPFSPlugin')
 
+ipfs_tasks = {
+    'add': {
+        'early_describe': 'Calling IPFS add',
+        'accepts': (h.one_of(str, h.array(str)), bool),
+        'args': ('files', 'recursive')
+    }
+}
+
+ipfs_task_types = {}
+
+ipfs_rpcs = {
+    'id': {
+        'accepts': ()
+    },
+    'version': {
+        'accepts': ()
+    }
+}
+
 
 # Defining this decorator and keeping (might be useful sometime later)
 # Not using it currently as it slows down the RPC call
@@ -58,7 +77,7 @@ def ipfs_enabled_check():
     return wrapped
 
 
-# This is faster as it first tries to execute the ipfsApi call and catches the expection if any
+# This is faster as it first tries to execute the ipfsApi call and catches the exception if any
 def ipfs_enabled_error():
     def wrapped(fn):
         def wrap(self, *args, **kwargs):
@@ -74,10 +93,12 @@ def ipfs_enabled_error():
 
 
 @description('Provides info about IPFS service configuration')
-class IPFSProvider(Provider):
+class IPFSServiceProvider(Provider):
+    def __init__(self):
+        self.ipfs_api = None
 
     def initialize(self, context):
-        super(IPFSProvider, self).initialize(context)
+        super(IPFSServiceProvider, self).initialize(context)
         self.ipfs_api = ipfsApi.Client('127.0.0.1', 5001)
 
     @private
@@ -86,17 +107,15 @@ class IPFSProvider(Provider):
     def get_config(self):
         return ConfigNode('service.ipfs', self.configstore).__getstate__()
 
-    @ipfs_enabled_error()
-    @accepts()
-    @returns(h.ref('ipfs_info'))
-    def info(self):
-        return self.ipfs_api.id()
 
-    @ipfs_enabled_error()
-    @accepts()
-    @returns(h.array(str))
-    def swarm_peers(self):
-        return self.ipfs_api.swarm_peers()["Strings"]
+@description('Provides IPFS services')
+class IPFSProvider(Provider):
+    def __init__(self):
+        self.ipfs_api = None
+
+    def initialize(self, context):
+        super(IPFSProvider, self).initialize(context)
+        self.ipfs_api = ipfsApi.Client('127.0.0.1', 5001)
 
 
 @private
@@ -158,6 +177,57 @@ class IPFSConfigureTask(Task):
         return 'RELOAD'
 
 
+class IPFSBaseTask(Task):
+    def __init__(self, dispatcher, datastore, method):
+        super(IPFSBaseTask, self).__init__(dispatcher, datastore)
+        self._method = method
+
+    def describe(self, *args, **kwargs):
+        return TaskDescription('Calling IPFS {name}', name=self._method)
+
+    def verify(self, *args, **kwargs):
+        return []
+
+    @ipfs_enabled_error()
+    def run(self, *args, **kwargs):
+        ipfs_api = ipfsApi.Client('127.0.0.1', 5001)
+        method = getattr(ipfs_api, self._method)
+        return method(*args, **kwargs)
+
+
+def ipfs_task_factory(method):
+    def __init__(self, dispatcher, datastore):
+        IPFSBaseTask.__init__(self, dispatcher, datastore, method)
+
+    def early_describe():
+        return ipfs_tasks[method]['early_describe']
+
+    cls = type(
+        'IPFS' + method.capitalize() + 'Task',
+        (IPFSBaseTask,),
+        {'__init__': __init__, 'early_describe': early_describe}
+    )
+    descr_cls = description('Calls ipfsApi {0} method'.format(method))(cls)
+    return private(accepts(*ipfs_tasks[method]['accepts'])(descr_cls))
+
+
+for name in ipfs_tasks:
+    generated_class = ipfs_task_factory(name)
+    ipfs_task_types[name] = generated_class
+    globals()[generated_class.__name__] = generated_class
+
+
+for name in ipfs_rpcs:
+    def wrapped(fn):
+        def wrap(self, *args, **kwargs):
+            return fn(self.ipfs_api, *args, **kwargs)
+        return wrap
+    method = wrapped(getattr(ipfsApi.Client, name))
+    method.__name__ = name
+    decorated_method = private(accepts(*ipfs_rpcs[name]['accepts'])(ipfs_enabled_error()(method)))
+    setattr(IPFSProvider, name, decorated_method)
+
+
 def _depends():
     return ['ServiceManagePlugin']
 
@@ -191,7 +261,10 @@ def _init(dispatcher, plugin):
     })
 
     # Register providers
-    plugin.register_provider("service.ipfs", IPFSProvider)
+    plugin.register_provider("service.ipfs", IPFSServiceProvider)
+    plugin.register_provider("ipfs", IPFSProvider)
 
     # Register tasks
     plugin.register_task_handler("service.ipfs.update", IPFSConfigureTask)
+    for name in ipfs_tasks:
+        plugin.register_task_handler("ipfs.{0}".format(name), ipfs_task_types[name])
