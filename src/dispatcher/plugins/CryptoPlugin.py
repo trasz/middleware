@@ -29,6 +29,8 @@ import errno
 import os
 import re
 import time
+import datetime
+from pytz import UTC
 from datastore import DatastoreException
 from freenas.dispatcher.rpc import RpcException, description, accepts
 from freenas.dispatcher.rpc import SchemaHelper as h
@@ -174,6 +176,9 @@ class CertificateCreateTask(Task):
         return ['system']
 
     def run(self, certificate):
+        def get_utc_string_from_asn1generalizedtime(asn1):
+            return str(datetime.datetime.strptime(asn1, "%Y%m%d%H%M%SZ").replace(tzinfo=UTC))
+
         def get_x509_inst(cert_info):
             cert = crypto.X509()
             map_x509_subject_info(cert, cert_info)
@@ -258,6 +263,8 @@ class CertificateCreateTask(Task):
                 x509.set_issuer(signing_x509.get_subject())
                 x509.sign(signkey, certificate['digest_algorithm'])
 
+                certificate['not_before'] = get_utc_string_from_asn1generalizedtime(x509.get_notBefore().decode('utf-8'))
+                certificate['not_after'] = get_utc_string_from_asn1generalizedtime(x509.get_notAfter().decode('utf-8'))
                 certificate['serial'] = x509.get_serial_number()
                 certificate['certificate'] = crypto.dump_certificate(crypto.FILETYPE_PEM, x509).decode('utf-8')
                 certificate['privatekey'] = crypto.dump_privatekey(crypto.FILETYPE_PEM, key).decode('utf-8')
@@ -456,6 +463,8 @@ def _init(dispatcher, plugin):
             'key_length': {'type': 'integer'},
             'digest_algorithm': {'$ref': 'crypto-certificate-digestalgorithm'},
             'lifetime': {'type': 'integer'},
+            'not_before': {'type': 'string'},
+            'not_after': {'type': 'string'},
             'country': {'type': 'string'},
             'state': {'type': 'string'},
             'city': {'type': 'string'},
