@@ -50,7 +50,6 @@ import tempfile
 import ipaddress
 import pf
 import urllib.parse
-from vnc import app
 from bsd import kld, sysctl
 from gevent.queue import Queue, Channel
 from gevent.event import Event
@@ -63,8 +62,10 @@ from freenas.dispatcher.client import Client, ClientError
 from freenas.dispatcher.rpc import RpcService, RpcException, private
 from freenas.utils.debug import DebugService
 from freenas.utils import first_or_default, configure_logging
+from vnc import app
 from mgmt import ManagementNetwork
 from ec2 import EC2MetadataServer
+from proxy import ReverseProxyServer
 
 
 gevent.monkey.patch_all()
@@ -118,6 +119,7 @@ class VirtualMachine(object):
         self.console_thread = None
         self.tap_interfaces = {}
         self.vnc_socket = None
+        self.vnc_port = None
         self.thread = None
         self.exiting = False
         self.logger = logging.getLogger('VM:{0}'.format(self.name))
@@ -164,7 +166,7 @@ class VirtualMachine(object):
                 index += 1
 
             if i['type'] == 'GRAPHICS':
-                self.vnc_socket = self.init_vnc_socket()
+                self.init_vnc()
                 w, h = i['properties']['resolution'].split('x')
                 args += ['-s', '{0}:0,fbuf,unix={1},w={2},h={3},vncserver'.format(index, self.vnc_socket, w, h)]
                 index += 1
@@ -188,12 +190,19 @@ class VirtualMachine(object):
         self.logger.debug('bhyve args: {0}'.format(args))
         return args
 
-    def init_vnc_socket(self):
-        s = '/var/run/containerd/{0}.vnc.sock'.format(self.id)
-        if os.path.exists(s):
-            os.unlink(s)
+    def init_vnc(self):
+        self.vnc_socket = '/var/run/containerd/{0}.vnc.sock'.format(self.id)
+        self.cleanup_vnc()
 
-        return s
+        if self.config.get('vnc_enabled', False):
+            self.context.proxy_server.add_proxy(self.config['vnc_port'], self.vnc_socket)
+
+    def cleanup_vnc(self):
+        if self.config.get('vnc_enabled', False):
+            self.context.proxy_server.remove_proxy(self.config['vnc_port'])
+
+        if os.path.exists(self.vnc_socket):
+            os.unlink(self.vnc_socket)
 
     def init_tap(self, name, nic, mac):
         try:
@@ -370,6 +379,8 @@ class VirtualMachine(object):
 
         for i in self.tap_interfaces:
             self.cleanup_tap(i)
+
+        self.cleanup_vnc()
         self.set_state(VirtualMachineState.STOPPED)
 
     def console_worker(self):
@@ -678,6 +689,7 @@ class Main(object):
         self.bridge_interface = None
         self.used_nmdms = []
         self.ec2 = None
+        self.proxy_server = ReverseProxyServer()
         self.cv = threading.Condition()
 
     def init_datastore(self):
