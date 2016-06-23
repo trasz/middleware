@@ -406,10 +406,8 @@ class CertificateDeleteTask(Task):
         return TaskDescription("Deleting certificate {name}", name=id)
 
     def verify(self, id):
-        certificate = self.datastore.get_by_id('crypto.certificates', id)
-        if certificate is None:
+        if not self.datastore.exists('crypto.certificates', ('id', '=', id)):
             raise VerifyException(errno.ENOENT, 'Certificate ID {0} does not exist'.format(id))
-
         return ['system']
 
     def run(self, id):
