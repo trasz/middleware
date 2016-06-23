@@ -964,16 +964,18 @@ class ZfsConfigureTask(ZfsBaseTask):
                     continue
 
                 if k in dataset.properties:
+                    prop = dataset.properties[k]
+
                     if v.get('source') == 'INHERITED':
-                        dataset.properties[k].inherit()
+                        prop.inherit()
                         continue
 
-                    if 'parsed' in v:
-                        dataset.properties[k].parsed = v['parsed']
+                    if 'parsed' in v and prop.parsed != v['parsed']:
+                        prop.parsed = v['parsed']
                         continue
 
-                    if 'value' in v:
-                        dataset.properties[k].value = v['value']
+                    if 'value' in v and prop.value != v['value']:
+                        prop.value = v['value']
                         continue
                 else:
                     prop = libzfs.ZFSUserProperty(v['value'])
