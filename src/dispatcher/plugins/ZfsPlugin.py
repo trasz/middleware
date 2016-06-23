@@ -1405,7 +1405,7 @@ def _init(dispatcher, plugin):
             if '@' in args['ds']:
                 sync_snapshot_cache(dispatcher, args['ds'])
             else:
-                sync_dataset_cache(dispatcher, args['ds'])
+                sync_dataset_cache(dispatcher, args['ds'], recursive=True)
 
     def on_vfs_mount_or_unmount(type, args):
         with dispatcher.get_lock('zfs-cache'):
