@@ -49,20 +49,26 @@ class ReverseProxyServer(object):
         def reader(cfd, sfd):
             buffer = bytearray(BUFSIZE)
             while True:
-                n = sfd.recv_into(buffer)
-                if n == 0:
-                    break
+                try:
+                    n = sfd.recv_into(buffer)
+                    if n == 0:
+                        break
 
-                cfd.sendall(buffer[:n])
+                    cfd.sendall(buffer[:n])
+                except OSError:
+                    break
 
         def writer(cfd, sfd):
             buffer = bytearray(BUFSIZE)
             while True:
-                n = cfd.recv_into(buffer)
-                if n == 0:
-                    break
+                try:
+                    n = cfd.recv_into(buffer)
+                    if n == 0:
+                        break
 
-                sfd.sendall(buffer[:n])
+                    sfd.sendall(buffer[:n])
+                except OSError:
+                    break
 
         while True:
             cfd, addr = s.accept()
