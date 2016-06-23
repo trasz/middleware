@@ -40,7 +40,18 @@ ipfs_tasks = {
         'early_describe': 'Calling IPFS add',
         'accepts': (h.one_of(str, h.array(str)), bool),
         'args': ('files', 'recursive')
+    },
+    'get': {
+        'early_describe': 'Calling IPFS get',
+        'accepts': (str, h.one_of(str, None)),
+        'args': ('multihash', 'filepath')
+    },
+    'add_json': {
+        'early_describe': 'Calling IPFS add json',
+        'accepts': (h.object(),),
+        'args': ('json_obj',)
     }
+
 }
 
 ipfs_task_types = {}
@@ -51,6 +62,15 @@ ipfs_rpcs = {
     },
     'version': {
         'accepts': ()
+    },
+    'swarm_peers': {
+        'accepts': ()
+    },
+    'swarm_addrs': {
+        'accepts': ()
+    },
+    'get_json': {
+        'accepts': (str,)
     }
 }
 
@@ -182,17 +202,21 @@ class IPFSBaseTask(Task):
         super(IPFSBaseTask, self).__init__(dispatcher, datastore)
         self._method = method
 
-    def describe(self, *args, **kwargs):
+    def describe(self, *args):
         return TaskDescription('Calling IPFS {name}', name=self._method)
 
-    def verify(self, *args, **kwargs):
+    def verify(self, *args):
         return []
 
     @ipfs_enabled_error()
-    def run(self, *args, **kwargs):
+    def run(self, *args):
         ipfs_api = ipfsApi.Client('127.0.0.1', 5001)
         method = getattr(ipfs_api, self._method)
-        return method(*args, **kwargs)
+        kwargs = {}
+        for idx, arg in enumerate(args):
+            kwargs[ipfs_tasks[self._method]['args'][idx]] = arg
+
+        return method(**kwargs)
 
 
 def ipfs_task_factory(method):
