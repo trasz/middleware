@@ -347,7 +347,7 @@ class CertificateUpdateTask(Task):
     def early_describe(cls):
         return "Updating certificate"
 
-    def describe(self, id):
+    def describe(self, id, updated_fields):
         cert = self.datastore.get_by_id('crypto.certificates', id)
         return TaskDescription("Updating certificate {name}", name=cert.get('name', '') if cert else '')
 
