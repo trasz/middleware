@@ -33,6 +33,6 @@ post-install:
 	(cd ${STAGEDIR}${PREFIX}/lib/containerd; ${FIND} -E . -type f -regex \
 		".*((.pyc?)|(.so)|(.jso?n?)|(.html)|(.map)|(.css)|(.png)|(.jpg)|(.gif)|(.md)|(.txt)|(.swf)|(.eot)|(.svg)|(.ttf)|(.woff2?)|(.c))+$$" \
 		| ${SED} -e 's,^\./,,g' \
-		| ${AWK} '{print "lib/dispatcher/"$$0 }' >> ${TMPPLIST})
+		| ${AWK} '{print "lib/containerd/"$$0 }' >> ${TMPPLIST})
 
 .include <bsd.port.mk>
