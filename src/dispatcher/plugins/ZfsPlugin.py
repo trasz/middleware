@@ -1767,6 +1767,11 @@ def _init(dispatcher, plugin):
                         ' the database but the actual system found it named' +
                         ' as {0}'.format(pool_to_import.name))
 
+            # Try to clear errors if there are any
+            z = get_zfs()
+            pool = z.get(vol['id'])
+            pool.clear()
+
     except libzfs.ZFSException as err:
         # Log what happened
         logger.error('ZfsPlugin init error: {0}'.format(str(err)))
