@@ -352,53 +352,43 @@ class CertificateUpdateTask(Task):
         return TaskDescription("Updating certificate {name}", name=cert.get('name', '') if cert else '')
 
     def verify(self, id, updated_fields):
-        certificate = self.datastore.get_by_id('crypto.certificates', id)
-        if certificate is None:
+        if len(updated_fields) > 1 or 'name' not in updated_fields:
+            raise VerifyException(errno.EINVAL, 'Only "name" field can be modified'.format(id))
+
+        if not self.datastore.exists('crypto.certificates', ('id', '=', id)):
             raise VerifyException(errno.ENOENT, 'Certificate ID {0} does not exist'.format(id))
 
-        if 'name' in updated_fields and self.datastore.exists(
-            'crypto.certificates', ('name', '=', updated_fields['name']), ('id', '!=', id)
-        ):
-            raise VerifyException(errno.EEXIST, 'Certificate with given name already exists')
-
-        if not certificate['type'].startswith('CA_') or certificate['type'] != 'CERT_CSR':
-            raise VerifyException(errno.EINVAL, 'Invalid certificate type: {0}'.format(certificate['type']))
-
-        try:
-            if 'certificate' in updated_fields:
-                load_certificate(updated_fields['certificate'])
-        except crypto.Error as e:
-            raise VerifyException(errno.EINVAL, 'Invalid certificate: {0}'.format(str(e)))
+        if self.datastore.exists('crypto.certificates', ('name', '=', updated_fields['name'])):
+            raise VerifyException(errno.EEXIST,
+                                  'Certificate name : "{0}" already in use'.format(updated_fields['name']))
 
         return ['system']
 
     def run(self, id, updated_fields):
-        try:
-            certificate = self.datastore.get_by_id('crypto.certificates', id)
-            if certificate['type'] == 'CERT_CSR':
-                certificate['certificate'] = updated_fields['certificate']
-                certificate['type'] = 'CERT_EXISTING'
-            else:
-                if 'name' in updated_fields:
-                    certificate['name'] = updated_fields['name']
-                if 'certificate' in updated_fields:
-                    certificate['certificate'] = updated_fields['certificate']
-                if 'privatekey' in updated_fields:
-                    certificate['privatekey'] = updated_fields['privatekey']
-                if 'serial' in updated_fields:
-                    certificate['serial'] = updated_fields['serial']
+        def update_all_signed_certs_and_get_ids(old_signing_name, new_signing_name):
+            certs = self.datastore.query('crypto.certificates', ('signing_ca_name', '=', old_signing_name))
+            for c in certs:
+                c['signing_ca_name'] = new_signing_name
+                self.datastore.update('crypto.certificates', c['id'], c)
+            return [c['id'] for c in certs]
 
-            pkey = self.datastore.update('crypto.certificates', id, certificate)
+        ids = [id]
+        cert = self.datastore.get_by_id('crypto.certificates', id)
+        old_name = cert['name']
+        cert['name'] = updated_fields['name']
+
+        try:
+            pkey = self.datastore.update('crypto.certificates', id, cert)
+            ids.extend(update_all_signed_certs_and_get_ids(old_name, cert['name']))
             self.dispatcher.call_sync('etcd.generation.generate_group', 'crypto')
+            self.dispatcher.dispatch_event('crypto.certificate.changed', {
+                'operation': 'update',
+                'ids': ids
+            })
         except DatastoreException as e:
             raise TaskException(errno.EBADMSG, 'Cannot update certificate: {0}'.format(str(e)))
         except RpcException as e:
             raise TaskException(errno.ENXIO, 'Cannot generate certificate: {0}'.format(str(e)))
-
-        self.dispatcher.dispatch_event('crypto.certificate.changed', {
-            'operation': 'update',
-            'ids': [id]
-        })
 
         return pkey
 
