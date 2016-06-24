@@ -1768,9 +1768,12 @@ def _init(dispatcher, plugin):
                         ' as {0}'.format(pool_to_import.name))
 
             # Try to clear errors if there are any
-            z = get_zfs()
-            pool = z.get(vol['id'])
-            pool.clear()
+            try:
+                z = get_zfs()
+                pool = z.get(vol['id'])
+                pool.clear()
+            except libzfs.ZFSException:
+                pass
 
     except libzfs.ZFSException as err:
         # Log what happened
