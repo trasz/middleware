@@ -583,7 +583,7 @@ class ZpoolDetachTask(ZpoolBaseTask):
             if not vdev:
                 raise TaskException(errno.ENOENT, 'Vdev with GUID {0} not found'.format(guid))
 
-            if vdev.group == 'data':
+            if vdev.group == 'data' or (vdev.parent and vdev.parent.type == 'spare'):
                 vdev.detach()
             else:
                 vdev.remove()
@@ -621,7 +621,13 @@ class ZpoolReplaceTask(ZpoolBaseTask):
 
             new_vdev = libzfs.ZFSVdev(zfs, vdev['type'])
             new_vdev.path = vdev['path']
-            ovdev.replace(new_vdev)
+
+            self.dispatcher.exec_and_wait_for_event(
+                'fs.zfs.resilver.finished',
+                lambda args: args['guid'] == str(pool.guid),
+                lambda: ovdev.replace(new_vdev)
+            )
+
         except libzfs.ZFSException as err:
             raise TaskException(zfs_error_to_errno(err.code), str(err))
 

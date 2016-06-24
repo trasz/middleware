@@ -838,9 +838,11 @@ class VolumeUpdateTask(Task):
                 for vdev in vdevs:
                     if 'guid' not in vdev:
                         if encryption['hashed_password'] is not None:
-                            if not is_password(password,
-                                               encryption.get('salt', ''),
-                                               encryption.get('hashed_password', '')):
+                            if not is_password(
+                                password,
+                                encryption.get('salt', ''),
+                                encryption.get('hashed_password', '')
+                            ):
                                 raise TaskException(
                                     errno.EINVAL,
                                     'Password provided for volume {0} configuration update is not valid'.format(id)
@@ -1219,7 +1221,7 @@ class VolumeUpgradeTask(Task):
 
 
 @description('Replaces failed disk in active volume')
-@accepts(str, h.ref('zfs-vdev'), h.one_of(str, None))
+@accepts(str, str, h.one_of(str, None))
 class VolumeAutoReplaceTask(Task):
     @classmethod
     def early_describe(cls):
@@ -1240,45 +1242,57 @@ class VolumeAutoReplaceTask(Task):
         if not vol:
             raise VerifyException(errno.ENOENT, 'Volume {0} not found'.format(id))
 
+        def do_replace(disk):
+            if vol.get('encrypted', False):
+                encryption = vol['encryption']
+                self.join_subtasks(self.run_subtask('disk.geli.init', disk['id'], {
+                    'key': encryption['key'],
+                    'password': password
+                }))
+
+                if encryption['slot'] is not 0:
+                    self.join_subtasks(self.run_subtask('disk.geli.ukey.set', disk['id'], {
+                        'key': encryption['key'],
+                        'password': password,
+                        'slot': 1
+                    }))
+
+                    self.join_subtasks(self.run_subtask('disk.geli.ukey.del', disk['id'], 0))
+
+                if vol.get('providers_presence', 'NONE') != 'NONE':
+                    self.join_subtasks(self.run_subtask('disk.geli.attach', disk['id'], {
+                        'key': encryption['key'],
+                        'password': password
+                    }))
+
+            self.join_subtasks(self.run_subtask('zfs.pool.replace', id, failed_vdev, {
+                'type': 'disk',
+                'path': disk['status']['data_partition_path']
+            }))
+
+            self.join_subtasks(self.run_subtask('zfs.pool.detach', id, failed_vdev))
+
         empty_disks = self.dispatcher.call_sync('disk.query', [('status.empty', '=', True)])
         vdev = self.dispatcher.call_sync('zfs.pool.vdev_by_guid', id, failed_vdev)
         minsize = vdev['stats']['size']
+
+        # First, try to find spare assigned to the pool
+        spares = vol['topology'].get('spare', [])
+        if spares:
+            spare = spares[0]
+            disk = self.dispatcher.call_sync('disk.query', [('path', '=', spare['path'])], {'single': True})
+            do_replace(disk)
+            return
 
         if self.configstore.get('storage.hotsparing.strong_match'):
             pass
         else:
             matching_disks = sorted(empty_disks, key=lambda d: d['mediasize'])
-            disk = first_or_default(lambda d: d['mediasize'] > minsize, matching_disks)
-
+            disk = first_or_default(lambda d: d['mediasize'] >= minsize, matching_disks)
             if disk:
                 self.join_subtasks(self.run_subtask('disk.format.gpt', disk['id'], 'freebsd-zfs', {'swapsize': 2048}))
-                disk = self.dispatcher.call_sync('disk.path_to_id', disk['path'])
-                if vol.get('encrypted', False):
-                    encryption = vol['encryption']
-                    self.join_subtasks(self.run_subtask('disk.geli.init', disk['id'], {
-                        'key': encryption['key'],
-                        'password': password
-                    }))
+                do_replace(disk)
 
-                    if encryption['slot'] is not 0:
-                        self.join_subtasks(self.run_subtask('disk.geli.ukey.set', disk['id'], {
-                            'key': encryption['key'],
-                            'password': password,
-                            'slot': 1
-                        }))
-
-                        self.join_subtasks(self.run_subtask('disk.geli.ukey.del', disk['id'], 0))
-
-                    if vol.get('providers_presence', 'NONE') != 'NONE':
-                        self.join_subtasks(self.run_subtask('disk.geli.attach', disk['id'], {
-                            'key': encryption['key'],
-                            'password': password
-                        }))
-
-                self.join_subtasks(self.run_subtask('zfs.pool.replace', id, failed_vdev, {
-                    'type': 'disk',
-                    'path': disk['status']['data_partition_path']
-                }))
             else:
                 raise TaskException(errno.EBUSY, 'No matching disk to be used as spare found')
 
