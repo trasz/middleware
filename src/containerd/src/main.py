@@ -461,39 +461,42 @@ class ManagementService(RpcService):
             raise RpcException(errno.EINVAL, 'Cannot start VM - Intel VT-x instruction support not available.')
 
         container = self.context.datastore.get_by_id('containers', id)
+        if not container:
+            raise RpcException(errno.ENOENT, 'VM {0} not found'.format(id))
 
-        if container['type'] == 'VM':
-            vm = VirtualMachine(self.context)
-            vm.id = container['id']
-            vm.name = container['name']
-            vm.config = container['config']
-            vm.devices = container['devices']
-            vm.files_root = self.context.client.call_sync(
-                'volume.get_dataset_path',
-                os.path.join(container['target'], 'vm', container['name'], 'files')
-            )
-            vm.start()
-            with self.context.cv:
-                self.context.containers[id] = vm
-                self.context.cv.notify_all()
+        vm = VirtualMachine(self.context)
+        vm.id = container['id']
+        vm.name = container['name']
+        vm.config = container['config']
+        vm.devices = container['devices']
+        vm.files_root = self.context.client.call_sync(
+            'volume.get_dataset_path',
+            os.path.join(container['target'], 'vm', container['name'], 'files')
+        )
+        vm.start()
+        with self.context.cv:
+            self.context.containers[id] = vm
+            self.context.cv.notify_all()
 
     @private
     def stop_container(self, id, force=False):
         container = self.context.datastore.get_by_id('containers', id)
+        if not container:
+            raise RpcException(errno.ENOENT, 'VM {0} not found'.format(id))
+
         self.context.logger.info('Stopping container {0} ({1})'.format(container['name'], id))
 
-        if container['type'] == 'VM':
-            vm = self.context.containers.get(id)
-            if not vm:
-                return
+        vm = self.context.containers.get(id)
+        if not vm:
+            return
 
-            if vm.state == VirtualMachineState.STOPPED:
-                raise RpcException(errno.EACCES, 'Container {0} is already stopped'.format(container['name']))
+        if vm.state == VirtualMachineState.STOPPED:
+            raise RpcException(errno.EACCES, 'Container {0} is already stopped'.format(container['name']))
 
-            vm.stop(force)
-            with self.context.cv:
-                del self.context.containers[id]
-                self.context.cv.notify_all()
+        vm.stop(force)
+        with self.context.cv:
+            del self.context.containers[id]
+            self.context.cv.notify_all()
 
     @private
     def request_console(self, id):
