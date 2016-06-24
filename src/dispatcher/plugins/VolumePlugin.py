@@ -2351,7 +2351,8 @@ def register_property_schemas(plugin):
             'readOnly': True
         },
         'volblocksize': {
-            'type': 'integer'
+            'type': 'integer',
+            'enum': [512, 1024, 2048, 4096]
         },
         'refcompressratio': {
             'type': 'string',
