@@ -954,7 +954,6 @@ def _init(dispatcher, plugin):
                     'cached': {'type': 'boolean'}
                 }
             },
-            'type': {'$ref': 'container-type'},
             'config': {
                 'type': 'object',
                 'additionalProperties': False,
@@ -976,11 +975,6 @@ def _init(dispatcher, plugin):
                 'items': {'$ref': 'container-device'}
             }
         }
-    })
-
-    plugin.register_schema_definition('container-type', {
-        'type': 'string',
-        'enum': ['JAIL', 'VM', 'DOCKER']
     })
 
     plugin.register_schema_definition('container-config-bootloader', {
