@@ -1294,9 +1294,9 @@ class VolumeAutoReplaceTask(Task):
                 self.join_subtasks(self.run_subtask('disk.format.gpt', disk['id'], 'freebsd-zfs', {'swapsize': 2048}))
                 disk = self.dispatcher.call_sync('disk.query', [('id', '=', disk['id'])], {'single': True})
                 do_replace(disk, True)
+                return
 
-            else:
-                raise TaskException(errno.EBUSY, 'No matching disk to be used as spare found')
+        raise TaskException(errno.EBUSY, 'No matching disk to be used as spare found')
 
 
 @description("Locks encrypted ZFS volume")
