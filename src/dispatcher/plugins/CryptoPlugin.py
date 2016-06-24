@@ -347,8 +347,9 @@ class CertificateUpdateTask(Task):
     def early_describe(cls):
         return "Updating certificate"
 
-    def describe(self, id, updated_fields):
-        return TaskDescription("Updating certificate {name}", name=id)
+    def describe(self, id):
+        cert = self.datastore.get_by_id('crypto.certificates', id)
+        return TaskDescription("Updating certificate {name}", name=cert.get('name', '') if cert else '')
 
     def verify(self, id, updated_fields):
         certificate = self.datastore.get_by_id('crypto.certificates', id)
@@ -410,7 +411,8 @@ class CertificateDeleteTask(Task):
         return "Deleting certificate"
 
     def describe(self, id):
-        return TaskDescription("Deleting certificate {name}", name=id)
+        cert = self.datastore.get_by_id('crypto.certificates', id)
+        return TaskDescription("Deleting certificate {name}", name=cert.get('name', '') if cert else '')
 
     def verify(self, id):
         if not self.datastore.exists('crypto.certificates', ('id', '=', id)):
