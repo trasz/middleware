@@ -2595,6 +2595,25 @@ def _init(dispatcher, plugin):
             'severity': 'WARNING'
         })
 
+    def on_vdev_state_change(args):
+        guid = args['guid']
+        volume = dispatcher.call_sync('volume.query', [('guid', '=', guid)], {'single': True})
+        if not volume:
+            return
+
+        if args['vdev_guid'] == guid:
+            # Ignore root vdev state changes
+            return
+
+        if args['vdev_state'] in ('FAULTED', 'REMOVED'):
+            logger.warning('Vdev {0} of pool {1} is now in {2} state - attempting to replace'.format(
+                args['vdev_guid'],
+                volume['id'],
+                args['vdev_state']
+            ))
+
+            dispatcher.call_task_sync('volume.autoreplace', volume['id'], args['vdev_guid'])
+
     def scrub_snapshots():
         interval = dispatcher.configstore.get('middleware.snapshot_scrub_interval')
         while True:
@@ -2838,6 +2857,7 @@ def _init(dispatcher, plugin):
 
     plugin.register_event_handler('entity-subscriber.zfs.pool.changed', on_pool_change)
     plugin.register_event_handler('fs.zfs.vdev.removed', on_vdev_remove)
+    plugin.register_event_handler('fs.zfs.vdev.state_changed', on_vdev_state_change)
 
     plugin.register_event_type('volume.changed')
     plugin.register_event_type('volume.dataset.changed')
