@@ -1242,7 +1242,7 @@ class VolumeAutoReplaceTask(Task):
         if not vol:
             raise VerifyException(errno.ENOENT, 'Volume {0} not found'.format(id))
 
-        def do_replace(disk):
+        def do_replace(disk, global_spare=False):
             if vol.get('encrypted', False):
                 encryption = vol['encryption']
                 self.join_subtasks(self.run_subtask('disk.geli.init', disk['id'], {
@@ -1270,7 +1270,8 @@ class VolumeAutoReplaceTask(Task):
                 'path': disk['status']['data_partition_path']
             }))
 
-            self.join_subtasks(self.run_subtask('zfs.pool.detach', id, failed_vdev))
+            if not global_spare:
+                self.join_subtasks(self.run_subtask('zfs.pool.detach', id, failed_vdev))
 
         empty_disks = self.dispatcher.call_sync('disk.query', [('status.empty', '=', True)])
         vdev = self.dispatcher.call_sync('zfs.pool.vdev_by_guid', id, failed_vdev)
@@ -1291,7 +1292,8 @@ class VolumeAutoReplaceTask(Task):
             disk = first_or_default(lambda d: d['mediasize'] >= minsize, matching_disks)
             if disk:
                 self.join_subtasks(self.run_subtask('disk.format.gpt', disk['id'], 'freebsd-zfs', {'swapsize': 2048}))
-                do_replace(disk)
+                disk = self.dispatcher.call_sync('disk.query', [('id', '=', disk['id'])], {'single': True})
+                do_replace(disk, True)
 
             else:
                 raise TaskException(errno.EBUSY, 'No matching disk to be used as spare found')
