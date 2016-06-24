@@ -257,6 +257,8 @@ class ContainerBaseTask(Task):
             normalize(res['properties'], {
                 'link_address': self.dispatcher.call_sync('container.generate_mac')
             })
+            if res['properties'].get('type') == 'BRIDGE' and res['properties'].get('bridge') == 'default':
+                res['properties']['bridge'] = self.dispatcher.call_sync('container.get_default_interface')
 
         if res['type'] == 'VOLUME':
             properties = res['properties']
