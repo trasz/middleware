@@ -35,7 +35,6 @@ import subprocess
 import errno
 import threading
 import setproctitle
-import signal
 import netif
 import time
 import ipaddress
@@ -433,7 +432,6 @@ class ConfigurationService(RpcService):
 
                     self.datastore.update('network.interfaces', entity['id'], entity)
                     self.config.set('network.autoconfigure', False)
-                    self.config.set('container.default_nic', i.name)
                     self.logger.info('Successfully configured interface {0}'.format(i.name))
                     return
                 else:

@@ -53,13 +53,13 @@ BLOCKSIZE = 65536
 logger = logging.getLogger(__name__)
 
 
-@description('Provides information about containers')
-class ContainerProvider(Provider):
-    @query('container')
+@description('Provides information about VMs')
+class VMProvider(Provider):
+    @query('vm')
     def query(self, filter=None, params=None):
         def extend(obj):
             obj['status'] = self.dispatcher.call_sync('containerd.management.get_status', obj['id'])
-            root = self.dispatcher.call_sync('container.get_container_root', obj['id'])
+            root = self.dispatcher.call_sync('vm.get_vm_root', obj['id'])
             if os.path.isdir(root):
                 readme = get_readme(root)
                 if readme:
@@ -67,55 +67,55 @@ class ContainerProvider(Provider):
                         obj['template']['readme'] = readme_file.read()
             return obj
 
-        return self.datastore.query('containers', *(filter or []), callback=extend, **(params or {}))
+        return self.datastore.query('vms', *(filter or []), callback=extend, **(params or {}))
 
-    def get_container_root(self, container_id):
-        container = self.datastore.get_by_id('containers', container_id)
-        if not container:
+    def get_vm_root(self, vm_id):
+        vm = self.datastore.get_by_id('vms', vm_id)
+        if not vm:
             return None
 
-        return os.path.join('/mnt', container['target'], 'vm', container['name'])
+        return os.path.join('/mnt', vm['target'], 'vm', vm['name'])
 
-    def get_disk_path(self, container_id, disk_name):
-        container = self.datastore.get_by_id('containers', container_id)
-        if not container:
+    def get_disk_path(self, vm_id, disk_name):
+        vm = self.datastore.get_by_id('vms', vm_id)
+        if not vm:
             return None
 
-        disk = first_or_default(lambda d: d['name'] == disk_name, container['devices'])
+        disk = first_or_default(lambda d: d['name'] == disk_name, vm['devices'])
         if not disk:
             return None
 
         if disk['type'] == 'DISK':
-            return os.path.join('/dev/zvol', container['target'], 'vm', container['name'], disk_name)
+            return os.path.join('/dev/zvol', vm['target'], 'vm', vm['name'], disk_name)
 
         if disk['type'] == 'CDROM':
             return disk['properties']['path']
 
-    def get_volume_path(self, container_id, volume_name):
-        container = self.datastore.get_by_id('containers', container_id)
-        if not container:
+    def get_volume_path(self, vm_id, volume_name):
+        vm = self.datastore.get_by_id('vms', vm_id)
+        if not vm:
             return None
 
-        vol = first_or_default(lambda v: v['name'] == volume_name, container['devices'])
+        vol = first_or_default(lambda v: v['name'] == volume_name, vm['devices'])
         if not vol:
             return None
 
         if vol['properties'].get('auto'):
-            return os.path.join(self.get_container_root(container_id), vol['name'])
+            return os.path.join(self.get_vm_root(vm_id), vol['name'])
 
         return vol['properties']['destination']
 
-    @description("Get containers dependent on provided filesystem path")
+    @description("Get VMs dependent on provided filesystem path")
     def get_dependencies(self, path, enabled_only=True, recursive=True):
         result = []
 
         if enabled_only:
-            containers = self.datastore.query('containers', ('enabled', '=', True))
+            vms = self.datastore.query('vms', ('enabled', '=', True))
         else:
-            containers = self.datastore.query('containers')
+            vms = self.datastore.query('vms')
 
-        for i in containers:
-            target_path = self.get_container_root(i['id'])
+        for i in vms:
+            target_path = self.get_vm_root(i['id'])
             if recursive:
                 if in_directory(target_path, path):
                     result.append(i)
@@ -128,21 +128,13 @@ class ContainerProvider(Provider):
     def generate_mac(self):
         return VM_OUI + ':' + ':'.join('{0:02x}'.format(random.randint(0, 255)) for _ in range(0, 3))
 
-    def get_default_interface(self):
-        return self.configstore.get('container.default_nic')
 
-    @description("Returns list of supported container types")
-    def supported_types(self):
-        result = ['JAIL', 'VM', 'DOCKER']
-        return result
-
-
-@description('Provides information about container templates')
-class ContainerTemplateProvider(Provider):
-    @query('container')
+@description('Provides information about VM templates')
+class VMTemplateProvider(Provider):
+    @query('vm')
     def query(self, filter=None, params=None):
-        templates_dir = self.dispatcher.call_sync('system_dataset.request_directory', 'container_templates')
-        cache_dir = self.dispatcher.call_sync('system_dataset.request_directory', 'container_image_cache')
+        templates_dir = self.dispatcher.call_sync('system_dataset.request_directory', 'vm_templates')
+        cache_dir = self.dispatcher.call_sync('system_dataset.request_directory', 'vm_image_cache')
         templates = []
         for root, dirs, files in os.walk(templates_dir):
             if 'template.json' in files:
@@ -165,11 +157,11 @@ class ContainerTemplateProvider(Provider):
         return wrap(templates).query(*(filter or []), **(params or {}))
 
 
-class ContainerBaseTask(Task):
-    def init_dataset(self, container):
-        pool = container['target']
+class VMBaseTask(Task):
+    def init_dataset(self, vm):
+        pool = vm['target']
         root_ds = os.path.join(pool, 'vm')
-        self.container_ds = os.path.join(root_ds, container['name'])
+        self.vm_ds = os.path.join(root_ds, vm['name'])
 
         if not self.dispatcher.call_sync('zfs.dataset.query', [('name', '=', root_ds)], {'single': True}):
             # Create VM root
@@ -180,22 +172,22 @@ class ContainerBaseTask(Task):
         try:
             self.join_subtasks(self.run_subtask('volume.dataset.create', {
                 'volume': pool,
-                'id': self.container_ds
+                'id': self.vm_ds
             }))
         except RpcException:
             raise TaskException(
                 errno.EACCES,
-                'Dataset of the same name as {0} already exists. Maybe you meant to import an VM?'.format(self.container_ds)
+                'Dataset of the same name as {0} already exists. Maybe you meant to import an VM?'.format(self.vm_ds)
             )
 
-    def init_files(self, container):
-        template = container.get('template')
+    def init_files(self, vm):
+        template = vm.get('template')
         if not template:
             return
 
         if template.get('files'):
             source_root = os.path.join(template['path'], 'files')
-            dest_root = self.dispatcher.call_sync('volume.get_dataset_path', self.container_ds)
+            dest_root = self.dispatcher.call_sync('volume.get_dataset_path', self.vm_ds)
             files_root = os.path.join(dest_root, 'files')
 
             try:
@@ -224,18 +216,18 @@ class ContainerBaseTask(Task):
                 for f in template['fetch']:
                     if f.get('dest'):
                         self.join_subtasks(self.run_subtask(
-                            'container.file.install',
-                            container['template']['name'],
+                            'vm.file.install',
+                            vm['template']['name'],
                             f['name'],
                             files_root if f['dest'] == '.' else os.path.join(files_root, f['dest'])
                         ))
 
-    def create_device(self, container, res):
+    def create_device(self, vm, res):
         if res['type'] == 'DISK':
-            container_ds = os.path.join(container['target'], 'vm', container['name'])
-            ds_name = os.path.join(container_ds, res['name'])
+            vm_ds = os.path.join(vm['target'], 'vm', vm['name'])
+            ds_name = os.path.join(vm_ds, res['name'])
             self.join_subtasks(self.run_subtask('volume.dataset.create', {
-                'volume': container['target'],
+                'volume': vm['target'],
                 'id': ds_name,
                 'type': 'VOLUME',
                 'volsize': res['properties']['size']
@@ -247,23 +239,23 @@ class ContainerBaseTask(Task):
 
             if res['properties'].get('source'):
                 self.join_subtasks(self.run_subtask(
-                    'container.file.install',
-                    container['template']['name'],
+                    'vm.file.install',
+                    vm['template']['name'],
                     res['properties']['source'],
                     os.path.join('/dev/zvol', ds_name)
                 ))
 
         if res['type'] == 'NIC':
             normalize(res['properties'], {
-                'link_address': self.dispatcher.call_sync('container.generate_mac')
+                'link_address': self.dispatcher.call_sync('vm.generate_mac')
             })
             if res['properties'].get('type') == 'BRIDGE' and res['properties'].get('bridge') == 'default':
-                res['properties']['bridge'] = self.dispatcher.call_sync('container.get_default_interface')
+                res['properties']['bridge'] = self.dispatcher.call_sync('networkd.configuration.get_default_interface')
 
         if res['type'] == 'VOLUME':
             properties = res['properties']
             mgmt_net = ipaddress.ip_interface(self.configstore.get('container.network.management'))
-            container_ds = os.path.join(container['target'], 'vm', container['name'])
+            vm_ds = os.path.join(vm['target'], 'vm', vm['name'])
             opts = {}
 
             normalize(res['properties'], {
@@ -278,137 +270,137 @@ class ContainerBaseTask(Task):
 
             if properties['type'] == 'VT9P':
                 if properties.get('auto'):
-                    ds_name = os.path.join(container_ds, res['name'])
+                    ds_name = os.path.join(vm_ds, res['name'])
                     self.join_subtasks(self.run_subtask('volume.dataset.create', {
-                        'volume': container['target'],
+                        'volume': vm['target'],
                         'id': ds_name
                     }))
 
                     if properties.get('source'):
                         self.join_subtasks(self.run_subtask(
-                            'container.file.install',
-                            container['template']['name'],
+                            'vm.file.install',
+                            vm['template']['name'],
                             properties['source'],
                             self.dispatcher.call_sync('volume.get_dataset_path', ds_name)
                         ))
 
-    def update_device(self, container, old_res, new_res):
+    def update_device(self, vm, old_res, new_res):
         if new_res['type'] == 'DISK':
             pass
 
-    def delete_device(self, container, res):
+    def delete_device(self, vm, res):
         if res['type'] in ('DISK', 'VOLUME'):
-            container_ds = os.path.join(container['target'], 'vm', container['name'])
-            ds_name = os.path.join(container_ds, res['name'])
+            vm_ds = os.path.join(vm['target'], 'vm', vm['name'])
+            ds_name = os.path.join(vm_ds, res['name'])
             self.join_subtasks(self.run_subtask(
                 'volume.dataset.delete',
                 ds_name
             ))
 
 
-@accepts(h.ref('container'))
-@description('Creates a container')
-class ContainerCreateTask(ContainerBaseTask):
+@accepts(h.ref('vm'))
+@description('Creates a VM')
+class VMCreateTask(VMBaseTask):
     @classmethod
     def early_describe(cls):
-        return 'Creating container'
+        return 'Creating VM'
 
-    def describe(self, container):
-        return TaskDescription('Creating container {name}', name=container.get('name', ''))
+    def describe(self, vm):
+        return TaskDescription('Creating VM {name}', name=vm.get('name', ''))
 
-    def verify(self, container):
-        if not self.dispatcher.call_sync('volume.query', [('id', '=', container['target'])], {'single': True}):
-            raise VerifyException(errno.ENXIO, 'Volume {0} doesn\'t exist'.format(container['target']))
+    def verify(self, vm):
+        if not self.dispatcher.call_sync('volume.query', [('id', '=', vm['target'])], {'single': True}):
+            raise VerifyException(errno.ENXIO, 'Volume {0} doesn\'t exist'.format(vm['target']))
 
-        return ['zpool:{0}'.format(container['target']), 'system-dataset']
+        return ['zpool:{0}'.format(vm['target']), 'system-dataset']
 
-    def run(self, container):
-        if container.get('template'):
-            self.join_subtasks(self.run_subtask('container.template.fetch'))
+    def run(self, vm):
+        if vm.get('template'):
+            self.join_subtasks(self.run_subtask('vm.template.fetch'))
             template = self.dispatcher.call_sync(
-                'container.template.query',
-                [('template.name', '=', container['template'].get('name'))],
+                'vm.template.query',
+                [('template.name', '=', vm['template'].get('name'))],
                 {'single': True}
             )
             template['template'].pop('readme')
 
             if template is None:
-                raise TaskException(errno.ENOENT, 'Template {0} not found'.format(container['template'].get('name')))
+                raise TaskException(errno.ENOENT, 'Template {0} not found'.format(vm['template'].get('name')))
 
             result = {}
-            for key in container:
-                if container[key]:
-                    result[key] = container[key]
+            for key in vm:
+                if vm[key]:
+                    result[key] = vm[key]
             deep_update(template, result)
-            container = template
+            vm = template
 
-            self.join_subtasks(self.run_subtask('container.cache.update', container['template']['name']))
+            self.join_subtasks(self.run_subtask('vm.cache.update', vm['template']['name']))
         else:
-            normalize(container, {
+            normalize(vm, {
                 'config': {},
                 'devices': []
             })
 
-        normalize(container, {
+        normalize(vm, {
             'enabled': True,
             'immutable': False
         })
 
-        normalize(container['config'], {
+        normalize(vm['config'], {
             'memsize': 512,
             'ncpus': 1
         })
 
-        if container['config']['ncpus'] > 16:
+        if vm['config']['ncpus'] > 16:
             raise TaskException(errno.EINVAL, 'Upper limit of VM cores exceeded. Maximum permissible value is 16.')
 
-        self.init_dataset(container)
-        for res in container['devices']:
-            self.create_device(container, res)
-        self.init_files(container)
+        self.init_dataset(vm)
+        for res in vm['devices']:
+            self.create_device(vm, res)
+        self.init_files(vm)
 
-        id = self.datastore.insert('containers', container)
-        self.dispatcher.dispatch_event('container.changed', {
+        id = self.datastore.insert('vms', vm)
+        self.dispatcher.dispatch_event('vm.changed', {
             'operation': 'create',
             'ids': [id]
         })
 
-        container = self.datastore.get_by_id('containers', id)
+        vm = self.datastore.get_by_id('vms', id)
         save_config(
             self.dispatcher.call_sync(
                 'volume.resolve_path',
-                container['target'],
-                os.path.join('vm', container['name'])
+                vm['target'],
+                os.path.join('vm', vm['name'])
             ),
-            'vm-{0}'.format(container['name']),
-            container
+            'vm-{0}'.format(vm['name']),
+            vm
         )
 
         return id
 
 
 @accepts(str, str)
-@description('Imports existing container')
-class ContainerImportTask(ContainerBaseTask):
+@description('Imports existing VM')
+class VMImportTask(VMBaseTask):
     @classmethod
     def early_describe(cls):
-        return 'Importing container'
+        return 'Importing VM'
 
     def describe(self, name, volume):
-        return TaskDescription('Importing container {name}', name=name)
+        return TaskDescription('Importing VM {name}', name=name)
 
     def verify(self, name, volume):
         if not self.dispatcher.call_sync('volume.query', [('id', '=', volume)], {'single': True}):
             raise VerifyException(errno.ENXIO, 'Volume {0} doesn\'t exist'.format(volume))
 
-        if self.datastore.exists('containers', ('name', '=', name)):
-            raise VerifyException(errno.EEXIST, 'Container {0} already exists'.format(name))
+        if self.datastore.exists('vms', ('name', '=', name)):
+            raise VerifyException(errno.EEXIST, 'VM {0} already exists'.format(name))
 
         return ['zpool:{0}'.format(volume)]
 
     def run(self, name, volume):
         try:
-            container = load_config(
+            vm = load_config(
                 self.dispatcher.call_sync(
                     'volume.resolve_path',
                     volume,
@@ -424,8 +416,8 @@ class ContainerImportTask(ContainerBaseTask):
                 'Cannot read configuration file. File is not a valid JSON file'
             )
 
-        id = self.datastore.insert('containers', container)
-        self.dispatcher.dispatch_event('container.changed', {
+        id = self.datastore.insert('vms', vm)
+        self.dispatcher.dispatch_event('vm.changed', {
             'operation': 'create',
             'ids': [id]
         })
@@ -434,51 +426,51 @@ class ContainerImportTask(ContainerBaseTask):
 
 
 @accepts(str, bool)
-@description('Sets container immutable')
-class ContainerSetImmutableTask(ContainerBaseTask):
+@description('Sets VM immutable')
+class VMSetImmutableTask(VMBaseTask):
     @classmethod
     def early_describe(cls):
-        return 'Updating container\'s immutable property'
+        return 'Updating VM\'s immutable property'
 
     def describe(self, id, immutable):
-        container = self.datastore.get_by_id('containers', id)
+        vm = self.datastore.get_by_id('vms', id)
         return TaskDescription(
-            'Setting {name} container\'s immutable property to {value}',
-            name=container.get('name', '') if container else '',
+            'Setting {name} VM\'s immutable property to {value}',
+            name=vm.get('name', '') if vm else '',
             value='on' if immutable else 'off'
         )
 
     def verify(self, id, immutable):
-        if not self.datastore.exists('containers', ('id', '=', id)):
-            raise VerifyException(errno.ENOENT, 'Container {0} does not exist'.format(id))
+        if not self.datastore.exists('vms', ('id', '=', id)):
+            raise VerifyException(errno.ENOENT, 'VM {0} does not exist'.format(id))
 
         return ['system']
 
     def run(self, id, immutable):
-        container = self.datastore.get_by_id('containers', id)
-        container['enabled'] = not immutable
-        container['immutable'] = immutable
-        self.datastore.update('containers', id, container)
-        self.dispatcher.dispatch_event('container.changed', {
+        vm = self.datastore.get_by_id('vms', id)
+        vm['enabled'] = not immutable
+        vm['immutable'] = immutable
+        self.datastore.update('vms', id, vm)
+        self.dispatcher.dispatch_event('vm.changed', {
             'operation': 'update',
             'ids': [id]
         })
 
 
-@accepts(str, h.ref('container'))
-@description('Updates container')
-class ContainerUpdateTask(ContainerBaseTask):
+@accepts(str, h.ref('vm'))
+@description('Updates VM')
+class VMUpdateTask(VMBaseTask):
     @classmethod
     def early_describe(cls):
-        return 'Updating container'
+        return 'Updating VM'
 
     def describe(self, id, updated_params):
-        container = self.datastore.get_by_id('containers', id)
-        return TaskDescription('Updating container {name}', name=container.get('name', '') if container else '')
+        vm = self.datastore.get_by_id('vms', id)
+        return TaskDescription('Updating VM {name}', name=vm.get('name', '') if vm else '')
 
     def verify(self, id, updated_params):
-        if not self.datastore.exists('containers', ('id', '=', id)):
-            raise VerifyException(errno.ENOENT, 'Container {0} not found'.format(id))
+        if not self.datastore.exists('vms', ('id', '=', id)):
+            raise VerifyException(errno.ENOENT, 'VM {0} not found'.format(id))
 
         return ['system']
 
@@ -486,17 +478,17 @@ class ContainerUpdateTask(ContainerBaseTask):
         if 'config' in updated_params and updated_params['config']['ncpus'] > 16:
             raise TaskException(errno.EINVAL, 'Upper limit of VM cores exceeded. Maximum permissible value is 16.')
 
-        container = self.datastore.get_by_id('containers', id)
-        if container['immutable']:
-            raise TaskException(errno.EACCES, 'Cannot modify immutable container {0}.'.format(id))
+        vm = self.datastore.get_by_id('vms', id)
+        if vm['immutable']:
+            raise TaskException(errno.EACCES, 'Cannot modify immutable VM {0}.'.format(id))
         try:
             delete_config(
                 self.dispatcher.call_sync(
                     'volume.resolve_path',
-                    container['target'],
-                    os.path.join('vm', container['name'])
+                    vm['target'],
+                    os.path.join('vm', vm['name'])
                 ),
-                'vm-{0}'.format(container['name'])
+                'vm-{0}'.format(vm['name'])
             )
         except (RpcException, OSError):
             pass
@@ -504,213 +496,213 @@ class ContainerUpdateTask(ContainerBaseTask):
         if 'template' in updated_params:
             readme = updated_params['template'].pop('readme')
             if readme:
-                root = self.dispatcher.call_sync('container.get_container_root', container['id'])
+                root = self.dispatcher.call_sync('vm.get_vm_root', vm['id'])
                 with open(os.path.join(root, 'README.md'), 'w') as readme_file:
                     readme_file.write(readme)
 
         if 'devices' in updated_params:
-            if container.get('template'):
-                self.join_subtasks(self.run_subtask('container.cache.update', container['template']['name']))
+            if vm.get('template'):
+                self.join_subtasks(self.run_subtask('vm.cache.update', vm['template']['name']))
 
             for res in updated_params['devices']:
-                existing = first_or_default(lambda i: i['name'] == res['name'], container['devices'])
+                existing = first_or_default(lambda i: i['name'] == res['name'], vm['devices'])
                 if existing:
-                    self.update_device(container, existing, res)
+                    self.update_device(vm, existing, res)
                 else:
-                    self.create_device(container, res)
+                    self.create_device(vm, res)
 
-            for res in container['devices']:
+            for res in vm['devices']:
                 if not first_or_default(lambda i: i['name'] == res['name'], updated_params['devices']):
-                    self.delete_device(container, res)
+                    self.delete_device(vm, res)
 
         if not updated_params.get('enabled', True):
-            self.join_subtasks(self.run_subtask('container.stop', id))
+            self.join_subtasks(self.run_subtask('vm.stop', id))
 
-        container.update(updated_params)
-        self.datastore.update('containers', id, container)
-        self.dispatcher.dispatch_event('container.changed', {
+        vm.update(updated_params)
+        self.datastore.update('vms', id, vm)
+        self.dispatcher.dispatch_event('vm.changed', {
             'operation': 'update',
             'ids': [id]
         })
 
-        container = self.datastore.get_by_id('containers', id)
+        vm = self.datastore.get_by_id('vms', id)
         save_config(
             self.dispatcher.call_sync(
                 'volume.resolve_path',
-                container['target'],
-                os.path.join('vm', container['name'])
+                vm['target'],
+                os.path.join('vm', vm['name'])
             ),
-            'vm-{0}'.format(container['name']),
-            container
+            'vm-{0}'.format(vm['name']),
+            vm
         )
 
 
 @accepts(str)
-@description('Deletes container')
-class ContainerDeleteTask(Task):
+@description('Deletes VM')
+class VMDeleteTask(Task):
     @classmethod
     def early_describe(cls):
-        return 'Deleting container'
+        return 'Deleting VM'
 
     def describe(self, id):
-        container = self.datastore.get_by_id('containers', id)
-        return TaskDescription('Deleting container {name}', name=container.get('name', '') if container else '')
+        vm = self.datastore.get_by_id('vms', id)
+        return TaskDescription('Deleting VM {name}', name=vm.get('name', '') if vm else '')
 
     def verify(self, id):
-        if not self.datastore.exists('containers', ('id', '=', id)):
-            raise VerifyException(errno.ENOENT, 'Container {0} not found'.format(id))
+        if not self.datastore.exists('vms', ('id', '=', id)):
+            raise VerifyException(errno.ENOENT, 'VM {0} not found'.format(id))
 
         return ['system']
 
     def run(self, id):
-        container = self.datastore.get_by_id('containers', id)
+        vm = self.datastore.get_by_id('vms', id)
         try:
             delete_config(
                 self.dispatcher.call_sync(
                     'volume.resolve_path',
-                    container['target'],
-                    os.path.join('vm', container['name'])
+                    vm['target'],
+                    os.path.join('vm', vm['name'])
                 ),
-                'vm-{0}'.format(container['name'])
+                'vm-{0}'.format(vm['name'])
             )
         except (RpcException, OSError):
             pass
 
-        pool = container['target']
+        pool = vm['target']
         root_ds = os.path.join(pool, 'vm')
-        container_ds = os.path.join(root_ds, container['name'])
+        vm_ds = os.path.join(root_ds, vm['name'])
 
         try:
-            self.join_subtasks(self.run_subtask('container.stop', id, True))
+            self.join_subtasks(self.run_subtask('vm.stop', id, True))
         except RpcException:
             pass
 
         try:
-            self.join_subtasks(self.run_subtask('volume.dataset.delete', container_ds))
+            self.join_subtasks(self.run_subtask('volume.dataset.delete', vm_ds))
         except RpcException as err:
             if err.code != errno.ENOENT:
                 raise err
 
-        self.datastore.delete('containers', id)
-        self.dispatcher.dispatch_event('container.changed', {
+        self.datastore.delete('vms', id)
+        self.dispatcher.dispatch_event('vm.changed', {
             'operation': 'delete',
             'ids': [id]
         })
 
 
 @accepts(str)
-@description('Exports container from database')
-class ContainerExportTask(Task):
+@description('Exports VM from database')
+class VMExportTask(Task):
     @classmethod
     def early_describe(cls):
-        return 'Exporting container'
+        return 'Exporting VM'
 
     def describe(self, id):
-        container = self.datastore.get_by_id('containers', id)
-        return TaskDescription('Exporting container {name}', name=container.get('name', '') if container else '')
+        vm = self.datastore.get_by_id('vms', id)
+        return TaskDescription('Exporting VM {name}', name=vm.get('name', '') if vm else '')
 
     def verify(self, id):
-        if not self.datastore.exists('containers', ('id', '=', id)):
-            raise VerifyException(errno.ENOENT, 'Container {0} not found'.format(id))
+        if not self.datastore.exists('vms', ('id', '=', id)):
+            raise VerifyException(errno.ENOENT, 'VM {0} not found'.format(id))
 
         return ['system']
 
     def run(self, id):
-        self.datastore.delete('containers', id)
-        self.dispatcher.dispatch_event('container.changed', {
+        self.datastore.delete('vms', id)
+        self.dispatcher.dispatch_event('vm.changed', {
             'operation': 'delete',
             'ids': [id]
         })
 
 
 @accepts(str)
-@description('Starts container')
-class ContainerStartTask(Task):
+@description('Starts VM')
+class VMStartTask(Task):
     @classmethod
     def early_describe(cls):
-        return 'Starting container'
+        return 'Starting VM'
 
     def describe(self, id):
-        container = self.datastore.get_by_id('containers', id)
-        return TaskDescription('Starting container {name}', name=container.get('name', '') if container else '')
+        vm = self.datastore.get_by_id('vms', id)
+        return TaskDescription('Starting VM {name}', name=vm.get('name', '') if vm else '')
 
     def verify(self, id):
-        container = self.dispatcher.call_sync('container.query', [('id', '=', id)], {'single': True})
-        if not container['enabled']:
-            raise VerifyException(errno.EACCES, "Cannot start disabled container {0}".format(id))
+        vm = self.dispatcher.call_sync('vm.query', [('id', '=', id)], {'single': True})
+        if not vm['enabled']:
+            raise VerifyException(errno.EACCES, "Cannot start disabled VM {0}".format(id))
         return ['system']
 
     def run(self, id):
-        self.dispatcher.call_sync('containerd.management.start_container', id)
-        self.dispatcher.dispatch_event('container.changed', {
+        self.dispatcher.call_sync('containerd.management.start_vm', id)
+        self.dispatcher.dispatch_event('vm.changed', {
             'operation': 'update',
             'ids': [id]
         })
 
 
 @accepts(str, bool)
-@description('Stops container')
-class ContainerStopTask(Task):
+@description('Stops VM')
+class VMStopTask(Task):
     @classmethod
     def early_describe(cls):
-        return 'Stopping container'
+        return 'Stopping VM'
 
     def describe(self, id, force=False):
-        container = self.datastore.get_by_id('containers', id)
-        return TaskDescription('Stopping container {name}', name=container.get('name', '') if container else '')
+        vm = self.datastore.get_by_id('vms', id)
+        return TaskDescription('Stopping VM {name}', name=vm.get('name', '') if vm else '')
 
     def verify(self, id, force=False):
         return ['system']
 
     def run(self, id, force=False):
-        self.dispatcher.call_sync('containerd.management.stop_container', id, force, timeout=120)
-        self.dispatcher.dispatch_event('container.changed', {
+        self.dispatcher.call_sync('containerd.management.stop_vm', id, force, timeout=120)
+        self.dispatcher.dispatch_event('vm.changed', {
             'operation': 'update',
             'ids': [id]
         })
 
 
 @accepts(str, bool)
-@description('Reboots container')
-class ContainerRebootTask(Task):
+@description('Reboots VM')
+class VMRebootTask(Task):
     @classmethod
     def early_describe(cls):
-        return 'Rebooting container'
+        return 'Rebooting VM'
 
     def describe(self, id, force=False):
-        container = self.datastore.get_by_id('containers', id)
-        return TaskDescription('Rebooting container {name}', name=container.get('name', '') if container else '')
+        vm = self.datastore.get_by_id('vms', id)
+        return TaskDescription('Rebooting VM {name}', name=vm.get('name', '') if vm else '')
 
     def verify(self, id, force=False):
         return ['system']
 
     def run(self, id, force=False):
-        self.join_subtasks(self.run_subtask('container.stop', id, force))
-        self.join_subtasks(self.run_subtask('container.start', id))
+        self.join_subtasks(self.run_subtask('vm.stop', id, force))
+        self.join_subtasks(self.run_subtask('vm.start', id))
 
 
 @accepts(str)
-@description('Caches container files')
+@description('Caches VM files')
 class CacheFilesTask(ProgressTask):
     @classmethod
     def early_describe(cls):
-        return 'Caching container files'
+        return 'Caching VM files'
 
     def describe(self, name):
-        return TaskDescription('Caching container files {name}', name=name or '')
+        return TaskDescription('Caching VM files {name}', name=name or '')
 
     def verify(self, name):
         return ['system-dataset']
 
     def run(self, name):
-        cache_dir = self.dispatcher.call_sync('system_dataset.request_directory', 'container_image_cache')
+        cache_dir = self.dispatcher.call_sync('system_dataset.request_directory', 'vm_image_cache')
         template = self.dispatcher.call_sync(
-            'container.template.query',
+            'vm.template.query',
             [('template.name', '=', name)],
             {'single': True}
         )
         if not template:
-            raise TaskException(errno.ENOENT, 'Template of container {0} does not exist'.format(name))
+            raise TaskException(errno.ENOENT, 'Template of VM {0} does not exist'.format(name))
 
         self.set_progress(0, 'Caching images')
         res_cnt = len(template['template']['fetch'])
@@ -732,7 +724,7 @@ class CacheFilesTask(ProgressTask):
                 os.makedirs(destination)
 
             self.join_subtasks(self.run_subtask(
-                'container.file.download',
+                'vm.file.download',
                 url,
                 sha256,
                 destination
@@ -742,33 +734,33 @@ class CacheFilesTask(ProgressTask):
 
 
 @accepts(str)
-@description('Deletes cached container files')
+@description('Deletes cached VM files')
 class DeleteFilesTask(Task):
     @classmethod
     def early_describe(cls):
-        return 'Deleting cached container files'
+        return 'Deleting cached VM files'
 
     def describe(self, name):
-        return TaskDescription('Deleting cached container {name} files', name=name)
+        return TaskDescription('Deleting cached VM {name} files', name=name)
 
     def verify(self, name):
         return ['system-dataset']
 
     def run(self, name):
-        cache_dir = self.dispatcher.call_sync('system_dataset.request_directory', 'container_image_cache')
+        cache_dir = self.dispatcher.call_sync('system_dataset.request_directory', 'vm_image_cache')
         images_dir = os.path.join(cache_dir, name)
         shutil.rmtree(images_dir)
 
 
 @accepts(str, str, str)
-@description('Downloads container file')
+@description('Downloads VM file')
 class DownloadFileTask(ProgressTask):
     @classmethod
     def early_describe(cls):
-        return 'Downloading container file'
+        return 'Downloading VM file'
 
     def describe(self, url, sha256, destination):
-        return TaskDescription('Downloading container file {name}', name=url or '')
+        return TaskDescription('Downloading VM file {name}', name=url or '')
 
     def verify(self, url, sha256, destination):
         return ['system-dataset']
@@ -797,15 +789,15 @@ class DownloadFileTask(ProgressTask):
 
 
 @accepts(str, str, str)
-@description('Installs container file')
+@description('Installs VM file')
 class InstallFileTask(Task):
     @classmethod
     def early_describe(cls):
-        return 'Installing container file'
+        return 'Installing VM file'
 
     def describe(self, name, res, destination):
         return TaskDescription(
-            'Installing container file {name} in {destination}',
+            'Installing VM file {name} in {destination}',
             name=os.path.join(name, res) or '',
             destination=destination or ''
         )
@@ -814,7 +806,7 @@ class InstallFileTask(Task):
         return ['system-dataset']
 
     def run(self, name, res, destination):
-        cache_dir = self.dispatcher.call_sync('system_dataset.request_directory', 'container_image_cache')
+        cache_dir = self.dispatcher.call_sync('system_dataset.request_directory', 'vm_image_cache')
         files_path = os.path.join(cache_dir, name, res)
         file_path = self.get_archive_path(files_path)
 
@@ -850,14 +842,14 @@ class InstallFileTask(Task):
                         done += ret
 
 
-@description('Downloads container templates')
-class ContainerTemplateFetchTask(ProgressTask):
+@description('Downloads VM templates')
+class VMTemplateFetchTask(ProgressTask):
     @classmethod
     def early_describe(cls):
-        return 'Downloading container templates'
+        return 'Downloading VM templates'
 
     def describe(self):
-        return TaskDescription('Downloading container templates')
+        return TaskDescription('Downloading VM templates')
 
     def verify(self):
         return ['system-dataset']
@@ -878,11 +870,11 @@ class ContainerTemplateFetchTask(ProgressTask):
                     'Cannot update template cache. Result is outdated. Check networking.'))
                 return
 
-        templates_dir = self.dispatcher.call_sync('system_dataset.request_directory', 'container_templates')
+        templates_dir = self.dispatcher.call_sync('system_dataset.request_directory', 'vm_templates')
 
         progress = 0
         self.set_progress(progress, 'Downloading templates')
-        template_sources = self.datastore.query('container.template_sources')
+        template_sources = self.datastore.query('vm.template_sources')
 
         if len(template_sources):
             progress_per_source = 100 / len(template_sources)
@@ -936,7 +928,7 @@ def _depends():
 
 
 def _init(dispatcher, plugin):
-    plugin.register_schema_definition('container', {
+    plugin.register_schema_definition('vm', {
         'type': 'object',
         'additionalProperties': False,
         'properties': {
@@ -960,7 +952,7 @@ def _init(dispatcher, plugin):
                 'properties': {
                     'memsize': {'type': 'integer'},
                     'ncpus': {'type': 'integer'},
-                    'bootloader': {'$ref': 'container-config-bootloader'},
+                    'bootloader': {'$ref': 'vm-config-bootloader'},
                     'boot_device': {'type': ['string', 'null']},
                     'boot_partition': {'type': ['string', 'null']},
                     'boot_directory': {'type': ['string', 'null']},
@@ -972,62 +964,62 @@ def _init(dispatcher, plugin):
             },
             'devices': {
                 'type': 'array',
-                'items': {'$ref': 'container-device'}
+                'items': {'$ref': 'vm-device'}
             }
         }
     })
 
-    plugin.register_schema_definition('container-config-bootloader', {
+    plugin.register_schema_definition('vm-config-bootloader', {
         'type': 'string',
         'enum': ['BHYVELOAD', 'GRUB', 'UEFI', 'UEFI_CSM']
     })
 
-    plugin.register_schema_definition('container-device', {
+    plugin.register_schema_definition('vm-device', {
         'type': 'object',
         'additionalProperties': False,
         'properties': {
             'name': {'type': 'string'},
-            'type': {'$ref': 'container-device-type'},
+            'type': {'$ref': 'vm-device-type'},
             'properties': {'type': 'object'}
         },
         'required': ['name', 'type', 'properties']
     })
 
-    plugin.register_schema_definition('container-device-type', {
+    plugin.register_schema_definition('vm-device-type', {
         'type': 'string',
         'enum': ['DISK', 'CDROM', 'NIC', 'VOLUME', 'GRAPHICS', 'USB']
     })
 
-    plugin.register_schema_definition('container-device-nic', {
+    plugin.register_schema_definition('vm-device-nic', {
         'type': 'object',
         'additionalProperties': False,
         'properties': {
-            'mode': {'$ref': 'container-device-nic-mode'},
+            'mode': {'$ref': 'vm-device-nic-mode'},
             'link_address': {'type': 'string'},
             'bridge': {'type': ['string', 'null']}
         }
     })
 
-    plugin.register_schema_definition('container-device-nic-mode', {
+    plugin.register_schema_definition('vm-device-nic-mode', {
         'type': 'string',
         'enum': ['BRIDGED', 'NAT', 'HOSTONLY', 'MANAGEMENT']
     })
 
-    plugin.register_schema_definition('container-device-disk', {
+    plugin.register_schema_definition('vm-device-disk', {
         'type': 'object',
         'additionalProperties': False,
         'properties': {
-            'mode': {'$ref': 'container-device-disk-mode'},
+            'mode': {'$ref': 'vm-device-disk-mode'},
             'size': {'type': 'integer'}
         }
     })
 
-    plugin.register_schema_definition('container-device-disk-mode', {
+    plugin.register_schema_definition('vm-device-disk-mode', {
         'type': 'string',
         'enum': ['AHCI', 'VIRTIO']
     })
 
-    plugin.register_schema_definition('container-device-cdrom', {
+    plugin.register_schema_definition('vm-device-cdrom', {
         'type': 'object',
         'additionalProperties': False,
         'properties': {
@@ -1035,30 +1027,30 @@ def _init(dispatcher, plugin):
         }
     })
 
-    plugin.register_schema_definition('container-device-volume', {
+    plugin.register_schema_definition('vm-device-volume', {
         'type': 'object',
         'additionalProperties': False,
         'properties': {
-            'type': {'$ref': 'container-device-volume-type'},
+            'type': {'$ref': 'vm-device-volume-type'},
             'auto': {'type': ['boolean', 'null']},
             'destination': {'type': ['string', 'null']}
         }
     })
 
-    plugin.register_schema_definition('container-device-volume-type', {
+    plugin.register_schema_definition('vm-device-volume-type', {
         'type': 'string',
         'enum': ['VT9P', 'NFS']
     })
 
-    plugin.register_schema_definition('container-device-graphics', {
+    plugin.register_schema_definition('vm-device-graphics', {
         'type': 'object',
         'additionalProperties': False,
         'properties': {
-            'resolution': {'$ref': 'container-device-graphics-resolution'}
+            'resolution': {'$ref': 'vm-device-graphics-resolution'}
         }
     })
 
-    plugin.register_schema_definition('container-device-graphics-resolution', {
+    plugin.register_schema_definition('vm-device-graphics-resolution', {
         'type': 'string',
         'enum': [
             '1920x1200',
@@ -1073,7 +1065,7 @@ def _init(dispatcher, plugin):
         ]
     })
 
-    plugin.register_schema_definition('container-device-usb', {
+    plugin.register_schema_definition('vm-device-usb', {
         'type': 'object',
         'additionalProperties': False,
         'properties': {
@@ -1084,41 +1076,41 @@ def _init(dispatcher, plugin):
         }
     })
 
-    plugin.register_schema_definition('container-device-usb-device', {
+    plugin.register_schema_definition('vm-device-usb-device', {
         'type': 'string',
         'enum': ['tablet']
     })
 
     def volume_pre_detach(args):
-        for vm in dispatcher.call_sync('container.query'):
+        for vm in dispatcher.call_sync('vm.query'):
             if vm['target'] == args['name']:
-                dispatcher.call_task_sync('container.stop', vm['id'])
+                dispatcher.call_task_sync('vm.stop', vm['id'])
         return True
 
     def volume_pre_destroy(args):
-        for vm in dispatcher.call_sync('container.query'):
+        for vm in dispatcher.call_sync('vm.query'):
             if vm['target'] == args['name']:
-                dispatcher.call_task_sync('container.delete', vm['id'])
+                dispatcher.call_task_sync('vm.delete', vm['id'])
         return True
 
-    plugin.register_provider('container', ContainerProvider)
-    plugin.register_provider('container.template', ContainerTemplateProvider)
-    plugin.register_task_handler('container.create', ContainerCreateTask)
-    plugin.register_task_handler('container.import', ContainerImportTask)
-    plugin.register_task_handler('container.update', ContainerUpdateTask)
-    plugin.register_task_handler('container.delete', ContainerDeleteTask)
-    plugin.register_task_handler('container.export', ContainerExportTask)
-    plugin.register_task_handler('container.start', ContainerStartTask)
-    plugin.register_task_handler('container.stop', ContainerStopTask)
-    plugin.register_task_handler('container.reboot', ContainerRebootTask)
-    plugin.register_task_handler('container.immutable.set', ContainerSetImmutableTask)
-    plugin.register_task_handler('container.file.install', InstallFileTask)
-    plugin.register_task_handler('container.file.download', DownloadFileTask)
-    plugin.register_task_handler('container.cache.update', CacheFilesTask)
-    plugin.register_task_handler('container.cache.delete', DeleteFilesTask)
-    plugin.register_task_handler('container.template.fetch', ContainerTemplateFetchTask)
+    plugin.register_provider('vm', VMProvider)
+    plugin.register_provider('vm.template', VMTemplateProvider)
+    plugin.register_task_handler('vm.create', VMCreateTask)
+    plugin.register_task_handler('vm.import', VMImportTask)
+    plugin.register_task_handler('vm.update', VMUpdateTask)
+    plugin.register_task_handler('vm.delete', VMDeleteTask)
+    plugin.register_task_handler('vm.export', VMExportTask)
+    plugin.register_task_handler('vm.start', VMStartTask)
+    plugin.register_task_handler('vm.stop', VMStopTask)
+    plugin.register_task_handler('vm.reboot', VMRebootTask)
+    plugin.register_task_handler('vm.immutable.set', VMSetImmutableTask)
+    plugin.register_task_handler('vm.file.install', InstallFileTask)
+    plugin.register_task_handler('vm.file.download', DownloadFileTask)
+    plugin.register_task_handler('vm.cache.update', CacheFilesTask)
+    plugin.register_task_handler('vm.cache.delete', DeleteFilesTask)
+    plugin.register_task_handler('vm.template.fetch', VMTemplateFetchTask)
 
     plugin.attach_hook('volume.pre_destroy', volume_pre_destroy)
     plugin.attach_hook('volume.pre_detach', volume_pre_detach)
 
-    plugin.register_event_type('container.changed')
+    plugin.register_event_type('vm.changed')

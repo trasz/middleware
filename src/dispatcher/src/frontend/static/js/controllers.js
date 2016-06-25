@@ -809,11 +809,11 @@ function VMController($scope, $location, $routeParams, $route, $rootScope) {
         connect_term(sock, currentId);
     });
     $("#start-container").on("click", function() {
-        sock.call("task.submit", ["container.start", [currentId]]);
+        sock.call("task.submit", ["vm.start", [currentId]]);
     });
 
     $("#stop-container").on("click", function() {
-        sock.call("task.submit", ["container.stop", [currentId]]);
+        sock.call("task.submit", ["vm.stop", [currentId]]);
     });
 }
 

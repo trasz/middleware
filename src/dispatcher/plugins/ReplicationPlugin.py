@@ -166,16 +166,16 @@ class ReplicationLinkProvider(Provider):
         return get_services(self.dispatcher, 'share', 'reserved', link_name)
 
     @private
-    def get_reserved_containers(self, link_name):
-        return get_services(self.dispatcher, 'container', 'reserved', link_name)
+    def get_reserved_vms(self, link_name):
+        return get_services(self.dispatcher, 'vm', 'reserved', link_name)
 
     @private
     def get_related_shares(self, link_name):
         return get_services(self.dispatcher, 'share', 'related', link_name)
 
     @private
-    def get_related_containers(self, link_name):
-        return get_services(self.dispatcher, 'container', 'related', link_name)
+    def get_related_vms(self, link_name):
+        return get_services(self.dispatcher, 'vm', 'related', link_name)
 
 
 class ReplicationBaseTask(Task):
@@ -452,17 +452,17 @@ class ReplicationPrepareSlaveTask(ReplicationBaseTask):
                                 )
 
                         dataset_path = self.dispatcher.call_sync('volume.get_dataset_path', dataset['name'])
-                        containers = self.dispatcher.call_sync('container.get_dependencies', dataset_path, False, False)
-                        if containers:
-                            remote_container = remote_client.call_sync(
-                                'container.query',
-                                [('name', '=', containers[0]['name'])],
+                        vms = self.dispatcher.call_sync('vm.get_dependencies', dataset_path, False, False)
+                        if vms:
+                            remote_vm = remote_client.call_sync(
+                                'vm.query',
+                                [('name', '=', vms[0]['name'])],
                                 {'single': True}
                             )
-                            if remote_container:
+                            if remote_vm:
                                 raise TaskException(
                                     errno.EEXIST,
-                                    'Container {0} already exists on {1}'.format(containers[0]['name'], remote)
+                                    'VM {0} already exists on {1}'.format(vms[0]['name'], remote)
                                 )
 
                     sp_dataset = dataset['name'].split('/', 1)
@@ -613,7 +613,7 @@ class ReplicationDeleteTask(ReplicationBaseTask):
             ))
 
         if not is_master:
-            for service in ['shares', 'containers']:
+            for service in ['shares', 'vms']:
                 for reserved_item in self.dispatcher.call_sync('replication.link.get_reserved_{0}'.format(service), name):
                     self.join_subtasks(self.run_subtask(
                         '{0}.export'.format(service),
@@ -737,7 +737,7 @@ class ReplicationUpdateTask(ReplicationBaseTask):
             )
 
         if not link['replicate_services']:
-            for service in ['shares', 'containers']:
+            for service in ['shares', 'vms']:
                 for reserved_item in self.dispatcher.call_sync('replication.link.get_reserved_{0}'.format(service), name):
                     self.join_subtasks(self.run_subtask(
                         '{0}.export'.format(service),
@@ -899,7 +899,7 @@ class ReplicationReserveServicesTask(ReplicationBaseTask):
         return []
 
     def run(self, name):
-        service_types = ['shares', 'containers']
+        service_types = ['shares', 'vms']
         link = self.join_subtasks(self.run_subtask('replication.get_latest_link', name))[0]
         is_master, remote = self.get_replication_state(link)
         remote_client = get_replication_client(self.dispatcher, remote)
@@ -1462,7 +1462,7 @@ class ReplicationRoleUpdateTask(ReplicationBaseTask):
                 relation_type = 'related'
                 action_type = True
 
-            for service in ['shares', 'containers']:
+            for service in ['shares', 'vms']:
                 for reserved_item in self.dispatcher.call_sync('replication.link.get_{0}_{1}'.format(relation_type, service), name):
                     self.join_subtasks(self.run_subtask(
                         '{0}.immutable.set'.format(service[:-1]),

@@ -81,7 +81,7 @@
             };
 
             sock.onLogin = function() {
-                sock.call("container.query", null, function(response) {
+                sock.call("vm.query", null, function(response) {
                     $.each(response, function(idx, i) {
                         var li = $("<li/>")
                             .appendTo($("#containers"));
@@ -95,7 +95,7 @@
                     });
                 });
 
-                sock.registerEventHandler('entity-subscriber.container.changed', function(args) {
+                sock.registerEventHandler('entity-subscriber.vm.changed', function(args) {
                     $.each(args.entities, function(idx, i) {
                         if (i.id === currentId) {
                             $("#state").text("State: " + i.status.state);
@@ -119,11 +119,11 @@
             });
 
             $("#start-container").on("click", function() {
-                sock.call("task.submit", ["container.start", [currentId]]);
+                sock.call("task.submit", ["vm.start", [currentId]]);
             });
 
             $("#stop-container").on("click", function() {
-                sock.call("task.submit", ["container.stop", [currentId]]);
+                sock.call("task.submit", ["vm.stop", [currentId]]);
             });
         });
     </script>

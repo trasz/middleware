@@ -1357,10 +1357,10 @@ class VolumeLockTask(Task):
             })
 
 
-@description("Imports containers, shares and system dataset from a volume")
+@description("Imports VMs, shares and system dataset from a volume")
 @accepts(
     str,
-    h.enum(str, ['all', 'containers', 'shares', 'system'])
+    h.enum(str, ['all', 'vms', 'shares', 'system'])
 )
 class VolumeAutoImportTask(Task):
     @classmethod
@@ -1380,10 +1380,10 @@ class VolumeAutoImportTask(Task):
         with self.dispatcher.get_lock('volumes'):
             vol = self.dispatcher.call_sync('volume.query', [('id', '=', volume)], {'single': True})
             share_types = self.dispatcher.call_sync('share.supported_types')
-            container_types = self.dispatcher.call_sync('container.supported_types')
+            vm_types = ['VM']
             imported = {
                 'shares': [],
-                'containers': [],
+                'vms': [],
                 'system': []
             }
 
@@ -1433,15 +1433,15 @@ class VolumeAutoImportTask(Task):
                                         )
                                     )
                                     continue
-                            elif scope in ['all', 'containers'] and item_type in container_types:
+                            elif scope in ['all', 'vms'] and item_type in vm_types:
                                 try:
                                     self.join_subtasks(self.run_subtask(
-                                        'container.import',
+                                        'vm.import',
                                         config.get('name', ''),
                                         volume
                                     ))
 
-                                    imported['containers'].append(
+                                    imported['vms'].append(
                                         {
                                             'type': item_type,
                                             'name': config.get('name', '')
@@ -1451,18 +1451,18 @@ class VolumeAutoImportTask(Task):
                                     self.add_warning(
                                         TaskWarning(
                                             err.code,
-                                            'Container import from {0} failed. Message: {1}'.format(
+                                            'VM import from {0} failed. Message: {1}'.format(
                                                 config_path,
                                                 err.message
                                             )
                                         )
                                     )
                                     continue
-                            elif item_type not in itertools.chain(share_types, container_types):
+                            elif item_type not in itertools.chain(share_types, vm_types):
                                 self.add_warning(
                                     TaskWarning(
                                         errno.EINVAL,
-                                        'Import from {0} failed because {1} is unsupported share/container type'.format(
+                                        'Import from {0} failed because {1} is unsupported share/VM type'.format(
                                             config_path,
                                             item_type
                                         )
