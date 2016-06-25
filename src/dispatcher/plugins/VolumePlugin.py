@@ -2701,7 +2701,10 @@ def _init(dispatcher, plugin):
             'name': {'type': 'string'},
             'rname': {'type': 'string'},
             'volume': {'type': 'string'},
-            'mountpoint': {'type': 'string'},
+            'mountpoint': {
+                'type': ['string', 'null'],
+                'readOnly': True
+            },
             'mounted': {'type': 'boolean'},
             'type': {'allOf': [
                 {'$ref': 'volume-dataset-type'},
