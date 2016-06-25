@@ -141,18 +141,18 @@ class VirtualMachine(object):
                 }
 
                 driver = drivermap.get(i['properties'].get('mode', 'AHCI'))
-                path = self.context.client.call_sync('container.get_disk_path', self.id, i['name'])
+                path = self.context.client.call_sync('vm.get_disk_path', self.id, i['name'])
                 args += ['-s', '{0}:0,{1},{2}'.format(index, driver, path)]
                 index += 1
 
             if i['type'] == 'CDROM':
-                path = self.context.client.call_sync('container.get_disk_path', self.id, i['name'])
+                path = self.context.client.call_sync('vm.get_disk_path', self.id, i['name'])
                 args += ['-s', '{0}:0,ahci-cd,{1}'.format(index, path)]
                 index += 1
 
             if i['type'] == 'VOLUME':
                 if i['properties']['type'] == 'VT9P':
-                    path = self.context.client.call_sync('container.get_volume_path', self.id, i['name'])
+                    path = self.context.client.call_sync('vm.get_volume_path', self.id, i['name'])
                     args += ['-s', '{0}:0,virtio-9p,{1}={2}'.format(index, i['name'], path)]
                     index += 1
 
@@ -293,7 +293,7 @@ class VirtualMachine(object):
 
     def set_state(self, state):
         self.state = state
-        self.context.client.emit_event('container.changed', {
+        self.context.client.emit_event('vm.changed', {
             'operation': 'update',
             'ids': [self.id]
         })
@@ -312,7 +312,7 @@ class VirtualMachine(object):
                     bootswitch = '-r'
 
                     for i in filter(lambda i: i['type'] in ('DISK', 'CDROM'), self.devices):
-                        path = self.context.client.call_sync('container.get_disk_path', self.id, i['name'])
+                        path = self.context.client.call_sync('vm.get_disk_path', self.id, i['name'])
 
                         if i['type'] == 'DISK':
                             name = 'hd{0}'.format(hdcounter)
@@ -346,7 +346,7 @@ class VirtualMachine(object):
                     )
 
             if self.config['bootloader'] == 'BHYVELOAD':
-                path = self.context.client.call_sync('container.get_disk_path', self.id, self.config['boot_device'])
+                path = self.context.client.call_sync('vm.get_disk_path', self.id, self.config['boot_device'])
                 self.bhyve_process = subprocess.Popen(
                     [
                         '/usr/sbin/bhyveload', '-c', self.nmdm[0], '-m', str(self.config['memsize']),
@@ -456,11 +456,11 @@ class ManagementService(RpcService):
         }
 
     @private
-    def start_container(self, id):
+    def start_vm(self, id):
         if not vtx_enabled:
             raise RpcException(errno.EINVAL, 'Cannot start VM - Intel VT-x instruction support not available.')
 
-        container = self.context.datastore.get_by_id('containers', id)
+        container = self.context.datastore.get_by_id('vms', id)
         if not container:
             raise RpcException(errno.ENOENT, 'VM {0} not found'.format(id))
 
@@ -479,8 +479,8 @@ class ManagementService(RpcService):
             self.context.cv.notify_all()
 
     @private
-    def stop_container(self, id, force=False):
-        container = self.context.datastore.get_by_id('containers', id)
+    def stop_vm(self, id, force=False):
+        container = self.context.datastore.get_by_id('vms', id)
         if not container:
             raise RpcException(errno.ENOENT, 'VM {0} not found'.format(id))
 
@@ -500,7 +500,7 @@ class ManagementService(RpcService):
 
     @private
     def request_console(self, id):
-        container = self.context.datastore.get_by_id('containers', id)
+        container = self.context.datastore.get_by_id('vms', id)
         if not container:
             raise RpcException(errno.ENOENT, 'Container {0} not found'.format(id))
 
