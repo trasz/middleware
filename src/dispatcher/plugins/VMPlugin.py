@@ -43,6 +43,7 @@ from freenas.dispatcher.rpc import RpcException
 from freenas.dispatcher.rpc import SchemaHelper as h, description, accepts
 from freenas.utils import first_or_default, normalize, deep_update, process_template, in_directory
 from utils import save_config, load_config, delete_config
+from freenas.utils.decorators import throttle
 from freenas.utils.query import wrap
 
 
@@ -133,6 +134,19 @@ class VMProvider(Provider):
 class VMTemplateProvider(Provider):
     @query('vm')
     def query(self, filter=None, params=None):
+        @throttle(minutes=10)
+        def fetch_templates():
+            self.dispatcher.call_task_sync('vm.template.fetch')
+
+        fetch_lock = self.dispatcher.get_lock('vm_templates')
+        try:
+            fetch_lock.acquire(1)
+            fetch_templates()
+        except RpcException:
+            pass
+        finally:
+            fetch_lock.release()
+
         templates_dir = self.dispatcher.call_sync('system_dataset.request_directory', 'vm_templates')
         cache_dir = self.dispatcher.call_sync('system_dataset.request_directory', 'vm_image_cache')
         templates = []
@@ -312,11 +326,10 @@ class VMCreateTask(VMBaseTask):
         if not self.dispatcher.call_sync('volume.query', [('id', '=', vm['target'])], {'single': True}):
             raise VerifyException(errno.ENXIO, 'Volume {0} doesn\'t exist'.format(vm['target']))
 
-        return ['zpool:{0}'.format(vm['target']), 'system-dataset']
+        return ['zpool:{0}'.format(vm['target'])]
 
     def run(self, vm):
         if vm.get('template'):
-            self.join_subtasks(self.run_subtask('vm.template.fetch'))
             template = self.dispatcher.call_sync(
                 'vm.template.query',
                 [('template.name', '=', vm['template'].get('name'))],
