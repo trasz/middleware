@@ -828,6 +828,11 @@ class Main(object):
     def dispatcher_error(self, error):
         self.die()
 
+    def init_autostart(self):
+        for vm in self.client.call_sync('vm.query'):
+            if vm['config'].get('autostart'):
+                self.client.submit_task('vm.start', vm['id'])
+
     def main(self):
         parser = argparse.ArgumentParser()
         parser.add_argument('-c', metavar='CONFIG', default=DEFAULT_CONFIGFILE, help='Middleware config file')
@@ -862,6 +867,7 @@ class Main(object):
         self.init_mgmt()
         self.init_nat()
         self.init_ec2()
+        self.init_autostart()
         self.logger.info('Started')
 
         # WebSockets server

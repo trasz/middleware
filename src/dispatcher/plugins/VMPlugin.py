@@ -348,7 +348,8 @@ class VMCreateTask(VMBaseTask):
 
         normalize(vm['config'], {
             'memsize': 512,
-            'ncpus': 1
+            'ncpus': 1,
+            'autostart': False
         })
 
         if vm['config']['ncpus'] > 16:
@@ -959,7 +960,8 @@ def _init(dispatcher, plugin):
                     'cloud_init': {'type': ['string', 'null']},
                     'vnc_enabled': {'type': 'boolean'},
                     'vnc_port': {'type': ['integer', 'null']},
-                    'vnc_password': {'type': ['string', 'null']}
+                    'vnc_password': {'type': ['string', 'null']},
+                    'autostart': {'type': 'boolean'}
                 }
             },
             'devices': {
