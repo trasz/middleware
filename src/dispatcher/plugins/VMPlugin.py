@@ -134,14 +134,10 @@ class VMProvider(Provider):
 class VMTemplateProvider(Provider):
     @query('vm')
     def query(self, filter=None, params=None):
-        @throttle(minutes=10)
-        def fetch_templates():
-            self.dispatcher.call_task_sync('vm.template.fetch')
-
         fetch_lock = self.dispatcher.get_lock('vm_templates')
         try:
             fetch_lock.acquire(1)
-            fetch_templates()
+            fetch_templates(self.dispatcher)
         except RpcException:
             pass
         finally:
@@ -935,6 +931,11 @@ def get_readme(path):
             file_path = os.path.join(path, file)
 
     return file_path
+
+
+@throttle(minutes=10)
+def fetch_templates(dispatcher):
+    dispatcher.call_task_sync('vm.template.fetch')
 
 
 def _depends():
