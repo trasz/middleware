@@ -307,7 +307,7 @@ class Task(object):
         self.error = None
         self.state = TaskState.CREATED
         self.description = None
-        self.progress = None
+        self.progress = TaskStatus(None)
         self.resources = []
         self.warnings = []
         self.environment = {}
