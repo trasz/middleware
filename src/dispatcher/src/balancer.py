@@ -145,7 +145,7 @@ class TaskExecutor(object):
             found = False
             try:
                 for root, _, files in os.walk(dir):
-                    file = first_or_default(lambda f: module_name in f, files)
+                    file = first_or_default(lambda f: module_name == f.rsplit('.', 1)[0], files)
                     if file:
                         filename = os.path.join(root, file)
                         found = True
