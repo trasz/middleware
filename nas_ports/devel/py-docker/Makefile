@@ -1,10 +1,12 @@
 # $FreeBSD$
 
 PORTNAME=	docker-py
-PORTVERSION=	1.7.0
+PORTVERSION=	1.9.0rc1
 CATEGORIES=	devel python
 MASTER_SITES=	CHEESESHOP
 PKGNAMEPREFIX=	${PYTHON_PKGNAMEPREFIX}
+
+RUN_DEPENDS=	${PYTHON_PKGNAMEPREFIX}websocket-client>0:${PORTSDIR}/www/py-websocket-client
 
 MAINTAINER=	jceel@FreeBSD.org
 COMMENT=	Python client for Docker.
