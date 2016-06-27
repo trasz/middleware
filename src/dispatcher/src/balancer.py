@@ -89,7 +89,7 @@ class TaskExecutor(object):
             self.cv.notify_all()
 
     def put_progress(self, progress):
-        st = TaskStatus(0)
+        st = TaskStatus(None)
         st.__setstate__(progress)
         self.task.set_state(progress=st)
 
