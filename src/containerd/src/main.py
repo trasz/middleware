@@ -124,6 +124,17 @@ class VirtualMachine(object):
         self.exiting = False
         self.logger = logging.getLogger('VM:{0}'.format(self.name))
 
+    def get_link_address(self, type):
+        nic = first_or_default(
+            lambda d: d['type'] == 'NIC' and d['properties']['type'] == type,
+            self.devices
+        )
+
+        if not nic:
+            return None
+
+        return nic['properties']['link_address']
+
     def build_args(self):
         xhci_devices = {}
         args = [
@@ -453,8 +464,13 @@ class ManagementService(RpcService):
         if not vm:
             return {'state': 'STOPPED'}
 
+        mgmt_lease = self.context.mgmt.allocations.get(vm.get_link_address('MANAGEMENT'))
+        nat_lease = self.context.nat.allocations.get(vm.get_link_address('NAT'))
+
         return {
-            'state': vm.state.name
+            'state': vm.state.name,
+            'management_lease': mgmt_lease.lease if mgmt_lease else None,
+            'nat_lease': nat_lease.lease if nat_lease else None
         }
 
     @private
