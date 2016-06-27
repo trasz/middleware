@@ -875,6 +875,7 @@
                 },
                 "builtin": false,
                 "pidfile": "/var/run/httpd.pid",
+                "get_config_rpc": "service.webdav.get_config",
                 "task": "service.webdav.update",
                 "name": "webdav"
             },
