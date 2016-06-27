@@ -185,7 +185,7 @@ def _metadata():
 
 
 def _depends():
-    return ['ZfsPlugin', 'SharingPlugin']
+    return ['WebDAVPlugin', 'SharingPlugin']
 
 
 def _init(dispatcher, plugin):
