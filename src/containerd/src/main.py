@@ -127,11 +127,13 @@ class VirtualMachine(object):
     def build_args(self):
         xhci_devices = {}
         args = [
-            '/usr/sbin/bhyve', '-A', '-H', '-P', '-c', str(self.config['ncpus']), '-m', str(self.config['memsize']),
-            '-s', '0:0,hostbridge'
-        ]
+            '/usr/sbin/bhyve', '-A', '-H', '-P', '-c', str(self.config['ncpus']), '-m', str(self.config['memsize'])]
 
-        index = 1
+        if self.config['bootloader'] in ['UEFI', 'UEFI_CSM']:
+            index = 3
+        else:
+            index = 1
+            args += ['-s', '0:0,hostbridge']
 
         for i in self.devices:
             if i['type'] == 'DISK':
