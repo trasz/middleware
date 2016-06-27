@@ -124,6 +124,14 @@ class VirtualMachine(object):
         self.exiting = False
         self.logger = logging.getLogger('VM:{0}'.format(self.name))
 
+    @property
+    def management_lease(self):
+        return self.context.mgmt.allocations.get(self.get_link_address('MANAGEMENT'))
+
+    @property
+    def nat_lease(self):
+        return self.context.mgmt.allocations.get(self.get_link_address('NAT'))
+
     def get_link_address(self, type):
         nic = first_or_default(
             lambda d: d['type'] == 'NIC' and d['properties']['type'] == type,
@@ -464,8 +472,8 @@ class ManagementService(RpcService):
         if not vm:
             return {'state': 'STOPPED'}
 
-        mgmt_lease = self.context.mgmt.allocations.get(vm.get_link_address('MANAGEMENT'))
-        nat_lease = self.context.nat.allocations.get(vm.get_link_address('NAT'))
+        mgmt_lease = vm.management_lease
+        nat_lease = vm.nat_lease
 
         return {
             'state': vm.state.name,
