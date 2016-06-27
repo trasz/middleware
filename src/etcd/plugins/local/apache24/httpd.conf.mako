@@ -1,7 +1,21 @@
 <%
     import os
-    import pwd
+    import grp
     import subprocess
+    import crypt
+    import random
+    import hashlib
+
+
+    def salt():
+        """
+        Returns a string of 2 random letters.
+        Taken from Eli Carter's htpasswd.py
+        """
+        letters = 'abcdefghijklmnopqrstuvwxyz' \
+                  'ABCDEFGHIJKLMNOPQRSTUVWXYZ' \
+                  '0123456789/.'
+        return '$6${0}'.format(''.join([random.choice(letters) for i in range(16)]))
 
     cfg = dispatcher.call_sync('service.webdav.get_config')
 
@@ -12,25 +26,24 @@
     auth_file = '/usr/local/etc/apache24/webdavauth'
 
     if cfg['authentication'] == 'BASIC':
-        import imp
-        htpasswd = imp.load_source('htpasswd', '/usr/local/bin/htpasswd.py')
-        passwdfile = htpasswd.HtpasswdFile(auth_file, create=True)
-        passwdfile.update('webdav', cfg['password'])
+        with open(auth_file, "wb+") as f:
+            f.write(
+                "webdav:{0}".format(crypt.crypt(cfg['password'].encode('utf8'), salt()))
+            )
     else:
-        import hashlib
         hexdigest = hashlib.md5('webdav:webdav:{0}'.format(cfg['password']).encode('utf8')).hexdigest()
         with open(auth_file, 'w') as f:
             f.write('webdav:webdav:{0}\n'.format(hexdigest))
 
     user = dispatcher.call_sync('user.query', [('username', '=', 'webdav')], {'single': True})
     if user:
-        os.chown(auth_file, user['uid'], user['group'])
+        os.chown(auth_file, user['uid'], user['gid'])
         os.chmod(auth_file, 0o640)
 
         lockdir = "/etc/local/apache24/var"
         if not os.path.isdir(lockdir):
             os.mkdir(lockdir, 0o774)
-        os.chown(lockdir, user['id'], user['group'])
+        os.chown(lockdir, user['uid'], user['gid'])
 
 %>\
 # Generating apache general httpd.conf
