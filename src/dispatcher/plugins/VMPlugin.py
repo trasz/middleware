@@ -975,7 +975,8 @@ def _init(dispatcher, plugin):
                     'vnc_enabled': {'type': 'boolean'},
                     'vnc_port': {'type': ['integer', 'null']},
                     'vnc_password': {'type': ['string', 'null']},
-                    'autostart': {'type': 'boolean'}
+                    'autostart': {'type': 'boolean'},
+                    'docker_host': {'type': 'boolean'},
                 }
             },
             'devices': {
