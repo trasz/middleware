@@ -47,6 +47,7 @@ import socket
 import signal
 import select
 import tempfile
+import docker
 import ipaddress
 import pf
 import urllib.parse
@@ -88,6 +89,12 @@ class VirtualMachineState(enum.Enum):
     STOPPED = 1
     BOOTLOADER = 2
     RUNNING = 3
+
+
+class DockerHostState(enum.Enum):
+    DOWN = 1
+    OFFLINE = 2
+    UP = 3
 
 
 class BinaryRingBuffer(object):
@@ -314,6 +321,9 @@ class VirtualMachine(object):
 
     def set_state(self, state):
         self.state = state
+        self.changed()
+
+    def changed(self):
         self.context.client.emit_event('vm.changed', {
             'operation': 'update',
             'ids': [self.id]
@@ -457,8 +467,14 @@ class Jail(object):
         pass
 
 
-class Docker(object):
-    pass
+class DockerHost(object):
+    def __init__(self):
+        self.vm = None
+        self.state = DockerHostState.DOWN
+
+    @property
+    def connection(self):
+        return docker.Client(base_url='http://{0}:2375'.format(self.vm.management_lease.lease.client_ip))
 
 
 class ManagementService(RpcService):
@@ -500,6 +516,12 @@ class ManagementService(RpcService):
             os.path.join(container['target'], 'vm', container['name'], 'files')
         )
         vm.start()
+
+        if vm.config.get('docker_host', False):
+            host = DockerHost()
+            host.vm = vm
+            self.context.docker_hosts[id] = host
+
         with self.context.cv:
             self.context.containers[id] = vm
             self.context.cv.notify_all()
@@ -542,6 +564,59 @@ class ManagementService(RpcService):
     @private
     def get_mgmt_allocations(self):
         return [i.__getstate__() for i in self.context.mgmt.allocations.values()]
+
+
+class DockerService(RpcService):
+    def __init__(self, context):
+        super(DockerService, self).__init__()
+        self.context = context
+
+    def get_host_status(self, id):
+        host = self.context.docker_hosts.get(id)
+        if not host:
+            raise RpcException(errno.ENOENT, 'Docker host {0} not found'.format(id))
+
+        try:
+            info = host.connection.info()
+            return {
+                'os': info['OperatingSystem'],
+                'hostname': info['Name'],
+                'unique_id': info['ID'],
+                'mem_total': info['MemTotal']
+            }
+        except:
+            raise RpcException(errno.ENXIO, 'Cannot connect to host {0}'.format(id))
+
+    def query_containers(self, filter=None, params=None):
+        result = []
+
+        for host in self.context.docker_hosts.values():
+            for container in host.connection.containers():
+                result.append({
+                    'id': container['Id'],
+                    'image': container['Image'],
+                    'names': container['Names'],
+                    'command': container['Command'],
+                    'status': container['Status']
+                })
+
+        return result
+
+    def query_images(self, filter=None, params=None):
+        pass
+
+    def start(self, id):
+        for host in self.context.docker_hosts.values():
+            try:
+                host.connection.start(container=id)
+                return
+            except:
+                continue
+
+        raise RpcException(errno.ENOENT, 'Container {0} not found'.format(id))
+
+    def stop(self, id):
+        pass
 
 
 class ServerResource(Resource):
@@ -713,6 +788,7 @@ class Main(object):
         self.nat = None
         self.vm_started = Event()
         self.containers = {}
+        self.docker_hosts = {}
         self.tokens = {}
         self.logger = logging.getLogger('containerd')
         self.bridge_interface = None
@@ -746,8 +822,10 @@ class Main(object):
                 self.client.login_service('containerd')
                 self.client.enable_server()
                 self.client.register_service('containerd.management', ManagementService(self))
+                self.client.register_service('containerd.docker', DockerService(self))
                 self.client.register_service('containerd.debug', DebugService(gevent=True, builtins={"context": self}))
                 self.client.resume_service('containerd.management')
+                self.client.resume_service('containerd.docker')
                 self.client.resume_service('containerd.debug')
 
                 return

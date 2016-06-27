@@ -134,6 +134,8 @@ class ManagementNetwork(object):
             allocation.lease.dns_addresses = [ipaddress.ip_address('8.8.8.8'), ipaddress.ip_address('8.8.4.4')]
             self.allocations[mac] = allocation
 
+            vm.changed()
+
         return allocation
 
     def dhcp_request(self, mac, hostname):
