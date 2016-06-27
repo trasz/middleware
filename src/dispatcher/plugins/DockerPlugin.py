@@ -48,7 +48,8 @@ class DockerHostProvider(Provider):
 
             return ret
 
-        return self.datastore.query('vms', ('config.docker_host', '=', True), callback=extend)
+        results = self.datastore.query('vms', ('config.docker_host', '=', True), callback=extend)
+        return wrap(results).query(*(filter or []), **(params or {}))
 
 
 class DockerContainerProvider(Provider):

@@ -129,6 +129,8 @@ class VirtualMachine(object):
         self.vnc_port = None
         self.thread = None
         self.exiting = False
+        self.docker_host = None
+        self.network_ready = Event()
         self.logger = logging.getLogger('VM:{0}'.format(self.name))
 
     @property
@@ -229,7 +231,7 @@ class VirtualMachine(object):
         if self.config.get('vnc_enabled', False):
             self.context.proxy_server.remove_proxy(self.config['vnc_port'])
 
-        if os.path.exists(self.vnc_socket):
+        if self.vnc_socket and os.path.exists(self.vnc_socket):
             os.unlink(self.vnc_socket)
 
     def init_tap(self, name, nic, mac):
@@ -324,6 +326,9 @@ class VirtualMachine(object):
         self.changed()
 
     def changed(self):
+        if self.management_lease and self.docker_host:
+            self.network_ready.set()
+
         self.context.client.emit_event('vm.changed', {
             'operation': 'update',
             'ids': [self.id]
@@ -468,13 +473,41 @@ class Jail(object):
 
 
 class DockerHost(object):
-    def __init__(self):
+    def __init__(self, context):
+        self.context = context
         self.vm = None
         self.state = DockerHostState.DOWN
+        self.connection = None
+        self.listener = None
+        self.logger = logging.getLogger(self.__class__.__name__)
+        gevent.spawn(self.wait_ready)
 
-    @property
-    def connection(self):
-        return docker.Client(base_url='http://{0}:2375'.format(self.vm.management_lease.lease.client_ip))
+    def wait_ready(self):
+        self.vm.network_ready.wait()
+        ip = self.vm.management_lease.lease.client_ip
+        self.logger.info('Docker instance at {0} ({1}) is ready'.format(self.vm.name, ip))
+        self.connection = docker.Client(base_url='http://{0}:2375'.format(ip))
+        self.listener = gevent.spawn(self.listen)
+
+    def listen(self):
+        self.logger.debug('Listening for docker events on {0}'.format(self.vm.name))
+        while True:
+            try:
+                for ev in self.connection.events(decode=True):
+                    self.logger.debug('Received docker event: {0}'.format(ev))
+                    if ev['Type'] == 'container':
+                        actions = {
+                            'create': 'create',
+                            'destroy': 'delete'
+                        }
+
+                        self.context.client.emit_event('docker.container.changed', {
+                            'operation': actions.get(ev['Action'], 'update'),
+                            'ids': [ev['id']]
+                        })
+            except BaseException as err:
+                self.logger.info('Docker connection closed: {0}, retrying in 1 second'.format(str(err)))
+                time.sleep(1)
 
 
 class ManagementService(RpcService):
@@ -518,8 +551,9 @@ class ManagementService(RpcService):
         vm.start()
 
         if vm.config.get('docker_host', False):
-            host = DockerHost()
+            host = DockerHost(self.context)
             host.vm = vm
+            vm.docker_host = host
             self.context.docker_hosts[id] = host
 
         with self.context.cv:
@@ -587,23 +621,41 @@ class DockerService(RpcService):
         except:
             raise RpcException(errno.ENXIO, 'Cannot connect to host {0}'.format(id))
 
-    def query_containers(self, filter=None, params=None):
+    def query_containers(self):
         result = []
 
+        def normalize_names(names):
+            for i in names:
+                if i[0] == '/':
+                    yield i[1:]
+
+                yield i
+
         for host in self.context.docker_hosts.values():
-            for container in host.connection.containers():
+            for container in host.connection.containers(all=True):
                 result.append({
                     'id': container['Id'],
                     'image': container['Image'],
-                    'names': container['Names'],
+                    'names': list(normalize_names(container['Names'])),
                     'command': container['Command'],
-                    'status': container['Status']
+                    'status': container['Status'],
+                    'host': host.vm.name
                 })
 
         return result
 
-    def query_images(self, filter=None, params=None):
-        pass
+    def query_images(self):
+        result = []
+        for host in self.context.docker_hosts.values():
+            for image in host.connection.images():
+                result.append({
+                    'id': image['Id'],
+                    'names': image['RepoTags'],
+                    'size': image['VirtualSize'],
+                    'host': host.vm.name
+                })
+
+        return result
 
     def start(self, id):
         for host in self.context.docker_hosts.values():
