@@ -33,7 +33,7 @@ def run(context):
     for user in context.client.call_sync('user.query'):
         home = user['home']
         uid = user['uid']
-        gid = user['group']
+        gid = user['gid']
         builtin = user['builtin']
         filename = os.path.join(home, '.ssh', 'authorized_keys')
 
@@ -49,9 +49,8 @@ def run(context):
             if os.path.isfile(filename):
                 os.unlink(filename)
         else:
-            fd = open(filename, 'w')
-            fd.write(user['sshpubkey'])
-            fd.close()
+            with open(filename, 'w') as fd:
+                fd.write(user['sshpubkey'])
             os.chown(filename, uid, gid)
 
             context.emit_event('etcd.file_generated', {
