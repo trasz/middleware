@@ -178,11 +178,18 @@ class ValidationException(TaskException):
         })
 
     def propagate(self, other, src_path, dst_path):
-        for err in other.extra:
-            if err['path'][:len(src_path)] == src_path:
-                new_err = copy.deepcopy(err)
-                new_err['path'] = dst_path + err['path'][len(src_path):]
-                self.extra.append(new_err)
+        if other.extra:
+            for err in other.extra:
+                if err['path'][:len(src_path)] == src_path:
+                    new_err = copy.deepcopy(err)
+                    new_err['path'] = dst_path + err['path'][len(src_path):]
+                    self.extra.append(new_err)
+        else:
+            self.extra.append({
+                'path': dst_path,
+                'message': other.message,
+                'code': other.code
+            })
 
     def __bool__(self):
         return bool(self.extra)
