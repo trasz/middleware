@@ -86,23 +86,6 @@ class CertificateProvider(Provider):
     @query('crypto-certificate')
     def query(self, filter=None, params=None):
         def extend(certificate):
-            buf = certificate.get('csr' if certificate['type'] == 'CERT_CSR' else 'certificate')
-            if buf:
-                if certificate['type'] == 'CERT_CSR':
-                    cert = crypto.load_certificate_request(crypto.FILETYPE_PEM, buf)
-                else:
-                    cert = crypto.load_certificate(crypto.FILETYPE_PEM, buf)
-                certificate['dn'] = '/{0}'.format('/'.join([
-                    '{0}={1}'.format(c[0], c[1]) for c in cert.get_subject().get_components()
-                ]))
-
-                try:
-                    certificate['valid_from'] = cert.get_notBefore()
-                    certificate['valid_until'] = cert.get_notAfter()
-                except Exception:
-                    certificate['valid_from'] = None
-                    certificate['valid_until'] = None
-
             if certificate['type'].startswith('CA_'):
                 cert_path = '/etc/certificates/CA'
             else:
@@ -111,17 +94,10 @@ class CertificateProvider(Provider):
             if certificate.get('certificate'):
                 certificate['certificate_path'] = os.path.join(
                     cert_path, '{0}.crt'.format(certificate['name']))
-                # Load and dump private key to make sure its in desired format
-                # This is code ported from 9.3 and must be reviewed as it may very well be useless
-                cert = crypto.load_certificate(crypto.FILETYPE_PEM, certificate['certificate'])
-                certificate['certificate'] = crypto.dump_certificate(crypto.FILETYPE_PEM, cert).decode('utf-8')
 
             if certificate.get('privatekey'):
                 certificate['privatekey_path'] = os.path.join(
                     cert_path, '{0}.key'.format(certificate['name']))
-                # Load and dump private key to make sure its in desired format
-                # This is code ported from 9.3 and must be reviewed as it may very well be useless
-                certificate['privatekey'] = export_privatekey(certificate['privatekey'])
 
             if certificate.get('csr'):
                 certificate['csr_path'] = os.path.join(
@@ -285,7 +261,7 @@ class CertificateCreateTask(Task):
 
 @accepts(h.all_of(
     h.ref('crypto-certificate'),
-    h.required('name', 'type', 'certificate'),
+    h.required('name', 'type'),
 ))
 @description('Imports a certificate')
 class CertificateImportTask(Task):
@@ -297,43 +273,56 @@ class CertificateImportTask(Task):
         return TaskDescription("Importing certificate {name}", name=certificate['name'])
 
     def verify(self, certificate):
+        if '"' in certificate['name']:
+            raise VerifyException(errno.EINVAL, 'Provide certificate name without : `"`')
+
         if self.datastore.exists('crypto.certificates', ('name', '=', certificate['name'])):
-            raise VerifyException(errno.EEXIST, 'Certificate named "{0}" already exists'.format(certificate['name']))
+            raise VerifyException(errno.EEXIST,
+                                  'Certificate named "{0}" already exists'.format(certificate['name']))
 
         if certificate['type'] not in ('CERT_EXISTING', 'CA_EXISTING'):
             raise VerifyException(errno.EINVAL, 'Invalid certificate type')
 
         if certificate['type'] == 'CERT_EXISTING':
-            if 'privatekey' not in certificate or 'passphrase' not in certificate:
-                raise VerifyException(errno.EINVAL, 'privatekey and passphrase required to import certificate')
+            if 'privatekey' not in certificate:
+                raise VerifyException(errno.EINVAL, 'privatekey to import certificate')
+
+        if 'certificate' in certificate:
+            try:
+                cert = crypto.load_certificate(crypto.FILETYPE_PEM, certificate['certificate'])
+            except Exception:
+                raise VerifyException(errno.EINVAL, 'Invalid certificate')
 
         try:
             if 'privatekey' in certificate:
-                load_privatekey(certificate['privatekey'], certificate.get('passphrase'))
+                load_privatekey(certificate['privatekey'], certificate.get('passphrase', None))
         except Exception:
-            raise VerifyException(errno.EINVAL, 'Invalid passphrase')
+            raise VerifyException(errno.EINVAL, 'Invalid passphrase or privatekey')
 
         return ['system']
 
     def run(self, certificate):
-        certificate.update(load_certificate(certificate['certificate']))
-
-        if 'privatekey' in certificate:
-            certificate['privatekey'] = export_privatekey(
-                certificate['privatekey'], certificate['passphrase'])
+        certificate['certificate'] = certificate.get('certificate', None)
+        certificate['privatekey'] = certificate.get('privatekey', None)
+        certificate['serial'] = None
+        certificate['selfsigned'] = False
+        certificate['key_length'] = 2048
+        certificate['digest_algorithm'] = 'SHA256'
+        certificate['lifetime'] = 3650
 
         try:
+            if certificate['certificate']:
+                certificate.update(load_certificate(certificate['certificate']))
             pkey = self.datastore.insert('crypto.certificates', certificate)
             self.dispatcher.call_sync('etcd.generation.generate_group', 'crypto')
+            self.dispatcher.dispatch_event('crypto.certificate.changed', {
+                'operation': 'create',
+                'ids': [pkey]
+            })
         except DatastoreException as e:
             raise TaskException(errno.EBADMSG, 'Cannot import certificate: {0}'.format(str(e)))
         except RpcException as e:
             raise TaskException(errno.ENXIO, 'Cannot generate certificate: {0}'.format(str(e)))
-
-        self.dispatcher.dispatch_event('crypto.certificate.changed', {
-            'operation': 'create',
-            'ids': [pkey]
-        })
 
         return pkey
 
@@ -352,15 +341,32 @@ class CertificateUpdateTask(Task):
         return TaskDescription("Updating certificate {name}", name=cert.get('name', '') if cert else '')
 
     def verify(self, id, updated_fields):
-        if len(updated_fields) > 1 or 'name' not in updated_fields:
-            raise VerifyException(errno.EINVAL, 'Only "name" field can be modified'.format(id))
-
         if not self.datastore.exists('crypto.certificates', ('id', '=', id)):
             raise VerifyException(errno.ENOENT, 'Certificate ID {0} does not exist'.format(id))
 
-        if self.datastore.exists('crypto.certificates', ('name', '=', updated_fields['name'])):
-            raise VerifyException(errno.EEXIST,
-                                  'Certificate name : "{0}" already in use'.format(updated_fields['name']))
+        cert = self.datastore.get_by_id('crypto.certificates', id)
+        if cert['type'] in ('CA_EXISTING', 'CERT_EXISTING'):
+            if 'certificate' in updated_fields:
+                try:
+                    cert = crypto.load_certificate(crypto.FILETYPE_PEM, updated_fields['certificate'])
+                except Exception:
+                    raise VerifyException(errno.EINVAL, 'Invalid certificate')
+            if 'privatekey' in updated_fields:
+                try:
+                    key = crypto.load_privatekey(crypto.FILETYPE_PEM, updated_fields['privatekey'])
+                except Exception:
+                    raise VerifyException(errno.EINVAL, 'Invalid privatekey')
+            if 'name' in updated_fields:
+                if self.datastore.exists('crypto.certificates', ('name', '=', updated_fields['name'])):
+                    raise VerifyException(errno.EEXIST,
+                                          'Certificate name : "{0}" already in use'.format(updated_fields['name']))
+        else:
+            if len(updated_fields) > 1 or 'name' not in updated_fields:
+                raise VerifyException(errno.EINVAL, 'Only "name" field can be modified'.format(id))
+
+            if self.datastore.exists('crypto.certificates', ('name', '=', updated_fields['name'])):
+                raise VerifyException(errno.EEXIST,
+                                      'Certificate name : "{0}" already in use'.format(updated_fields['name']))
 
         return ['system']
 
@@ -374,12 +380,18 @@ class CertificateUpdateTask(Task):
 
         ids = [id]
         cert = self.datastore.get_by_id('crypto.certificates', id)
-        old_name = cert['name']
-        cert['name'] = updated_fields['name']
 
         try:
+            if 'certificate' in updated_fields:
+                cert['certificate'] = updated_fields['certificate']
+                cert.update(load_certificate(cert['certificate']))
+            if 'privatekey' in updated_fields:
+                cert['privatekey'] = updated_fields['privatekey']
+            if 'name' in updated_fields:
+                old_name = cert['name']
+                cert['name'] = updated_fields['name']
+                ids.extend(update_all_signed_certs_and_get_ids(old_name, cert['name']))
             pkey = self.datastore.update('crypto.certificates', id, cert)
-            ids.extend(update_all_signed_certs_and_get_ids(old_name, cert['name']))
             self.dispatcher.call_sync('etcd.generation.generate_group', 'crypto')
             self.dispatcher.dispatch_event('crypto.certificate.changed', {
                 'operation': 'update',
@@ -449,8 +461,8 @@ def _init(dispatcher, plugin):
         'properties': {
             'type': {'$ref': 'crypto-certificate-type'},
             'name': {'type': 'string'},
-            'certificate': {'type': 'string'},
-            'privatekey': {'type': 'string'},
+            'certificate': {'type': ['string', 'null']},
+            'privatekey': {'type': ['string', 'null']},
             'csr': {'type': 'string'},
             'key_length': {'type': 'integer'},
             'digest_algorithm': {'$ref': 'crypto-certificate-digestalgorithm'},
@@ -463,7 +475,7 @@ def _init(dispatcher, plugin):
             'organization': {'type': 'string'},
             'email': {'type': 'string'},
             'common': {'type': 'string'},
-            'serial': {'type': 'integer'},
+            'serial': {'type': ['integer', 'null']},
             'selfsigned': {'type': 'boolean'},
             'signing_ca_name': {'type': 'string'},
             'signing_ca_id': {'type': 'string'},
