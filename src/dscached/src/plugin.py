@@ -66,5 +66,5 @@ class DirectoryServicePlugin(object):
     def configure(self, *args, **kwargs):
         pass
 
-    def get_kerberos_realm(self):
+    def get_kerberos_realm(self, parameters):
         return None

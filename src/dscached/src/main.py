@@ -233,15 +233,15 @@ class Directory(object):
 
     def configure(self):
         try:
+            if self.instance.get_kerberos_realm(self.parameters):
+                self.context.client.call_sync('etcd.generation.generate_group', 'kerberos')
+
             self.domain_name = self.instance.configure(
                 self.enabled,
                 self.min_uid, self.max_uid,
                 self.min_gid, self.max_gid,
                 self.parameters
             )
-
-            if self.instance.get_kerberos_realm():
-                self.context.client.call_sync('etcd.generation.generate_group', 'kerberos')
         except BaseException as err:
             self.context.logger.error('Failed to configure {0}: {1}'.format(self.name, str(err)))
             self.context.logger.error('Stack trace: ', exc_info=True)
@@ -256,7 +256,7 @@ class ManagementService(RpcService):
         realms = []
 
         for d in self.context.get_enabled_directories():
-            realm = d.instance.get_kerberos_realm()
+            realm = d.instance.get_kerberos_realm(d.parameters)
             if realm:
                 realms.append(realm)
 

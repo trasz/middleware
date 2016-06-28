@@ -33,7 +33,7 @@ from contextlib import contextmanager
 from dns import resolver
 from datetime import datetime
 from plugin import DirectoryServicePlugin
-from utils import obtain_or_renew_ticket, join_dn, dn_to_domain, domain_to_dn
+from utils import obtain_or_renew_ticket, join_dn, domain_to_dn
 from freenas.utils import normalize, first_or_default
 from freenas.utils.query import wrap
 
@@ -170,10 +170,10 @@ class FreeIPAPlugin(DirectoryServicePlugin):
         except:
             return False
 
-    def get_kerberos_realm(self):
+    def get_kerberos_realm(self, parameters):
         return {
             'id': FREEIPA_REALM_ID,
-            'realm': self.parameters['realm'].upper(),
+            'realm': parameters['realm'].upper(),
             'created_at': datetime.utcnow(),
             'updated_at': datetime.utcnow()
         }

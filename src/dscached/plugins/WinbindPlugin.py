@@ -139,7 +139,7 @@ class WinbindPlugin(DirectoryServicePlugin):
             'winbind enum groups': 'yes',
             'winbind nested groups': 'yes',
             'winbind use default domain': 'no',
-            'winbind refresh tickets': 'yes',
+            'winbind refresh tickets': 'no',
             'idmap config *:backend': 'tdb',
             'idmap config *:range': '0-65536',
             'idmap config {0}:backend'.format(workgroup): 'rid',
@@ -352,10 +352,10 @@ class WinbindPlugin(DirectoryServicePlugin):
 
         }
 
-    def get_kerberos_realm(self):
+    def get_kerberos_realm(self, parameters):
         return {
             'id': AD_REALM_ID,
-            'realm': self.parameters['realm'].upper(),
+            'realm': parameters['realm'].upper(),
             'created_at': datetime.utcnow(),
             'updated_at': datetime.utcnow()
         }
