@@ -79,6 +79,10 @@ class WinbindPlugin(DirectoryServicePlugin):
     def principal(self):
         return '{0}@{1}'.format(self.parameters['username'], self.parameters['realm'].upper())
 
+    @property
+    def domain_users_sid(self):
+        return '{0}-{1}'.format(self.domain_info.sid, 513)
+
     @staticmethod
     def normalize_parameters(parameters):
         return normalize(parameters, {
@@ -203,6 +207,7 @@ class WinbindPlugin(DirectoryServicePlugin):
             'locked': False,
             'sudo': False,
             'password_disabled': False,
+            'group': self.generate_id(self.domain_users_sid),
             'groups': [self.generate_id(sid) for sid in user.groups],
             'shell': user.passwd.pw_shell,
             'home': user.passwd.pw_dir
