@@ -122,8 +122,10 @@ class FreeIPAPlugin(DirectoryServicePlugin):
         user = self.search_one(join_dn('uid={0}'.format(name), self.user_dn), '(objectclass=posixAccount)')
         return self.convert_user(user)
 
-    def getpwid(self, uuid):
-        pass
+    def getpwuuid(self, id):
+        logger.debug('getpwuuid(uuid={0})'.format(id))
+        user = self.search_one(self.user_dn, '(ipaUniqueID={0})'.format(id))
+        return self.convert_user(user)
 
     def getpwuid(self, uid):
         logger.debug('getpwuid(uid={0})'.format(uid))
@@ -140,8 +142,10 @@ class FreeIPAPlugin(DirectoryServicePlugin):
         group = self.search_one(join_dn('cn={0}'.format(name), self.group_dn), '(objectclass=posixGroup)')
         return self.convert_group(group)
 
-    def getgrid(self, uuid):
-        pass
+    def getgruuid(self, id):
+        logger.debug('getgruuid(uuid={0})'.format(id))
+        group = self.search_one(self.group_dn, '(ipaUniqueID={0})'.format(id))
+        return self.convert_group(group)
 
     def getgrgid(self, gid):
         logger.debug('getgrgid(gid={0})'.format(gid))
