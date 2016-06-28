@@ -776,6 +776,7 @@ class DownloadFileTask(ProgressTask):
         return ['system-dataset']
 
     def run(self, url, sha256, destination):
+        @throttle(seconds=1)
         def progress_hook(nblocks, blocksize, totalsize):
             self.set_progress((nblocks * blocksize) / float(totalsize) * 100)
 
