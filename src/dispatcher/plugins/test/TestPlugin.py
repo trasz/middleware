@@ -30,9 +30,20 @@ import threading
 import uuid
 import errno
 import time
-from task import Task, TaskDescription, TaskWarning, ProgressTask
+import logging
+from task import Task, Provider, TaskDescription, TaskWarning, ProgressTask
 from freenas.dispatcher.fd import FileDescriptor
-from freenas.dispatcher.rpc import accepts, description
+from freenas.dispatcher.rpc import RpcException, description
+
+
+logger = logging.getLogger('TestPlugin')
+
+
+@description("Test Rpc Provider")
+class TestProvider(Provider):
+
+    def rpcerror(self):
+        raise RpcException(errno.EINVAL, 'Testing if parameter', 'This is in the extra paramaeter')
 
 
 @description('Downloads tests')
@@ -216,6 +227,7 @@ class TestAbortSubtask(Task):
 
 
 def _init(dispatcher, plugin):
+    plugin.register_provider("test", TestProvider)
     plugin.register_task_handler('test.test_download', TestDownloadTask)
     plugin.register_task_handler('test.test_warnings', TestWarningsTask)
     plugin.register_task_handler('test.progress', ProgressTestTask)
