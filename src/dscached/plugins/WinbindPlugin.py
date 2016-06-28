@@ -34,6 +34,7 @@ import subprocess
 import threading
 from datetime import datetime
 from plugin import DirectoryServicePlugin, params, status
+from utils import obtain_or_renew_ticket
 from freenas.dispatcher.rpc import SchemaHelper as h
 from freenas.utils import normalize
 from freenas.utils.query import wrap
@@ -58,6 +59,7 @@ class WinbindPlugin(DirectoryServicePlugin):
         self.uid_min = None
         self.uid_max = None
         self.dc = None
+        self.domain_info = None
         self.parameters = None
         self.keepalive_thread = threading.Thread(target=self.__join_keepalive, daemon=True)
         self.keepalive_shutdown = threading.Event()
@@ -94,12 +96,16 @@ class WinbindPlugin(DirectoryServicePlugin):
     def __joined(self):
         return self.wbc.interface is not None
 
+    def __renew_ticket(self):
+        obtain_or_renew_ticket(self.principal, self.parameters['password'])
+
     def __join_keepalive(self):
         logger.debug('Keepalive thread: starting')
         while True:
             try:
-                self.__renew_ticket()
+                #self.__renew_ticket()
                 self.dc = self.wbc.ping_dc(self.realm)
+                self.domain_info = self.wbc.get_domain_info(self.realm)
             except wbclient.WinbindException as err:
                 # Try to rejoin
                 logger.warning('Cannot ping DC for {0}: {1}'.format(self.realm, str(err)))
@@ -130,9 +136,11 @@ class WinbindPlugin(DirectoryServicePlugin):
             'winbind nested groups': 'yes',
             'winbind use default domain': 'no',
             'winbind refresh tickets': 'yes',
+            'idmap config *:backend': 'tdb',
+            'idmap config *:range': '0-65536',
             'idmap config {0}:backend'.format(workgroup): 'rid',
             'idmap config {0}:range'.format(workgroup):
-                '{0}-{1}'.format(self.uid_min, self.uid_max),
+                '{0}-{1}'.format(self.uid_min or 90000001, self.uid_max or 100000000),
             'client use spnego': 'yes',
             'allow trusted domains': 'no',
             'client ldap sasl wrapping': 'plain',
@@ -168,7 +176,14 @@ class WinbindPlugin(DirectoryServicePlugin):
         }
 
     def generate_id(self, sid):
-        return uuid.uuid5(WINBIND_ID_BASE, str(sid))
+        sid = str(sid).split('-')
+        fields = list(WINBIND_ID_BASE.fields)
+        fields[-1] = int(sid[-1])
+        return str(uuid.UUID(fields=fields))
+
+    def uuid_to_sid(self, id):
+        u = uuid.UUID(id)
+        return wbclient.SID('{0}-{1}'.format(str(self.domain_info.sid), u.node))
 
     def convert_user(self, user):
         if not user:
@@ -178,6 +193,7 @@ class WinbindPlugin(DirectoryServicePlugin):
 
         return {
             'id': self.generate_id(user.sid),
+            'sid': user.sid,
             'uid': user.passwd.pw_uid,
             'builtin': False,
             'username': username,
@@ -196,6 +212,7 @@ class WinbindPlugin(DirectoryServicePlugin):
         domain, groupname = group.group.gr_name.split('\\')
         return {
             'id': self.generate_id(group.sid),
+            'sid': group.sid,
             'gid': group.group.gr_gid,
             'builtin': False,
             'name': groupname,
@@ -206,6 +223,7 @@ class WinbindPlugin(DirectoryServicePlugin):
     def getpwent(self, filter=None, params=None):
         logger.debug('getpwent(filter={0}, params={1})'.format(filter, params))
         if not self.__joined():
+            logger.debug('getpwent: not joined')
             return []
 
         return wrap([self.convert_user(i) for i in self.wbc.query_users(self.domain_name)]).query(
@@ -216,9 +234,19 @@ class WinbindPlugin(DirectoryServicePlugin):
     def getpwuid(self, uid):
         logger.debug('getpwuid(uid={0})'.format(uid))
         if not self.__joined():
+            logger.debug('getpwuid: not joined')
             return
 
         return self.convert_user(self.wbc.get_user(uid=uid))
+
+    def getpwuuid(self, id):
+        logger.debug('getpwuuid(uuid={0})'.format(id))
+        if not self.__joined():
+            logger.debug('getpwuuid: not joined')
+            return
+
+        sid = self.uuid_to_sid(uuid)
+        return self.convert_user(self.wbc.get_user(sid=sid))
 
     def getpwnam(self, name):
         logger.debug('getpwnam(name={0})'.format(name))
@@ -227,6 +255,7 @@ class WinbindPlugin(DirectoryServicePlugin):
             name = '{0}\\{1}'.format(self.realm, name)
 
         if not self.__joined():
+            logger.debug('getpwnam: not joined')
             return
 
         return self.convert_user(self.wbc.get_user(name=name))
@@ -234,6 +263,7 @@ class WinbindPlugin(DirectoryServicePlugin):
     def getgrent(self, filter=None, params=None):
         logger.debug('getgrent(filter={0}, params={1})'.format(filter, params))
         if not self.__joined():
+            logger.debug('getgrent: not joined')
             return []
 
         return wrap(self.convert_group(i) for i in self.wbc.query_groups(self.domain_name)).query(
@@ -248,13 +278,25 @@ class WinbindPlugin(DirectoryServicePlugin):
             name = '{0}\\{1}'.format(self.realm, name)
 
         if not self.__joined():
+            logger.debug('getgrnam: not joined')
             return
 
         return self.convert_group(self.wbc.get_group(name=name))
 
+    def getgruuid(self, id):
+        logger.debug('getgruuid(uuid={0})'.format(id))
+        if not self.__joined():
+            logger.debug('getgruuid: not joined')
+            return
+
+        sid = self.uuid_to_sid(id)
+        logger.debug('getgruuid: SID={0}'.format(sid))
+        return self.convert_group(self.wbc.get_group(sid=sid))
+
     def getgrgid(self, gid):
         logger.debug('getgrgid(gid={0})'.format(gid))
         if not self.__joined():
+            logger.debug('getgrgid: not joined')
             return
 
         return self.convert_group(self.wbc.get_group(gid=gid))
@@ -283,7 +325,7 @@ class WinbindPlugin(DirectoryServicePlugin):
         tgt = krb.obtain_tgt_password(
             self.principal,
             self.parameters['password'],
-            rewnew_life=86400
+            renew_life=86400
         )
 
         ccache = krb5.CredentialsCache(krb)
