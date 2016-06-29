@@ -240,7 +240,18 @@ class Directory(object):
             if self.instance.get_kerberos_realm(self.parameters):
                 self.context.client.call_sync('etcd.generation.generate_group', 'kerberos')
 
-            self.domain_name = self.instance.configure(self.enabled, self)
+            domain_name = self.instance.configure(self.enabled, self)
+            if any(d.domain_name == domain_name for d in self.context.directories):
+                alt_domain_name = '{0}.{1}'.format(domain_name, self.name)
+                self.context.logger.warning('Directory {0}: domain name {1} in use, using {2}'.format(
+                    self.name,
+                    domain_name,
+                    alt_domain_name
+                ))
+
+                domain_name = alt_domain_name
+
+            self.domain_name = domain_name
         except BaseException as err:
             self.context.logger.error('Failed to configure {0}: {1}'.format(self.name, str(err)))
             self.context.logger.error('Stack trace: ', exc_info=True)
