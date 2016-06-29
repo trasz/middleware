@@ -25,6 +25,7 @@
 #
 #####################################################################
 
+import os
 import uuid
 import krb5
 import smbconf
@@ -32,10 +33,11 @@ import wbclient
 import logging
 import subprocess
 import errno
+import contextlib
 from threading import Thread, Condition
 from datetime import datetime
 from plugin import DirectoryServicePlugin, DirectoryState, params, status
-from utils import obtain_or_renew_ticket
+from utils import obtain_or_renew_ticket, have_ticket
 from freenas.dispatcher.rpc import SchemaHelper as h
 from freenas.utils import normalize
 from freenas.utils.query import wrap
@@ -69,6 +71,16 @@ class WinbindPlugin(DirectoryServicePlugin):
         self.bind_thread = Thread(target=self.bind, daemon=True)
         self.bind_thread.start()
 
+        # Remove winbind cache files
+        with contextlib.suppress(FileNotFoundError):
+            os.remove('/var/db/samba4/winbindd_cache.tdb')
+
+        with contextlib.suppress(FileNotFoundError):
+            os.remove('/var/db/samba4/winbindd_cache.tdb.bak')
+
+        with contextlib.suppress(FileNotFoundError):
+            os.remove('/var/db/samba4/winbindd_cache.tdb.old')
+
     @property
     def realm(self):
         return self.parameters['realm']
@@ -99,7 +111,16 @@ class WinbindPlugin(DirectoryServicePlugin):
             'allow_dns_updates': True
         })
 
-    def __joined(self):
+    def is_joined(self):
+        # Check if we have ticket
+        if not have_ticket(self.principal):
+            return False
+
+        # Check if we can fetch domain SID
+        if subprocess.call(['/usr/local/bin/net', 'getdomainsid']) != 0:
+            return False
+
+        # Check if winbind is running
         return self.wbc.interface is not None
 
     def __renew_ticket(self):
@@ -115,16 +136,10 @@ class WinbindPlugin(DirectoryServicePlugin):
                     pass
 
                 if self.enabled:
-                    try:
-                        self.dc = self.wbc.ping_dc(self.realm)
-                        self.domain_info = self.wbc.get_domain_info(self.realm)
-                        self.domain_name = self.wbc.interface.netbios_domain
-                        self.directory.put_state(DirectoryState.BOUND)
-                    except wbclient.WinbindException as err:
+                    if not self.is_joined():
                         # Try to rejoin
-                        self.directory.put_state(DirectoryState.JOINING)
-                        logger.warning('Cannot ping DC for {0}: {1}'.format(self.realm, str(err)))
                         logger.debug('Keepalive thread: rejoining')
+                        self.directory.put_state(DirectoryState.JOINING)
                         self.join()
                 else:
                     self.directory.put_state(DirectoryState.DISABLED)
@@ -235,7 +250,7 @@ class WinbindPlugin(DirectoryServicePlugin):
 
     def getpwent(self, filter=None, params=None):
         logger.debug('getpwent(filter={0}, params={1})'.format(filter, params))
-        if not self.__joined():
+        if not self.is_joined():
             logger.debug('getpwent: not joined')
             return []
 
@@ -246,7 +261,7 @@ class WinbindPlugin(DirectoryServicePlugin):
 
     def getpwuid(self, uid):
         logger.debug('getpwuid(uid={0})'.format(uid))
-        if not self.__joined():
+        if not self.is_joined():
             logger.debug('getpwuid: not joined')
             return
 
@@ -254,7 +269,7 @@ class WinbindPlugin(DirectoryServicePlugin):
 
     def getpwuuid(self, id):
         logger.debug('getpwuuid(uuid={0})'.format(id))
-        if not self.__joined():
+        if not self.is_joined():
             logger.debug('getpwuuid: not joined')
             return
 
@@ -267,7 +282,7 @@ class WinbindPlugin(DirectoryServicePlugin):
         if '\\' not in name:
             name = '{0}\\{1}'.format(self.realm, name)
 
-        if not self.__joined():
+        if not self.is_joined():
             logger.debug('getpwnam: not joined')
             return
 
@@ -275,7 +290,7 @@ class WinbindPlugin(DirectoryServicePlugin):
 
     def getgrent(self, filter=None, params=None):
         logger.debug('getgrent(filter={0}, params={1})'.format(filter, params))
-        if not self.__joined():
+        if not self.is_joined():
             logger.debug('getgrent: not joined')
             return []
 
@@ -290,7 +305,7 @@ class WinbindPlugin(DirectoryServicePlugin):
         if '\\' not in name:
             name = '{0}\\{1}'.format(self.realm, name)
 
-        if not self.__joined():
+        if not self.is_joined():
             logger.debug('getgrnam: not joined')
             return
 
@@ -298,7 +313,7 @@ class WinbindPlugin(DirectoryServicePlugin):
 
     def getgruuid(self, id):
         logger.debug('getgruuid(uuid={0})'.format(id))
-        if not self.__joined():
+        if not self.is_joined():
             logger.debug('getgruuid: not joined')
             return
 
@@ -308,7 +323,7 @@ class WinbindPlugin(DirectoryServicePlugin):
 
     def getgrgid(self, gid):
         logger.debug('getgrgid(gid={0})'.format(gid))
-        if not self.__joined():
+        if not self.is_joined():
             logger.debug('getgrgid: not joined')
             return
 
@@ -339,7 +354,12 @@ class WinbindPlugin(DirectoryServicePlugin):
 
             ccache = krb5.CredentialsCache(krb)
             ccache.add(tgt)
-            subprocess.call(['/usr/local/bin/net', 'ads', 'join', '-k', self.parameters['realm']])
+            subprocess.call(['/usr/local/bin/net', 'ads', 'join', '-k'])
+
+            self.dc = self.wbc.ping_dc(self.realm)
+            self.domain_info = self.wbc.get_domain_info(self.realm)
+            self.domain_name = self.wbc.interface.netbios_domain
+            self.directory.put_state(DirectoryState.BOUND)
         except BaseException as err:
             self.directory.put_status(errno.ENXIO, str(err))
             self.directory.put_state(DirectoryState.FAILURE)
