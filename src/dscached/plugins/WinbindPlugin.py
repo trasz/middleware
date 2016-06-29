@@ -31,6 +31,7 @@ import smbconf
 import wbclient
 import logging
 import subprocess
+import errno
 from threading import Thread, Condition
 from datetime import datetime
 from plugin import DirectoryServicePlugin, DirectoryState, params, status
@@ -326,17 +327,24 @@ class WinbindPlugin(DirectoryServicePlugin):
 
     def join(self):
         logger.info('Trying to join to {0}...'.format(self.realm))
-        self.configure_smb(True)
-        krb = krb5.Context()
-        tgt = krb.obtain_tgt_password(
-            self.principal,
-            self.parameters['password'],
-            renew_life=86400
-        )
 
-        ccache = krb5.CredentialsCache(krb)
-        ccache.add(tgt)
-        subprocess.call(['/usr/local/bin/net', 'ads', 'join', '-k', self.parameters['realm']])
+        try:
+            self.configure_smb(True)
+            krb = krb5.Context()
+            tgt = krb.obtain_tgt_password(
+                self.principal,
+                self.parameters['password'],
+                renew_life=86400
+            )
+
+            ccache = krb5.CredentialsCache(krb)
+            ccache.add(tgt)
+            subprocess.call(['/usr/local/bin/net', 'ads', 'join', '-k', self.parameters['realm']])
+        except BaseException as err:
+            self.directory.put_status(errno.ENXIO, str(err))
+            self.directory.put_state(DirectoryState.FAILURE)
+            return
+
         logger.info('Sucessfully joined to the domain {0}'.format(self.realm))
         self.directory.put_state(DirectoryState.BOUND)
 
