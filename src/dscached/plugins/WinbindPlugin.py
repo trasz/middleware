@@ -31,9 +31,9 @@ import smbconf
 import wbclient
 import logging
 import subprocess
-import threading
+from threading import Thread, Condition
 from datetime import datetime
-from plugin import DirectoryServicePlugin, params, status
+from plugin import DirectoryServicePlugin, DirectoryState, params, status
 from utils import obtain_or_renew_ticket
 from freenas.dispatcher.rpc import SchemaHelper as h
 from freenas.utils import normalize
@@ -59,13 +59,14 @@ class WinbindPlugin(DirectoryServicePlugin):
         self.uid_min = None
         self.uid_max = None
         self.dc = None
+        self.enabled = False
         self.domain_info = None
+        self.domain_name = None
         self.parameters = None
-        self.keepalive_thread = threading.Thread(target=self.__join_keepalive, daemon=True)
-        self.keepalive_shutdown = threading.Event()
-        if self.wbc.interface:
-            self.joined = True
-            self.domain_name = self.wbc.interface.netbios_domain
+        self.directory = None
+        self.cv = Condition()
+        self.bind_thread = Thread(target=self.bind, daemon=True)
+        self.bind_thread.start()
 
     @property
     def realm(self):
@@ -103,23 +104,29 @@ class WinbindPlugin(DirectoryServicePlugin):
     def __renew_ticket(self):
         obtain_or_renew_ticket(self.principal, self.parameters['password'])
 
-    def __join_keepalive(self):
-        logger.debug('Keepalive thread: starting')
+    def bind(self):
+        logger.debug('Bind thread: starting')
         while True:
-            try:
-                #self.__renew_ticket()
-                self.dc = self.wbc.ping_dc(self.realm)
-                self.domain_info = self.wbc.get_domain_info(self.realm)
-            except wbclient.WinbindException as err:
-                # Try to rejoin
-                logger.warning('Cannot ping DC for {0}: {1}'.format(self.realm, str(err)))
-                logger.debug('Keepalive thread: rejoining')
-                self.join()
+            with self.cv:
+                notify = self.cv.wait(60)
 
-            if self.keepalive_shutdown.wait(WINBINDD_KEEPALIVE):
-                logger.debug('Keepalive thread: leaving now')
-                self.leave()
-                break
+                if notify:
+                    pass
+
+                if self.enabled:
+                    try:
+                        self.dc = self.wbc.ping_dc(self.realm)
+                        self.domain_info = self.wbc.get_domain_info(self.realm)
+                        self.domain_name = self.wbc.interface.netbios_domain
+                        self.directory.put_state(DirectoryState.BOUND)
+                    except wbclient.WinbindException as err:
+                        # Try to rejoin
+                        self.directory.put_state(DirectoryState.JOINING)
+                        logger.warning('Cannot ping DC for {0}: {1}'.format(self.realm, str(err)))
+                        logger.debug('Keepalive thread: rejoining')
+                        self.join()
+                else:
+                    self.directory.put_state(DirectoryState.DISABLED)
 
     def configure_smb(self, enable):
         workgroup = self.parameters['realm'].split('.')[0]
@@ -306,20 +313,14 @@ class WinbindPlugin(DirectoryServicePlugin):
 
         return self.convert_group(self.wbc.get_group(gid=gid))
 
-    def configure(self, enable, uid_min, uid_max, gid_min, gid_max, parameters):
-        self.uid_min = uid_min
-        self.uid_max = uid_max
-        self.parameters = parameters
-
-        if enable:
-            self.keepalive_shutdown.clear()
-            if not self.keepalive_thread.is_alive():
-                self.keepalive_thread.start()
-        else:
-            self.keepalive_shutdown.set()
-            if self.keepalive_thread.is_alive():
-                self.keepalive_thread.join()
-                self.keepalive_thread = threading.Thread(target=self.__join_keepalive, daemon=True)
+    def configure(self, enable, directory):
+        with self.cv:
+            self.enabled = enable
+            self.directory = directory
+            self.uid_min = directory.min_uid
+            self.uid_max = directory.max_uid
+            self.parameters = directory.parameters
+            self.cv.notify_all()
 
         return self.realm.lower()
 
@@ -337,20 +338,12 @@ class WinbindPlugin(DirectoryServicePlugin):
         ccache.add(tgt)
         subprocess.call(['/usr/local/bin/net', 'ads', 'join', '-k', self.parameters['realm']])
         logger.info('Sucessfully joined to the domain {0}'.format(self.realm))
-
-        self.joined = True
+        self.directory.put_state(DirectoryState.BOUND)
 
     def leave(self):
         logger.info('Leaving domain {0}'.format(self.realm))
         subprocess.call(['/usr/local/bin/net', 'ads', 'leave', self.parameters['realm']])
         self.configure_smb(False)
-        self.joined = False
-
-    def get_status(self):
-        return {
-            'joined': self.joined,
-
-        }
 
     def get_kerberos_realm(self, parameters):
         return {

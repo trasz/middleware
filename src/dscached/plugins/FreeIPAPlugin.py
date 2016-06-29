@@ -29,10 +29,11 @@ import uuid
 import ldap3
 import ldap3.utils.dn
 import logging
-from contextlib import contextmanager
-from dns import resolver
+import errno
+import time
+from threading import Thread, Condition
 from datetime import datetime
-from plugin import DirectoryServicePlugin
+from plugin import DirectoryServicePlugin, DirectoryState
 from utils import obtain_or_renew_ticket, join_dn, domain_to_dn
 from freenas.utils import normalize, first_or_default
 from freenas.utils.query import wrap
@@ -57,6 +58,11 @@ class FreeIPAPlugin(DirectoryServicePlugin):
         self.user_dn = None
         self.group_dn = None
         self.principal = None
+        self.directory = None
+        self.bind_thread = Thread(target=self.bind, daemon=True)
+        self.enabled = False
+        self.cv = Condition()
+        self.bind_thread.start()
 
     def search(self, search_base, search_filter, attributes=None):
         if self.conn.closed:
@@ -152,19 +158,43 @@ class FreeIPAPlugin(DirectoryServicePlugin):
         group = self.search_one(self.group_dn, '(gidNumber={0})'.format(gid))
         return self.convert_group(group)
 
-    def configure(self, enable, uid_min, uid_max, gid_min, gid_max, parameters):
-        self.parameters = parameters
-        self.base_dn = domain_to_dn(parameters['realm'])
-        self.user_dn = ','.join([parameters['user_suffix'], self.base_dn])
-        self.group_dn = ','.join([parameters['group_suffix'], self.base_dn])
-        self.principal = '{0}@{1}'.format(self.parameters['username'], self.parameters['realm'].upper())
+    def configure(self, enable, directory):
+        with self.cv:
+            self.directory = directory
+            self.enabled = enable
+            self.parameters = directory.parameters
+            self.base_dn = domain_to_dn(self.parameters['realm'])
+            self.user_dn = ','.join([self.parameters['user_suffix'], self.base_dn])
+            self.group_dn = ','.join([self.parameters['group_suffix'], self.base_dn])
+            self.principal = '{0}@{1}'.format(self.parameters['username'], self.parameters['realm'].upper())
+            self.cv.notify_all()
 
-        obtain_or_renew_ticket(self.principal, self.parameters['password'], renew_life=TICKET_RENEW_LIFE)
-        self.server = ldap3.Server(self.parameters['server'])
-        self.conn = ldap3.Connection(self.server, client_strategy='ASYNC', authentication=ldap3.SASL, sasl_mechanism='GSSAPI')
-        self.conn.bind()
+        return self.parameters['realm']
 
-        return parameters['realm']
+    def bind(self):
+        while True:
+            with self.cv:
+                notify = self.cv.wait(60)
+
+                if self.enabled:
+                    if self.directory.state == DirectoryState.BOUND and not notify:
+                        continue
+
+                    try:
+                        self.directory.put_state(DirectoryState.JOINING)
+                        obtain_or_renew_ticket(self.principal, self.parameters['password'], renew_life=TICKET_RENEW_LIFE)
+                        self.server = ldap3.Server(self.parameters['server'])
+                        self.conn = ldap3.Connection(self.server, client_strategy='ASYNC', authentication=ldap3.SASL, sasl_mechanism='GSSAPI')
+                        self.conn.bind()
+                        self.directory.put_state(DirectoryState.BOUND)
+                        continue
+                    except BaseException as err:
+                        self.directory.put_status(errno.ENXIO, '{0} <{1}>'.format(str(err), type(err).__name__))
+                        self.directory.put_state(DirectoryState.FAILURE)
+                        continue
+                else:
+                    self.directory.put_state(DirectoryState.DISABLED)
+                    continue
 
     def authenticate(self, user, password):
         logger.debug('authenticate(user={0}, password=<...>)'.format(user))

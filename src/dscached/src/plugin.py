@@ -25,6 +25,7 @@
 #
 #####################################################################
 
+import enum
 from freenas.dispatcher.rpc import convert_schema
 
 
@@ -42,6 +43,14 @@ def status(sch):
         return fn
 
     return wrapped
+
+
+class DirectoryState(enum.Enum):
+    DISABLED = 1
+    JOINING = 2
+    FAILURE = 3
+    BOUND = 4
+    EXITING = 5
 
 
 class DirectoryServicePlugin(object):

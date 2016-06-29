@@ -50,6 +50,7 @@ from freenas.dispatcher.rpc import RpcContext, RpcService, RpcException, generat
 from freenas.utils import first_or_default, configure_logging, extend
 from freenas.utils.debug import DebugService
 from freenas.utils.query import QueryDict
+from plugin import DirectoryState
 
 
 NOGROUP_GID = 65533
@@ -215,6 +216,9 @@ class Directory(object):
         self.enumerate = definition['enumerate']
         self.max_uid = self.min_uid = None
         self.max_gid = self.min_gid = None
+        self.status_code = 0
+        self.status_message = None
+        self.state = DirectoryState.DISABLED
 
         if definition['uid_range']:
             self.min_uid, self.max_uid = definition['uid_range']
@@ -236,15 +240,27 @@ class Directory(object):
             if self.instance.get_kerberos_realm(self.parameters):
                 self.context.client.call_sync('etcd.generation.generate_group', 'kerberos')
 
-            self.domain_name = self.instance.configure(
-                self.enabled,
-                self.min_uid, self.max_uid,
-                self.min_gid, self.max_gid,
-                self.parameters
-            )
+            self.domain_name = self.instance.configure(self.enabled, self)
         except BaseException as err:
             self.context.logger.error('Failed to configure {0}: {1}'.format(self.name, str(err)))
             self.context.logger.error('Stack trace: ', exc_info=True)
+
+    def put_state(self, state):
+        if self.state == state:
+            return
+
+        self.context.logger.info('Directory {0} state: {1}'.format(self.name, state.name))
+        self.state = state
+        self.context.client.emit_event('directory.changed', {
+            'operation': 'update',
+            'ids': [self.id]
+        })
+
+    def put_status(self, code, message):
+        code_str = os.strerror(code) if code else 'OK'
+        self.status_code = code
+        self.status_message = message
+        self.context.logger.info('Directory {0} status: [{1}] {2}'.format(self.name, code_str, message))
 
 
 class ManagementService(RpcService):
@@ -326,7 +342,9 @@ class ManagementService(RpcService):
             raise RpcException(errno.ENOENT, 'Directory {0} not found'.format(id))
 
         return {
-
+            'state': directory.state.name,
+            'status_code': directory.status_code,
+            'status_message': directory.status_message
         }
 
     def reload_config(self):
@@ -624,7 +642,10 @@ class Main(object):
         self.rpc.register_service_instance('dscached.debug', DebugService())
 
     def get_enabled_directories(self):
-        return list(filter(None, (self.get_directory_by_name(n) for n in self.get_search_order())))
+        return list(filter(
+            lambda d: d and d.state == DirectoryState.BOUND,
+            (self.get_directory_by_name(n) for n in self.get_search_order())
+        ))
 
     def get_search_order(self):
         return ['local', 'system'] + self.search_order

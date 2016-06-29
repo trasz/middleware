@@ -27,7 +27,7 @@
 
 import os
 import errno
-from plugin import DirectoryServicePlugin
+from plugin import DirectoryServicePlugin, DirectoryState
 
 
 class LocalDatabasePlugin(DirectoryServicePlugin):
@@ -79,7 +79,8 @@ class LocalDatabasePlugin(DirectoryServicePlugin):
             'password': password
         })
 
-    def configure(self, enable, uid_min, uid_max, gid_min, gid_max, parameters):
+    def configure(self, enable, directory):
+        directory.put_state(DirectoryState.BOUND)
         return 'local'
 
 

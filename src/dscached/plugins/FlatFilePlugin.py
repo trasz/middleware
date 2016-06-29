@@ -32,7 +32,7 @@ import datetime
 import errno
 import select
 import threading
-from plugin import DirectoryServicePlugin
+from plugin import DirectoryServicePlugin, DirectoryState
 from freenas.dispatcher.jsonenc import load, dump
 from freenas.utils import first_or_default, crypted_password, nt_password
 from freenas.utils.query import wrap
@@ -154,13 +154,16 @@ class FlatFilePlugin(DirectoryServicePlugin):
             logger.warn('Cannot change password: {1}'.format(str(err)))
             raise
 
-    def configure(self, enable, uid_min, uid_max, gid_min, gid_max, parameters):
-        self.passwd_filename = parameters["passwd_file"]
-        self.group_filename = parameters["group_file"]
+    def configure(self, enable, directory):
+        directory.put_state(DirectoryState.JOINING)
+        self.passwd_filename = directory.parameters["passwd_file"]
+        self.group_filename = directory.parameters["group_file"]
         self.__load()
         if not self.watch_thread:
             self.watch_thread = threading.Thread(target=self.__watch, daemon=True)
             self.watch_thread.start()
+
+        directory.put_state(DirectoryState.BOUND)
 
 
 def _init(context):
