@@ -167,7 +167,7 @@ class VMTemplateProvider(Provider):
         return wrap(templates).query(*(filter or []), **(params or {}))
 
 
-class VMBaseTask(Task):
+class VMBaseTask(ProgressTask):
     def init_dataset(self, vm):
         pool = vm['target']
         root_ds = os.path.join(pool, 'vm')
@@ -190,7 +190,9 @@ class VMBaseTask(Task):
                 'Dataset of the same name as {0} already exists. Maybe you meant to import an VM?'.format(self.vm_ds)
             )
 
-    def init_files(self, vm):
+    def init_files(self, vm, progress_cb=None):
+        if progress_cb:
+            progress_cb(0, 'Initializing VM files')
         template = vm.get('template')
         if not template:
             return
@@ -229,10 +231,17 @@ class VMBaseTask(Task):
                             'vm.file.install',
                             vm['template']['name'],
                             f['name'],
-                            files_root if f['dest'] == '.' else os.path.join(files_root, f['dest'])
+                            files_root if f['dest'] == '.' else os.path.join(files_root, f['dest']),
+                            progress_callback=progress_cb
                         ))
 
-    def create_device(self, vm, res):
+        if progress_cb:
+            progress_cb(100, 'Initializing VM files')
+
+    def create_device(self, vm, res, progress_cb=None):
+        if progress_cb:
+            progress_cb(0, 'Creating {0}'.format(res['type'].lower()))
+
         if res['type'] == 'DISK':
             vm_ds = os.path.join(vm['target'], 'vm', vm['name'])
             ds_name = os.path.join(vm_ds, res['name'])
@@ -252,7 +261,8 @@ class VMBaseTask(Task):
                     'vm.file.install',
                     vm['template']['name'],
                     res['properties']['source'],
-                    os.path.join('/dev/zvol', ds_name)
+                    os.path.join('/dev/zvol', ds_name),
+                    progress_callback=progress_cb
                 ))
 
         if res['type'] == 'NIC':
@@ -291,8 +301,12 @@ class VMBaseTask(Task):
                             'vm.file.install',
                             vm['template']['name'],
                             properties['source'],
-                            self.dispatcher.call_sync('volume.get_dataset_path', ds_name)
+                            self.dispatcher.call_sync('volume.get_dataset_path', ds_name),
+                            progress_callback=progress_cb
                         ))
+
+        if progress_cb:
+            progress_cb(100, 'Creating {0}'.format(res['type'].lower()))
 
     def update_device(self, vm, old_res, new_res):
         if new_res['type'] == 'DISK':
@@ -325,6 +339,22 @@ class VMCreateTask(VMBaseTask):
         return ['zpool:{0}'.format(vm['target'])]
 
     def run(self, vm):
+        def collect_download_progress(percentage, message=None, extra=None):
+            split_message = message.split(' ')
+            self.set_progress(
+                percentage / 4,
+                'Downloading VM files: {0} {1}'.format(split_message[-2], split_message[-1]),
+                extra
+            )
+
+        def collect_progress(static_message, start_percentage, percentage, message=None, extra=None):
+            self.set_progress(
+                start_percentage + ((30 * (idx / devices_len)) + (0.3 * (percentage / devices_len))),
+                '{0} {1}'.format(static_message, message),
+                extra
+            )
+
+        self.set_progress(0, 'Creating VM')
         if vm.get('template'):
             template = self.dispatcher.call_sync(
                 'vm.template.query',
@@ -343,7 +373,11 @@ class VMCreateTask(VMBaseTask):
             deep_update(template, result)
             vm = template
 
-            self.join_subtasks(self.run_subtask('vm.cache.update', vm['template']['name']))
+            self.join_subtasks(self.run_subtask(
+                'vm.cache.update',
+                vm['template']['name'],
+                progress_callback=collect_download_progress
+            ))
         else:
             normalize(vm, {
                 'config': {},
@@ -364,10 +398,13 @@ class VMCreateTask(VMBaseTask):
         if vm['config']['ncpus'] > 16:
             raise TaskException(errno.EINVAL, 'Upper limit of VM cores exceeded. Maximum permissible value is 16.')
 
+        self.set_progress(25, 'Initializing VM dataset')
         self.init_dataset(vm)
-        for res in vm['devices']:
-            self.create_device(vm, res)
-        self.init_files(vm)
+        devices_len = len(vm['devices'])
+        for idx, res in enumerate(vm['devices']):
+            self.create_device(vm, res, lambda p, m, e=None: collect_progress('Initializing VM devices:', 30, p, m, e))
+
+        self.init_files(vm, lambda p, m, e=None: collect_progress('Initializing VM files:', 60, p, m, e))
 
         id = self.datastore.insert('vms', vm)
         self.dispatcher.dispatch_event('vm.changed', {
@@ -376,6 +413,7 @@ class VMCreateTask(VMBaseTask):
         })
 
         vm = self.datastore.get_by_id('vms', id)
+        self.set_progress(90, 'Saving VM configuration')
         save_config(
             self.dispatcher.call_sync(
                 'volume.resolve_path',
@@ -385,6 +423,7 @@ class VMCreateTask(VMBaseTask):
             'vm-{0}'.format(vm['name']),
             vm
         )
+        self.set_progress(100, 'Finished')
 
         return id
 
@@ -705,6 +744,12 @@ class CacheFilesTask(ProgressTask):
         return ['system-dataset']
 
     def run(self, name):
+        def collect_progress(percentage, message=None, extra=None):
+            self.set_progress(
+                (100 * (weight * idx)) + (percentage * weight),
+                'Caching files: {0}'.format(message), extra
+            )
+
         cache_dir = self.dispatcher.call_sync('system_dataset.request_directory', 'vm_image_cache')
         template = self.dispatcher.call_sync(
             'vm.template.query',
@@ -716,9 +761,9 @@ class CacheFilesTask(ProgressTask):
 
         self.set_progress(0, 'Caching images')
         res_cnt = len(template['template']['fetch'])
+        weight = 1 / res_cnt
 
         for idx, res in enumerate(template['template']['fetch']):
-            self.set_progress(int(idx / res_cnt), 'Caching files')
             url = res['url']
             res_name = res['name']
             destination = os.path.join(cache_dir, name, res_name)
@@ -737,7 +782,8 @@ class CacheFilesTask(ProgressTask):
                 'vm.file.download',
                 url,
                 sha256,
-                destination
+                destination,
+                progress_callback=collect_progress
             ))
 
         self.set_progress(100, 'Cached images')
@@ -776,9 +822,15 @@ class DownloadFileTask(ProgressTask):
         return ['system-dataset']
 
     def run(self, url, sha256, destination):
+        done = 0
+
         @throttle(seconds=1)
         def progress_hook(nblocks, blocksize, totalsize):
-            self.set_progress((nblocks * blocksize) / float(totalsize) * 100)
+            nonlocal done
+            current_done = nblocks * blocksize
+            speed = (current_done - done) / 1000
+            self.set_progress((current_done / float(totalsize)) * 100, 'Downloading file {0} KB/s'.format(speed))
+            done = current_done
 
         file_path = os.path.join(destination, url.split('/')[-1])
         sha256_path = os.path.join(destination, 'sha256')
@@ -801,7 +853,7 @@ class DownloadFileTask(ProgressTask):
 
 @accepts(str, str, str)
 @description('Installs VM file')
-class InstallFileTask(Task):
+class InstallFileTask(ProgressTask):
     @classmethod
     def early_describe(cls):
         return 'Installing VM file'
@@ -817,6 +869,7 @@ class InstallFileTask(Task):
         return ['system-dataset']
 
     def run(self, name, res, destination):
+        self.set_progress(0, 'Installing file')
         cache_dir = self.dispatcher.call_sync('system_dataset.request_directory', 'vm_image_cache')
         files_path = os.path.join(cache_dir, name, res)
         file_path = self.get_archive_path(files_path)
@@ -831,6 +884,8 @@ class InstallFileTask(Task):
                 destination = os.path.join(destination, res)
             self.unpack_gzip(file_path, destination)
 
+        self.set_progress(100, 'Finished')
+
     def get_archive_path(self, files_path):
         archive_path = None
         for file in os.listdir(files_path):
@@ -839,18 +894,25 @@ class InstallFileTask(Task):
         return archive_path
 
     def unpack_gzip(self, path, destination):
+        @throttle(seconds=1)
+        def report_progress():
+            self.set_progress((zip_file.tell() / size) * 100, 'Installing file')
+
+        size = os.path.getsize(path)
         with open(destination, 'wb') as dst:
-            with gzip.open(path, 'rb') as src:
-                for chunk in iter(lambda: src.read(BLOCKSIZE), b""):
-                    done = 0
-                    total = len(chunk)
+            with open(path, 'rb') as zip_file:
+                with gzip.open(zip_file) as src:
+                    for chunk in iter(lambda: src.read(BLOCKSIZE), b""):
+                        done = 0
+                        total = len(chunk)
 
-                    while done < total:
-                        ret = os.write(dst.fileno(), chunk[done:])
-                        if ret == 0:
-                            raise TaskException(errno.ENOSPC, 'Image is too large to fit in destination')
+                        while done < total:
+                            ret = os.write(dst.fileno(), chunk[done:])
+                            if ret == 0:
+                                raise TaskException(errno.ENOSPC, 'Image is too large to fit in destination')
 
-                        done += ret
+                            done += ret
+                        report_progress()
 
 
 @description('Downloads VM templates')
