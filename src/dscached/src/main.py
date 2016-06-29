@@ -241,17 +241,18 @@ class Directory(object):
                 self.context.client.call_sync('etcd.generation.generate_group', 'kerberos')
 
             domain_name = self.instance.configure(self.enabled, self)
-            if any(d.domain_name == domain_name for d in self.context.directories):
-                alt_domain_name = '{0}.{1}'.format(domain_name, self.name)
-                self.context.logger.warning('Directory {0}: domain name {1} in use, using {2}'.format(
-                    self.name,
-                    domain_name,
-                    alt_domain_name
-                ))
+            if domain_name:
+                if any(d is not self and d.domain_name == domain_name for d in self.context.directories):
+                    alt_domain_name = '{0}.{1}'.format(domain_name, self.name)
+                    self.context.logger.warning('Directory {0}: domain name {1} in use, using {2}'.format(
+                        self.name,
+                        domain_name,
+                        alt_domain_name
+                    ))
 
-                domain_name = alt_domain_name
+                    domain_name = alt_domain_name
 
-            self.domain_name = domain_name
+                self.domain_name = domain_name
         except BaseException as err:
             self.context.logger.error('Failed to configure {0}: {1}'.format(self.name, str(err)))
             self.context.logger.error('Stack trace: ', exc_info=True)
@@ -282,7 +283,10 @@ class ManagementService(RpcService):
     def get_realms(self):
         realms = []
 
-        for d in self.context.get_enabled_directories():
+        for d in self.context.directories:
+            if not d.enabled:
+                continue
+
             realm = d.instance.get_kerberos_realm(d.parameters)
             if realm:
                 realms.append(realm)
@@ -773,8 +777,8 @@ class Main(object):
         for i in self.datastore.query('directories'):
             try:
                 directory = Directory(self, i)
-                directory.configure()
                 self.directories.append(directory)
+                directory.configure()
             except BaseException as err:
                 continue
 
