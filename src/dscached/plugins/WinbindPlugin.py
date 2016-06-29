@@ -148,10 +148,10 @@ class WinbindPlugin(DirectoryServicePlugin):
             'winbind nested groups': 'yes',
             'winbind use default domain': 'no',
             'winbind refresh tickets': 'no',
-            'idmap config *:backend': 'tdb',
-            'idmap config *:range': '0-65536',
-            'idmap config {0}:backend'.format(workgroup): 'rid',
-            'idmap config {0}:range'.format(workgroup):
+            'idmap config *: backend': 'tdb',
+            'idmap config *: range': '0-65536',
+            'idmap config {0}: backend'.format(workgroup): 'rid',
+            'idmap config {0}: range'.format(workgroup):
                 '{0}-{1}'.format(self.uid_min or 90000001, self.uid_max or 100000000),
             'client use spnego': 'yes',
             'allow trusted domains': 'no',
