@@ -50,7 +50,7 @@ from freenas.dispatcher.rpc import (
 )
 from lib.system import SubprocessException, system
 from lib.freebsd import get_sysctl
-from task import Provider, Task, TaskException, TaskAbortException, ValidationException, TaskDescription
+from task import Provider, Task, TaskException, VerifyException, TaskAbortException, ValidationException, TaskDescription
 from debug import AttachCommandOutput
 
 if '/usr/local/lib' not in sys.path:
@@ -309,6 +309,11 @@ class SystemAdvancedConfigureTask(Task):
         return TaskDescription('Configuring advanced system settings')
 
     def verify(self, props):
+        if 'periodic_notify_user' in props:
+            if props['periodic_notify_user'] in range(1, 1000):
+                raise VerifyException(errno.EINVAL,
+                                      '"periodic_notify_user" should not be value inside range 1..999')
+
         return ['system']
 
     def run(self, props):
