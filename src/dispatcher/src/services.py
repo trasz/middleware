@@ -242,6 +242,7 @@ class PluginService(RpcService):
             return list(self.connection.call_sync(self.service_name + '.enumerate_methods'))
 
         def __getattr__(self, name):
+            @generator
             def call_wrapped(*args):
                 self.resumed.wait()
                 return self.connection.call_sync(
