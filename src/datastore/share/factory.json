@@ -610,32 +610,6 @@
                     "file:pam.d/sudo"
                 ],
                 "name": "pam"
-            },
-            "7624ff6f-7efd-11e5-bbec-005056826348": {
-                "dependencies": [
-                    "group:hostname",
-                    "group:hosts",
-                    "group:kerberos",
-                    "group:nsswitch",
-                    "group:openldap",
-                    "group:nss_ldap",
-                    "group:sssd",
-                    "group:pam"
-                ],
-                "name": "activedirectory"
-            },
-            "f0dcd51f-7ba6-4dd4-a0b7-ab0cd9da1bfd": {
-                "dependencies": [
-                    "group:hostname",
-                    "group:hosts",
-                    "group:kerberos",
-                    "group:nsswitch",
-                    "group:openldap",
-                    "group:nss_ldap",
-                    "group:sssd",
-                    "group:pam"
-                ],
-                "name": "ldap"
             }
         },
         "metadata": {
