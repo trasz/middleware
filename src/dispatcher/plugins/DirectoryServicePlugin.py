@@ -53,6 +53,7 @@ class DirectoryServicesProvider(Provider):
     @query('directoryservice')
     def query(self, filter=None, params=None):
         def extend(directory):
+            directory['status'] = self.dispatcher.call_sync('dscached.management.get_status', directory['id'])
             return directory
 
         return self.datastore.query('directories', *(filter or []), callback=extend, **(params or {}))
