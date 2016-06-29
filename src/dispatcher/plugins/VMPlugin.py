@@ -361,10 +361,11 @@ class VMCreateTask(VMBaseTask):
                 [('template.name', '=', vm['template'].get('name'))],
                 {'single': True}
             )
-            template['template'].pop('readme')
 
             if template is None:
                 raise TaskException(errno.ENOENT, 'Template {0} not found'.format(vm['template'].get('name')))
+
+            template['template'].pop('readme')
 
             result = {}
             for key in vm:
