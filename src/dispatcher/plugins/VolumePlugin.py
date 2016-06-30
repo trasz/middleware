@@ -2352,7 +2352,7 @@ def register_property_schemas(plugin):
         },
         'volblocksize': {
             'type': 'integer',
-            'enum': [512, 1024, 2048, 4096]
+            'enum': [512, 1024, 2048, 4096, 8192, 16384, 32768, 65536, 131072]
         },
         'refcompressratio': {
             'type': 'string',
