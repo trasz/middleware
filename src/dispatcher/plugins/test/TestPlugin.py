@@ -33,7 +33,7 @@ import time
 import logging
 from task import Task, Provider, TaskDescription, TaskWarning, ProgressTask
 from freenas.dispatcher.fd import FileDescriptor
-from freenas.dispatcher.rpc import RpcException, description
+from freenas.dispatcher.rpc import RpcException, description, generator
 
 
 logger = logging.getLogger('TestPlugin')
@@ -41,6 +41,10 @@ logger = logging.getLogger('TestPlugin')
 
 @description("Test Rpc Provider")
 class TestProvider(Provider):
+    @generator
+    def stream(self, count=10):
+        for i in range(0, count):
+            yield {"id": 1, "value": "{0} bottles of beer on the wall".format(i)}
 
     def rpcerror(self):
         raise RpcException(errno.EINVAL, 'Testing if parameter', 'This is in the extra paramaeter')
