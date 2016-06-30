@@ -83,6 +83,7 @@ SCROLLBACK_SIZE = 20 * 1024
 
 
 vtx_enabled = False
+restricted_guest = True
 
 
 class VirtualMachineState(enum.Enum):
@@ -538,6 +539,12 @@ class ManagementService(RpcService):
         container = self.context.datastore.get_by_id('vms', id)
         if not container:
             raise RpcException(errno.ENOENT, 'VM {0} not found'.format(id))
+
+        if restricted_guest and container['config']['bootloader'] in ['UEFI', 'UEFI_CSM']:
+            raise RpcException(
+                errno.ENOENT,
+                'Cannot start VM {0} - unrestricted guest support is needed to start UEFI VM'.format(id)
+            )
 
         vm = VirtualMachine(self.context)
         vm.id = container['id']
@@ -1008,10 +1015,12 @@ class Main(object):
                 self.logger.error('Cannot load PF module: %s', str(err))
                 self.logger.error('NAT unavailable')
 
-        global vtx_enabled
+        global vtx_enabled, restricted_guest
         try:
             if sysctl.sysctlbyname('hw.vmm.vmx.initialized'):
                 vtx_enabled = True
+            if sysctl.sysctlbyname('hw.vmm.vmx.cap.unrestricted_guest'):
+                restricted_guest = True
         except OSError:
             pass
 
