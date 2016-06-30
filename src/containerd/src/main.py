@@ -1020,7 +1020,7 @@ class Main(object):
             if sysctl.sysctlbyname('hw.vmm.vmx.initialized'):
                 vtx_enabled = True
             if sysctl.sysctlbyname('hw.vmm.vmx.cap.unrestricted_guest'):
-                restricted_guest = True
+                restricted_guest = False
         except OSError:
             pass
 
