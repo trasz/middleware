@@ -35,7 +35,6 @@ import sys
 import random
 import re
 import tempfile
-import threading
 from resources import Resource
 from cache import CacheStore
 from freenas.dispatcher.rpc import (
@@ -517,30 +516,6 @@ class UpdateProvider(Provider):
             self.dispatcher.call_sync('alert.emit', alert_payload)
 
 
-class UpdateProgressTask(ProgressTask):
-
-    def __init__(self, dispatcher, datastore):
-        super(UpdateProgressTask, self).__init__(dispatcher, datastore)
-        self.start_percentage = 0
-        self.end_percentage = 100
-        self.end_progress_reporter_thread = threading.Event()
-
-    def update_singular_subtask_progress(self):
-        while not self.end_progress_reporter_thread.wait(timeout=1):
-            subtask_info = None
-            with self.rlock:
-                if self.subtasks:
-                    subtask_info = self.dispatcher.call_sync('task.status', self.subtasks[0])
-            if subtask_info and subtask_info.get('progress') and subtask_info['progress']['percentage']:
-                self.chunk_progress(
-                    self.start_percentage,
-                    self.end_percentage,
-                    '',
-                    subtask_info['progress']['percentage'],
-                    subtask_info['progress']['message']
-                )
-
-
 @description("Set the System Updater Cofiguration Settings")
 @accepts(h.ref('update'))
 class UpdateConfigureTask(Task):
@@ -582,7 +557,7 @@ class UpdateConfigureTask(Task):
 
 
 @description(
-    "Checks for Available Updates and returns if update is availabe "
+    "Checks for Available Updates and returns if update is available "
     "and if yes returns information on operations that will be "
     "performed during the update"
 )
@@ -897,7 +872,7 @@ class UpdateVerifyTask(ProgressTask):
 @description("Checks for updates from the update server and downloads them if available")
 @accepts()
 @returns(bool)
-class CheckFetchUpdateTask(UpdateProgressTask):
+class CheckFetchUpdateTask(ProgressTask):
     @classmethod
     def early_describe(cls):
         return "Checking for updates"
@@ -918,27 +893,26 @@ class CheckFetchUpdateTask(UpdateProgressTask):
     def run(self):
         result = False
         self.set_progress(0, 'Checking for new updates from update server...')
-        progress_reporter = threading.Thread(target=self.update_singular_subtask_progress)
-        progress_reporter.start()
-        self.end_percentage = 10
-        self.join_subtasks(self.run_subtask('update.check'))
+        self.join_subtasks(self.run_subtask(
+            'update.check',
+            progress_callback=lambda p, m, e=None: self.chunk_progress(0, 10, '', p, m, e)
+        ))
         if self.dispatcher.call_sync('update.is_update_available'):
-            self.message = "New updates found. Downloading them now..."
-            self.start_percentage = 10
-            self.end_percentage = 100
-            self.join_subtasks(self.run_subtask('update.download'))
+            self.set_progress(10, 'New updates found. Downloading them now...')
+            self.join_subtasks(self.run_subtask(
+                'update.download',
+                progress_callback=lambda p, m, e=None: self.chunk_progress(10, 100, '', p, m, e)
+            ))
             self.set_progress(100, 'Updates successfully Downloaded')
             result = True
         else:
             self.set_progress(100, 'No Updates Available')
-        self.end_progress_reporter_thread.set()
-        progress_reporter.join()
         return result
 
 
 @description("Checks for new updates, fetches if available, installs new/or downloaded updates")
 @accepts(bool)
-class UpdateNowTask(UpdateProgressTask):
+class UpdateNowTask(ProgressTask):
     @classmethod
     def early_describe(cls):
         return "Checking for updates and updating"
@@ -950,25 +924,25 @@ class UpdateNowTask(UpdateProgressTask):
         return ['root']
 
     def run(self, reboot_post_install=False):
-        result = False
         self.set_progress(0, 'Checking for new updates...')
-        progress_reporter = threading.Thread(target=self.update_singular_subtask_progress)
-        progress_reporter.start()
-        self.end_percentage = 50
-        self.join_subtasks(self.run_subtask('update.checkfetch'))
+        self.join_subtasks(self.run_subtask(
+            'update.checkfetch',
+            progress_callback=lambda p, m, e=None: self.chunk_progress(0, 50, '', p, m, e)
+        ))
         if self.dispatcher.call_sync('update.is_update_available'):
             self.set_progress(50, "Installing downloaded updates now...")
-            self.start_percentage = 50
-            self.end_percentage = 100
-            self.join_subtasks(self.run_subtask('update.apply', reboot_post_install))
+            self.join_subtasks(self.run_subtask(
+                'update.apply',
+                reboot_post_install,
+                progress_callback=lambda p, m, e=None: self.chunk_progress(50, 100, '', p, m, e)
+            ))
             self.set_progress(100, 'Updates Installed successfully')
             result = True
         else:
             self.add_warning(TaskWarning(errno.ENOENT, 'No Updates Available for Install'))
             self.set_progress(100, 'No Updates Available for Install')
             result = False
-        self.end_progress_reporter_thread.set()
-        progress_reporter.join()
+
         return result
 
 
