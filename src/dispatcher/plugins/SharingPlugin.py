@@ -162,7 +162,8 @@ class CreateShareTask(Task):
 
     def run(self, share):
         if share['target_type'] == 'ZVOL':
-            shareable = bool(self.dispatcher.call_sync('volume.dataset.query', [('name', '=', share['target_path'])]))
+            parent_ds = '/'.join(share['target_path'].split('/')[:-1])
+            shareable = bool(self.dispatcher.call_sync('volume.dataset.query', [('name', '=', parent_ds)]))
         else:
             share_path = self.dispatcher.call_sync('share.expand_path', share['target_path'], share['target_type'])
             if share['target_type'] != 'FILE':
