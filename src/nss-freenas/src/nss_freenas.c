@@ -81,9 +81,11 @@ static json_t *flat_groups;
 
 static int pw_idx = 0;
 static json_t *pw_results = NULL;
+static rpc_call_t *pw_call = NULL;
 
 static int gr_idx = 0;
 static json_t *gr_results = NULL;
+static rpc_call_t *gr_call = NULL;
 
 static char *
 alloc_string(char **buf, size_t *max, const char *str)
@@ -369,6 +371,27 @@ call_dispatcher(const char *method, json_t *args, json_t **result)
 	return (0);
 }
 
+static rpc_call_t *
+call_dispatcher_stream(const char *method, json_t *args, json_t **result)
+{
+        struct timespec ts;
+        connection_t *conn;
+        rpc_call_t *call;
+
+        conn = dispatcher_open("unix:///var/run/dscached.sock");
+        if (conn == NULL)
+                return (NULL);
+
+        call = dispatcher_call_sync_ex(conn, method, args);
+        if (call == NULL) {
+                dispatcher_close(conn);
+                return (NULL);
+        }
+
+        *result = rpc_call_result(call);
+        return (call);
+}
+
 static int
 gr_addgid(gid_t gid, gid_t *groups, int maxgrp, int *grpcnt)
 {
@@ -478,6 +501,17 @@ nss_freenas_getpwent_r(void *retval, void *mdata, va_list ap)
 	buflen = va_arg(ap, size_t);
 	ret = va_arg(ap, int *);
 
+        if (pw_idx >= json_array_size(pw_results) && pw_call) {
+                if (rpc_call_continue(pw_call, true) != RPC_CALL_MORE_AVAILABLE) {
+                        rpc_call_free(pw_call);
+                        pw_call = NULL;
+                        return (NS_NOTFOUND);
+                }
+
+                pw_results = rpc_call_result(pw_call);
+                pw_idx = 0;
+        }
+
 	user = json_array_get(pw_results, pw_idx);
 
 	if (user == NULL) {
@@ -501,8 +535,10 @@ nss_freenas_getpwent_r(void *retval, void *mdata, va_list ap)
 int
 nss_freenas_setpwent(void *retval, void *mdata, va_list ap)
 {
-	if (call_dispatcher("dscached.account.query", json_array(),
-	    &pw_results) < 0) {
+	pw_call = call_dispatcher_stream("dscached.account.query", json_array(),
+            &pw_results);
+
+        if (pw_call == NULL) {
 		flat_load_files();
 		pw_results = json_copy(flat_users);
 	}
@@ -616,6 +652,17 @@ nss_freenas_getgrent_r(void *retval, void *mdata, va_list ap)
 	buflen = va_arg(ap, size_t);
 	ret = va_arg(ap, int *);
 
+        if (gr_idx >= json_array_size(gr_results) && gr_call) {
+                if (rpc_call_continue(gr_call, true) != RPC_CALL_MORE_AVAILABLE) {
+                        rpc_call_free(gr_call);
+                        gr_call = NULL;
+                        return (NS_NOTFOUND);
+                }
+
+                gr_results = rpc_call_result(gr_call);
+                gr_idx = 0;
+        }
+
 	group = json_array_get(gr_results, gr_idx);
 
 	if (group == NULL) {
@@ -640,8 +687,10 @@ nss_freenas_getgrent_r(void *retval, void *mdata, va_list ap)
 int
 nss_freenas_setgrent(void *retval, void *mdata, va_list ap)
 {
-	if (call_dispatcher("dscached.group.query", json_array(),
-	    &gr_results) < 0) {
+        gr_call = call_dispatcher_stream("dscached.group.query", json_array(),
+                      &gr_results);
+
+        if (gr_call == NULL) {
 		flat_load_files();
 		gr_results = json_copy(flat_groups);
 	}
