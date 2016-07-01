@@ -528,6 +528,11 @@ class VMUpdateTask(VMBaseTask):
         if 'config' in updated_params and updated_params['config']['ncpus'] > 16:
             raise TaskException(errno.EINVAL, 'Upper limit of VM cores exceeded. Maximum permissible value is 16.')
 
+        state = self.dispatcher.call_sync('vm.query', [('id', '=', id)], {'select': 'status.state', 'single': True})
+        if 'name' in updated_params:
+            if state != 'STOPPED':
+                raise TaskException(errno.EACCES, 'Name of a running VM cannot be modified')
+
         vm = self.datastore.get_by_id('vms', id)
         if vm['immutable']:
             raise TaskException(errno.EACCES, 'Cannot modify immutable VM {0}.'.format(id))
@@ -542,6 +547,13 @@ class VMUpdateTask(VMBaseTask):
             )
         except (RpcException, OSError):
             pass
+
+        if 'name' in updated_params:
+            root_ds = os.path.join(vm['target'], 'vm')
+            vm_ds = os.path.join(root_ds, vm['name'])
+            new_vm_ds = os.path.join(root_ds, updated_params['name'])
+
+            self.join_subtasks(self.run_subtask('zfs.rename', vm_ds, new_vm_ds))
 
         if 'template' in updated_params:
             readme = updated_params['template'].pop('readme')
