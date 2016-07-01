@@ -947,7 +947,7 @@ class ReplicationReserveServicesTask(ReplicationBaseTask):
 
 
 @description('Creates a snapshot of selected dataset')
-@accepts(str, str, bool, int, str, bool)
+@accepts(str, bool, int, str, bool)
 @returns(str)
 class SnapshotDatasetTask(Task):
     @classmethod
