@@ -98,6 +98,7 @@ class FreeIPAPlugin(DirectoryServicePlugin):
         return {
             'id': entry['ipaUniqueID.0'],
             'uid': int(entry['uidNumber.0']),
+            'gid': int(entry['gidNumber.0']),
             'builtin': False,
             'username': entry['uid.0'],
             'full_name': entry.get('gecos.0', entry.get('displayName.0', '<unknown>')),

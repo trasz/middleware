@@ -85,6 +85,10 @@ def alias(d, obj, name):
 
 
 def resolve_primary_group(context, obj):
+    # Allow backend to prepopulate gid
+    if 'gid' in obj:
+        return
+
     obj['gid'] = NOGROUP_GID
     if obj.get('group'):
         try:
