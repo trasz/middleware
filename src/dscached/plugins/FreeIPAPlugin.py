@@ -200,8 +200,7 @@ class FreeIPAPlugin(DirectoryServicePlugin):
     def authenticate(self, user, password):
         logger.debug('authenticate(user={0}, password=<...>)'.format(user))
         try:
-            self.conn.rebind(join_dn(user, self.user_dn), password)
-            return True
+            return self.conn.rebind(join_dn('uid={0}'.format(user), self.user_dn), password)
         except:
             return False
 

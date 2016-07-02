@@ -490,7 +490,7 @@ class AccountService(RpcService):
             return unixhash == user['unixhash']
 
         entry = self.context.users_cache.get(name=user_name)
-        return entry.directory.instance.authenticate(user_name, password)
+        return entry.directory.instance.authenticate(user['username'], password)
 
     def change_password(self, user_name, password):
         self.logger.debug('Change password request for user {0}'.format(user_name))
