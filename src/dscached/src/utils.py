@@ -42,3 +42,14 @@ def obtain_or_renew_ticket(principal, password, renew_life=None):
 
     tgt = ctx.obtain_tgt_password(principal, password, renew_life=renew_life)
     cc.add(tgt)
+
+
+def have_ticket(principal):
+    ctx = krb5.Context()
+    cc = krb5.CredentialsCache(ctx)
+
+    for i in cc.entries:
+        if i.client == principal:
+            return True
+
+    return False
