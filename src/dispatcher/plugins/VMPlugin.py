@@ -750,8 +750,6 @@ class VMRebootTask(Task):
         self.join_subtasks(self.run_subtask('vm.start', id))
 
 
-
-
 @accepts(str, str)
 @description('Creates a snapshot of VM')
 class VMSnapshotCreateTask(Task):
@@ -823,6 +821,8 @@ class VMSnapshotDeleteTask(Task):
             'operation': 'delete',
             'ids': [id]
         })
+
+
 @accepts(str)
 @description('Caches VM files')
 class CacheFilesTask(ProgressTask):
