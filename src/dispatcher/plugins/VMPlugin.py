@@ -130,6 +130,13 @@ class VMProvider(Provider):
         return VM_OUI + ':' + ':'.join('{0:02x}'.format(random.randint(0, 255)) for _ in range(0, 3))
 
 
+@description('Provides information about VM snapshots')
+class VMSnapshotProvider(Provider):
+    @query('vm')
+    def query(self, filter=None, params=None):
+        return self.datastore.query('vm.snapshots', *(filter or []), **(params or {}))
+
+
 @description('Provides information about VM templates')
 class VMTemplateProvider(Provider):
     @query('vm')
@@ -387,7 +394,8 @@ class VMCreateTask(VMBaseTask):
 
         normalize(vm, {
             'enabled': True,
-            'immutable': False
+            'immutable': False,
+            'parent': None
         })
 
         normalize(vm['config'], {
@@ -529,9 +537,8 @@ class VMUpdateTask(VMBaseTask):
             raise TaskException(errno.EINVAL, 'Upper limit of VM cores exceeded. Maximum permissible value is 16.')
 
         state = self.dispatcher.call_sync('vm.query', [('id', '=', id)], {'select': 'status.state', 'single': True})
-        if 'name' in updated_params:
-            if state != 'STOPPED':
-                raise TaskException(errno.EACCES, 'Name of a running VM cannot be modified')
+        if 'name' in updated_params and state != 'STOPPED':
+            raise TaskException(errno.EACCES, 'Name of a running VM cannot be modified')
 
         vm = self.datastore.get_by_id('vms', id)
         if vm['immutable']:
@@ -743,6 +750,79 @@ class VMRebootTask(Task):
         self.join_subtasks(self.run_subtask('vm.start', id))
 
 
+
+
+@accepts(str, str)
+@description('Creates a snapshot of VM')
+class VMSnapshotCreateTask(Task):
+    @classmethod
+    def early_describe(cls):
+        return 'Creating snapshot of VM'
+
+    def describe(self, id, name):
+        vm = self.datastore.get_by_id('vms', id)
+        return TaskDescription('Creating snapshot of VM {name}', name=vm.get('name', '') if vm else '')
+
+    def verify(self, id, name):
+        return ['system']
+
+    def run(self, id, name):
+        vm = self.datastore.get_by_id('vms', id)
+        if not vm:
+            raise TaskException(errno.ENOENT, 'VM {0} does not exist'.format(id))
+        if vm['parent']:
+            raise TaskException(errno.EACCES, 'Cannot create a snapshot of another snapshot')
+
+        state = self.dispatcher.call_sync('vm.query', [('id', '=', id)], {'select': 'status.state', 'single': True})
+        if state != 'STOPPED':
+            raise TaskException(errno.EACCES, 'Cannot create a snapshot of a running VM')
+
+        if self.dispatcher.call_sync('vm.snapshot.query', [('name', '=', name), ('parent', '=', vm['id'])]):
+            raise TaskException(errno.EEXIST, 'Snapshot {0} of VM {1} already exists'.format(name, vm['name']))
+
+        vm.pop('id')
+        vm['parent'] = id
+        vm['name'] = name
+        snapshot_id = self.datastore.insert('vm.snapshots', vm)
+        self.dispatcher.dispatch_event('vm.snapshot.changed', {
+            'operation': 'create',
+            'ids': [snapshot_id]
+        })
+
+        self.join_subtasks(self.run_subtask('volume.snapshot_dataset', vm['target'], True, None, snapshot_id))
+
+
+@accepts(str)
+@description('Deletes a snapshot of VM')
+class VMSnapshotDeleteTask(Task):
+    @classmethod
+    def early_describe(cls):
+        return 'Deleting snapshot of VM'
+
+    def describe(self, id):
+        snapshot = self.datastore.get_by_id('vm.snapshots', id)
+        return TaskDescription('Deleting VM snapshot {name}', name=snapshot.get('name') if snapshot else '')
+
+    def verify(self, id):
+        return ['system']
+
+    def run(self, id):
+        snapshot = self.datastore.get_by_id('vm.snapshots', id)
+        if not snapshot:
+            raise TaskException(errno.ENOENT, 'Snapshot {0} does not exist'.format(id))
+
+        snapshot_id = self.dispatcher.call_sync(
+            'zfs.snapshot.query',
+            [('name', '~', id)],
+            {'single': True, 'select': 'id'}
+        )
+        self.join_subtasks(self.run_subtask('volume.snapshot.delete', snapshot_id))
+
+        self.datastore.delete('vm.snapshots', id)
+        self.dispatcher.dispatch_event('vm.snapshot.changed', {
+            'operation': 'delete',
+            'ids': [id]
+        })
 @accepts(str)
 @description('Caches VM files')
 class CacheFilesTask(ProgressTask):
@@ -1026,6 +1106,7 @@ def _init(dispatcher, plugin):
             'id': {'type': 'string'},
             'name': {'type': 'string'},
             'description': {'type': 'string'},
+            'parent': {'type': ['string', 'null']},
             'enabled': {'type': 'boolean'},
             'immutable': {'type': 'boolean'},
             'target': {'type': 'string'},
@@ -1187,6 +1268,7 @@ def _init(dispatcher, plugin):
         return True
 
     plugin.register_provider('vm', VMProvider)
+    plugin.register_provider('vm.snapshot', VMSnapshotProvider)
     plugin.register_provider('vm.template', VMTemplateProvider)
     plugin.register_task_handler('vm.create', VMCreateTask)
     plugin.register_task_handler('vm.import', VMImportTask)
@@ -1196,6 +1278,8 @@ def _init(dispatcher, plugin):
     plugin.register_task_handler('vm.start', VMStartTask)
     plugin.register_task_handler('vm.stop', VMStopTask)
     plugin.register_task_handler('vm.reboot', VMRebootTask)
+    plugin.register_task_handler('vm.snapshot.create', VMSnapshotCreateTask)
+    plugin.register_task_handler('vm.snapshot.delete', VMSnapshotDeleteTask)
     plugin.register_task_handler('vm.immutable.set', VMSetImmutableTask)
     plugin.register_task_handler('vm.file.install', InstallFileTask)
     plugin.register_task_handler('vm.file.download', DownloadFileTask)
@@ -1207,3 +1291,4 @@ def _init(dispatcher, plugin):
     plugin.attach_hook('volume.pre_detach', volume_pre_detach)
 
     plugin.register_event_type('vm.changed')
+    plugin.register_event_type('vm.snapshot.changed')
