@@ -505,6 +505,7 @@ nss_freenas_getpwent_r(void *retval, void *mdata, va_list ap)
                 if (rpc_call_continue(pw_call, true) != RPC_CALL_MORE_AVAILABLE) {
                         rpc_call_free(pw_call);
                         pw_call = NULL;
+                        pw_results = NULL;
                         return (NS_NOTFOUND);
                 }
 
@@ -656,6 +657,7 @@ nss_freenas_getgrent_r(void *retval, void *mdata, va_list ap)
                 if (rpc_call_continue(gr_call, true) != RPC_CALL_MORE_AVAILABLE) {
                         rpc_call_free(gr_call);
                         gr_call = NULL;
+                        gr_results = NULL;
                         return (NS_NOTFOUND);
                 }
 
