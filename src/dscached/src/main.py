@@ -485,8 +485,12 @@ class AccountService(RpcService):
         if not user:
             return False
 
-        unixhash = crypt.crypt(password, user['unixhash'])
-        return unixhash == user['unixhash']
+        if 'unixhash' in user:
+            unixhash = crypt.crypt(password, user['unixhash'])
+            return unixhash == user['unixhash']
+
+        entry = self.context.users_cache.get(name=user_name)
+        return entry.directory.instance.authenticate(user_name, password)
 
     def change_password(self, user_name, password):
         self.logger.debug('Change password request for user {0}'.format(user_name))
