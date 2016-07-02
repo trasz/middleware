@@ -14,6 +14,8 @@ Compression ${"delayed" if ssh_config['compression'] else "no"}
 PasswordAuthentication ${"yes" if ssh_config['allow_password_auth'] else "no"}
 PubkeyAuthentication ${"yes" if ssh_config['allow_pubkey_auth'] else "no"}
 GSSAPIAuthentication ${"yes" if ssh_config['allow_gssapi_auth'] else "no"}
+AuthorizedKeysCommand /usr/local/libexec/authorized-keys-helper
+AuthorizedKeysCommandUser root
 % if ssh_config['auxiliary']:
 ${ssh_config['auxiliary']}
 % endif

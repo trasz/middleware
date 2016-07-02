@@ -1,3 +1,4 @@
 /usr/local/etc/rc.d/dscached
+/usr/local/libexec/authorized-keys-helper
 /usr/local/sbin/dscached
 /usr/local/sbin/dscachectl
