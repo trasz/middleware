@@ -947,7 +947,7 @@ class ReplicationReserveServicesTask(ReplicationBaseTask):
 
 
 @description('Creates a snapshot of selected dataset')
-@accepts(str, bool, int, str, bool)
+@accepts(str, bool, h.one_of(int, None), str, bool)
 @returns(str)
 class SnapshotDatasetTask(Task):
     @classmethod
@@ -968,7 +968,7 @@ class SnapshotDatasetTask(Task):
         params = {
             'org.freenas:uuid': {'value': str(uuid.uuid4())},
             'org.freenas:replicate': {'value': 'yes' if replicable else 'no'},
-            'org.freenas:lifetime': {'value': str(lifetime)},
+            'org.freenas:lifetime': {'value': str(lifetime or 'no')},
         }
 
         calendar_task_name = self.environment.get('calendar_task_name')
