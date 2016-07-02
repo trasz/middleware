@@ -136,7 +136,27 @@ class FilesystemProvider(Provider):
             lifetime=60,
             direction='download',
             file=f,
+            name=os.path.basename(f.name),
             size=os.path.getsize(path)
+        ))
+
+        return token
+
+    @pass_sender
+    @private
+    @accepts(int, str)
+    @returns(str)
+    def downloadfd(self, fd, filename, sender):
+        try:
+            f = open(fd, 'rb')
+        except OSError as e:
+            raise RpcException(e.errno, e)
+        token = self.dispatcher.token_store.issue_token(FileToken(
+            user=sender.user,
+            lifetime=60,
+            direction='download',
+            file=f,
+            name=filename
         ))
 
         return token

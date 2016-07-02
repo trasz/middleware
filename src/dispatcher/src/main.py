@@ -1341,7 +1341,7 @@ class FileConnection(WebSocketApplication, EventEmitter):
     def on_close(self, *args, **kwargs):
         self.inq.put(StopIteration)
         self.logger.info(
-            "File {0} Closed for file {1}".format(self.token.direction, self.token.file)
+            "File {0} Closed for file {1}".format(self.token.direction, self.token.name)
         )
 
     def on_message(self, message, *args, **kwargs):
@@ -1399,9 +1399,7 @@ class DownloadRequestHandler(object):
             ('Access-Control-Allow-Origin', '*'),
             ('Access-Control-Allow-Credentials', 'true'),
             ('Content-Type', 'application/octet-stream'),
-            ('Content-Disposition', 'attachment; filename="{}"'.format(
-                os.path.basename(self.token.file.name)
-            )),
+            ('Content-Disposition', 'attachment; filename="{}"'.format(self.token.name)),
             ('Transfer-Encoding', 'chunked')
         ])
         try:
