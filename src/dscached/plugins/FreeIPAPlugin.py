@@ -92,7 +92,12 @@ class FreeIPAPlugin(DirectoryServicePlugin):
         group = None
 
         if 'gidNumber.0' in entry:
-            group = self.search_one(self.group_dn, '(gidNumber={0})'.format(entry['gidNumber.0']))
+            group = self.search_one(
+                self.group_dn,
+                '(gidNumber={0})'.format(entry['gidNumber.0']),
+                attributes='ipaUniqueID'
+            )
+
             group = wrap(dict(group['attributes']))
 
         return {
@@ -104,6 +109,7 @@ class FreeIPAPlugin(DirectoryServicePlugin):
             'full_name': entry.get('gecos.0', entry.get('displayName.0', '<unknown>')),
             'shell': entry.get('loginShell.0', '/bin/sh'),
             'home': entry.get('homeDirectory.0', '/nonexistent'),
+            'sshpubkey': entry.get('ipaSshPubKey.0', None),
             'group': group['ipaUniqueID.0'] if group else None,
             'groups': [],
             'sudo': False
