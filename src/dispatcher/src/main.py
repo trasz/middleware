@@ -1288,9 +1288,9 @@ class ShellConnection(WebSocketApplication, EventEmitter):
 class FileConnection(WebSocketApplication, EventEmitter):
     BUFSIZE = 1024
 
-    def __init__(self, ws, dispatcher):
+    def __init__(self, ws, parent):
         super(FileConnection, self).__init__(ws)
-        self.dispatcher = dispatcher
+        self.dispatcher = parent.context
         self.token = None
         self.authenticated = False
         self.bytes_done = None
