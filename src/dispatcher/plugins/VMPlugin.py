@@ -753,6 +753,33 @@ class VMRebootTask(Task):
         self.join_subtasks(self.run_subtask('vm.start', id))
 
 
+@accepts(str)
+@description('Returns VM to previously saved state')
+class VMRollbackTask(Task):
+    @classmethod
+    def early_describe(cls):
+        return 'Rollback of VM'
+
+    def describe(self, id):
+        snapshot = self.datastore.get_by_id('vm.snapshots', id)
+        vm_name = None
+        if snapshot:
+            vm_name = self.dispatcher.call_sync(
+                'vm.query',
+                [('id', '=', snapshot['parent'])],
+                {'single': True, 'select': 'name'}
+            )
+        return TaskDescription('Rollback of VM {name}', name=vm_name or '')
+
+    def verify(self, id):
+        return ['system']
+
+    def run(self, id):
+        snapshot = self.datastore.get_by_id('vm.snapshots', id)
+        if not snapshot:
+            raise TaskException(errno.ENOENT, 'Snapshot {0} does not exist'.format(id))
+
+
 @accepts(str, str)
 @description('Creates a snapshot of VM')
 class VMSnapshotCreateTask(Task):
@@ -824,6 +851,24 @@ class VMSnapshotDeleteTask(Task):
             'operation': 'delete',
             'ids': [id]
         })
+
+
+@accepts()
+@description('')
+class VMSnapshotPublishTask(Task):
+    @classmethod
+    def early_describe(cls):
+        return ''
+
+    def describe(self, id, force=False):
+        vm = self.datastore.get_by_id('vms', id)
+        return TaskDescription('Rebooting VM {name}', name=vm.get('name', '') if vm else '')
+
+    def verify(self, id, force=False):
+        return ['system']
+
+    def run(self, id, force=False):
+        pass
 
 
 @accepts(str)
