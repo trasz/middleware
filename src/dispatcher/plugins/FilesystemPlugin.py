@@ -175,6 +175,7 @@ class FilesystemProvider(Provider):
             lifetime=60,
             direction='upload',
             file=f,
+            name=os.path.basename(dest_path),
             size=size
         ))
 
