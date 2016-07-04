@@ -143,25 +143,6 @@ class FilesystemProvider(Provider):
         return token
 
     @pass_sender
-    @private
-    @accepts(int, str)
-    @returns(str)
-    def downloadfd(self, fd, filename, sender):
-        try:
-            f = open(fd, 'rb')
-        except OSError as e:
-            raise RpcException(e.errno, e)
-        token = self.dispatcher.token_store.issue_token(FileToken(
-            user=sender.user,
-            lifetime=60,
-            direction='download',
-            file=f,
-            name=filename
-        ))
-
-        return token
-
-    @pass_sender
     @accepts(str, int, str)
     @returns(str)
     def upload(self, dest_path, size, mode, sender):
