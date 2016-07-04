@@ -51,25 +51,36 @@ class CollectDebugTask(ProgressTask):
         if cmd['type'] == 'AttachData':
             info = tarfile.TarInfo(os.path.join(plugin, cmd['name']))
             info.size = len(cmd['data'])
-            tar.addfile(info, io.BytesIO(cmd['data'].encode('utf-8')))
+            tar.addfile(
+                info,
+                io.BytesIO(
+                    cmd['data'] if isinstance(cmd['data'], bytes) else cmd['data'].encode('utf-8')
+                )
+            )
 
         if cmd['type'] == 'AttachCommandOutput':
             try:
                 out, err = system(*cmd['command'], shell=cmd['shell'])
                 content = out + '\n' + err + '\n'
             except SubprocessException as err:
-                content = 'Exit code: {0}\n'.format(err.returncode)
-                content += 'stdout:\n'
-                content += err.out
-                content += 'stderr:\n'
-                content += err.err
+                content = 'Exit code: {0}\nstdout:\n{1}stderr:\n{2}'.format(
+                    err.returncode, err.out, err.err
+                )
 
             info = tarfile.TarInfo(os.path.join(plugin, cmd['name']))
             info.size = len(content)
-            tar.addfile(info, io.BytesIO(content.encode('utf-8')))
+            tar.addfile(
+                info,
+                io.BytesIO(
+                    content if isinstance(content, bytes) else content.encode('utf-8'))
+            )
 
         if cmd['type'] in ('AttachDirectory', 'AttachFile'):
-            tar.add(cmd['path'], arcname=os.path.join(plugin, cmd['name']), recursive=cmd.get('recursive'))
+            tar.add(
+                cmd['path'],
+                arcname=os.path.join(plugin, cmd['name']),
+                recursive=cmd.get('recursive')
+            )
 
     def run(self, fd):
         with os.fdopen(fd.fd, 'wb') as f:
