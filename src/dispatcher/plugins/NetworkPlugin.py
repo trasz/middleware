@@ -680,14 +680,14 @@ def collect_debug(dispatcher):
     yield AttachFile('hosts', '/etc/hosts')
     yield AttachFile('resolv.conf', '/etc/resolv.conf')
     yield AttachCommandOutput('ifconfig', ['/sbin/ifconfig', '-v'])
-    yield AttachCommandOutput('routing-table', ['/sbin/netstat', '-nr'])
-    yield AttachCommandOutput('arp-table', ['/sbin/arp', '-an'])
-    yield AttachCommandOutput('arp-table', ['/sbin/arp', '-an'])
-    yield AttachCommandOutput('mbuf-stats', ['/sbin/netstat', '-m'])
-    yield AttachCommandOutput('interface-stats', ['/sbin/netstat', '-i'])
+    yield AttachCommandOutput('routing-table', ['/usr/sbin/netstat', '-nr'])
+    yield AttachCommandOutput('arp-table', ['/usr/sbin/arp', '-an'])
+    yield AttachCommandOutput('arp-table', ['/usr/sbin/arp', '-an'])
+    yield AttachCommandOutput('mbuf-stats', ['/usr/sbin/netstat', '-m'])
+    yield AttachCommandOutput('interface-stats', ['/usr/sbin/netstat', '-i'])
 
     for i in ['ip', 'arp', 'udp', 'tcp', 'icmp']:
-        yield AttachCommandOutput('netstat-proto-{0}'.format(i), ['/sbin/netstat', '-p', i, '-s'])
+        yield AttachCommandOutput('netstat-proto-{0}'.format(i), ['/usr/sbin/netstat', '-p', i, '-s'])
 
 
 def _depends():
