@@ -28,9 +28,11 @@
 import os
 import io
 import tarfile
-from freenas.dispatcher.rpc import RpcException, description
+import errno
+from freenas.dispatcher.rpc import RpcException, description, accepts
+from freenas.dispatcher.fd import FileDescriptor
 from lib.system import system, SubprocessException
-from task import ProgressTask, TaskWarning, TaskDescription
+from task import ProgressTask, TaskWarning, TaskDescription, ValidationException, VerifyException
 
 
 @description('Collects debug information')
@@ -93,22 +95,38 @@ class CollectDebugTask(ProgressTask):
                     done += 1
 
 
+@accepts(str)
 @description('Saves debug information')
 class SaveDebugTask(ProgressTask):
     @classmethod
     def early_describe(cls):
-        return 'Saving debug data'
+        return 'Saving debug data to file'
 
-    def describe(self):
-        return TaskDescription('Saving debug data')
+    def describe(self, path):
+        return TaskDescription('Saving debug data to file: {filepath}', filepath=path)
 
-    def verify(self):
+    def verify(self, path):
+        errors = ValidationException()
+        if path in [None, ''] or path.isspace():
+            errors.add((0, 'path'), 'The Path is required', code=errno.EINVAL)
+        elif not os.path.exists(path):
+            raise VerifyException(
+                errno.ENOENT,
+                "The specified path: '{0}'' does not exist".format(path)
+            )
+        if errors:
+            raise errors
         return ['system']
 
-    def run(self):
-        pass
+    def run(self, path):
+        file = open(path, 'wb+')
+        self.join_subtasks(self.run_subtask(
+            'debug.collect',
+            FileDescriptor(file.fileno()),
+            progress_callback=lambda p, m, e=None: self.chunk_progress(0, 100, '', p, m, e)
+        ))
 
 
 def _init(dispatcher, plugin):
     plugin.register_task_handler('debug.collect', CollectDebugTask)
-    plugin.register_task_handler('debug.save', SaveDebugTask)
+    plugin.register_task_handler('debug.save_to_file', SaveDebugTask)
