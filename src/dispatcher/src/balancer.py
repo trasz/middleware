@@ -756,12 +756,18 @@ def serialize_error(err):
     return ret
 
 
+def replace_invalid_chars(s):
+    s = s.replace('.', '+')
+    s = s.replace('$', '%')
+    return s
+
+
 def remove_dots(obj):
     if isinstance(obj, FileDescriptor):
         return {'fd': obj.fd}
 
     if isinstance(obj, dict):
-        return {k.replace('.', '+'): remove_dots(v) for k, v in obj.items()}
+        return {replace_invalid_chars(k): remove_dots(v) for k, v in obj.items()}
 
     if isinstance(obj, (list, tuple)):
         return [remove_dots(x) for x in obj]
