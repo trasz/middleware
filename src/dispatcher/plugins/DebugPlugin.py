@@ -109,11 +109,6 @@ class SaveDebugTask(ProgressTask):
         errors = ValidationException()
         if path in [None, ''] or path.isspace():
             errors.add((0, 'path'), 'The Path is required', code=errno.EINVAL)
-        elif not os.path.exists(path):
-            raise VerifyException(
-                errno.ENOENT,
-                "The specified path: '{0}'' does not exist".format(path)
-            )
         if errors:
             raise errors
         return ['system']
