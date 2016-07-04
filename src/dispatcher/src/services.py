@@ -376,6 +376,11 @@ class TaskService(RpcService):
         tid = self.__balancer.submit(name, args, sender, env)
         return tid
 
+    @pass_sender
+    def submit_with_download(self, task_name, args, sender):
+        tid, url_list = self.__balancer.submit_with_download(task_name, args, sender)
+        return tid, url_list
+
     def status(self, id):
         t = self.__datastore.get_by_id('tasks', id)
         task = self.__balancer.get_task(id)

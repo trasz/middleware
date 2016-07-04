@@ -48,6 +48,7 @@ from gevent.event import Event, AsyncResult
 from gevent.subprocess import Popen
 from freenas.utils import first_or_default
 from resources import Resource
+from auth import FileToken
 from task import (
     TaskException, TaskAbortException, VerifyException, ValidationException,
     TaskStatus, TaskState, TaskDescription
@@ -531,6 +532,31 @@ class Balancer(object):
         self.task_queue.put(task)
         self.logger.info("Task %d submitted (type: %s, class: %s)", task.id, name, task.clazz)
         return task.id
+
+    def submit_with_download(self, task_name, args, sender, env=None):
+        if len(args) == 0 or (len(args) >= 1 and not isinstance(args[0], list)):
+            raise RpcException(
+                errno.EINVAL,
+                "Please supply the file name list to download as an array in the args list"
+            )
+        file_name_list = args.pop(0)
+        url_list = []
+        fd_list = []
+        for f in file_name_list:
+            file_obj = open('/tmp/' + f, 'wb+')
+            fd_list.append(FileDescriptor(file_obj.fileno()))
+            url_list.append(":5000/filedownload?token={0}".format(
+                self.dispatcher.token_store.issue_token(FileToken(
+                    user=sender.user,
+                    lifetime=60,
+                    direction='download',
+                    file=file_obj,
+                    name=f
+                ))
+            ))
+
+        task_id = self.submit(task_name, fd_list + args, sender, env)
+        return task_id, url_list
 
     def verify_subtask(self, parent, name, args):
         clazz = self.dispatcher.tasks[name]
