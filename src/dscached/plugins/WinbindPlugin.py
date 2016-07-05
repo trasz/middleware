@@ -141,8 +141,13 @@ class WinbindPlugin(DirectoryServicePlugin):
                         logger.debug('Keepalive thread: rejoining')
                         self.directory.put_state(DirectoryState.JOINING)
                         self.join()
+                    else:
+                        self.domain_info = self.wbc.get_domain_info(self.realm)
+                        self.domain_name = self.wbc.interface.netbios_domain
+                        self.directory.put_state(DirectoryState.BOUND)
                 else:
                     self.directory.put_state(DirectoryState.DISABLED)
+
 
     def configure_smb(self, enable):
         workgroup = self.parameters['realm'].split('.')[0]
