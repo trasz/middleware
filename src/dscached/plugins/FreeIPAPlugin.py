@@ -30,11 +30,10 @@ import ldap3
 import ldap3.utils.dn
 import logging
 import errno
-import time
 from threading import Thread, Condition
 from datetime import datetime
 from plugin import DirectoryServicePlugin, DirectoryState
-from utils import obtain_or_renew_ticket, join_dn, domain_to_dn
+from utils import obtain_or_renew_ticket, join_dn, domain_to_dn, get_srv_records
 from freenas.utils import normalize, first_or_default
 from freenas.utils.query import wrap
 
@@ -52,7 +51,7 @@ class FreeIPAPlugin(DirectoryServicePlugin):
     def __init__(self, context):
         self.context = context
         self.parameters = None
-        self.server = None
+        self.servers = None
         self.conn = None
         self.base_dn = None
         self.user_dn = None
@@ -75,12 +74,20 @@ class FreeIPAPlugin(DirectoryServicePlugin):
     def search_one(self, *args, **kwargs):
         return first_or_default(None, self.search(*args, **kwargs))
 
+    @property
+    def ldap_addresses(self):
+        if self.parameters['server']:
+            return [self.parameters['server']]
+
+        return list(get_srv_records('ldap', 'tcp', self.parameters['realm']))
+
     @staticmethod
     def normalize_parameters(parameters):
         return normalize(parameters, {
             'type': 'freeipa-directory-params',
             'realm': '',
             'server': None,
+            'kdc': None,
             'username': '',
             'password': '',
             'user_suffix': 'cn=users,cn=accounts',
@@ -190,8 +197,14 @@ class FreeIPAPlugin(DirectoryServicePlugin):
                     try:
                         self.directory.put_state(DirectoryState.JOINING)
                         obtain_or_renew_ticket(self.principal, self.parameters['password'], renew_life=TICKET_RENEW_LIFE)
-                        self.server = ldap3.Server(self.parameters['server'])
-                        self.conn = ldap3.Connection(self.server, client_strategy='ASYNC', authentication=ldap3.SASL, sasl_mechanism='GSSAPI')
+                        self.servers = [ldap3.Server(i) for i in self.ldap_addresses]
+                        self.conn = ldap3.Connection(
+                            self.servers,
+                            client_strategy='ASYNC',
+                            authentication=ldap3.SASL,
+                            sasl_mechanism='GSSAPI'
+                        )
+
                         self.conn.bind()
                         self.directory.put_state(DirectoryState.BOUND)
                         continue
@@ -214,6 +227,9 @@ class FreeIPAPlugin(DirectoryServicePlugin):
         return {
             'id': FREEIPA_REALM_ID,
             'realm': parameters['realm'].upper(),
+            'kdc_address': parameters['kdc'],
+            'admin_server_address': None,
+            'password_server_address': None,
             'created_at': datetime.utcnow(),
             'updated_at': datetime.utcnow()
         }
@@ -226,6 +242,7 @@ def _init(context):
         'type': {'enum': ['ldap-directory-params']},
         'realm': {'type': 'string'},
         'server': {'type': ['string', 'null']},
+        'kdc': {'type': ['string', 'null']},
         'username': {'type': 'string'},
         'password': {'type': 'string'},
         'user_suffix': {'type': 'string'},

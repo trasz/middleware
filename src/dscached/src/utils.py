@@ -25,6 +25,8 @@
 #
 #####################################################################
 
+import dns.resolver
+import dns.exception
 import krb5
 
 
@@ -53,3 +55,12 @@ def have_ticket(principal):
             return True
 
     return False
+
+
+def get_srv_records(service, protocol, domain):
+    try:
+        answer = dns.resolver.query('_{0}._{1}.{2}'.format(service, protocol, domain), dns.rdatatype.SRV)
+        for i in answer:
+            yield i.target
+    except dns.exception.DNSException:
+        return
