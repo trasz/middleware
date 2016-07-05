@@ -29,6 +29,7 @@ import os
 import errno
 import logging
 import json
+from bson import json_util
 import time
 import gevent
 import gevent.threadpool
@@ -1288,9 +1289,15 @@ def get_zfs():
 
 
 def collect_debug(dispatcher):
-    yield AttachData('pool-cache-state', json.dumps(pools.query(), indent=4))
-    yield AttachData('dataset-cache-state', json.dumps(datasets.query(), indent=4))
-    yield AttachData('snapshot-cache-state', json.dumps(snapshots.query(), indent=4))
+    yield AttachData(
+        'pool-cache-state', json.dumps(pools.query(), default=json_util.default, indent=4)
+    )
+    yield AttachData(
+        'dataset-cache-state', json.dumps(datasets.query(), default=json_util.default, indent=4)
+    )
+    yield AttachData(
+        'snapshot-cache-state', json.dumps(snapshots.query(), default=json_util.default, indent=4)
+    )
     yield AttachCommandOutput('zpool-status', ['/sbin/zpool', 'status'])
     yield AttachCommandOutput('zpool-history', ['/sbin/zpool', 'history'])
     yield AttachCommandOutput('zpool-list', ['/sbin/zpool', 'get', 'all'])
