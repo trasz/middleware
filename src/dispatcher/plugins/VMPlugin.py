@@ -274,8 +274,11 @@ class VMBaseTask(ProgressTask):
 
         if res['type'] == 'NIC':
             normalize(res['properties'], {
+                'device': 'VIRTIO',
+                'mode': 'NAT',
                 'link_address': self.dispatcher.call_sync('vm.generate_mac')
             })
+
             if res['properties'].get('type') == 'BRIDGE' and res['properties'].get('bridge') == 'default':
                 res['properties']['bridge'] = self.dispatcher.call_sync('networkd.configuration.get_default_interface')
 
@@ -1168,10 +1171,16 @@ def _init(dispatcher, plugin):
         'type': 'object',
         'additionalProperties': False,
         'properties': {
+            'device': {'$ref': 'vm-device-nic-device'},
             'mode': {'$ref': 'vm-device-nic-mode'},
             'link_address': {'type': 'string'},
             'bridge': {'type': ['string', 'null']}
         }
+    })
+
+    plugin.register_schema_definition('vm-device-nic-device', {
+        'type': 'string',
+        'enum': ['VIRTIO', 'E1000', 'NE2K']
     })
 
     plugin.register_schema_definition('vm-device-nic-mode', {

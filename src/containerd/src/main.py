@@ -188,12 +188,19 @@ class VirtualMachine(object):
                     index += 1
 
             if i['type'] == 'NIC':
+                drivermap = {
+                    'VIRTIO': 'virtio-net',
+                    'E1000': 'e1000',
+                    'NE2K': 'ne2k'
+                }
+
                 mac = i['properties']['link_address']
                 iface = self.init_tap(i['name'], i['properties'], mac)
                 if not iface:
                     continue
 
-                args += ['-s', '{0}:0,virtio-net,{1},mac={2}'.format(index, iface, mac)]
+                driver = drivermap.get(i['properties'].get('device', 'VIRTIO'))
+                args += ['-s', '{0}:0,{1},{2},mac={3}'.format(index, driver, iface, mac)]
                 index += 1
 
             if i['type'] == 'GRAPHICS':
