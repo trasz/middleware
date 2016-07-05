@@ -14,7 +14,9 @@
                 "locked": false,
                 "unixhash": "*",
                 "sudo": false,
-                "smbhash": null,
+                "nthash": null,
+                "lmhash": null,
+                "password_changed_at": null,
                 "groups": [],
                 "attributes": {},
                 "builtin": true
