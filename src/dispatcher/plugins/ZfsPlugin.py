@@ -29,7 +29,6 @@ import os
 import errno
 import logging
 import json
-from bson import json_util
 import time
 import gevent
 import gevent.threadpool
@@ -42,6 +41,7 @@ from task import (
 )
 from freenas.dispatcher.rpc import RpcException, accepts, returns, description, private
 from freenas.dispatcher.rpc import SchemaHelper as h
+from freenas.dispatcher.jsonenc import dumps
 from balancer import TaskState
 from resources import Resource
 from debug import AttachData, AttachCommandOutput
@@ -1289,15 +1289,9 @@ def get_zfs():
 
 
 def collect_debug(dispatcher):
-    yield AttachData(
-        'pool-cache-state', json.dumps(pools.query(), default=json_util.default, indent=4)
-    )
-    yield AttachData(
-        'dataset-cache-state', json.dumps(datasets.query(), default=json_util.default, indent=4)
-    )
-    yield AttachData(
-        'snapshot-cache-state', json.dumps(snapshots.query(), default=json_util.default, indent=4)
-    )
+    yield AttachData('pool-cache-state', dumps(pools.query()))
+    yield AttachData('dataset-cache-state', dumps(datasets.query()))
+    yield AttachData('snapshot-cache-state', dumps(snapshots.query()))
     yield AttachCommandOutput('zpool-status', ['/sbin/zpool', 'status'])
     yield AttachCommandOutput('zpool-history', ['/sbin/zpool', 'history'])
     yield AttachCommandOutput('zpool-list', ['/sbin/zpool', 'get', 'all'])
