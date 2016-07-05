@@ -107,14 +107,14 @@ class CollectDebugTask(ProgressTask):
 
 
 @accepts(str)
-@description('Saves debug information')
+@description('Saves debug information in a gzip format to file specified by user')
 class SaveDebugTask(ProgressTask):
     @classmethod
     def early_describe(cls):
-        return 'Saving debug data to file'
+        return 'Saving debug data to file in gzip format'
 
     def describe(self, path):
-        return TaskDescription('Saving debug data to file: {filepath}', filepath=path)
+        return TaskDescription('Saving debug data to file: {filepath} in gzip format', filepath=path)
 
     def verify(self, path):
         errors = ValidationException()
