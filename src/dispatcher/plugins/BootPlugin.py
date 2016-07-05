@@ -202,15 +202,15 @@ class BootDetachDisk(Task):
         return "Detaching disk from the Boot Pool"
 
     def describe(self, disk):
-        return TaskDescription("Detaching the {name} disk from the Boot Pool", name=disk['name'])
+        return TaskDescription("Detaching the {name} disk from the Boot Pool", name=disk)
 
     def verify(self, disk):
         boot_pool_name = self.configstore.get('system.boot_pool_name')
-        return ['zpool:{0}'.format(boot_pool_name), 'disk:{0}'.format(disk)]
+        return ['zpool:{0}'.format(boot_pool_name)]
 
     def run(self, disk):
         pool = wrap(self.dispatcher.call_sync('boot.pool.get_config'))
-        vdev = first_or_default(lambda path: os.path.join(disk, '/dev') == path, pool['groups.data'])
+        vdev = first_or_default(lambda v: os.path.join(disk, '/dev') == v['path'], pool['groups.data.0.children'])
         if not vdev:
             raise TaskException(errno.ENOENT, 'Disk {0} not found in the boot pool'.format(disk))
 
