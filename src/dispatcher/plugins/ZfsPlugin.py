@@ -1032,20 +1032,40 @@ class ZfsRenameTask(ZfsBaseTask):
 
 @private
 @accepts(str, str)
-@description('Clones ZFS object')
+@description('Clones ZFS snapshot')
 class ZfsCloneTask(ZfsBaseTask):
     @classmethod
     def early_describe(cls):
-        return 'Cloning ZFS object'
+        return 'Cloning ZFS snapshot'
 
     def describe(self, name, new_name):
-        return TaskDescription('Cloning ZFS object {name} to {new_name}', name=name, new_name=new_name)
+        return TaskDescription('Cloning ZFS snapshot {name} to {new_name}', name=name, new_name=new_name)
 
     def run(self, name, new_name):
         try:
             zfs = get_zfs()
-            dataset = zfs.get_dataset(name)
-            dataset.clone(new_name)
+            snapshot = zfs.get_snapshot(name)
+            snapshot.clone(new_name)
+        except libzfs.ZFSException as err:
+            raise TaskException(zfs_error_to_errno(err.code), str(err))
+
+
+@private
+@accepts(str, bool)
+@description('Returns ZFS snapshot to previous state')
+class ZfsRollbackTask(ZfsBaseTask):
+    @classmethod
+    def early_describe(cls):
+        return 'Returning ZFS snapshot to previous state'
+
+    def describe(self, name, force=False):
+        return TaskDescription('Returning ZFS snapshot {name} to previous state', name=name)
+
+    def run(self, name, force=False):
+        try:
+            zfs = get_zfs()
+            snapshot = zfs.get_snapshot(name)
+            snapshot.rollback(force)
         except libzfs.ZFSException as err:
             raise TaskException(zfs_error_to_errno(err.code), str(err))
 
@@ -1666,6 +1686,7 @@ def _init(dispatcher, plugin):
     plugin.register_task_handler('zfs.destroy', ZfsDestroyTask)
     plugin.register_task_handler('zfs.rename', ZfsRenameTask)
     plugin.register_task_handler('zfs.clone', ZfsCloneTask)
+    plugin.register_task_handler('zfs.rollback', ZfsRollbackTask)
     plugin.register_task_handler('zfs.send', ZfsSendTask)
     plugin.register_task_handler('zfs.receive', ZfsReceiveTask)
 

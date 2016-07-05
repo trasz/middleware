@@ -2152,6 +2152,50 @@ class SnapshotConfigureTask(Task):
         self.join_subtasks(self.run_subtask('zfs.update', id, params))
 
 
+@description("Cloning the specified snapshot into new name")
+@accepts(str, str)
+class SnapshotCloneTask(Task):
+    @classmethod
+    def early_describe(cls):
+        return "Cloning a snapshot"
+
+    def describe(self, name, new_name):
+        return TaskDescription("Cloning the snapshot {name}", name=name)
+
+    def verify(self, name, new_name):
+        pool, ds, snap = split_snapshot_name(name)
+        return ['zfs:{0}'.format(ds)]
+
+    def run(self, name, new_name):
+        self.join_subtasks(self.run_subtask(
+            'zfs.clone',
+            name,
+            new_name
+        ))
+
+
+@description("Returns filesystem to the specified snapshot state")
+@accepts(str, bool)
+class SnapshotRollbackTask(Task):
+    @classmethod
+    def early_describe(cls):
+        return "Returning filesystem to a snapshot state"
+
+    def describe(self, name, force=False):
+        return TaskDescription("Returning filesystem to the snapshot {name}", name=name)
+
+    def verify(self, name, force=False):
+        pool, ds, snap = split_snapshot_name(name)
+        return ['zfs:{0}'.format(ds)]
+
+    def run(self, name, force=False):
+        self.join_subtasks(self.run_subtask(
+            'zfs.rollback',
+            name,
+            force
+        ))
+
+
 def compare_vdevs(vd1, vd2):
     if vd1 is None or vd2 is None:
         return False
@@ -2852,6 +2896,8 @@ def _init(dispatcher, plugin):
     plugin.register_task_handler('volume.snapshot.create', SnapshotCreateTask)
     plugin.register_task_handler('volume.snapshot.delete', SnapshotDeleteTask)
     plugin.register_task_handler('volume.snapshot.update', SnapshotConfigureTask)
+    plugin.register_task_handler('volume.snapshot.clone', SnapshotCloneTask)
+    plugin.register_task_handler('volume.snapshot.rollback', SnapshotRollbackTask)
 
     plugin.register_hook('volume.pre_destroy')
     plugin.register_hook('volume.pre_detach')
