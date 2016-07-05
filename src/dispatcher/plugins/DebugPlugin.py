@@ -29,10 +29,13 @@ import os
 import io
 import tarfile
 import errno
+import logging
 from freenas.dispatcher.rpc import RpcException, description, accepts
 from freenas.dispatcher.fd import FileDescriptor
 from lib.system import system, SubprocessException
-from task import ProgressTask, TaskWarning, TaskDescription, ValidationException, VerifyException
+from task import ProgressTask, TaskWarning, TaskDescription, ValidationException
+
+logger = logging.getLogger('DebugPlugin')
 
 
 @description('Collects debug information')

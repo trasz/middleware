@@ -50,6 +50,7 @@ import subprocess
 import websocket  # do not remove - we import it only for side effects
 
 import gevent
+from io import UnsupportedOperation
 from pyee import EventEmitter
 from gevent.os import tp_read, tp_write, forkpty_and_watch
 from gevent.queue import Queue
@@ -1403,7 +1404,12 @@ class DownloadRequestHandler(object):
             ('Transfer-Encoding', 'chunked')
         ])
         try:
-            self.token.file.seek(0)
+            try:
+                self.token.file.seek(0)
+            except UnsupportedOperation:
+                # if file object's underlying stream is a pipe
+                # then seek is illegal
+                pass
             chunk = self.token.file.read(1024)
             while chunk:
                 yield chunk

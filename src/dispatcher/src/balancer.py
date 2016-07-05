@@ -543,14 +543,14 @@ class Balancer(object):
         url_list = []
         fd_list = []
         for f in file_name_list:
-            file_obj = open('/tmp/' + f, 'wb+')
-            fd_list.append(FileDescriptor(file_obj.fileno()))
+            rfd, wfd = os.pipe()
+            fd_list.append(FileDescriptor(wfd))
             url_list.append(":5000/filedownload?token={0}".format(
                 self.dispatcher.token_store.issue_token(FileToken(
                     user=sender.user,
                     lifetime=60,
                     direction='download',
-                    file=file_obj,
+                    file=os.fdopen(rfd, 'rb', closefd=False),
                     name=f
                 ))
             ))
