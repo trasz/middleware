@@ -148,7 +148,6 @@ class WinbindPlugin(DirectoryServicePlugin):
                 else:
                     self.directory.put_state(DirectoryState.DISABLED)
 
-
     def configure_smb(self, enable):
         workgroup = self.parameters['realm'].split('.')[0]
         cfg = smbconf.SambaConfig('registry')
