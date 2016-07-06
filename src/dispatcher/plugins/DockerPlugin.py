@@ -26,8 +26,12 @@
 #####################################################################
 
 from docker import Client
-from task import Provider, Task, TaskException
+from task import Provider, Task, ProgressTask, TaskException
+from cache import EventCacheStore
 from freenas.utils.query import wrap
+
+
+containers = None
 
 
 class DockerHostProvider(Provider):
@@ -60,7 +64,16 @@ class DockerContainerProvider(Provider):
 
 class DockerImagesProvider(Provider):
     def query(self, filter=None, params=None):
-        pass
+        containers = wrap(self.dispatcher.call_sync('containerd.docker.query_images'))
+        return containers.query(*(filter or []), **(params or {}))
+
+
+class DockerContainerCreateTask(ProgressTask):
+    pass
+
+
+class DockerContainerDeleteTask(ProgressTask):
+    pass
 
 
 def _depends():
@@ -68,9 +81,20 @@ def _depends():
 
 
 def _init(dispatcher, plugin):
+    containers = EventCacheStore(dispatcher, 'docker.container')
+
     plugin.register_provider('docker.host', DockerHostProvider)
     plugin.register_provider('docker.container', DockerContainerProvider)
-    plugin.register_provider('docker.image', DockerHostProvider)
+    plugin.register_provider('docker.image', DockerImagesProvider)
 
     plugin.register_event_type('docker.host.changed')
     plugin.register_event_type('docker.container.changed')
+
+    plugin.register_schema_definition('docker', {
+        'type': 'object',
+        'additionalProperties': False,
+        'properties': {
+            'image': {'type': 'string'},
+
+        }
+    })
