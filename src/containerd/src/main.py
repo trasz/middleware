@@ -672,7 +672,7 @@ class DockerService(RpcService):
         return result
 
     @generator
-    def pull(self, host, name):
+    def pull(self, name, host):
         host = self.context.docker_hosts.get(host)
         if not host:
             raise RpcException(errno.ENOENT, 'Docker host {0} not found'.format(host))
