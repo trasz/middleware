@@ -845,7 +845,8 @@ class VMSnapshotCreateTask(Task):
             'ids': [snapshot_id]
         })
 
-        self.join_subtasks(self.run_subtask('volume.snapshot_dataset', vm['target'], True, None, snapshot_id))
+        vm_ds = self.dispatcher.call_sync('vm.get_dataset', id)
+        self.join_subtasks(self.run_subtask('volume.snapshot_dataset', vm_ds, True, None, snapshot_id))
 
 
 @accepts(str, h.ref('vm-snapshot'))
