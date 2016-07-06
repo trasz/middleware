@@ -42,6 +42,7 @@ import argparse
 import signal
 import time
 import errno
+import inspect
 import setproctitle
 import traceback
 import tempfile
@@ -804,7 +805,16 @@ class DispatcherRpcContext(RpcContext):
         self.dispatcher = dispatcher
 
     def call_sync(self, name, *args):
-        return copy.deepcopy(self.dispatch_call(name, list(args), streaming=False, validation=False))
+        def unpack_chunk(it):
+            for chunk in it:
+                for item in chunk:
+                    yield item
+
+        result = self.dispatch_call(name, list(args), streaming=True, validation=False)
+        if hasattr(result, '__next__'):
+            return unpack_chunk(result)
+
+        return copy.deepcopy(result)
 
 
 class DispatcherConnection(ServerConnection):
