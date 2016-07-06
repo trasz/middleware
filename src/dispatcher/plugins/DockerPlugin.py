@@ -69,11 +69,42 @@ class DockerImagesProvider(Provider):
 
 
 class DockerContainerCreateTask(ProgressTask):
-    pass
+    def verify(self, container):
+        return []
+
+    def run(self, container):
+        pass
 
 
 class DockerContainerDeleteTask(ProgressTask):
     pass
+
+
+class DockerContainerStartTask(Task):
+    def verify(self, id):
+        return []
+
+    def run(self, id):
+        self.dispatcher.call_sync('containerd.docker.start', id)
+
+
+class DockerContainerStopTask(Task):
+    def verify(self, id):
+        return []
+
+    def run(self, id):
+        self.dispatcher.call_sync('containerd.docker.stop', id)
+
+
+class DockerImagePullTask(ProgressTask):
+    def verify(self, name, hostid):
+        return []
+
+    def run(self, name, hostid):
+        for i in self.dispatcher.call_sync('containerd.docker.pull', name, hostid, timeout=3600):
+            if 'progressDetail' in i and 'current' in i['progressDetail']:
+                percentage = i['progressDetail']['current'] / i['progressDetail']['total'] * 100
+                self.set_progress(percentage, '{0} layer {1}'.format(i['status'], i['id']))
 
 
 def _depends():
@@ -87,6 +118,8 @@ def _init(dispatcher, plugin):
     plugin.register_provider('docker.container', DockerContainerProvider)
     plugin.register_provider('docker.image', DockerImagesProvider)
 
+    plugin.register_task_handler('docker.image.pull', DockerImagePullTask)
+
     plugin.register_event_type('docker.host.changed')
     plugin.register_event_type('docker.container.changed')
 
@@ -94,7 +127,16 @@ def _init(dispatcher, plugin):
         'type': 'object',
         'additionalProperties': False,
         'properties': {
+            'id': {'type': 'string'},
+            'name': {'type': 'string'},
             'image': {'type': 'string'},
+            'host': {'type': 'string'},
+            'ports': {
+                'type': 'array',
+                'items': {
+                    'type': 'object',
 
+                }
+            }
         }
     })
