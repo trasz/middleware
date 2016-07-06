@@ -77,6 +77,10 @@ class VMProvider(Provider):
 
         return os.path.join('/mnt', vm['target'], 'vm', vm['name'])
 
+    def get_dataset(self, vm_id):
+        vm = self.datastore.get_by_id('vms', vm_id)
+        return os.path.join(vm['target'], 'vm', vm['name'])
+
     def get_disk_path(self, vm_id, disk_name):
         vm = self.datastore.get_by_id('vms', vm_id)
         if not vm:
@@ -250,7 +254,7 @@ class VMBaseTask(ProgressTask):
             progress_cb(0, 'Creating {0}'.format(res['type'].lower()))
 
         if res['type'] == 'DISK':
-            vm_ds = os.path.join(vm['target'], 'vm', vm['name'])
+            vm_ds = self.dispatcher.call_sync('vm.get_dataset', vm['id'])
             ds_name = os.path.join(vm_ds, res['name'])
             self.join_subtasks(self.run_subtask('volume.dataset.create', {
                 'volume': vm['target'],
@@ -285,7 +289,7 @@ class VMBaseTask(ProgressTask):
         if res['type'] == 'VOLUME':
             properties = res['properties']
             mgmt_net = ipaddress.ip_interface(self.configstore.get('container.network.management'))
-            vm_ds = os.path.join(vm['target'], 'vm', vm['name'])
+            vm_ds = self.dispatcher.call_sync('vm.get_dataset', vm['id'])
             opts = {}
 
             normalize(res['properties'], {
@@ -324,7 +328,7 @@ class VMBaseTask(ProgressTask):
 
     def delete_device(self, vm, res):
         if res['type'] in ('DISK', 'VOLUME'):
-            vm_ds = os.path.join(vm['target'], 'vm', vm['name'])
+            vm_ds = self.dispatcher.call_sync('vm.get_dataset', vm['id'])
             ds_name = os.path.join(vm_ds, res['name'])
             self.join_subtasks(self.run_subtask(
                 'volume.dataset.delete',
@@ -645,9 +649,7 @@ class VMDeleteTask(Task):
             subtasks.append(self.run_subtask('vm.snapshot.delete', snapshot['id']))
         self.join_subtasks(*subtasks)
 
-        pool = vm['target']
-        root_ds = os.path.join(pool, 'vm')
-        vm_ds = os.path.join(root_ds, vm['name'])
+        vm_ds = self.dispatcher.call_sync('vm.get_dataset', id)
 
         try:
             self.join_subtasks(self.run_subtask('vm.stop', id, True))
@@ -828,7 +830,7 @@ class VMSnapshotCreateTask(Task):
         if state != 'STOPPED':
             raise TaskException(errno.EACCES, 'Cannot create a snapshot of a running VM')
 
-        if self.dispatcher.call_sync('vm.snapshot.query', [('name', '=', name), ('parent.id', '=', vm['id'])]):
+        if self.dispatcher.call_sync('vm.snapshot.query', [('name', '=', name), ('parent.id', '=', id)]):
             raise TaskException(errno.EEXIST, 'Snapshot {0} of VM {1} already exists'.format(name, vm['name']))
 
         snapshot = {
