@@ -624,7 +624,7 @@ def _init(dispatcher, plugin):
             'console_screensaver': {'type': 'boolean'},
             'serial_console': {'type': 'boolean'},
             'serial_port': {'type': 'string'},
-            'serial_speed': {'type': 'integer'},
+            'serial_speed': {'$ref': 'system-advanced-serialspeed'},
             'powerd': {'type': 'boolean'},
             'swapondrive': {'type': 'integer'},
             'debugkernel': {'type': 'boolean'},
@@ -635,6 +635,12 @@ def _init(dispatcher, plugin):
             'periodic_notify_user': {'type': 'integer'},
         },
         'additionalProperties': False,
+    })
+
+    plugin.register_schema_definition('system-advanced-serialspeed', {
+        'type': 'integer',
+        'enum': [110, 300, 600, 1200, 2400, 4800,
+                 9600, 14400, 19200, 38400, 57600, 115200]
     })
 
     plugin.register_schema_definition('system-general', {
