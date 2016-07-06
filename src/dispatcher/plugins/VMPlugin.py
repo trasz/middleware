@@ -904,7 +904,8 @@ class VMSnapshotDeleteTask(Task):
             [('name', '~', id)],
             {'single': True, 'select': 'id'}
         )
-        self.join_subtasks(self.run_subtask('volume.snapshot.delete', snapshot_id))
+        path, name = snapshot_id.split('@')
+        self.join_subtasks(self.run_subtask('zfs.delete_snapshot', path, name, True))
 
 
 @accepts(str)
