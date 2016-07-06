@@ -6,7 +6,7 @@ myrsync() {
 	if [ $# -lt 2 ]; then
 		echo "rsync command needs two arguments: source (1st) and dest(2nd)"
 	else
-		rsync_opts="--info=progress2 -rlptvz --delete ${1} -e \"ssh\" ${2}"
+		rsync_opts="-rlptvz --delete ${1} -e \"ssh\" ${2}"
 		shift 2
 		if [ $# -gt 0 ];
 		then
@@ -20,7 +20,7 @@ myrsyncnodel() {
 	if [ $# -lt 2 ]; then
 		echo "rsync command needs two arguments: source (1st) and dest(2nd)"
 	else
-		rsync_opts="--info=progress2 -rlptvz ${1} -e \"ssh\" ${2}"
+		rsync_opts="-rlptvz ${1} -e \"ssh\" ${2}"
 		shift 2
 		if [ $# -gt 0 ];
 		then
