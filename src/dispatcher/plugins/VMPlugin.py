@@ -812,7 +812,7 @@ class VMSnapshotCreateTask(Task):
 
     def describe(self, id, name, descr):
         vm = self.datastore.get_by_id('vms', id)
-        return TaskDescription('Creating snapshot of VM {name}', name=vm.get('name', '') or '')
+        return TaskDescription('Creating snapshot of VM {name}', name=vm.get('name', '') if vm else '')
 
     def verify(self, id, name, descr):
         return ['system']
@@ -855,7 +855,7 @@ class VMSnapshotUpdateTask(Task):
 
     def describe(self, id, updated_params):
         snapshot = self.datastore.get_by_id('vm.snapshots', id)
-        return TaskDescription('Updating VM snapshot {name}', name=snapshot.get('name') or '')
+        return TaskDescription('Updating VM snapshot {name}', name=snapshot.get('name') if snapshot else '')
 
     def verify(self, id, updated_params):
         return ['system']
@@ -886,7 +886,7 @@ class VMSnapshotDeleteTask(Task):
 
     def describe(self, id):
         snapshot = self.datastore.get_by_id('vm.snapshots', id)
-        return TaskDescription('Deleting VM snapshot {name}', name=snapshot.get('name') or '')
+        return TaskDescription('Deleting VM snapshot {name}', name=snapshot.get('name') if snapshot else '')
 
     def verify(self, id):
         return ['system']
@@ -913,7 +913,7 @@ class VMSnapshotPublishTask(Task):
 
     def describe(self, id):
         snapshot = self.datastore.get_by_id('vm.snapshots', id)
-        return TaskDescription('Publishing VM snapshot {name}', name=snapshot.get('name', '') or '')
+        return TaskDescription('Publishing VM snapshot {name}', name=snapshot.get('name', '') if snapshot else '')
 
     def verify(self, id):
         return ['system']
