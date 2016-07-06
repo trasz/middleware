@@ -52,7 +52,7 @@ import ipaddress
 import pf
 import urllib.parse
 from bsd import kld, sysctl
-from gevent.queue import Queue, Channel
+from gevent.queue import Queue
 from gevent.event import Event
 from geventwebsocket import WebSocketServer, WebSocketApplication, Resource
 from geventwebsocket.exceptions import WebSocketError
@@ -60,7 +60,7 @@ from pyee import EventEmitter
 from datastore import DatastoreException, get_datastore
 from datastore.config import ConfigStore
 from freenas.dispatcher.client import Client, ClientError
-from freenas.dispatcher.rpc import RpcService, RpcException, private
+from freenas.dispatcher.rpc import RpcService, RpcException, private, generator
 from freenas.utils.debug import DebugService
 from freenas.utils import first_or_default, configure_logging
 from vnc import app
@@ -671,6 +671,15 @@ class DockerService(RpcService):
 
         return result
 
+    @generator
+    def pull(self, host, name):
+        host = self.context.docker_hosts.get(host)
+        if not host:
+            raise RpcException(errno.ENOENT, 'Docker host {0} not found'.format(host))
+
+        for line in host.connection.pull(name, stream=True):
+            yield json.loads(line.decode('utf-8'))
+
     def start(self, id):
         for host in self.context.docker_hosts.values():
             try:
@@ -682,7 +691,24 @@ class DockerService(RpcService):
         raise RpcException(errno.ENOENT, 'Container {0} not found'.format(id))
 
     def stop(self, id):
-        pass
+        for host in self.context.docker_hosts.values():
+            try:
+                host.connection.stop(container=id)
+                return
+            except:
+                continue
+
+        raise RpcException(errno.ENOENT, 'Container {0} not found'.format(id))
+
+    def create(self, container):
+        host = self.context.docker_hosts.get(container['host'])
+        if not host:
+            raise RpcException(errno.ENOENT, 'Docker host {0} not found'.format(container['host']))
+
+        try:
+            host.connection.create(name=container['name'], image=container['image'])
+        except BaseException as err:
+            raise RpcException(errno.EFAULT, str(err))
 
 
 class ServerResource(Resource):
@@ -887,6 +913,7 @@ class Main(object):
                 self.client.connect('unix:')
                 self.client.login_service('containerd')
                 self.client.enable_server()
+                self.client.rpc.streaming_enabled = True
                 self.client.register_service('containerd.management', ManagementService(self))
                 self.client.register_service('containerd.docker', DockerService(self))
                 self.client.register_service('containerd.debug', DebugService(gevent=True, builtins={"context": self}))
