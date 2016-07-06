@@ -904,6 +904,13 @@ class VMSnapshotDeleteTask(Task):
             [('name', '~', id)],
             {'single': True, 'select': 'id'}
         )
+
+        self.datastore.delete('vm.snapshots', id)
+        self.dispatcher.dispatch_event('vm.snapshot.changed', {
+            'operation': 'delete',
+            'ids': [id]
+        })
+
         path, name = snapshot_id.split('@')
         self.join_subtasks(self.run_subtask('zfs.delete_snapshot', path, name, True))
 
