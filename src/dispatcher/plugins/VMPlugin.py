@@ -420,7 +420,7 @@ class VMCreateTask(VMBaseTask):
         for idx, res in enumerate(vm['devices']):
             self.create_device(vm, res, lambda p, m, e=None: collect_progress('Initializing VM devices:', 30, p, m, e))
 
-        self.init_files(vm, lambda p, m, e=None: collect_progress('Initializing VM files:', 60, p, m, e))
+        self.init_files(vm, lambda p, m, e=None: self.chunk_progress(60, 90, 'Initializing VM files:', p, m, e))
 
         id = self.datastore.insert('vms', vm)
         self.dispatcher.dispatch_event('vm.changed', {
