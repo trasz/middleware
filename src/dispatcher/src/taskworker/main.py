@@ -214,6 +214,7 @@ class Context(object):
         self.conn.connect('unix:')
         self.conn.login_service('task.{0}'.format(os.getpid()))
         self.conn.enable_server()
+        self.conn.call_sync('management.enable_features', ['streaming_responses'])
         self.conn.rpc.register_service_instance('taskproxy', self.service)
         self.conn.register_event_handler('task.progress', self.task_progress_handler)
         self.conn.call_sync('task.checkin', key)
