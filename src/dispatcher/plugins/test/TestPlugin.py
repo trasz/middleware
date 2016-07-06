@@ -46,6 +46,10 @@ class TestProvider(Provider):
         for i in range(0, count):
             yield {"id": 1, "value": "{0} bottles of beer on the wall".format(i)}
 
+    @generator
+    def wrapped_stream(self, count=10):
+        return self.dispatcher.call_sync('test.stream', count)
+
     def rpcerror(self):
         raise RpcException(errno.EINVAL, 'Testing if parameter', 'This is in the extra paramaeter')
 
