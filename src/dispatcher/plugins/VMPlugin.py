@@ -75,7 +75,7 @@ class VMProvider(Provider):
         if not vm:
             return None
 
-        return os.path.join('/mnt', vm['target'], 'vm', vm['name'])
+        return os.path.join(self.dispatcher.call_sync('volume.get_volumes_root'), self.get_dataset(vm_id))
 
     def get_dataset(self, vm_id):
         vm = self.datastore.get_by_id('vms', vm_id)
