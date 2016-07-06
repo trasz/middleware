@@ -1387,14 +1387,14 @@ def _init(dispatcher, plugin):
         return True
 
     def on_snapshot_change(args):
-        snapshots = dispatcher.call_sync('vm.snapshot.query', {'select': 'id'})
+        snapshots = dispatcher.call_sync('vm.snapshot.query', [], {'select': 'id'})
         if args['operation'] == 'delete':
-            for i in args['ids']:
-                if any(s in i for s in snapshots):
-                    dispatcher.datastore.delete('vm.snapshots', i)
+            for s in snapshots:
+                if any(s in i for i in args['ids']):
+                    dispatcher.datastore.delete('vm.snapshots', s)
                     dispatcher.dispatch_event('vm.snapshot.changed', {
                         'operation': 'delete',
-                        'ids': [i]
+                        'ids': [s]
                     })
 
     plugin.register_provider('vm', VMProvider)
