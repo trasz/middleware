@@ -1051,21 +1051,29 @@ class ZfsCloneTask(ZfsBaseTask):
 
 
 @private
-@accepts(str, bool)
+@accepts(str, bool, bool)
 @description('Returns ZFS snapshot to previous state')
 class ZfsRollbackTask(ZfsBaseTask):
     @classmethod
     def early_describe(cls):
         return 'Returning ZFS snapshot to previous state'
 
-    def describe(self, name, force=False):
+    def describe(self, name, force=False, recursive=False):
         return TaskDescription('Returning ZFS snapshot {name} to previous state', name=name)
 
-    def run(self, name, force=False):
+    def run(self, name, force=False, recursive=False):
         try:
             zfs = get_zfs()
-            snapshot = zfs.get_snapshot(name)
-            snapshot.rollback(force)
+            if recursive:
+                ds_name, snap = name.split('@')
+                ds_list = self.dispatcher.call_sync('zfs.dataset.query', [('id', '~', ds_name)], {'select': 'id'})
+                for d in ds_list:
+                    if self.dispatcher.call_sync('zfs.snapshot.query', [('id', '=', '{0}@{1}'.format(d, snap))]):
+                        snapshot = zfs.get_snapshot('{0}@{1}'.format(d, snap))
+                        snapshot.rollback(force)
+            else:
+                snapshot = zfs.get_snapshot(name)
+                snapshot.rollback(force)
         except libzfs.ZFSException as err:
             raise TaskException(zfs_error_to_errno(err.code), str(err))
 

@@ -796,7 +796,7 @@ class VMSnapshotRollbackTask(Task):
             {'single': True, 'select': 'id'}
         )
 
-        self.join_subtasks(self.run_subtask('zfs.rollback', snapshot_id, True))
+        self.join_subtasks(self.run_subtask('zfs.rollback', snapshot_id, True, True))
 
         self.datastore.update('vms', snapshot['parent']['id'], snapshot['parent'])
         self.dispatcher.dispatch_event('vm.changed', {
