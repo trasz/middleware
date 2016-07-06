@@ -254,7 +254,7 @@ class VMBaseTask(ProgressTask):
             progress_cb(0, 'Creating {0}'.format(res['type'].lower()))
 
         if res['type'] == 'DISK':
-            vm_ds = self.dispatcher.call_sync('vm.get_dataset', vm['id'])
+            vm_ds = os.path.join(vm['target'], 'vm', vm['name'])
             ds_name = os.path.join(vm_ds, res['name'])
             self.join_subtasks(self.run_subtask('volume.dataset.create', {
                 'volume': vm['target'],
@@ -289,7 +289,7 @@ class VMBaseTask(ProgressTask):
         if res['type'] == 'VOLUME':
             properties = res['properties']
             mgmt_net = ipaddress.ip_interface(self.configstore.get('container.network.management'))
-            vm_ds = self.dispatcher.call_sync('vm.get_dataset', vm['id'])
+            vm_ds = os.path.join(vm['target'], 'vm', vm['name'])
             opts = {}
 
             normalize(res['properties'], {
