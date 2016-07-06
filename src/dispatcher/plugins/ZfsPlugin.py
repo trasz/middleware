@@ -1066,11 +1066,10 @@ class ZfsRollbackTask(ZfsBaseTask):
             zfs = get_zfs()
             if recursive:
                 ds_name, snap = name.split('@')
-                ds_list = self.dispatcher.call_sync('zfs.dataset.query', [('id', '~', ds_name)], {'select': 'id'})
-                for d in ds_list:
-                    if self.dispatcher.call_sync('zfs.snapshot.query', [('id', '=', '{0}@{1}'.format(d, snap))]):
-                        snapshot = zfs.get_snapshot('{0}@{1}'.format(d, snap))
-                        snapshot.rollback(force)
+                parent_ds = zfs.get_dataset(ds_name)
+                for d in list(parent_ds.dependents):
+                    if d.type == libzfs.DatasetType.SNAPSHOT and d.name.endswith(snap):
+                        d.rollback(force)
             else:
                 snapshot = zfs.get_snapshot(name)
                 snapshot.rollback(force)
