@@ -27,6 +27,7 @@
 
 from task import Provider, Task, ProgressTask, TaskException, TaskDescription
 from cache import EventCacheStore
+from freenas.utils import normalize
 from freenas.utils.query import wrap
 
 
@@ -79,6 +80,14 @@ class DockerContainerCreateTask(ProgressTask):
         return []
 
     def run(self, container):
+        normalize(container, {
+            'hostname': None,
+            'memory_limit': None,
+            'volumes': [],
+            'ports': [],
+            'expose_ports': False,
+        })
+
         # Check if we have required image
         pass
 
@@ -192,8 +201,8 @@ def _init(dispatcher, plugin):
         'type': 'object',
         'additionalProperties': False,
         'properties': {
-            'id': {'type': 'string'},
-            'path': {'type': 'string'},
+            'container_path': {'type': 'string'},
+            'host_path': {'type': 'string'},
             'readonly': {'type': 'boolean'}
         }
     })
