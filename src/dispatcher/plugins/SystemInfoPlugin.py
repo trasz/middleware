@@ -63,6 +63,17 @@ VERSION_FILE = "/etc/version"
 logger = logging.getLogger('SystemInfoPlugin')
 
 
+def get_serial_ports_info():
+    ports = []
+    for devices in list(devinfo.DevInfo().resource_managers['I/O ports'].values()):
+        for dev in devices:
+            if not dev.name.startswith('uart'):
+                continue
+            ports.append({'name': dev.name, 'desc': dev.desc, 'drivername': dev.drivername,
+                          'location': dev.location, 'start': hex(dev.start), 'size': dev.size})
+    return ports
+
+
 @description("Provides informations about the running system")
 class SystemInfoProvider(Provider):
     def __init__(self):
@@ -192,18 +203,11 @@ class SystemAdvancedProvider(Provider):
             'periodic_notify_user': cs.get('system.periodic.notify_user'),
         }
 
-    @description('Returns array of serial port address')
+    @description('Returns array of serial ports information')
     @accepts()
     @returns(h.array(str))
     def serial_ports(self):
-        ports = []
-        for devices in list(devinfo.DevInfo().resource_managers['I/O ports'].values()):
-            for dev in devices:
-                if not dev.name.startswith('uart'):
-                    continue
-                ports.append(hex(int(dev.start)))
-        return ports
-
+        return get_serial_ports_info()
 
 @description("Provides informations about UI system settings")
 class SystemUIProvider(Provider):
