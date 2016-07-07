@@ -151,14 +151,54 @@ def _init(dispatcher, plugin):
         'properties': {
             'id': {'type': 'string'},
             'name': {'type': 'string'},
+            'command': {'type': 'string'},
             'image': {'type': 'string'},
             'host': {'type': 'string'},
+            'hostname': {'type': ['string', 'null']},
+            'memory_limit': {'type': ['integer', 'null']},
+            'expose_ports': {'type': 'boolean'},
+            'environment': {
+                'type': 'object',
+                'additionalProperties': {'type': 'string'}
+            },
             'ports': {
                 'type': 'array',
                 'items': {
                     'type': 'object',
-
+                    'additionalProperties': False,
+                    'properties': {
+                        'protocol': {'$ref': 'docker-port-protocol'},
+                        'container_port': {
+                            'type': 'integer',
+                            'minimum': 0,
+                            'maximum': 65535
+                        },
+                        'host_port': {
+                            'type': 'integer',
+                            'minimum': 0,
+                            'maximum': 65535
+                        }
+                    }
                 }
+            },
+            'volumes': {
+                'type': 'array',
+                'items': {'$ref': 'docker-volume'}
             }
         }
+    })
+
+    plugin.register_schema_definition('docker-volume', {
+        'type': 'object',
+        'additionalProperties': False,
+        'properties': {
+            'id': {'type': 'string'},
+            'path': {'type': 'string'},
+            'readonly': {'type': 'boolean'}
+        }
+    })
+
+    plugin.register_schema_definition('docker-port-protocol', {
+        'type': 'string',
+        'enum': ['TCP', 'UDP']
     })
