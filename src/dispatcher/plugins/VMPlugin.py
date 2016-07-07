@@ -30,7 +30,6 @@ import errno
 import os
 import random
 import json
-import hashlib
 import gzip
 import pygit2
 import urllib.request
@@ -38,13 +37,15 @@ import urllib.parse
 import urllib.error
 import shutil
 import logging
+import datetime
 from task import Provider, Task, ProgressTask, VerifyException, TaskException, query, TaskWarning, TaskDescription
 from freenas.dispatcher.rpc import RpcException
 from freenas.dispatcher.rpc import SchemaHelper as h, description, accepts
-from freenas.utils import first_or_default, normalize, deep_update, process_template, in_directory
+from freenas.utils import first_or_default, normalize, deep_update, process_template, in_directory, sha256
 from utils import save_config, load_config, delete_config
 from freenas.utils.decorators import throttle
 from freenas.utils.query import wrap
+from freenas.utils.copytree import copytree
 
 
 VM_OUI = '00:a0:98'  # NetApp
@@ -915,22 +916,141 @@ class VMSnapshotDeleteTask(Task):
         self.join_subtasks(self.run_subtask('zfs.delete_snapshot', path, name, True))
 
 
-@accepts(str)
+@accepts(str, str, str, str, str)
 @description('Publishes VM snapshot over IPFS')
-class VMSnapshotPublishTask(Task):
+class VMSnapshotPublishTask(ProgressTask):
     @classmethod
     def early_describe(cls):
         return 'Publishing VM snapshot'
 
-    def describe(self, id):
+    def describe(self, id, name, author, mail, descr):
         snapshot = self.datastore.get_by_id('vm.snapshots', id)
         return TaskDescription('Publishing VM snapshot {name}', name=snapshot.get('name', '') if snapshot else '')
 
-    def verify(self, id):
-        return ['system']
+    def verify(self, id, name, author, mail, descr):
+        return ['system', 'system-dataset']
 
-    def run(self, id):
-        pass
+    def run(self, id, name, author, mail, descr):
+        ipfs_state = self.dispatcher.call_sync(
+            'service.query',
+            [('name', '=', 'ipfs')],
+            {'single': True, 'select': 'state'}
+        )
+        if ipfs_state == 'STOPPED':
+            raise TaskException(errno.EIO, 'IPFS service is not running. You have to start it first.')
+
+        if self.dispatcher.call_sync('vm.template.query', [('name', '=', name)]):
+            raise TaskException(errno.EEXIST, 'Template {0} already exists'.format(name))
+
+        self.set_progress(0, 'Preparing template file')
+        snapshot = self.datastore.get_by_id('vm.snapshots', id)
+        if not snapshot:
+            raise TaskException(errno.ENOENT, 'Snapshot {0} does not exist'.format(id))
+
+        vm = self.datastore.get_by_id('vms', snapshot['parent']['id'])
+        if not vm:
+            raise TaskException(errno.ENOENT, 'Prent VM {0} does not exist'.format(snapshot['parent']['name']))
+
+        snapshot_id = self.dispatcher.call_sync(
+            'zfs.snapshot.query',
+            [('name', '~', id)],
+            {'single': True, 'select': 'id'}
+        )
+
+        ds_name, snap_name = snapshot_id.split('@')
+        publish_ds = os.path.join(ds_name, 'publish')
+        cache_dir = self.dispatcher.call_sync('system_dataset.request_directory', 'vm_image_cache')
+        templates_dir = self.dispatcher.call_sync('system_dataset.request_directory', 'vm_templates')
+        os.makedirs()
+
+        parent = snapshot['parent']
+        current_time = datetime.datetime.utcnow().isoformat().split('.')[0]
+        template = {
+            'template': {
+                'name': name,
+                'author': '{0} <{1}>'.format(author, mail),
+                'description': descr,
+                'created_at': {'$date': current_time},
+                'updated_at': {'$date': current_time},
+                'fetch': []
+            },
+            'config': parent['config'],
+            'devices': parent['devices'],
+            'type': 'VM'
+        }
+
+        self.set_progress(10, 'Preparing VM files')
+        dev_cnt = len(template['devices'])
+
+        for idx, d in enumerate(template['devices']):
+            self.set_progress(10 + ((idx / dev_cnt) * 80), 'Preparing VM files: {0}'.format(d['name']))
+            source = d['properties'].get('source')
+            if source:
+                dev_snapshot = os.path.join(ds_name, source) + '@' + snap_name
+                dest_path = os.path.join(cache_dir, name, d['name'])
+                self.join_subtasks(self.run_subtask('zfs.clone', dev_snapshot, publish_ds))
+                if d['type'] == 'DISK':
+                    dest_file = os.path.join(dest_path, d['name'] + '.gz')
+
+                    with open(dest_file, 'wb') as dst:
+                        with open(os.path.join('/dev/zvol', publish_ds), 'rb') as zvol:
+                            with gzip.open(dst, compresslevel=9) as file:
+                                for chunk in iter(lambda: zvol.read(BLOCKSIZE), b""):
+                                    done = 0
+                                    total = len(chunk)
+
+                                    while done < total:
+                                        ret = os.write(file.fileno(), chunk[done:])
+                                        if ret == 0:
+                                            raise TaskException(
+                                                errno.ENOSPC,
+                                                'Image is too large to fit in destination'
+                                            )
+
+                                        done += ret
+
+                elif d['type'] == 'VOLUME' and d['properties'].get('auto'):
+                    dest_file = os.path.join(dest_path, d['name'] + '.tar.gz')
+                    shutil.make_archive(
+                        d['name'],
+                        'gztar',
+                        self.dispatcher.call_sync('volume.get_dataset_path', publish_ds)
+                    )
+
+                self.join_subtasks(self.run_subtask('zfs.destroy', publish_ds))
+
+                sha256_hash = sha256(dest_file, BLOCKSIZE)
+                with open(os.path.join(dest_path, 'sha256'), 'w') as f:
+                    f.write(sha256_hash)
+
+                template['template']['fetch'].append(
+                    {
+                        'name': d['name'],
+                        'url': self.join_subtasks(self.run_subtask('ipfs.add', dest_file))[0],
+                        'sha256': sha256_hash
+                    }
+                )
+
+        self.set_progress(90, 'Publishing template')
+        template_path = os.path.join(templates_dir, 'ipfs', name)
+        os.makedirs(template_path)
+
+        vm_ds_snapshot = ds_name + '@' + snap_name
+        self.join_subtasks(self.run_subtask('zfs.clone', vm_ds_snapshot, publish_ds))
+        copytree(self.dispatcher.call_sync('volume.get_dataset_path', publish_ds), template_path)
+        self.join_subtasks(self.run_subtask('zfs.destroy', publish_ds))
+
+        try:
+            os.remove(os.path.join(template_path, '.config-vm-{0}.json'.format(parent['name'])))
+        except FileNotFoundError:
+            pass
+
+        with open(os.path.join(template_path, 'template.json'), 'w') as f:
+            f.write(json.dumps(template))
+
+        link = self.join_subtasks(self.run_subtask('ipfs.add', template_path))[0]
+        self.set_progress(100, 'Finished')
+        return link
 
 
 @accepts(str)
@@ -1040,14 +1160,9 @@ class DownloadFileTask(ProgressTask):
 
         self.set_progress(0, 'Downloading file')
         urllib.request.urlretrieve(url, file_path, progress_hook)
-        hasher = hashlib.sha256()
 
         self.set_progress(100, 'Verifying checksum')
-        with open(file_path, 'rb') as f:
-            for chunk in iter(lambda: f.read(BLOCKSIZE), b""):
-                hasher.update(chunk)
-
-        if hasher.hexdigest() != sha256:
+        if sha256(file_path, BLOCKSIZE) != sha256:
             raise TaskException(errno.EINVAL, 'Invalid SHA256 checksum')
 
         with open(sha256_path, 'w') as sha256_file:
