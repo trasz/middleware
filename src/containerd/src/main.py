@@ -102,6 +102,19 @@ def generate_id():
     return ''.join([random.choice(string.ascii_letters + string.digits) for _ in range(32)])
 
 
+def get_docker_ports(details):
+    if 'HostConfig' not in details:
+        return
+
+    for port, config in details['HostConfig']['PortBindings'].items():
+        num, proto = port.split('/')
+        yield {
+            'protocol': proto.upper(),
+            'container_port': int(num),
+            'host_port': int(config[0]['HostPort'])
+        }
+
+
 class BinaryRingBuffer(object):
     def __init__(self, size):
         self.data = bytearray(size)
@@ -503,20 +516,54 @@ class DockerHost(object):
 
     def listen(self):
         self.logger.debug('Listening for docker events on {0}'.format(self.vm.name))
+        actions = {
+            'create': 'create',
+            'destroy': 'delete'
+        }
+
         while True:
             try:
                 for ev in self.connection.events(decode=True):
                     self.logger.debug('Received docker event: {0}'.format(ev))
                     if ev['Type'] == 'container':
-                        actions = {
-                            'create': 'create',
-                            'destroy': 'delete'
-                        }
-
+                        details = self.connection.inspect_container(ev['id'])
                         self.context.client.emit_event('docker.container.changed', {
                             'operation': actions.get(ev['Action'], 'update'),
                             'ids': [ev['id']]
                         })
+
+                        if 'org.freenas.expose_ports_at_host' not in details['Config']['Labels']:
+                            continue
+
+                        self.logger.debug('Redirecting container {0} ports on host firewall'.format(ev['id']))
+
+                        # Setup or destroy port redirection now, if needed
+                        if ev['Action'] == 'start':
+                            for i in get_docker_ports(details):
+                                p = pf.PF()
+                                rule = pf.Rule()
+                                rule.dst.port_range = [i['host_port'], 0]
+                                rule.dst.port_op = pf.RuleOperator.EQ
+                                rule.action = pf.RuleAction.RDR
+                                rule.af = socket.AF_INET
+                                rule.ifname = self.context.default_if
+                                rule.natpass = True
+                                rule.redirect_pool.append(pf.Address(
+                                    address=self.vm.management_lease.lease.client_ip,
+                                    netmask=ipaddress.ip_address('255.255.255.255')
+                                ))
+                                rule.proxy_ports = [i['host_port'], 0]
+                                p.append_rule('rdr', rule)
+
+                        if ev['Action'] == 'destroy':
+                            self.logger.debug(json.dumps(details, indent=4))
+
+                    if ev['Type'] == 'image':
+                        self.context.client.emit_event('docker.image.changed', {
+                            'operation': actions.get(ev['Action'], 'update'),
+                            'ids': [ev['id']]
+                        })
+
             except BaseException as err:
                 self.logger.info('Docker connection closed: {0}, retrying in 1 second'.format(str(err)))
                 time.sleep(1)
@@ -651,13 +698,16 @@ class DockerService(RpcService):
 
         for host in self.context.docker_hosts.values():
             for container in host.connection.containers(all=True):
+                details = host.connection.inspect_container(container['Id'])
                 result.append({
                     'id': container['Id'],
                     'image': container['Image'],
                     'names': list(normalize_names(container['Names'])),
                     'command': container['Command'],
                     'status': container['Status'],
-                    'host': host.vm.name
+                    'host': host.vm.id,
+                    'ports': list(get_docker_ports(details)),
+                    'expose_ports': 'org.freenas.expose_ports_at_host' in details['Config']['Labels']
                 })
 
         return result
@@ -685,34 +735,54 @@ class DockerService(RpcService):
             yield json.loads(line.decode('utf-8'))
 
     def start(self, id):
-        for host in self.context.docker_hosts.values():
-            try:
-                host.connection.start(container=id)
-                return
-            except:
-                continue
-
-        raise RpcException(errno.ENOENT, 'Container {0} not found'.format(id))
+        host = self.context.docker_host_by_container_id(id)
+        try:
+            host.connection.start(container=id)
+        except BaseException as err:
+            raise RpcException(errno.EFAULT, 'Failed to start container: {0}'.format(str(err)))
 
     def stop(self, id):
-        for host in self.context.docker_hosts.values():
-            try:
-                host.connection.stop(container=id)
-                return
-            except:
-                continue
-
-        raise RpcException(errno.ENOENT, 'Container {0} not found'.format(id))
+        host = self.context.docker_host_by_container_id(id)
+        try:
+            host.connection.stop(container=id)
+        except BaseException as err:
+            raise RpcException(errno.EFAULT, 'Failed to stop container: {0}'.format(str(err)))
 
     def create(self, container):
+        labels = []
         host = self.context.docker_hosts.get(container['host'])
         if not host:
             raise RpcException(errno.ENOENT, 'Docker host {0} not found'.format(container['host']))
 
+        if container['expose_ports']:
+            labels.append('org.freenas.expose_ports_at_host')
+
         try:
-            host.connection.create(name=container['name'], image=container['image'])
+            host.connection.create_container(
+                name=container['name'],
+                image=container['image'],
+                ports=[i['container_port'] for i in container['ports']],
+                volumes=[i['container_path'] for i in container['volumes']],
+                labels=labels,
+                host_config=host.connection.create_host_config(
+                    port_bindings={i['container_port']: i['host_port'] for i in container['ports']},
+                    binds={
+                        i['container_path']: {
+                            'bind': i['host_path'].replace('/mnt', '/host'),
+                            'mode': 'ro' if i['readonly'] else 'rw'
+                        } for i in container['ports']
+                    },
+                )
+            )
         except BaseException as err:
             raise RpcException(errno.EFAULT, str(err))
+
+    def delete(self, id):
+        host = self.context.docker_host_by_container_id(id)
+        try:
+            host.connection.remove_container(container=id, force=True)
+        except BaseException as err:
+            raise RpcException(errno.EFAULT, 'Failed to remove container: {0}'.format(str(err)))
 
 
 class ServerResource(Resource):
@@ -890,6 +960,7 @@ class Main(object):
         self.bridge_interface = None
         self.used_nmdms = []
         self.ec2 = None
+        self.default_if = None
         self.proxy_server = ReverseProxyServer()
         self.cv = threading.Condition()
 
@@ -956,8 +1027,8 @@ class Main(object):
         ))
 
     def init_nat(self):
-        default_if = self.client.call_sync('networkd.configuration.get_default_interface')
-        if not default_if:
+        self.default_if = self.client.call_sync('networkd.configuration.get_default_interface')
+        if not self.default_if:
             self.logger.warning('No default route interface; not configuring NAT')
             return
 
@@ -978,8 +1049,8 @@ class Main(object):
             rule.src.address.netmask = addr.netmask
             rule.action = pf.RuleAction.NAT
             rule.af = socket.AF_INET
-            rule.ifname = default_if
-            rule.redirect_pool.append(pf.Address(ifname=default_if))
+            rule.ifname = self.default_if
+            rule.redirect_pool.append(pf.Address(ifname=self.default_if))
             rule.proxy_ports = [50001, 65535]
             p.append_rule('nat', rule)
 
@@ -1015,6 +1086,18 @@ class Main(object):
             if i.lease.client_ip == ip:
                 return i.vm()
 
+    def docker_host_by_container_id(self, id):
+        for host in self.docker_hosts.values():
+            try:
+                if host.connection.containers(quiet=True, filters={'id': id}):
+                    return host
+            except:
+                pass
+
+            continue
+
+        raise RpcException(errno.ENOENT, 'Container {0} not found'.format(id))
+
     def die(self):
         self.logger.warning('Exiting')
         for i in self.containers.values():
@@ -1022,9 +1105,6 @@ class Main(object):
 
         self.client.disconnect()
         sys.exit(0)
-
-    def generate_id(self):
-        return ''.join([random.choice(string.ascii_letters + string.digits) for _ in range(32)])
 
     def dispatcher_error(self, error):
         self.die()
