@@ -28,7 +28,7 @@
 import threading
 import socket
 import nv
-from gevent.event import AsyncResult
+from freenas.dispatcher import AsyncResult
 
 
 class Call(object):
