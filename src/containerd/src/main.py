@@ -98,6 +98,10 @@ class DockerHostState(enum.Enum):
     UP = 3
 
 
+def generate_id():
+    return ''.join([random.choice(string.ascii_letters + string.digits) for _ in range(32)])
+
+
 class BinaryRingBuffer(object):
     def __init__(self, size):
         self.data = bytearray(size)
@@ -600,7 +604,7 @@ class ManagementService(RpcService):
         if not container:
             raise RpcException(errno.ENOENT, 'Container {0} not found'.format(id))
 
-        token = self.context.generate_id()
+        token = generate_id()
         self.context.tokens[token] = id
         return token
 
