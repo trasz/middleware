@@ -137,6 +137,8 @@ def _init(dispatcher, plugin):
 
     plugin.register_task_handler('docker.container.create', DockerContainerCreateTask)
     plugin.register_task_handler('docker.container.delete', DockerContainerDeleteTask)
+    plugin.register_task_handler('docker.container.start', DockerContainerStartTask)
+    plugin.register_task_handler('docker.container.stop', DockerContainerStopTask)
 
     plugin.register_task_handler('docker.image.pull', DockerImagePullTask)
 
