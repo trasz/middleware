@@ -25,8 +25,7 @@
 #
 #####################################################################
 
-from docker import Client
-from task import Provider, Task, ProgressTask, TaskException
+from task import Provider, Task, ProgressTask, TaskException, TaskDescription
 from cache import EventCacheStore
 from freenas.utils.query import wrap
 
@@ -69,11 +68,22 @@ class DockerImagesProvider(Provider):
 
 
 class DockerContainerCreateTask(ProgressTask):
+    @classmethod
+    def early_describe(cls):
+        return "Creating a Docker container"
+
+    def describe(self, container):
+        return TaskDescription("Creating Docker container {name}".format(name=container['names'][0]))
+
     def verify(self, container):
         return []
 
     def run(self, container):
+        # Check if we have required image
         pass
+
+        container['name'] = container['names'][0]
+        self.dispatcher.call_sync('containerd.docker.create', container)
 
 
 class DockerContainerDeleteTask(ProgressTask):
@@ -97,6 +107,13 @@ class DockerContainerStopTask(Task):
 
 
 class DockerImagePullTask(ProgressTask):
+    @classmethod
+    def early_describe(cls):
+        return "Pulling docker image"
+
+    def describe(self, name, hostid):
+        return TaskDescription("Pulling docker image {name}".format(name=name))
+
     def verify(self, name, hostid):
         return []
 
@@ -117,6 +134,9 @@ def _init(dispatcher, plugin):
     plugin.register_provider('docker.host', DockerHostProvider)
     plugin.register_provider('docker.container', DockerContainerProvider)
     plugin.register_provider('docker.image', DockerImagesProvider)
+
+    plugin.register_task_handler('docker.container.create', DockerContainerCreateTask)
+    plugin.register_task_handler('docker.container.delete', DockerContainerDeleteTask)
 
     plugin.register_task_handler('docker.image.pull', DockerImagePullTask)
 
