@@ -1017,11 +1017,12 @@ class VMSnapshotPublishTask(ProgressTask):
                 self.join_subtasks(self.run_subtask('zfs.destroy', publish_ds))
 
                 sha256_hash = sha256(dest_file, BLOCKSIZE)
+
+                ipfs_hashes = self.join_subtasks(self.run_subtask('ipfs.add', dest_path))[0]
+                ipfs_hash = self.get_path_hash(ipfs_hashes, dest_path[1:])
+
                 with open(os.path.join(dest_path, 'sha256'), 'w') as f:
                     f.write(sha256_hash)
-
-                ipfs_hashes = self.join_subtasks(self.run_subtask('ipfs.add', dest_file))[0]
-                ipfs_hash = self.get_path_hash(ipfs_hashes, dest_file)
 
                 template['template']['fetch'].append(
                     {
