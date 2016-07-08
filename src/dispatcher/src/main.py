@@ -807,7 +807,7 @@ class DispatcherRpcContext(RpcContext):
         def unpack_chunk(it):
             for chunk in it:
                 for item in chunk:
-                    yield item
+                    yield copy.deepcopy(item)
 
         result = self.dispatch_call(name, list(args), streaming=True, validation=False)
         if hasattr(result, '__next__'):
