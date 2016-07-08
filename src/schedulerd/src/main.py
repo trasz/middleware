@@ -37,7 +37,7 @@ from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.jobstores.mongodb import MongoDBJobStore
 from datastore import get_datastore, DatastoreException
 from datastore.config import ConfigStore
-from freenas.dispatcher.rpc import RpcService, RpcException, private
+from freenas.dispatcher.rpc import RpcService, RpcException, private, generator
 from freenas.dispatcher.client import Client, ClientError
 from freenas.utils import exclude, configure_logging
 from freenas.utils.query import wrap
@@ -57,6 +57,7 @@ class ManagementService(RpcService):
         self.context = context
 
     @private
+    @generator
     def query(self, filter=None, params=None):
         def serialize(job):
             last_task = None
