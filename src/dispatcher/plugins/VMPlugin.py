@@ -1395,7 +1395,7 @@ class VMTemplateDeleteTask(ProgressTask):
     def run(self, name):
         template_path = self.dispatcher.call_sync(
             'vm.template.query',
-            [('name', '=', name)],
+            [('template.name', '=', name)],
             {'single': True, 'select': 'template.path'}
         )
         if not template_path:
