@@ -987,6 +987,7 @@ class VMSnapshotPublishTask(ProgressTask):
             if source:
                 dev_snapshot = os.path.join(ds_name, source) + '@' + snap_name
                 dest_path = os.path.join(cache_dir, name, d['name'])
+                os.makedirs(dest_path)
                 self.join_subtasks(self.run_subtask('zfs.clone', dev_snapshot, publish_ds))
                 if d['type'] == 'DISK':
                     dest_file = os.path.join(dest_path, d['name'] + '.gz')
@@ -1018,7 +1019,6 @@ class VMSnapshotPublishTask(ProgressTask):
 
                 self.join_subtasks(self.run_subtask('zfs.destroy', publish_ds))
 
-                os.makedirs(dest_path)
                 sha256_hash = sha256(dest_file, BLOCKSIZE)
                 with open(os.path.join(dest_path, 'sha256'), 'w') as f:
                     f.write(sha256_hash)
