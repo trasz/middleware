@@ -375,13 +375,17 @@ class VMCreateTask(VMBaseTask):
 
         self.set_progress(0, 'Creating VM')
         if vm.get('template'):
+            template_name = vm['template'].get('name')
+            if template_name.startswith('ipfs:'):
+                template_name = self.join_subtasks(self.run_subtask('vm.template.ipfs.fetch', template_name))[0]
+
             template = self.dispatcher.call_sync(
                 'vm.template.query',
-                [('template.name', '=', vm['template'].get('name'))],
+                [('template.name', '=', template_name)],
                 {'single': True}
             )
 
-            if template is None:
+            if not template:
                 raise TaskException(errno.ENOENT, 'Template {0} not found'.format(vm['template'].get('name')))
 
             template['template'].pop('readme')
