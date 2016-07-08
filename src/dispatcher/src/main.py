@@ -42,7 +42,6 @@ import argparse
 import signal
 import time
 import errno
-import inspect
 import setproctitle
 import traceback
 import tempfile
