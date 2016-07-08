@@ -767,10 +767,10 @@ class DockerService(RpcService):
                 host_config=host.connection.create_host_config(
                     port_bindings={i['container_port']: i['host_port'] for i in container['ports']},
                     binds={
-                        i['container_path']: {
-                            'bind': i['host_path'].replace('/mnt', '/host'),
+                        i['host_path'].replace('/mnt', '/host'): {
+                            'bind': i['container_path'],
                             'mode': 'ro' if i['readonly'] else 'rw'
-                        } for i in container['ports']
+                        } for i in container['volumes']
                     },
                 )
             )
