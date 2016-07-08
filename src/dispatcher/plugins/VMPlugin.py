@@ -992,22 +992,10 @@ class VMSnapshotPublishTask(ProgressTask):
                 if d['type'] == 'DISK':
                     dest_file = os.path.join(dest_path, d['name'] + '.gz')
 
-                    with open(dest_file, 'wb') as dst:
-                        with open(os.path.join('/dev/zvol', publish_ds), 'rb') as zvol:
-                            with gzip.open(dst, compresslevel=9) as file:
-                                for chunk in iter(lambda: zvol.read(BLOCKSIZE), b""):
-                                    done = 0
-                                    total = len(chunk)
-
-                                    while done < total:
-                                        ret = os.write(file.fileno(), chunk[done:])
-                                        if ret == 0:
-                                            raise TaskException(
-                                                errno.ENOSPC,
-                                                'Image is too large to fit in destination'
-                                            )
-
-                                        done += ret
+                    with open(os.path.join('/dev/zvol', publish_ds), 'rb') as zvol:
+                        with gzip.open(dest_file, 'wb') as file:
+                            for chunk in iter(lambda: zvol.read(BLOCKSIZE), b""):
+                                file.write(chunk)
 
                 elif d['type'] == 'VOLUME' and d['properties'].get('auto'):
                     dest_file = os.path.join(dest_path, d['name'] + '.tar.gz')
