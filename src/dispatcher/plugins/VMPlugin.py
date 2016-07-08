@@ -1037,6 +1037,7 @@ class VMSnapshotPublishTask(ProgressTask):
 
         vm_ds_snapshot = ds_name + '@' + snap_name
         self.join_subtasks(self.run_subtask('zfs.clone', vm_ds_snapshot, publish_ds))
+        self.join_subtasks(self.run_subtask('zfs.mount', publish_ds))
         copytree(self.dispatcher.call_sync('volume.get_dataset_path', publish_ds), template_path)
         self.join_subtasks(self.run_subtask('zfs.destroy', publish_ds))
 
