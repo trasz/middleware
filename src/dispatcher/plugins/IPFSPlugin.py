@@ -137,6 +137,9 @@ class IPFSProvider(Provider):
         super(IPFSProvider, self).initialize(context)
         self.ipfs_api = ipfsApi.Client('127.0.0.1', 5001)
 
+    def hash_to_link(self, hash):
+        return 'http://ipfs.io/ipfs/' + hash
+
 
 @private
 @description('Configure IPFS service')
