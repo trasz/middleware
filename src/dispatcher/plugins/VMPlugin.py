@@ -1312,6 +1312,32 @@ class VMTemplateFetchTask(ProgressTask):
         self.set_progress(100, 'Templates downloaded')
 
 
+@accepts(str)
+@description('Deletes VM template images and VM template itself')
+class VMTemplateDeleteTask(ProgressTask):
+    @classmethod
+    def early_describe(cls):
+        return 'Deleting VM template images and VM template'
+
+    def describe(self, name):
+        return TaskDescription('Deleting VM template images and VM template {name}', name=name)
+
+    def verify(self, name):
+        return ['system-dataset']
+
+    def run(self, name):
+        template_path = self.dispatcher.call_sync(
+            'vm.template.query',
+            [('name', '=', name)],
+            {'single': True, 'select': 'template.path'}
+        )
+        if not template_path:
+            raise TaskException(errno.ENOENT, 'Selected template {0} does not exist'.format(name))
+
+        self.join_subtasks(self.run_subtask('vm.cache.delete', name))
+        shutil.rmtree(template_path)
+
+
 def get_readme(path):
     file_path = None
     for file in os.listdir(path):
@@ -1548,6 +1574,7 @@ def _init(dispatcher, plugin):
     plugin.register_task_handler('vm.cache.update', CacheFilesTask)
     plugin.register_task_handler('vm.cache.delete', DeleteFilesTask)
     plugin.register_task_handler('vm.template.fetch', VMTemplateFetchTask)
+    plugin.register_task_handler('vm.template.delete', VMTemplateDeleteTask)
 
     plugin.attach_hook('volume.pre_destroy', volume_pre_destroy)
     plugin.attach_hook('volume.pre_detach', volume_pre_detach)
