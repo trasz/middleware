@@ -1313,6 +1313,53 @@ class VMTemplateFetchTask(ProgressTask):
 
 
 @accepts(str)
+@description('Downloads VM template via IPFS')
+class VMIPFSTemplateFetchTask(ProgressTask):
+    @classmethod
+    def early_describe(cls):
+        return 'Downloading VM template via IPFS'
+
+    def describe(self, ipfs_hash):
+        return TaskDescription('Downloading VM template via IPFS {name}', name=ipfs_hash)
+
+    def verify(self, ipfs_hash):
+        return ['system-dataset']
+
+    def run(self, ipfs_hash):
+        ipfs_state = self.dispatcher.call_sync(
+            'service.query',
+            [('name', '=', 'ipfs')],
+            {'single': True, 'select': 'state'}
+        )
+        if ipfs_state == 'STOPPED':
+            raise TaskException(errno.EIO, 'IPFS service is not running. You have to start it first.')
+
+        templates_dir = self.dispatcher.call_sync('system_dataset.request_directory', 'vm_templates')
+        ipfs_templates_dir = os.path.join(templates_dir, 'ipfs')
+        if not os.path.isdir(ipfs_templates_dir):
+            os.makedirs(ipfs_templates_dir)
+
+        raw_hash = ipfs_hash.split(':')[1]
+
+        self.join_subtasks(self.run_subtask('ipfs.get', raw_hash, ipfs_templates_dir))
+
+        new_template_dir = os.path.join(ipfs_templates_dir, raw_hash)
+        try:
+            with open(os.path.join(new_template_dir, 'template.json'), encoding='utf-8') as template_file:
+                template = json.loads(template_file.read())
+                with open(os.path.join(new_template_dir, 'hash'), 'w') as hash_file:
+                    hash_file.write(ipfs_hash)
+                template_name = template['template']['name']
+
+        except OSError:
+            shutil.rmtree(new_template_dir)
+            raise TaskException(errno.EINVAL, '{0} is not a valid IPFS template'.format(ipfs_hash))
+
+        shutil.move(new_template_dir, os.path.join(ipfs_templates_dir, template_name))
+        return template_name
+
+
+@accepts(str)
 @description('Deletes VM template images and VM template itself')
 class VMTemplateDeleteTask(ProgressTask):
     @classmethod
@@ -1575,6 +1622,7 @@ def _init(dispatcher, plugin):
     plugin.register_task_handler('vm.cache.delete', DeleteFilesTask)
     plugin.register_task_handler('vm.template.fetch', VMTemplateFetchTask)
     plugin.register_task_handler('vm.template.delete', VMTemplateDeleteTask)
+    plugin.register_task_handler('vm.template.ipfs.fetch', VMIPFSTemplateFetchTask)
 
     plugin.attach_hook('volume.pre_destroy', volume_pre_destroy)
     plugin.attach_hook('volume.pre_detach', volume_pre_detach)
