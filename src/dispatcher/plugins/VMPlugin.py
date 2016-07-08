@@ -998,6 +998,7 @@ class VMSnapshotPublishTask(ProgressTask):
                 if not os.path.isdir(dest_path):
                     os.makedirs(dest_path)
                 self.join_subtasks(self.run_subtask('zfs.clone', dev_snapshot, publish_ds))
+                dest_file = None
                 if d['type'] == 'DISK':
                     dest_file = os.path.join(dest_path, d['name'] + '.gz')
 
@@ -1014,23 +1015,24 @@ class VMSnapshotPublishTask(ProgressTask):
                         self.dispatcher.call_sync('volume.get_dataset_path', publish_ds)
                     )
 
-                self.join_subtasks(self.run_subtask('zfs.destroy', publish_ds))
+                if dest_file:
+                    self.join_subtasks(self.run_subtask('zfs.destroy', publish_ds))
 
-                sha256_hash = sha256(dest_file, BLOCKSIZE)
+                    sha256_hash = sha256(dest_file, BLOCKSIZE)
 
-                ipfs_hashes = self.join_subtasks(self.run_subtask('ipfs.add', dest_path))[0]
-                ipfs_hash = self.get_path_hash(ipfs_hashes, dest_path[1:])
+                    ipfs_hashes = self.join_subtasks(self.run_subtask('ipfs.add', dest_path))[0]
+                    ipfs_hash = self.get_path_hash(ipfs_hashes, dest_path[1:])
 
-                with open(os.path.join(dest_path, 'sha256'), 'w') as f:
-                    f.write(sha256_hash)
+                    with open(os.path.join(dest_path, 'sha256'), 'w') as f:
+                        f.write(sha256_hash)
 
-                template['template']['fetch'].append(
-                    {
-                        'name': d['name'],
-                        'url': self.dispatcher.call_sync('ipfs.hash_to_link', ipfs_hash['Hash']),
-                        'sha256': sha256_hash
-                    }
-                )
+                    template['template']['fetch'].append(
+                        {
+                            'name': d['name'],
+                            'url': self.dispatcher.call_sync('ipfs.hash_to_link', ipfs_hash['Hash']),
+                            'sha256': sha256_hash
+                        }
+                    )
 
         self.set_progress(90, 'Publishing template')
         template_path = os.path.join(templates_dir, 'ipfs', name)
