@@ -169,7 +169,7 @@ class VMTemplateProvider(Provider):
                                 template['template']['readme'] = readme_file.read()
                         template['template']['path'] = root
                         template['template']['cached'] = False
-                        template['template']['driver'] = root.split('/')[-1]
+                        template['template']['driver'] = root.split('/')[-2]
                         if template['template']['driver'] == 'ipfs':
                             with open(os.path.join(root, 'hash')) as ipfs_hash:
                                 template['template']['hash'] = ipfs_hash.read()
