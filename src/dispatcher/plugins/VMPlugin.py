@@ -995,7 +995,8 @@ class VMSnapshotPublishTask(ProgressTask):
             if source:
                 dev_snapshot = os.path.join(ds_name, source) + '@' + snap_name
                 dest_path = os.path.join(cache_dir, name, d['name'])
-                os.makedirs(dest_path)
+                if not os.path.isdir(dest_path):
+                    os.makedirs(dest_path)
                 self.join_subtasks(self.run_subtask('zfs.clone', dev_snapshot, publish_ds))
                 if d['type'] == 'DISK':
                     dest_file = os.path.join(dest_path, d['name'] + '.gz')
@@ -1032,7 +1033,8 @@ class VMSnapshotPublishTask(ProgressTask):
 
         self.set_progress(90, 'Publishing template')
         template_path = os.path.join(templates_dir, 'ipfs', name)
-        os.makedirs(template_path)
+        if not os.path.isdir(template_path):
+            os.makedirs(template_path)
 
         vm_ds_snapshot = ds_name + '@' + snap_name
         self.join_subtasks(self.run_subtask('zfs.clone', vm_ds_snapshot, publish_ds))
