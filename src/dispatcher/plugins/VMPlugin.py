@@ -991,13 +991,17 @@ class VMSnapshotPublishTask(ProgressTask):
 
         for idx, d in enumerate(template['devices']):
             self.set_progress(10 + ((idx / dev_cnt) * 80), 'Preparing VM files: {0}'.format(d['name']))
-            source = d['properties'].get('source')
-            if source:
-                dev_snapshot = os.path.join(ds_name, source) + '@' + snap_name
+            if (d['type'] == 'DISK') or (d['type'] == 'VOLUME' and d['properties'].get('auto')):
+                source_name = d['name']
+                d['properties']['source'] = source_name
+                dev_snapshot = os.path.join(ds_name, source_name) + '@' + snap_name
                 dest_path = os.path.join(cache_dir, name, d['name'])
+
                 if not os.path.isdir(dest_path):
                     os.makedirs(dest_path)
+                    
                 self.join_subtasks(self.run_subtask('zfs.clone', dev_snapshot, publish_ds))
+
                 dest_file = None
                 if d['type'] == 'DISK':
                     dest_file = os.path.join(dest_path, d['name'] + '.gz')
@@ -1007,7 +1011,7 @@ class VMSnapshotPublishTask(ProgressTask):
                             for chunk in iter(lambda: zvol.read(BLOCKSIZE), b""):
                                 file.write(chunk)
 
-                elif d['type'] == 'VOLUME' and d['properties'].get('auto'):
+                elif d['type'] == 'VOLUME':
                     dest_file = os.path.join(dest_path, d['name'] + '.tar.gz')
                     shutil.make_archive(
                         d['name'],
