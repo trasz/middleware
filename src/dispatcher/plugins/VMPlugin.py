@@ -999,7 +999,7 @@ class VMSnapshotPublishTask(ProgressTask):
 
                 if not os.path.isdir(dest_path):
                     os.makedirs(dest_path)
-                    
+
                 self.join_subtasks(self.run_subtask('zfs.clone', dev_snapshot, publish_ds))
 
                 dest_file = None
