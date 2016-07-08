@@ -961,7 +961,6 @@ class VMSnapshotPublishTask(ProgressTask):
         publish_ds = os.path.join(ds_name, 'publish')
         cache_dir = self.dispatcher.call_sync('system_dataset.request_directory', 'vm_image_cache')
         templates_dir = self.dispatcher.call_sync('system_dataset.request_directory', 'vm_templates')
-        os.makedirs()
 
         parent = snapshot['parent']
         current_time = datetime.datetime.utcnow().isoformat().split('.')[0]
@@ -1019,6 +1018,7 @@ class VMSnapshotPublishTask(ProgressTask):
 
                 self.join_subtasks(self.run_subtask('zfs.destroy', publish_ds))
 
+                os.makedirs(dest_path)
                 sha256_hash = sha256(dest_file, BLOCKSIZE)
                 with open(os.path.join(dest_path, 'sha256'), 'w') as f:
                     f.write(sha256_hash)
