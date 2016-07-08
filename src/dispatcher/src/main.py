@@ -541,7 +541,7 @@ class Dispatcher(object):
         with self.event_delivery_lock:
             if 'timestamp' not in args:
                 # If there's no timestamp, assume event fired right now
-                args['timestamp'] = time.time()
+                args['timestamp'] = datetime.datetime.utcnow()
 
             for srv in self.ws_servers:
                 gevent.spawn(srv.broadcast_event, name, args)
