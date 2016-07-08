@@ -1168,6 +1168,12 @@ class DownloadFileTask(ProgressTask):
         self.set_progress(0, 'Downloading file')
         urllib.request.urlretrieve(url, file_path, progress_hook)
 
+        if os.path.isdir(file_path):
+            for f in os.listdir(file_path):
+                shutil.move(os.path.join(file_path, f), destination)
+            os.rmdir(file_path)
+            file_path = os.path.join(destination, f)
+
         self.set_progress(100, 'Verifying checksum')
         if sha256(file_path, BLOCKSIZE) != sha256:
             raise TaskException(errno.EINVAL, 'Invalid SHA256 checksum')
