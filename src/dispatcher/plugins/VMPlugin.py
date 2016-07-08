@@ -209,15 +209,15 @@ class VMBaseTask(ProgressTask):
         if not template:
             return
 
+        dest_root = self.dispatcher.call_sync('volume.get_dataset_path', self.vm_ds)
+        try:
+            shutil.copy(os.path.join(template['path'], 'README.md'), dest_root)
+        except OSError:
+            pass
+
         if template.get('files'):
             source_root = os.path.join(template['path'], 'files')
-            dest_root = self.dispatcher.call_sync('volume.get_dataset_path', self.vm_ds)
             files_root = os.path.join(dest_root, 'files')
-
-            try:
-                shutil.copyfile(os.path.join(template['path'], 'README.md'), dest_root)
-            except OSError:
-                pass
 
             os.mkdir(files_root)
 
