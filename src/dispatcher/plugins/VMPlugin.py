@@ -1180,7 +1180,11 @@ class DownloadFileTask(ProgressTask):
         sha256_path = os.path.join(destination, 'sha256')
 
         self.set_progress(0, 'Downloading file')
-        urllib.request.urlretrieve(url, file_path, progress_hook)
+        if url.startswith('http://ipfs.io/ipfs/'):
+            self.set_progress(50, 'Fetching file through IPFS')
+            self.join_subtasks(self.run_subtask('ipfs.get', url.split('/')[-1], destination))
+        else:
+            urllib.request.urlretrieve(url, file_path, progress_hook)
 
         if os.path.isdir(file_path):
             for f in os.listdir(file_path):
