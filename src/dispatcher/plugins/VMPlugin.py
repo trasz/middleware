@@ -1159,13 +1159,13 @@ class DownloadFileTask(ProgressTask):
     def early_describe(cls):
         return 'Downloading VM file'
 
-    def describe(self, url, sha256, destination):
+    def describe(self, url, sha256_hash, destination):
         return TaskDescription('Downloading VM file {name}', name=url or '')
 
-    def verify(self, url, sha256, destination):
+    def verify(self, url, sha256_hash, destination):
         return ['system-dataset']
 
-    def run(self, url, sha256, destination):
+    def run(self, url, sha256_hash, destination):
         done = 0
 
         @throttle(seconds=1)
@@ -1189,11 +1189,11 @@ class DownloadFileTask(ProgressTask):
             file_path = os.path.join(destination, f)
 
         self.set_progress(100, 'Verifying checksum')
-        if sha256(file_path, BLOCKSIZE) != sha256:
+        if sha256(file_path, BLOCKSIZE) != sha256_hash:
             raise TaskException(errno.EINVAL, 'Invalid SHA256 checksum')
 
         with open(sha256_path, 'w') as sha256_file:
-            sha256_file.write(sha256)
+            sha256_file.write(sha256_hash)
 
 
 @accepts(str, str, str)
