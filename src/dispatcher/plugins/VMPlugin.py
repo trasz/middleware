@@ -377,7 +377,7 @@ class VMCreateTask(VMBaseTask):
         if vm.get('template'):
             template_name = vm['template'].get('name')
             template = None
-            if template_name.startswith('ipfs:'):
+            if template_name.startswith('ipfs://'):
                 template = self.dispatcher.call_sync(
                     'vm.template.query',
                     [('template.hash', '=', template_name)],
@@ -1075,7 +1075,7 @@ class VMSnapshotPublishTask(ProgressTask):
         ipfs_hashes = self.join_subtasks(self.run_subtask('ipfs.add', template_files))[0]
         self.set_progress(100, 'Finished')
         with open(os.path.join(template_path, 'hash'), 'w') as hash_file:
-            hash_file.write('ipfs:' + self.get_path_hash(ipfs_hashes, template_path[1:])['Hash'])
+            hash_file.write('ipfs://' + self.get_path_hash(ipfs_hashes, template_path[1:])['Hash'])
 
     def get_path_hash(self, ipfs_hashes, dest_path):
         for ipfs_hash in ipfs_hashes:
