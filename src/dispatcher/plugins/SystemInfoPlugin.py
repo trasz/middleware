@@ -643,7 +643,6 @@ def _init(dispatcher, plugin):
 
     plugin.register_schema_definition('system-advanced-serialport', {
         'type': 'string',
-        'enum': [e['name'] for e in get_serial_ports_info()]
     })
 
     plugin.register_schema_definition('system-advanced-serialspeed', {
