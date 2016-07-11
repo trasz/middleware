@@ -32,6 +32,7 @@ import time
 import io
 from xml.etree import ElementTree
 from bsd import geom
+from bsd import devinfo
 from event import EventSource
 from task import Provider
 from freenas.dispatcher.rpc import accepts, returns, description
@@ -49,7 +50,8 @@ class DeviceInfoPlugin(Provider):
         return [
             "disk",
             "network",
-            "cpu"
+            "cpu",
+            "serial_port"
         ]
 
     @description("Returns list of devices from given class")
@@ -57,7 +59,8 @@ class DeviceInfoPlugin(Provider):
     @returns(h.any_of(
         h.ref('disk-device'),
         h.ref('network-device'),
-        h.ref('cpu-device')
+        h.ref('cpu-device'),
+        h.ref('serial-port-device')
     ))
     def get_devices(self, dev_class):
         method = "_get_class_{0}".format(dev_class)
@@ -107,6 +110,23 @@ class DeviceInfoPlugin(Provider):
                 'name': i,
                 'description': desc
             })
+
+        return result
+
+    def _get_class_serial_port(self):
+        result = []
+        for devices in list(devinfo.DevInfo().resource_managers['I/O ports'].values()):
+            for dev in devices:
+                if not dev.name.startswith('uart'):
+                    continue
+                result.append({
+                    'name': dev.name,
+                    'description': dev.desc,
+                    'drivername': dev.drivername,
+                    'location': dev.location,
+                    'start': hex(dev.start),
+                    'size': dev.size
+                })
 
         return result
 
@@ -328,6 +348,18 @@ def _init(dispatcher, plugin):
         'properties': {
             'name': {'type': 'string'},
             'description': {'type': 'string'}
+        }
+    })
+
+    plugin.register_schema_definition('serial-port-device', {
+        'type': 'object',
+        'properties': {
+            'name': {'type': 'string'},
+            'description': {'type': 'string'},
+            'drivername': {'type': 'string'},
+            'location': {'type': 'string'},
+            'start': {'type': 'string'},
+            'size': {'type': 'string'},
         }
     })
 
