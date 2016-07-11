@@ -26,9 +26,9 @@
 #####################################################################
 
 import os
+import bsd
 import errno
 import logging
-import json
 import time
 import gevent
 import gevent.threadpool
@@ -1444,6 +1444,13 @@ def _init(dispatcher, plugin):
     def on_vfs_mount_or_unmount(type, args):
         with dispatcher.get_lock('zfs-cache'):
             ds = datasets.query(('properties.mountpoint.value', '=', args['path']), single=True)
+            if not ds:
+                for mnt in bsd.getmntinfo():
+                    if mnt.dest == args['path']:
+                        ds = datasets.query(('id', '=', mnt.source), single=True)
+                        if ds:
+                            break
+
             if not ds:
                 return
 
