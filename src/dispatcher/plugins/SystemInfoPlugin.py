@@ -36,7 +36,6 @@ import logging
 import time
 
 from threading import Event, Thread
-from bsd import devinfo
 from datastore import DatastoreException
 from datetime import datetime
 from dateutil import tz, parser
@@ -61,17 +60,6 @@ KEYMAPS_INDEX = "/usr/share/syscons/keymaps/INDEX.keymaps"
 ZONEINFO_DIR = "/usr/share/zoneinfo"
 VERSION_FILE = "/etc/version"
 logger = logging.getLogger('SystemInfoPlugin')
-
-
-def get_serial_ports_info():
-    ports = []
-    for devices in list(devinfo.DevInfo().resource_managers['I/O ports'].values()):
-        for dev in devices:
-            if not dev.name.startswith('uart'):
-                continue
-            ports.append({'name': dev.name, 'desc': dev.desc, 'drivername': dev.drivername,
-                          'location': dev.location, 'start': hex(dev.start), 'size': dev.size})
-    return ports
 
 
 @description("Provides informations about the running system")
@@ -203,11 +191,6 @@ class SystemAdvancedProvider(Provider):
             'periodic_notify_user': cs.get('system.periodic.notify_user'),
         }
 
-    @description('Returns array of serial ports information')
-    @accepts()
-    @returns(h.array(str))
-    def serial_ports(self):
-        return get_serial_ports_info()
 
 @description("Provides informations about UI system settings")
 class SystemUIProvider(Provider):
