@@ -2052,6 +2052,34 @@ class DatasetConfigureTask(Task):
                 self.join_subtasks(self.run_subtask('zfs.umount', ds['id']))
 
 
+@description("Mounts target dataset under selected location without altering ZFS properties")
+@accepts(str, str)
+class DatasetTemporaryMountTask(Task):
+    @classmethod
+    def early_describe(cls):
+        return "Mounting a dataset"
+
+    def describe(self, id, dest):
+        return TaskDescription("Mounting the dataset {name}", name=id)
+
+    def verify(self, id, dest):
+        try:
+            return ['zpool:{0}'.format(self.dispatcher.call_sync('volume.decode_path', id)[0])]
+        except RpcException:
+            return ['system']
+
+    def run(self, id, dest):
+        if not self.dispatcher.call_sync('zfs.dataset.query', id):
+            raise VerifyException(errno.ENOENT, 'Dataset {0} does not exist'.format(id))
+
+        try:
+            bsd.nmount(source=id, fspath=dest, fstype='zfs')
+        except FileNotFoundError:
+            raise TaskException(errno.EACCES, 'Location {0} does not exist'.format(dest))
+        except OSError:
+            raise TaskException(errno.EACCES, 'Cannot mount {0} under {1}'.format(id, dest))
+
+
 @description("Creates a snapshot")
 @accepts(
     h.all_of(
@@ -2893,6 +2921,7 @@ def _init(dispatcher, plugin):
     plugin.register_task_handler('volume.dataset.create', DatasetCreateTask)
     plugin.register_task_handler('volume.dataset.delete', DatasetDeleteTask)
     plugin.register_task_handler('volume.dataset.update', DatasetConfigureTask)
+    plugin.register_task_handler('volume.dataset.temp_mount', DatasetTemporaryMountTask)
     plugin.register_task_handler('volume.snapshot.create', SnapshotCreateTask)
     plugin.register_task_handler('volume.snapshot.delete', SnapshotDeleteTask)
     plugin.register_task_handler('volume.snapshot.update', SnapshotConfigureTask)
