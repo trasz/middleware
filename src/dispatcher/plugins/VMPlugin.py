@@ -1073,9 +1073,10 @@ class VMSnapshotPublishTask(ProgressTask):
                 template_files.append(os.path.join(dirpath, f))
 
         ipfs_hashes = self.join_subtasks(self.run_subtask('ipfs.add', template_files))[0]
-        self.set_progress(100, 'Finished')
+        ipfs_link = 'ipfs://' + self.get_path_hash(ipfs_hashes, template_path[1:])['Hash']
+        self.set_progress(100, 'Upload finished - template link: {0}'.format(ipfs_link))
         with open(os.path.join(template_path, 'hash'), 'w') as hash_file:
-            hash_file.write('ipfs://' + self.get_path_hash(ipfs_hashes, template_path[1:])['Hash'])
+            hash_file.write(ipfs_link)
 
     def get_path_hash(self, ipfs_hashes, dest_path):
         for ipfs_hash in ipfs_hashes:
