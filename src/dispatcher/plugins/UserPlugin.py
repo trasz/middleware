@@ -208,21 +208,22 @@ class UserCreateTask(Task):
         if 'builtin' not in user:
             user['builtin'] = False
 
-        if user['home'].startswith(volumes_root):
-            user['home'] = os.path.normpath(user['home'])
-            if len(user['home'].split('/')) < 3:
-                 errors.add(
-                     (0, 'home'),
-                     "Invalid mountpoint specified for home directory: {0}.".format(user['home']) +
-                     " Provide directory located in '{0}' instead as the mountpoint".format(volumes_root)
-                 )
+        if 'home' in user:
+            if user['home'].startswith(volumes_root):
+                user['home'] = os.path.normpath(user['home'])
+                if len(user['home'].split('/')) < 3:
+                     errors.add(
+                         (0, 'home'),
+                         "Invalid mountpoint specified for home directory: {0}.".format(user['home']) +
+                         " Provide directory located in '{0}' instead as the mountpoint".format(volumes_root)
+                     )
 
-        elif not user['builtin'] and user['home'] not in (None, '/nonexistent'):
-            errors.add(
-                (0, 'home'),
-                "Invalid mountpoint specified for home directory: {0}.".format(user['home']) +
-                " Provide directory located in '{0}' instead as the mountpoint".format(volumes_root)
-            )
+            elif not user['builtin'] and user['home'] not in (None, '/nonexistent'):
+                errors.add(
+                    (0, 'home'),
+                    "Invalid mountpoint specified for home directory: {0}.".format(user['home']) +
+                    " Provide directory located in '{0}' instead as the mountpoint".format(volumes_root)
+                )
 
         if errors:
             raise errors
