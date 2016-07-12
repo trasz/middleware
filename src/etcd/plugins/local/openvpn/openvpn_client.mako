@@ -1,5 +1,12 @@
 <%
+    import os 
+
+    OPENVPN_DIR = '/etc/local/openvpn'
     openvpn_conf = dispatcher.call_sync('service.openvpn.get_config')
+
+    if not os.path.isdir(OPENVPN_DIR):
+        os.mkdir(OPENVPN_DIR)
+
     cert_data = dispatcher.call_sync('crypto.certificate.query',
                                 [('id', '=', openvpn_conf['ca'])], {'single': True})
     
