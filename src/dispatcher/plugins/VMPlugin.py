@@ -1372,7 +1372,7 @@ class VMIPFSTemplateFetchTask(ProgressTask):
         if not os.path.isdir(ipfs_templates_dir):
             os.makedirs(ipfs_templates_dir)
 
-        raw_hash = ipfs_hash.split(':')[1]
+        raw_hash = ipfs_hash.split('/')[-1]
 
         self.join_subtasks(self.run_subtask('ipfs.get', raw_hash, ipfs_templates_dir))
 
