@@ -642,7 +642,7 @@ class ManagementService(RpcService):
 
         vm.stop(force)
         with self.context.cv:
-            del self.context.containers[id]
+            self.context.containers.pop(id, None)
             self.context.cv.notify_all()
 
     @private
