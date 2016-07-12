@@ -383,9 +383,9 @@ class ConfigurationService(RpcService):
 
     def get_default_interface(self):
         routes = self.query_routes()
-        default = first_or_default(lambda r: r.netmask == ipaddress.ip_address('0.0.0.0'), routes)
+        default = first_or_default(lambda r: r['netmask'] == '0.0.0.0', routes)
         if default:
-            return default.interface
+            return default['interface']
 
         return None
 
