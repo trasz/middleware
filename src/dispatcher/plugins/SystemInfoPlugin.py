@@ -610,7 +610,7 @@ def _init(dispatcher, plugin):
             'console_cli': {'type': 'boolean'},
             'console_screensaver': {'type': 'boolean'},
             'serial_console': {'type': 'boolean'},
-            'serial_port': {'$ref': 'system-advanced-serialport'},
+            'serial_port': {'type': 'string'},
             'serial_speed': {'$ref': 'system-advanced-serialspeed'},
             'powerd': {'type': 'boolean'},
             'swapondrive': {'type': 'integer'},
@@ -622,10 +622,6 @@ def _init(dispatcher, plugin):
             'periodic_notify_user': {'type': 'integer'},
         },
         'additionalProperties': False,
-    })
-
-    plugin.register_schema_definition('system-advanced-serialport', {
-        'type': 'string',
     })
 
     plugin.register_schema_definition('system-advanced-serialspeed', {
