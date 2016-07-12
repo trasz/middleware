@@ -115,6 +115,18 @@ def get_docker_ports(details):
         }
 
 
+def get_docker_volumes(details):
+    if 'HostConfig' not in details:
+        return
+
+    for mnt in details['HostConfig']['Mounts']:
+        yield {
+            'host_path': mnt['Source'],
+            'container_path': mnt['Destination'],
+            'readonly': not mnt['RW']
+        }
+
+
 class BinaryRingBuffer(object):
     def __init__(self, size):
         self.data = bytearray(size)
@@ -707,6 +719,7 @@ class DockerService(RpcService):
                     'status': container['Status'],
                     'host': host.vm.id,
                     'ports': list(get_docker_ports(details)),
+                    'volumes': list(get_docker_volumes(details)),
                     'expose_ports': 'org.freenas.expose_ports_at_host' in details['Config']['Labels']
                 })
 
