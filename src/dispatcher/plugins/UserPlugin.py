@@ -451,9 +451,9 @@ class UserUpdateTask(Task):
 
             elif updated_fields['home'] not in (None, '/nonexistent'):
                 errors.add(
-                (0, 'home'),
-                "Invalid mountpoint specified for home directory: {0}.".format(updated_fields['home']) +
-                " Provide directory located in '{0}' instead as the mountpoint".format(volumes_root)
+                    (0, 'home'),
+                    "Invalid mountpoint specified for home directory: {0}.".format(updated_fields['home']) +
+                    " Provide directory located in '{0}' instead as the mountpoint".format(volumes_root)
                 )
 
         if errors:
