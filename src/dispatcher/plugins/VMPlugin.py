@@ -384,6 +384,7 @@ class VMCreateTask(VMBaseTask):
                     {'single': True}
                 )
                 if not template:
+                    self.set_progress(5, 'Fetching VM template from IPFS')
                     template_name = self.join_subtasks(self.run_subtask('vm.template.ipfs.fetch', template_name))[0]
 
             if not template:
