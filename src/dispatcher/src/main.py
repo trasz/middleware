@@ -1179,8 +1179,9 @@ class DispatcherConnection(ServerConnection):
             # the reconnect will just log the session back in
             self.dispatcher.token_store.revoke_token(self.token)
             self.transport.close()
-            if self in self.parent.connections:
-                self.parent.connections.remove(self)
+
+            # geventwebsocket doesn't notify us when we initiate the close
+            self.on_close(None)
         except WebSocketError as werr:
             # This error usually implies that the socket is dead
             # so just log it and move on
