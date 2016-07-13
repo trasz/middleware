@@ -177,6 +177,7 @@ def _init(dispatcher, plugin):
         'type': 'object',
         'properties': {
             'id': {'type': 'string'},
+            'name': {'type': 'string'},
             'priority': {'type': 'integer'},
             'plugin': {'type': 'string'},
             'enabled': {'type': 'boolean'},
