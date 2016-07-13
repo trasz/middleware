@@ -1191,11 +1191,17 @@ class DownloadFileTask(ProgressTask):
         sha256_path = os.path.join(destination, 'sha256')
 
         self.set_progress(0, 'Downloading file')
-        if url.startswith('http://ipfs.io/ipfs/'):
-            self.set_progress(50, 'Fetching file through IPFS')
-            self.join_subtasks(self.run_subtask('ipfs.get', url.split('/')[-1], destination))
-        else:
-            urllib.request.urlretrieve(url, file_path, progress_hook)
+        try:
+            if url.startswith('http://ipfs.io/ipfs/'):
+                self.set_progress(50, 'Fetching file through IPFS')
+                self.join_subtasks(self.run_subtask('ipfs.get', url.split('/')[-1], destination))
+            else:
+                try:
+                    urllib.request.urlretrieve(url, file_path, progress_hook)
+                except ConnectionResetError:
+                    raise TaskException(errno.ECONNRESET, 'Cannot access download server')
+        except OSError:
+            raise TaskException(errno.EIO, 'File could not be downloaded')
 
         if os.path.isdir(file_path):
             for f in os.listdir(file_path):
