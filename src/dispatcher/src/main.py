@@ -544,7 +544,8 @@ class Dispatcher(object):
                 args['timestamp'] = datetime.datetime.utcnow()
 
             for srv in self.ws_servers:
-                gevent.spawn(srv.broadcast_event, name, args)
+                for conn in srv.connections:
+                    conn.outgoing_events.put((name, args))
 
             if name in self.event_handlers:
                 for h in self.event_handlers[name]:
@@ -827,6 +828,7 @@ class DispatcherConnection(ServerConnection):
         self.proxy_address = None
         self.server_pending_calls = {}
         self.client_pending_calls = {}
+        self.outgoing_events = Queue()
         self.enabled_features = set()
         self.resource = None
         self.user = None
@@ -851,6 +853,10 @@ class DispatcherConnection(ServerConnection):
             'address': self.client_address
         }
 
+    def __event_worker(self):
+        for name, args in self.outgoing_events:
+            self.emit_event(name, args)
+
     def log(self, level, msg):
         self.logger.log(level, '[{0}] {1}'.format(self.client_address, msg))
 
@@ -859,6 +865,7 @@ class DispatcherConnection(ServerConnection):
 
     def on_open(self):
         super(DispatcherConnection, self).on_open()
+        gevent.spawn(self.__event_worker)
         self.trace('Connected')
         self.dispatcher.dispatch_event('server.client_connected', {
             'address': self.client_address,
@@ -877,6 +884,7 @@ class DispatcherConnection(ServerConnection):
                 if fnmatch.fnmatch(name, mask):
                     ev.decref()
 
+        self.outgoing_events.put(StopIteration)
         self.dispatcher.dispatch_event('server.client_disconnected', {
             'address': self.client_address,
             'description': "Client {0} disconnected".format(self.client_address)
