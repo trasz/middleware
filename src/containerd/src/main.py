@@ -72,8 +72,8 @@ from proxy import ReverseProxyServer
 gevent.monkey.patch_all()
 
 
-BOOTROM_PATH = '/usr/local/share/containerd/firmware/BHYVE_UEFI_20160526.fd'
-BOOTROM_CSM_PATH = '/usr/local/share/containerd/firmware/BHYVE_UEFI_CSM_20151002.fd'
+BOOTROM_PATH = '/usr/local/share/uefi-firmware/BHYVE_UEFI.fd'
+BOOTROM_CSM_PATH = '/usr/local/share/uefi-firmware/BHYVE_UEFI_CSM.fd'
 MGMT_ADDR = ipaddress.ip_interface('172.20.0.1/16')
 MGMT_INTERFACE = 'mgmt0'
 NAT_ADDR = ipaddress.ip_interface('172.21.0.1/16')
