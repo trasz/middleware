@@ -31,6 +31,7 @@ import os
 import random
 import json
 import gzip
+import uuid
 import pygit2
 import urllib.request
 import urllib.parse
@@ -880,7 +881,7 @@ class VMSnapshotRollbackTask(Task):
 
         snapshot_id = self.dispatcher.call_sync(
             'zfs.snapshot.query',
-            [('name', '~', id)],
+            [('properties.org\.freenas:vm_snapshot.rawvalue', '=', id)],
             {'single': True, 'select': 'id'}
         )
 
@@ -933,8 +934,34 @@ class VMSnapshotCreateTask(Task):
             'ids': [snapshot_id]
         })
 
+        snapname = name
+        base_snapname = name
         vm_ds = self.dispatcher.call_sync('vm.get_dataset', id)
-        self.join_subtasks(self.run_subtask('volume.snapshot_dataset', vm_ds, True, None, snapshot_id))
+
+        # Pick another name in case snapshot already exists
+        for i in range(1, 99):
+            if self.dispatcher.call_sync(
+                'zfs.snapshot.query',
+                [('name', '=', '{0}@{1}'.format(vm_ds, snapname))],
+                {'count': True}
+            ):
+                snapname = '{0}-{1}'.format(base_snapname, i)
+                continue
+
+            break
+
+        self.join_subtasks(self.run_subtask(
+            'zfs.create_snapshot',
+            vm_ds,
+            name,
+            True,
+            {
+                'org.freenas:replicable': {'value': 'no'},
+                'org.freenas:lifetime': {'value': 'no'},
+                'org.freenas:uuid': {'value': str(uuid.uuid4())},
+                'org.freenas:vm_snapshot': {'value': str(snapshot_id)},
+            }
+        ))
 
 
 @accepts(str, h.ref('vm-snapshot'))
@@ -987,10 +1014,10 @@ class VMSnapshotDeleteTask(Task):
         if not snapshot:
             raise TaskException(errno.ENOENT, 'Snapshot {0} does not exist'.format(id))
 
-        snapshot_id = self.dispatcher.call_sync(
+        snapshot_ids = self.dispatcher.call_sync(
             'zfs.snapshot.query',
-            [('name', '~', id)],
-            {'single': True, 'select': 'id'}
+            [('properties.org\.freenas:vm_snapshot.rawvalue', '=', id)],
+            {'select': 'id'}
         )
 
         self.datastore.delete('vm.snapshots', id)
@@ -999,8 +1026,9 @@ class VMSnapshotDeleteTask(Task):
             'ids': [id]
         })
 
-        path, name = snapshot_id.split('@')
-        self.join_subtasks(self.run_subtask('zfs.delete_snapshot', path, name, True))
+        for snapshot_id in snapshot_ids:
+            path, name = snapshot_id.split('@')
+            self.join_subtasks(self.run_subtask('zfs.delete_snapshot', path, name))
 
 
 @accepts(str, str, str, str, str)
@@ -1040,7 +1068,7 @@ class VMSnapshotPublishTask(ProgressTask):
 
         snapshot_id = self.dispatcher.call_sync(
             'zfs.snapshot.query',
-            [('name', '~', id)],
+            [('properties.org\.freenas:vm_snapshot.rawvalue', '=', id)],
             {'single': True, 'select': 'id'}
         )
 
@@ -1122,8 +1150,7 @@ class VMSnapshotPublishTask(ProgressTask):
         if not os.path.isdir(template_path):
             os.makedirs(template_path)
 
-        vm_ds_snapshot = ds_name + '@' + snap_name
-        self.join_subtasks(self.run_subtask('zfs.clone', vm_ds_snapshot, publish_ds))
+        self.join_subtasks(self.run_subtask('zfs.clone', snapshot_id, publish_ds))
         self.join_subtasks(self.run_subtask('zfs.mount', publish_ds))
         copytree(self.dispatcher.call_sync('volume.get_dataset_path', publish_ds), template_path)
         self.join_subtasks(self.run_subtask('zfs.umount', publish_ds))
