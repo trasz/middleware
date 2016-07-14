@@ -549,13 +549,14 @@ class Dispatcher(object):
 
             if name in self.event_handlers:
                 for h in self.event_handlers[name]:
-                    def wrapper():
+                    def wrapper(handler, name):
                         try:
-                            h(args)
+                            self.logger.log(TRACE, 'Calling event handler {0} for event {1}'.format(handler, name))
+                            handler(args)
                         except BaseException:
                             self.logger.exception('Event handler for event %s failed', name)
 
-                    gevent.spawn(wrapper)
+                    gevent.spawn(wrapper, h, name)
 
     def emit_event(self, name, args):
         return self.dispatch_event(name, args)
