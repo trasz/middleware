@@ -134,12 +134,61 @@ class VMProvider(Provider):
     def generate_mac(self):
         return VM_OUI + ':' + ':'.join('{0:02x}'.format(random.randint(0, 255)) for _ in range(0, 3))
 
+    def get_reserved_datasets(self, id):
+        vm_snapshots = self.dispatcher.call_sync('vm.snapshot.query', [('parent.id', '=', id)])
+
+        reserved_datasets = []
+        for snap in vm_snapshots:
+            reserved_datasets.extend(self.dispatcher.call_sync('vm.snapshot.get_dependent_datasets', snap['id']))
+
+        return list(set(reserved_datasets))
+
+    def get_dependent_datasets(self, id):
+        vm = self.dispatcher.call_sync('vm.query', [('id', '=', id)], {'single': True})
+        if not vm:
+            raise RpcException(errno.ENOENT, 'VM {0} does not exist'.format(id))
+
+        devices = vm['devices']
+
+        dataset = self.dispatcher.call_sync('vm.get_dataset', id)
+        child_datasets = self.dispatcher.call_sync(
+            'zfs.dataset.query',
+            [('id', '~', '^({0}/)'.format(dataset))],
+            {'select': 'name'}
+        )
+        dependent_datasets = [dataset]
+        for d in child_datasets:
+            if wrap(devices).query(('name', '=', d.split('/')[-1]), ('type', 'in', ['DISK', 'VOLUME'])):
+                dependent_datasets.append(d)
+
+        return dependent_datasets
+
 
 @description('Provides information about VM snapshots')
 class VMSnapshotProvider(Provider):
     @query('vm-snapshot')
     def query(self, filter=None, params=None):
         return self.datastore.query('vm.snapshots', *(filter or []), **(params or {}))
+
+    def get_dependent_datasets(self, id):
+        snapshot = self.dispatcher.call_sync('vm.snapshot.query', [('id', '=', id)], {'single': True})
+        if not snapshot:
+            raise RpcException(errno.ENOENT, 'VM snapshot {0} does not exist'.format(id))
+
+        devices = snapshot['parent']['devices']
+
+        dataset = self.dispatcher.call_sync('vm.get_dataset', snapshot['parent']['id'])
+        child_datasets = self.dispatcher.call_sync(
+            'zfs.dataset.query',
+            [('id', '~', '^({0}/)'.format(dataset))],
+            {'select': 'name'}
+        )
+        dependent_datasets = [dataset]
+        for d in child_datasets:
+            if wrap(devices).query(('name', '=', d.split('/')[-1]), ('type', 'in', ['DISK', 'VOLUME'])):
+                dependent_datasets.append(d)
+
+        return dependent_datasets
 
 
 @description('Provides information about VM templates')
