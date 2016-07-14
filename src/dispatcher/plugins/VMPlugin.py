@@ -307,6 +307,18 @@ class VMBaseTask(ProgressTask):
         if progress_cb:
             progress_cb(0, 'Creating {0}'.format(res['type'].lower()))
 
+        if 'id' in vm:
+            reserved_datasets = self.dispatcher.call_sync('vm.get_reserved_datasets', vm['id'])
+            if res['type'] in ['VOLUME', 'DISK']:
+                new_ds = os.path.join(vm['target'], 'vm', vm['name'], res['name'])
+                if new_ds in reserved_datasets:
+                    raise TaskException(
+                        errno.EACCES,
+                        'Cannot create device {0}. One of VM snapshots already holds this device name.'.format(
+                            res['name']
+                        )
+                    )
+
         if res['type'] == 'DISK':
             vm_ds = os.path.join(vm['target'], 'vm', vm['name'])
             ds_name = os.path.join(vm_ds, res['name'])
@@ -381,13 +393,21 @@ class VMBaseTask(ProgressTask):
             pass
 
     def delete_device(self, vm, res):
+        reserved_datasets = self.dispatcher.call_sync('vm.get_reserved_datasets', vm['id'])
+
         if res['type'] in ('DISK', 'VOLUME'):
             vm_ds = self.dispatcher.call_sync('vm.get_dataset', vm['id'])
             ds_name = os.path.join(vm_ds, res['name'])
-            self.join_subtasks(self.run_subtask(
-                'volume.dataset.delete',
-                ds_name
-            ))
+            if ds_name in reserved_datasets:
+                self.add_warning(TaskWarning(
+                    errno.EACCES,
+                    'Dataset {0} not deleted. There are VM snapshots related to this dataset'.format(ds_name)
+                ))
+            else:
+                self.join_subtasks(self.run_subtask(
+                    'volume.dataset.delete',
+                    ds_name
+                ))
 
 
 @accepts(h.ref('vm'))
