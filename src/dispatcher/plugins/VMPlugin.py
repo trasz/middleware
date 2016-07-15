@@ -313,22 +313,32 @@ class VMBaseTask(ProgressTask):
             if res['type'] in ['VOLUME', 'DISK']:
                 new_ds = os.path.join(vm['target'], 'vm', vm['name'], res['name'])
                 if new_ds in reserved_datasets:
-                    raise TaskException(
-                        errno.EACCES,
-                        'Cannot create device {0}. One of VM snapshots already holds this device name.'.format(
-                            res['name']
-                        )
+                    ds_type = self.dispatcher.call_sync(
+                        'zfs.dataset.query',
+                        [('name', '=', new_ds)],
+                        {'single': True, 'select': 'type'}
                     )
+                    ds_type = 'VOLUME' if ds_type == 'FILESYSTEM' else 'DISK'
+                    if ds_type != res['type']:
+                        raise TaskException(
+                            errno.EACCES,
+                            'Cannot create device {1} {0}. One of VM snapshots is already using {2} {0}.'.format(
+                                res['name'],
+                                res['type'].lower(),
+                                ds_type.lower()
+                            )
+                        )
 
         if res['type'] == 'DISK':
             vm_ds = os.path.join(vm['target'], 'vm', vm['name'])
             ds_name = os.path.join(vm_ds, res['name'])
-            self.join_subtasks(self.run_subtask('volume.dataset.create', {
-                'volume': vm['target'],
-                'id': ds_name,
-                'type': 'VOLUME',
-                'volsize': res['properties']['size']
-            }))
+            if not self.dispatcher.call_sync('zfs.dataset.query', [('name', '=', ds_name)]):
+                self.join_subtasks(self.run_subtask('volume.dataset.create', {
+                    'volume': vm['target'],
+                    'id': ds_name,
+                    'type': 'VOLUME',
+                    'volsize': res['properties']['size']
+                }))
 
             normalize(res['properties'], {
                 'mode': 'AHCI'
@@ -372,12 +382,20 @@ class VMBaseTask(ProgressTask):
             if properties['type'] == 'VT9P':
                 if properties.get('auto'):
                     ds_name = os.path.join(vm_ds, res['name'])
-                    self.join_subtasks(self.run_subtask('volume.dataset.create', {
-                        'volume': vm['target'],
-                        'id': ds_name
-                    }))
+                    old_ds = self.dispatcher.call_sync('zfs.dataset.query', [('name', '=', ds_name)])
+                    if not old_ds:
+                        self.join_subtasks(self.run_subtask('volume.dataset.create', {
+                            'volume': vm['target'],
+                            'id': ds_name
+                        }))
 
                     if properties.get('source'):
+                        if old_ds:
+                            shutil.rmtree(
+                                self.dispatcher.call_sync('volume.get_dataset.path', ds_name),
+                                ignore_errors=True
+                            )
+
                         self.join_subtasks(self.run_subtask(
                             'vm.file.install',
                             vm['template']['name'],
