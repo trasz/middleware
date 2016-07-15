@@ -374,11 +374,11 @@ class ConfigurationService(RpcService):
 
     def get_default_routes(self):
         routes = self.query_routes()
-        default_ipv4 = first_or_default(lambda r: r.netmask == ipaddress.ip_address('0.0.0.0'), routes)
-        default_ipv6 = first_or_default(lambda r: r.netmask == ipaddress.ip_address('::'), routes)
+        default_ipv4 = first_or_default(lambda r: r['netmask'] == '0.0.0.0', routes)
+        default_ipv6 = first_or_default(lambda r: r['netmask'] == '::', routes)
         return {
-            'ipv4': default_ipv4.gateway if default_ipv4 else None,
-            'ipv6': default_ipv6.gateway if default_ipv6 else None
+            'ipv4': default_ipv4['gateway'] if default_ipv4 else None,
+            'ipv6': default_ipv6['gateway'] if default_ipv6 else None
         }
 
     def get_default_interface(self):
