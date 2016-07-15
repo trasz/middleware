@@ -1030,6 +1030,20 @@ class VMSnapshotDeleteTask(Task):
             path, name = snapshot_id.split('@')
             self.join_subtasks(self.run_subtask('zfs.delete_snapshot', path, name))
 
+        vm_id = snapshot['parent']['id']
+        related_datasets = self.dispatcher.call_sync('vm.get_dependent_datasets', vm_id)
+        related_datasets.extend(self.dispatcher.call_sync('vm.get_reserved_datasets', vm_id))
+        vm_dataset = self.dispatcher.call_sync('vm.get_dataset', vm_id)
+        child_datasets = self.dispatcher.call_sync(
+            'zfs.dataset.query',
+            [('id', '~', '^({0}/)'.format(vm_dataset))],
+            {'select': 'name'}
+        )
+
+        unrelated_datasets = [d for d in child_datasets if d not in related_datasets]
+        for d in unrelated_datasets:
+            self.join_subtasks(self.run_subtask('volume.dataset.delete', d))
+
 
 @accepts(str, str, str, str, str)
 @description('Publishes VM snapshot over IPFS')
@@ -1726,15 +1740,25 @@ def _init(dispatcher, plugin):
         return True
 
     def on_snapshot_change(args):
-        snapshots = dispatcher.call_sync('vm.snapshot.query', [], {'select': 'id'})
-        if args['operation'] == 'delete':
-            for s in snapshots:
-                if any(s in i for i in args['ids']):
-                    dispatcher.datastore.delete('vm.snapshots', s)
-                    dispatcher.dispatch_event('vm.snapshot.changed', {
-                        'operation': 'delete',
-                        'ids': [s]
-                    })
+        logger.debug(args)
+        with dispatcher.get_lock('vm_snapshots'):
+            if args['operation'] == 'delete':
+                vm_snapshots = dispatcher.call_sync('vm.snapshot.query')
+                logger.debug('ZFS snapshots {0} deleted. Cleaning VM snapshots'.format(args['ids']))
+                for i in vm_snapshots:
+                    datasets = dispatcher.call_sync('vm.snapshot.get_dependent_datasets', i['id'])
+                    for d in datasets:
+                        ds_snapshot = dispatcher.call_sync(
+                            'zfs.snapshot.query',
+                            [
+                                ('id', '~', '^({0}@)'.format(d)),
+                                ('properties.org\.freenas:vm_snapshot.rawvalue', '=', i['id'])
+                            ]
+                        )
+                        if not ds_snapshot:
+                            dispatcher.call_task_sync('vm.snapshot.delete', i['id'])
+                            logger.debug('Removed {0} VM snapshot'.format(i['name']))
+                            break
 
     plugin.register_provider('vm', VMProvider)
     plugin.register_provider('vm.snapshot', VMSnapshotProvider)
