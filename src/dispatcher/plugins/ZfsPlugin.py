@@ -1238,7 +1238,7 @@ def sync_dataset_cache(dispatcher, dataset, old_dataset=None, recursive=False):
     except libzfs.ZFSException as e:
         if e.code == libzfs.Error.NOENT:
             if datasets.remove(dataset):
-                snapshots.remove_predicate(lambda i: i['pool'].startswith(dataset + '@'))
+                snapshots.remove_predicate(lambda i: i['id'].startswith(dataset + '@'))
                 names = datasets.remove_predicate(lambda i: i['name'].startswith(dataset + '/'))
                 dispatcher.unregister_resources(
                     ['zfs:{0}'.format(i) for i in names] +
