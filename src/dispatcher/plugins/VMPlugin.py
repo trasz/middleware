@@ -319,7 +319,7 @@ class VMBaseTask(ProgressTask):
                         {'single': True, 'select': 'type'}
                     )
                     ds_type = 'VOLUME' if ds_type == 'FILESYSTEM' else 'DISK'
-                    if ds_type != res['type']:
+                    if not (ds_type == res['type'] == 'VOLUME'):
                         raise TaskException(
                             errno.EACCES,
                             'Cannot create device {1} {0}. One of VM snapshots is already using {2} {0}.'.format(
@@ -332,13 +332,12 @@ class VMBaseTask(ProgressTask):
         if res['type'] == 'DISK':
             vm_ds = os.path.join(vm['target'], 'vm', vm['name'])
             ds_name = os.path.join(vm_ds, res['name'])
-            if not self.dispatcher.call_sync('zfs.dataset.query', [('name', '=', ds_name)]):
-                self.join_subtasks(self.run_subtask('volume.dataset.create', {
-                    'volume': vm['target'],
-                    'id': ds_name,
-                    'type': 'VOLUME',
-                    'volsize': res['properties']['size']
-                }))
+            self.join_subtasks(self.run_subtask('volume.dataset.create', {
+                'volume': vm['target'],
+                'id': ds_name,
+                'type': 'VOLUME',
+                'volsize': res['properties']['size']
+            }))
 
             normalize(res['properties'], {
                 'mode': 'AHCI'
