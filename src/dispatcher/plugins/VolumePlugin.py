@@ -2052,7 +2052,7 @@ class DatasetConfigureTask(Task):
                 self.join_subtasks(self.run_subtask('zfs.umount', ds['id']))
 
 
-@description("Mounts target dataset under selected location without altering ZFS properties")
+@description("Mounts target readonly dataset")
 @accepts(str, str)
 class DatasetTemporaryMountTask(Task):
     @classmethod
@@ -2069,8 +2069,15 @@ class DatasetTemporaryMountTask(Task):
             return ['system']
 
     def run(self, id, dest):
-        if not self.dispatcher.call_sync('zfs.dataset.query', id):
-            raise VerifyException(errno.ENOENT, 'Dataset {0} does not exist'.format(id))
+        ds_ro = self.dispatcher.call_sync(
+            'zfs.dataset.query',
+            [('id', '=', id)],
+            {'select': 'properties.readonly.rawvalue'}
+        )
+        if not ds_ro:
+            raise TaskException(errno.ENOENT, 'Dataset {0} does not exist'.format(id))
+        if not ds_ro[0]:
+            raise TaskException(errno.EINVAL, 'Only readonly datasets can have temporary mountpoints')
 
         try:
             bsd.nmount(source=id, fspath=dest, fstype='zfs')
@@ -2078,6 +2085,36 @@ class DatasetTemporaryMountTask(Task):
             raise TaskException(errno.EACCES, 'Location {0} does not exist'.format(dest))
         except OSError:
             raise TaskException(errno.EACCES, 'Cannot mount {0} under {1}'.format(id, dest))
+
+
+@description("Unmounts target readonly dataset")
+@accepts(str)
+class DatasetTemporaryUmountTask(Task):
+    @classmethod
+    def early_describe(cls):
+        return "Unmounting a dataset"
+
+    def describe(self, id):
+        return TaskDescription("Unmounting the dataset {name}", name=id)
+
+    def verify(self, id):
+        try:
+            return ['zpool:{0}'.format(self.dispatcher.call_sync('volume.decode_path', id)[0])]
+        except RpcException:
+            return ['system']
+
+    def run(self, id):
+        ds_ro = self.dispatcher.call_sync(
+            'zfs.dataset.query',
+            [('id', '=', id)],
+            {'select': 'properties.readonly.rawvalue'}
+        )
+        if not ds_ro:
+            raise TaskException(errno.ENOENT, 'Dataset {0} does not exist'.format(id))
+        if not ds_ro[0]:
+            raise TaskException(errno.EINVAL, 'Only readonly datasets can be unmounted')
+
+        self.join_subtasks(self.run_subtask('zfs.umount', id))
 
 
 @description("Creates a snapshot")
@@ -2921,7 +2958,8 @@ def _init(dispatcher, plugin):
     plugin.register_task_handler('volume.dataset.create', DatasetCreateTask)
     plugin.register_task_handler('volume.dataset.delete', DatasetDeleteTask)
     plugin.register_task_handler('volume.dataset.update', DatasetConfigureTask)
-    plugin.register_task_handler('volume.dataset.temp_mount', DatasetTemporaryMountTask)
+    plugin.register_task_handler('volume.dataset.temporary.mount', DatasetTemporaryMountTask)
+    plugin.register_task_handler('volume.dataset.temporary.umount', DatasetTemporaryUmountTask)
     plugin.register_task_handler('volume.snapshot.create', SnapshotCreateTask)
     plugin.register_task_handler('volume.snapshot.delete', SnapshotDeleteTask)
     plugin.register_task_handler('volume.snapshot.update', SnapshotConfigureTask)
