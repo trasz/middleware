@@ -32,6 +32,7 @@ import os
 from freenas.dispatcher.rpc import RpcException, description, accepts, returns
 from freenas.dispatcher.rpc import SchemaHelper as h
 from freenas.utils import normalize
+from freenas.utils.query import wrap
 from datastore.config import ConfigNode
 from gevent import hub
 from task import Provider, Task, TaskException, TaskDescription, VerifyException, query, TaskWarning
@@ -49,14 +50,13 @@ def calculate_broadcast(address, netmask):
 class NetworkProvider(Provider):
     @returns(h.ref('network-config'))
     def get_config(self):
-        return ConfigNode('network', self.configstore)
-
-    @returns(h.ref('network-status'))
-    def get_status(self):
-        return {
+        node = ConfigNode('network', self.configstore).__getstate__()
+        node.update({
             'gateway': self.dispatcher.call_sync('networkd.configuration.get_default_routes'),
             'dns': self.dispatcher.call_sync('networkd.configuration.get_dns_config')
-        }
+        })
+
+        return node
 
     @returns(h.array(str))
     def get_my_ips(self):
@@ -64,15 +64,13 @@ class NetworkProvider(Provider):
         ifaces = self.dispatcher.call_sync('networkd.configuration.query_interfaces')
         ifaces.pop('mgmt0', None)
         for i, v in ifaces.items():
-            if (
-                'LOOPBACK' in v['flags'] or
-                v['link_state'] != 'LINK_STATE_UP' or
-                'UP' not in v['flags']
-            ):
+            if 'LOOPBACK' in v['flags'] or v['link_state'] != 'LINK_STATE_UP' or'UP' not in v['flags']:
                 continue
+
             for aliases in v['aliases']:
                 if aliases['address'] and aliases['type'] != 'LINK':
                     ips.append(aliases['address'])
+
         return list(set(ips))
 
 
@@ -123,8 +121,20 @@ class NetworkConfigureTask(Task):
         return ['system']
 
     def run(self, settings):
+        settings = wrap(settings)
         node = ConfigNode('network', self.configstore)
         node.update(settings)
+        dhcp_used = self.datastore.exists('network.interfaces', ('dhcp', '=', True))
+
+        if dhcp_used:
+            if node['dhcp.assign_gateway']:
+                # Clear out gateway settings
+                node['gateway.ipv4'] = None
+
+            if node['dhcp.assign_dns']:
+                # Clear out DNS settings
+                node['dns.addresses'] = []
+                node['dns.search'] = []
 
         try:
             self.dispatcher.call_sync('networkd.configuration.configure_network', timeout=60)
@@ -269,11 +279,18 @@ class ConfigureInterfaceTask(Task):
             # 1. Check whether DHCP is enabled on other interfaces
             # 2. Check whether DHCP configures default route and/or DNS server addresses
             dhcp_used = self.datastore.exists('network.interfaces', ('dhcp', '=', True), ('id', '!=', id))
-            dhcp_global = self.configstore.get('network.dhcp.assign_gateway') or \
-                self.configstore.get('network.dhcp.assign_dns')
+            dhcp_gateway = self.configstore.get('network.dhcp.assign_gateway')
+            dhcp_dns = self.configstore.get('network.dhcp.assign_dns')
 
-            if dhcp_used and dhcp_global:
+            if dhcp_used and (dhcp_gateway or dhcp_dns):
                 raise TaskException(errno.ENXIO, 'DHCP is already configured on another interface')
+
+            if dhcp_gateway:
+                self.configstore.set('network.gateway.ipv4', None)
+
+            if dhcp_dns:
+                self.configstore.set('network.dns.search', [])
+                self.configstore.set('network.dns.addresses', [])
 
             # Clear all aliases
             entity['aliases'] = []
