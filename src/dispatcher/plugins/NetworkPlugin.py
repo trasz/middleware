@@ -551,7 +551,9 @@ class AddRouteTask(Task):
             raise VerifyException(errno.EEXIST, 'Route {0} exists'.format(route['id']))
 
         for r in self.dispatcher.call_sync('network.route.query'):
-            if (r['network'] == route['network']) and (r['netmask'] == route['netmask']) and (r['gateway'] == route['gateway']):
+            if (r['network'] == route['network']) and \
+               (r['netmask'] == route['netmask']) and \
+               (r['gateway'] == route['gateway']):
                 raise VerifyException(errno.EINVAL, 'Cannot create two identical routes differing only in name.')
 
         if route['type'] == 'INET':
@@ -569,7 +571,9 @@ class AddRouteTask(Task):
         except ValueError:
             raise VerifyException(
                 errno.EINVAL,
-                '{0} would have host bits set. Change network or netmask to represent a valid network'.format(os.path.join(route['network'], str(route['netmask'])))
+                '{0} would have host bits set. Change network or netmask to represent a valid network'.format(
+                    os.path.join(route['network'], str(route['netmask']))
+                )
             )
 
         return ['system']
@@ -630,7 +634,9 @@ class UpdateRouteTask(Task):
         except ValueError:
             raise VerifyException(
                 errno.EINVAL,
-                '{0} would have host bits set. Change network or netmask to represent a valid network'.format(os.path.join(net, str(netmask)))
+                '{0} would have host bits set. Change network or netmask to represent a valid network'.format(
+                    os.path.join(net, str(netmask))
+                )
             )
 
         return ['system']
