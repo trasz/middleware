@@ -1442,27 +1442,31 @@ def _init(dispatcher, plugin):
                 sync_dataset_cache(dispatcher, args['ds'], recursive=True)
 
     def on_vfs_mount_or_unmount(type, args):
-        with dispatcher.get_lock('zfs-cache'):
-            ds = datasets.query(('properties.mountpoint.value', '=', args['path']), single=True)
-            if not ds:
-                for mnt in bsd.getmntinfo():
-                    if mnt.dest == args['path']:
-                        ds = datasets.query(('id', '=', mnt.source), single=True)
-                        if ds:
-                            break
+        if args['fstype'] == 'zfs':
+            with dispatcher.get_lock('zfs-cache'):
+                if 'source' in args:
+                    ds = datasets.query(('id', '=', args['source']), single=True)
+                else:
+                    ds = datasets.query(('properties.mountpoint.value', '=', args['path']), single=True)
+                if not ds:
+                    for mnt in bsd.getmntinfo():
+                        if mnt.dest == args['path']:
+                            ds = datasets.query(('id', '=', mnt.source), single=True)
+                            if ds:
+                                break
 
-            if not ds:
-                return
+                if not ds:
+                    return
 
-            logger.info('Dataset {0} {1}ed'.format(ds['name'], type))
-            if type == 'mount':
-                ds['mounted'] = True
+                logger.info('Dataset {0} {1}ed'.format(ds['name'], type))
+                if type == 'mount':
+                    ds['mounted'] = True
 
-            if type == 'unmount':
-                ds['mounted'] = False
+                if type == 'unmount':
+                    ds['mounted'] = False
 
-            datasets.put(ds['id'], ds)
-            sync_dataset_cache(dispatcher, ds['name'], recursive=True)
+                datasets.put(ds['id'], ds)
+                sync_dataset_cache(dispatcher, ds['name'], recursive=True)
 
     def on_device_attached(args):
         for p in pools.validvalues():
