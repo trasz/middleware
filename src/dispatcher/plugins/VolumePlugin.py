@@ -2483,6 +2483,10 @@ def register_property_schemas(plugin):
             'type': 'integer',
             'readOnly': True
         },
+        'readonly': {
+            'type': 'string',
+            'readOnly': True
+        },
         'usedbyrefreservation': {
             'type': 'integer',
             'readOnly': True
@@ -2617,6 +2621,13 @@ def _init(dispatcher, plugin):
                 'org.freenas:uuid': {'value': str(uuid.uuid4())}
             })
 
+        temp_mountpoint = None
+        if ds.get('properties.readonly.parsed') and ds.get('properties.mounted.value') == 'yes':
+            for mnt in bsd.getmntinfo():
+                if mnt.source == ds['name'] and mnt.dest != ds.get('properties.mountpoint.parsed'):
+                    temp_mountpoint = mnt.dest
+                    break
+
         return {
             'id': ds['name'],
             'name': ds['name'],
@@ -2624,6 +2635,7 @@ def _init(dispatcher, plugin):
             'volume': ds['pool'],
             'type': ds['type'],
             'mountpoint': ds.get('properties.mountpoint.value'),
+            'temp_mountpoint': temp_mountpoint,
             'mounted': yesno_to_bool(ds.get('properties.mounted.value')),
             'volsize': ds.get('properties.volsize.parsed'),
             'properties': include(
@@ -2633,7 +2645,7 @@ def _init(dispatcher, plugin):
                 'casesensitivity', 'volsize', 'volblocksize', 'refcompressratio',
                 'numclones', 'compressratio', 'written', 'referenced',
                 'usedbyrefreservation', 'usedbysnapshots', 'usedbydataset',
-                'usedbychildren', 'logicalused', 'logicalreferenced'
+                'usedbychildren', 'logicalused', 'logicalreferenced', 'readonly'
             ),
             'permissions_type': ds.get('properties.org\\.freenas:permissions_type.value'),
             'permissions': perms['permissions'] if perms else None
@@ -2811,6 +2823,10 @@ def _init(dispatcher, plugin):
             'rname': {'type': 'string'},
             'volume': {'type': 'string'},
             'mountpoint': {
+                'type': ['string', 'null'],
+                'readOnly': True
+            },
+            'temp_mountpoint': {
                 'type': ['string', 'null'],
                 'readOnly': True
             },
