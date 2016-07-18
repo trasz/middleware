@@ -522,6 +522,7 @@ class DockerHost(object):
         self.state = DockerHostState.DOWN
         self.connection = None
         self.listener = None
+        self.mapped_ports = {}
         self.logger = logging.getLogger(self.__class__.__name__)
         gevent.spawn(self.wait_ready)
 
@@ -556,10 +557,13 @@ class DockerHost(object):
 
                         self.logger.debug('Redirecting container {0} ports on host firewall'.format(ev['id']))
 
+                        p = pf.PF()
+                        mapped_ports = []
+
                         # Setup or destroy port redirection now, if needed
                         if ev['Action'] == 'start':
                             for i in get_docker_ports(details):
-                                p = pf.PF()
+
 
                                 if first_or_default(
                                     lambda r: r.proxy_ports[0] == i['host_port'],
@@ -584,9 +588,16 @@ class DockerHost(object):
                                 ))
                                 rule.proxy_ports = [i['host_port'], 0]
                                 p.append_rule('rdr', rule)
+                                mapped_ports.append(i['host_port'])
+
+                            self.mapped_ports[ev['id']] = mapped_ports
 
                         if ev['Action'] == 'destroy':
                             self.logger.debug(json.dumps(details, indent=4))
+                            for i in self.mapped_ports.get(ev['id'], {}):
+                                rule = first_or_default(lambda r: r.proxy_ports[0] == i, p.get_rules('rdr'))
+                                if rule:
+                                    p.delete_rule('rdr', rule.index)
 
                     if ev['Type'] == 'image':
                         self.context.client.emit_event('docker.image.changed', {
