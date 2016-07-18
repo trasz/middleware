@@ -27,7 +27,7 @@
 
 import re
 import errno
-from freenas.dispatcher.rpc import accepts, description, returns, SchemaHelper as h
+from freenas.dispatcher.rpc import accepts, description, returns, SchemaHelper as h, generator
 from task import Provider, Task, VerifyException, query, TaskDescription
 from freenas.utils.query import wrap
 
@@ -74,6 +74,7 @@ UNITS = {
 @description('Provides information about statistics')
 class StatProvider(Provider):
     @query('statistic')
+    @generator
     def query(self, filter=None, params=None):
         stats = self.dispatcher.call_sync('statd.output.get_current_state')
         return wrap(stats).query(*(filter or []), stream=True, **(params or {}))
@@ -97,6 +98,7 @@ class StatProvider(Provider):
 @description('Provides information about CPU statistics')
 class CpuStatProvider(Provider):
     @query('statistic')
+    @generator
     def query(self, filter=None, params=None):
         stats = self.dispatcher.call_sync('stat.query', [('name', '~', 'cpu')])
 
@@ -115,6 +117,7 @@ class CpuStatProvider(Provider):
 @description('Provides information about disk statistics')
 class DiskStatProvider(Provider):
     @query('statistic')
+    @generator
     def query(self, filter=None, params=None):
         stats = self.dispatcher.call_sync('stat.query', [('name', '~', 'disk')])
 
@@ -132,6 +135,7 @@ class DiskStatProvider(Provider):
 @description('Provides information about network statistics')
 class NetworkStatProvider(Provider):
     @query('statistic')
+    @generator
     def query(self, filter=None, params=None):
         stats = self.dispatcher.call_sync('stat.query', [('name', '~', 'interface')])
 
@@ -149,6 +153,7 @@ class NetworkStatProvider(Provider):
 @description('Provides information about system statistics')
 class SystemStatProvider(Provider):
     @query('statistic')
+    @generator
     def query(self, filter=None, params=None):
         stats = self.dispatcher.call_sync(
             'stat.query',

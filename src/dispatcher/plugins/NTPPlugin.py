@@ -28,7 +28,7 @@ import errno
 import logging
 from datastore import DatastoreException
 from task import Task, Provider, TaskException, ValidationException, VerifyException, query, TaskDescription
-from freenas.dispatcher.rpc import RpcException, accepts, description
+from freenas.dispatcher.rpc import RpcException, accepts, description, generator
 from freenas.dispatcher.rpc import SchemaHelper as h
 from lib.system import system, SubprocessException
 
@@ -38,6 +38,7 @@ logger = logging.getLogger('NTPPlugin')
 @description("Provides access to NTP Servers configuration")
 class NTPServersProvider(Provider):
     @query('ntp-server')
+    @generator
     def query(self, filter=None, params=None):
         return self.datastore.query_stream('ntpservers', *(filter or []), **(params or {}))
 

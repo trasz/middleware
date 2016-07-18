@@ -34,7 +34,8 @@ from freenas.dispatcher.rpc import (
     RpcException,
     accepts,
     returns,
-    SchemaHelper as h
+    SchemaHelper as h,
+    generator
 )
 from task import (
     query,
@@ -50,6 +51,7 @@ logger = logging.getLogger('DirectoryServicePlugin')
 
 class DirectoryServicesProvider(Provider):
     @query('directoryservice')
+    @generator
     def query(self, filter=None, params=None):
         def extend(directory):
             directory['status'] = self.dispatcher.call_sync('dscached.management.get_status', directory['id'])

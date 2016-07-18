@@ -34,7 +34,7 @@ import logging
 from task import Task, Provider, TaskException, TaskDescription, VerifyException, ValidationException, query
 from debug import AttachFile, AttachCommandOutput
 from resources import Resource
-from freenas.dispatcher.rpc import RpcException, description, accepts, private, returns
+from freenas.dispatcher.rpc import RpcException, description, accepts, private, returns, generator
 from freenas.dispatcher.rpc import SchemaHelper as h
 from datastore.config import ConfigNode
 from lib.system import system, SubprocessException
@@ -49,6 +49,7 @@ logger = logging.getLogger('ServiceManagePlugin')
 class ServiceInfoProvider(Provider):
     @description("Lists available services")
     @query("service")
+    @generator
     def query(self, filter=None, params=None):
         def extend(i):
             state, pid = get_status(self.dispatcher, i)

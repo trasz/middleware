@@ -39,7 +39,7 @@ from task import (
     Provider, Task, ProgressTask, TaskStatus, TaskException,
     VerifyException, TaskAbortException, query, TaskDescription
 )
-from freenas.dispatcher.rpc import RpcException, accepts, returns, description, private
+from freenas.dispatcher.rpc import RpcException, accepts, returns, description, private, generator
 from freenas.dispatcher.rpc import SchemaHelper as h
 from freenas.dispatcher.jsonenc import dumps
 from balancer import TaskState
@@ -66,6 +66,7 @@ snapshots = None
 class ZpoolProvider(Provider):
     @description("Lists ZFS pools")
     @query('zfs-pool')
+    @generator
     def query(self, filter=None, params=None):
         return pools.query(*(filter or []), stream=True, **(params or {}))
 
@@ -160,6 +161,7 @@ class ZpoolProvider(Provider):
 @description('Provides information about ZFS datasets')
 class ZfsDatasetProvider(Provider):
     @query('zfs-dataset')
+    @generator
     def query(self, filter=None, params=None):
         return datasets.query(*(filter or []), stream=True, **(params or {}))
 
@@ -242,6 +244,7 @@ class ZfsDatasetProvider(Provider):
 @description('Provides information about ZFS snapshots')
 class ZfsSnapshotProvider(Provider):
     @query('zfs-snapshot')
+    @generator
     def query(self, filter=None, params=None):
         return snapshots.query(*(filter or []), stream=True, **(params or {}))
 

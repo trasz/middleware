@@ -31,7 +31,7 @@ import uuid
 import hashlib
 import ctl
 from task import Task, Provider, VerifyException, TaskDescription
-from freenas.dispatcher.rpc import RpcException, description, accepts, returns, private
+from freenas.dispatcher.rpc import RpcException, description, accepts, returns, private, generator
 from freenas.dispatcher.rpc import SchemaHelper as h
 from freenas.utils import normalize
 from freenas.utils.query import wrap
@@ -86,18 +86,21 @@ class ISCSISharesProvider(Provider):
 
 @description('Provides information about iSCSI targets')
 class ISCSITargetsProvider(Provider):
+    @generator
     def query(self, filter=None, params=None):
         return self.datastore.query_stream('iscsi.targets', *(filter or []), **(params or {}))
 
 
 @description('Provides information about iSCSI auth groups')
 class ISCSIAuthProvider(Provider):
+    @generator
     def query(self, filter=None, params=None):
         return self.datastore.query_stream('iscsi.auth', *(filter or []), **(params or {}))
 
 
 @description('Provides information about iSCSI portals')
 class ISCSIPortalProvider(Provider):
+    @generator
     def query(self, filter=None, params=None):
         return self.datastore.query_stream('iscsi.portals', *(filter or []), **(params or {}))
 

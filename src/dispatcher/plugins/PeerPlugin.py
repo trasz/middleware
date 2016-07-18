@@ -31,7 +31,7 @@ import logging
 from freenas.dispatcher.client import Client
 from paramiko import AuthenticationException
 from utils import get_replication_client, call_task_and_check_state
-from freenas.dispatcher.rpc import RpcException, SchemaHelper as h, description, accepts, private
+from freenas.dispatcher.rpc import RpcException, SchemaHelper as h, description, accepts, private, generator
 from task import Task, Provider, TaskException, TaskWarning, VerifyException, query, TaskDescription
 
 
@@ -46,6 +46,7 @@ ssh_port = None
 @description('Provides information about known peers')
 class PeerProvider(Provider):
     @query('peer')
+    @generator
     def query(self, filter=None, params=None):
         return self.datastore.query_stream('peers', *(filter or []), **(params or {}))
 

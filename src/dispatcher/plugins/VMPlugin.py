@@ -40,7 +40,7 @@ import shutil
 import logging
 import datetime
 from task import Provider, Task, ProgressTask, VerifyException, TaskException, query, TaskWarning, TaskDescription
-from freenas.dispatcher.rpc import RpcException
+from freenas.dispatcher.rpc import RpcException, generator
 from freenas.dispatcher.rpc import SchemaHelper as h, description, accepts
 from freenas.utils import first_or_default, normalize, deep_update, process_template, in_directory, sha256
 from utils import save_config, load_config, delete_config
@@ -59,6 +59,7 @@ logger = logging.getLogger(__name__)
 @description('Provides information about VMs')
 class VMProvider(Provider):
     @query('vm')
+    @generator
     def query(self, filter=None, params=None):
         def extend(obj):
             obj['status'] = self.dispatcher.call_sync('containerd.management.get_status', obj['id'])
@@ -170,6 +171,7 @@ class VMProvider(Provider):
 @description('Provides information about VM snapshots')
 class VMSnapshotProvider(Provider):
     @query('vm-snapshot')
+    @generator
     def query(self, filter=None, params=None):
         return self.datastore.query_stream('vm.snapshots', *(filter or []), **(params or {}))
 
@@ -197,6 +199,7 @@ class VMSnapshotProvider(Provider):
 @description('Provides information about VM templates')
 class VMTemplateProvider(Provider):
     @query('vm')
+    @generator
     def query(self, filter=None, params=None):
         fetch_lock = self.dispatcher.get_lock('vm_templates')
         try:

@@ -32,7 +32,7 @@ import time
 import datetime
 from pytz import UTC
 from datastore import DatastoreException
-from freenas.dispatcher.rpc import RpcException, description, accepts
+from freenas.dispatcher.rpc import RpcException, description, accepts, generator
 from freenas.dispatcher.rpc import SchemaHelper as h
 from task import Provider, Task, TaskException, VerifyException, query, TaskDescription
 from freenas.utils.query import wrap
@@ -85,6 +85,7 @@ def load_privatekey(buf, passphrase=None):
 @description("Provider for certificates")
 class CertificateProvider(Provider):
     @query('crypto-certificate')
+    @generator
     def query(self, filter=None, params=None):
         def extend(certificate):
             if certificate['type'].startswith('CA_'):

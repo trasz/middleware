@@ -34,7 +34,7 @@ from tempfile import TemporaryFile
 
 from datastore import DatastoreException
 from datastore.config import ConfigNode
-from freenas.dispatcher.rpc import RpcException, SchemaHelper as h, description, accepts, returns, private
+from freenas.dispatcher.rpc import RpcException, SchemaHelper as h, description, accepts, returns, private, generator
 from task import (
     Task, ProgressTask, Provider, TaskException, query,
     ValidationException, VerifyException, TaskDescription
@@ -56,6 +56,7 @@ class RsyncdProvider(Provider):
 class RsyncdModuleProvider(Provider):
     @description("Lists rsyncd modules present in the system")
     @query('rsyncd-module')
+    @generator
     def query(self, filter=None, params=None):
         return self.datastore.query_stream('rsyncd-module', *(filter or []), **(params or {}))
 

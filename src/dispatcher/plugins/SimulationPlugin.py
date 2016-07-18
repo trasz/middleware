@@ -28,13 +28,14 @@
 import os
 import errno
 from task import Task, Provider, VerifyException, TaskDescription
-from freenas.dispatcher.rpc import description, accepts
+from freenas.dispatcher.rpc import description, accepts, generator
 from freenas.dispatcher.rpc import SchemaHelper as h
 from freenas.utils import normalize
 
 
 @description('Provides information about simulated disks')
 class FakeDisksProvider(Provider):
+    @generator
     def query(self, filter=None, params=None):
         return self.datastore.query_stream('simulator.disks', *(filter or []), **(params or {}))
 

@@ -36,7 +36,8 @@ from freenas.dispatcher.rpc import (
     accepts,
     description,
     returns,
-    private
+    private,
+    generator
 )
 from task import Provider, Task, TaskException, TaskDescription, VerifyException, query
 from freenas.utils import normalize
@@ -48,6 +49,7 @@ registered_alerts = {}
 @description('Provides access to the alert system')
 class AlertsProvider(Provider):
     @query('alert')
+    @generator
     def query(self, filter=None, params=None):
         return self.datastore.query_stream(
             'alerts', *(filter or []), **(params or {})
@@ -154,6 +156,7 @@ class AlertsProvider(Provider):
 class AlertsFiltersProvider(Provider):
 
     @query('alert-filter')
+    @generator
     def query(self, filter=None, params=None):
         return self.datastore.query_stream(
             'alert.filters', *(filter or []), **(params or {})

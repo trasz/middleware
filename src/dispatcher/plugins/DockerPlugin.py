@@ -25,16 +25,18 @@
 #
 #####################################################################
 
-from task import Provider, Task, ProgressTask, TaskException, TaskDescription
+from task import Provider, Task, ProgressTask, TaskDescription
 from cache import EventCacheStore
 from freenas.utils import normalize
 from freenas.utils.query import wrap
+from freenas.dispatcher.rpc import generator
 
 
 containers = None
 
 
 class DockerHostProvider(Provider):
+    @generator
     def query(self, filter=None, params=None):
         def extend(obj):
             ret = {
@@ -57,12 +59,14 @@ class DockerHostProvider(Provider):
 
 
 class DockerContainerProvider(Provider):
+    @generator
     def query(self, filter=None, params=None):
         containers = wrap(self.dispatcher.call_sync('containerd.docker.query_containers'))
         return containers.query(*(filter or []), stream=True, **(params or {}))
 
 
 class DockerImagesProvider(Provider):
+    @generator
     def query(self, filter=None, params=None):
         containers = wrap(self.dispatcher.call_sync('containerd.docker.query_images'))
         return containers.query(*(filter or []), stream=True, **(params or {}))

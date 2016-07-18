@@ -29,7 +29,7 @@ import errno
 import ipaddress
 import logging
 import os
-from freenas.dispatcher.rpc import RpcException, description, accepts, returns
+from freenas.dispatcher.rpc import RpcException, description, accepts, returns, generator
 from freenas.dispatcher.rpc import SchemaHelper as h
 from freenas.utils import normalize
 from freenas.utils.query import wrap
@@ -77,6 +77,7 @@ class NetworkProvider(Provider):
 @description("Provides access to network interface settings")
 class InterfaceProvider(Provider):
     @query('network-interface')
+    @generator
     def query(self, filter=None, params=None):
         ifaces = self.dispatcher.call_sync('networkd.configuration.query_interfaces')
 
@@ -96,6 +97,7 @@ class InterfaceProvider(Provider):
 @description("Provides information on system's network routes")
 class RouteProvider(Provider):
     @query('network-route')
+    @generator
     def query(self, filter=None, params=None):
         return self.datastore.query_stream('network.routes', *(filter or []), **(params or {}))
 
@@ -103,6 +105,7 @@ class RouteProvider(Provider):
 @description("Provides access to static host entries database")
 class HostsProvider(Provider):
     @query('network-host')
+    @generator
     def query(self, filter=None, params=None):
         return self.datastore.query_stream('network.hosts', *(filter or []), **(params or {}))
 

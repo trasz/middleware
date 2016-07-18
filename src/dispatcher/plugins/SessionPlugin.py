@@ -26,16 +26,17 @@
 #####################################################################
 
 import time
-from task import Provider, query, TaskDescription
+from task import Provider, query
 from auth import Token
 from freenas.dispatcher.rpc import (
-    description, pass_sender, returns, accepts, SchemaHelper as h
+    description, pass_sender, returns, accepts, generator, SchemaHelper as h
 )
 
 
 @description("Provides Information about the current loggedin Session")
 class SessionProvider(Provider):
     @query('session')
+    @generator
     def query(self, filter=None, params=None):
         return self.datastore.query_stream('sessions', *(filter or []), **(params or {}))
 

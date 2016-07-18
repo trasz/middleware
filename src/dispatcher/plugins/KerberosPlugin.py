@@ -44,6 +44,7 @@ class KerberosRealmsProvider(Provider):
 
 class KerberosKeytabsProvider(Provider):
     @query('kerberos-keytab')
+    @generator
     def query(self, filter=None, params=None):
         ctx = krb5.Context()
 

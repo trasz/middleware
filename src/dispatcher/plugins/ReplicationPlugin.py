@@ -39,7 +39,7 @@ from paramiko import RSAKey, SSHException
 from datetime import datetime
 from dateutil.parser import parse as parse_datetime
 from task import Provider, Task, ProgressTask, VerifyException, TaskException, TaskWarning, query, TaskDescription
-from freenas.dispatcher.rpc import RpcException, SchemaHelper as h, description, accepts, returns, private
+from freenas.dispatcher.rpc import RpcException, SchemaHelper as h, description, accepts, returns, private, generator
 from freenas.dispatcher.fd import FileDescriptor
 from utils import get_replication_client, call_task_and_check_state
 from freenas.utils import first_or_default
@@ -76,6 +76,7 @@ class ReplicationAction(object):
 @description('Provides information about replication tasks')
 class ReplicationLinkProvider(Provider):
     @query('replication-link')
+    @generator
     def query(self, filter=None, params=None):
         def extend(obj):
             if status_cache.is_valid(obj['name']):

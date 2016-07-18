@@ -34,7 +34,7 @@ import hashlib
 from datetime import datetime
 from freenas.dispatcher.jsonenc import dumps, loads
 from freenas.dispatcher.fd import FileDescriptor
-from freenas.dispatcher.rpc import RpcException, accepts, returns, description, SchemaHelper as h
+from freenas.dispatcher.rpc import RpcException, accepts, returns, description, SchemaHelper as h, generator
 from task import Provider, Task, ProgressTask, VerifyException, TaskException, TaskDescription
 from freenas.utils import normalize, first_or_default
 from freenas.utils.query import wrap
@@ -46,6 +46,7 @@ MANIFEST_FILENAME = 'FREENAS_MANIFEST'
 
 @description('Provides information about backups')
 class BackupProvider(Provider):
+    @generator
     def query(self, filter=None, params=None):
         def extend(backup):
             return backup

@@ -34,7 +34,7 @@ from datetime import datetime
 from task import Provider, Task, ProgressTask, VerifyException, TaskException, query, TaskDescription
 from cache import EventCacheStore
 from utils import split_dataset
-from freenas.dispatcher.rpc import accepts, returns, description, SchemaHelper as h
+from freenas.dispatcher.rpc import accepts, returns, description, SchemaHelper as h, generator
 from freenas.utils import first_or_default
 from freenas.utils.query import wrap
 
@@ -58,6 +58,7 @@ class BootPoolProvider(Provider):
 @description("Provides information on Boot Environments")
 class BootEnvironmentsProvider(Provider):
     @query('boot-environment')
+    @generator
     def query(self, filter=None, params=None):
         return bootenvs.query(*(filter or []), stream=True, **(params or {}))
 

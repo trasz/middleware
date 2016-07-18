@@ -30,7 +30,7 @@ import re
 import errno
 import ipaddress
 import logging
-from freenas.dispatcher.rpc import RpcException, description, accepts, returns
+from freenas.dispatcher.rpc import RpcException, description, accepts, returns, generator
 from freenas.dispatcher.rpc import SchemaHelper as h
 from task import Provider, Task, TaskException, VerifyException, query, TaskDescription
 from lib.system import system, SubprocessException
@@ -65,6 +65,7 @@ class IPMIProvider(Provider):
         return channels
 
     @query('ipmi')
+    @generator
     def query(self, filter=None, params=None):
         if not self.is_ipmi_loaded():
             raise RpcException(errno.ENXIO, 'The IPMI device could not be found')

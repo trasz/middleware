@@ -29,7 +29,7 @@ import logging
 import re
 from datastore import DatastoreException
 from task import Task, Provider, TaskException, ValidationException, VerifyException, query, TaskDescription
-from freenas.dispatcher.rpc import RpcException, accepts, description
+from freenas.dispatcher.rpc import RpcException, accepts, description, generator
 from freenas.dispatcher.rpc import SchemaHelper as h
 from lib.system import SubprocessException, system
 from bsd import sysctl
@@ -67,6 +67,7 @@ def sysctl_set(name, value):
 @description("Provides access to OS tunables")
 class TunablesProvider(Provider):
     @query('tunable')
+    @generator
     def query(self, filter=None, params=None):
         return self.datastore.query_stream('tunables', *(filter or []), **(params or {}))
 
