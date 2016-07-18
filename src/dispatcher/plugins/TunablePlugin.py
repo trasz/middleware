@@ -68,7 +68,7 @@ def sysctl_set(name, value):
 class TunablesProvider(Provider):
     @query('tunable')
     def query(self, filter=None, params=None):
-        return self.datastore.query('tunables', *(filter or []), **(params or {}))
+        return self.datastore.query_stream('tunables', *(filter or []), **(params or {}))
 
 
 @description("Adds Tunable")

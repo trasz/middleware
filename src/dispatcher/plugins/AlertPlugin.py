@@ -49,7 +49,7 @@ registered_alerts = {}
 class AlertsProvider(Provider):
     @query('alert')
     def query(self, filter=None, params=None):
-        return self.datastore.query(
+        return self.datastore.query_stream(
             'alerts', *(filter or []), **(params or {})
         )
 
@@ -155,7 +155,7 @@ class AlertsFiltersProvider(Provider):
 
     @query('alert-filter')
     def query(self, filter=None, params=None):
-        return self.datastore.query(
+        return self.datastore.query_stream(
             'alert.filters', *(filter or []), **(params or {})
         )
 

@@ -67,7 +67,7 @@ class ZpoolProvider(Provider):
     @description("Lists ZFS pools")
     @query('zfs-pool')
     def query(self, filter=None, params=None):
-        return pools.query(*(filter or []), **(params or {}))
+        return pools.query(*(filter or []), stream=True, **(params or {}))
 
     @accepts()
     @returns(h.array(h.ref('zfs-pool')))
@@ -161,7 +161,7 @@ class ZpoolProvider(Provider):
 class ZfsDatasetProvider(Provider):
     @query('zfs-dataset')
     def query(self, filter=None, params=None):
-        return datasets.query(*(filter or []), **(params or {}))
+        return datasets.query(*(filter or []), stream=True, **(params or {}))
 
     @accepts(h.array(str))
     @returns(h.object())
@@ -243,7 +243,7 @@ class ZfsDatasetProvider(Provider):
 class ZfsSnapshotProvider(Provider):
     @query('zfs-snapshot')
     def query(self, filter=None, params=None):
-        return snapshots.query(*(filter or []), **(params or {}))
+        return snapshots.query(*(filter or []), stream=True, **(params or {}))
 
 
 @private

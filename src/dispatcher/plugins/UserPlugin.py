@@ -36,6 +36,7 @@ from freenas.dispatcher.rpc import RpcException, description, accepts, returns, 
 from datastore import DuplicateKeyException, DatastoreException
 from lib.system import SubprocessException, system
 from freenas.utils import normalize, crypted_password, nt_password
+from freenas.utils.query import wrap
 
 
 EMAIL_REGEX = re.compile(r"\b[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]*[a-zA-Z0-9]\.[a-zA-Z]{2,4}\b")
@@ -92,7 +93,7 @@ class UserProvider(Provider):
                 if key == 'username':
                     return self.dispatcher.call_sync('dscached.account.getpwnam', value)
 
-        return self.dispatcher.call_sync('dscached.account.query', filter, params)
+        return wrap(self.dispatcher.call_sync('dscached.account.query', filter, params)).query(stream=True)
 
     def get_profile_picture(self, uid):
         pass
@@ -135,7 +136,7 @@ class GroupProvider(Provider):
                 if key == 'name':
                     return self.dispatcher.call_sync('dscached.group.getgrnam', value)
 
-        return self.dispatcher.call_sync('dscached.group.query', filter, params)
+        return wrap(self.dispatcher.call_sync('dscached.group.query', filter, params)).query(stream=True)
 
     @description("Retrieve the next GID available")
     @returns(int)

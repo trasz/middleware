@@ -53,19 +53,19 @@ class DockerHostProvider(Provider):
             return ret
 
         results = self.datastore.query('vms', ('config.docker_host', '=', True), callback=extend)
-        return wrap(results).query(*(filter or []), **(params or {}))
+        return wrap(results).query(*(filter or []), stream=True, **(params or {}))
 
 
 class DockerContainerProvider(Provider):
     def query(self, filter=None, params=None):
         containers = wrap(self.dispatcher.call_sync('containerd.docker.query_containers'))
-        return containers.query(*(filter or []), **(params or {}))
+        return containers.query(*(filter or []), stream=True, **(params or {}))
 
 
 class DockerImagesProvider(Provider):
     def query(self, filter=None, params=None):
         containers = wrap(self.dispatcher.call_sync('containerd.docker.query_images'))
-        return containers.query(*(filter or []), **(params or {}))
+        return containers.query(*(filter or []), stream=True, **(params or {}))
 
 
 class DockerContainerCreateTask(ProgressTask):

@@ -87,19 +87,19 @@ class ISCSISharesProvider(Provider):
 @description('Provides information about iSCSI targets')
 class ISCSITargetsProvider(Provider):
     def query(self, filter=None, params=None):
-        return self.datastore.query('iscsi.targets', *(filter or []), **(params or {}))
+        return self.datastore.query_stream('iscsi.targets', *(filter or []), **(params or {}))
 
 
 @description('Provides information about iSCSI auth groups')
 class ISCSIAuthProvider(Provider):
     def query(self, filter=None, params=None):
-        return self.datastore.query('iscsi.auth', *(filter or []), **(params or {}))
+        return self.datastore.query_stream('iscsi.auth', *(filter or []), **(params or {}))
 
 
 @description('Provides information about iSCSI portals')
 class ISCSIPortalProvider(Provider):
     def query(self, filter=None, params=None):
-        return self.datastore.query('iscsi.portals', *(filter or []), **(params or {}))
+        return self.datastore.query_stream('iscsi.portals', *(filter or []), **(params or {}))
 
 
 @private

@@ -88,23 +88,23 @@ class InterfaceProvider(Provider):
                 return None
             return i
 
-        return self.datastore.query(
-            'network.interfaces', *(filter or []), callback=extend, **(params or {})
-        )
+        return wrap(
+            self.datastore.query('network.interfaces', callback=extend)
+        ).query(*(filter or []), stream=True, **(params or {}))
 
 
 @description("Provides information on system's network routes")
 class RouteProvider(Provider):
     @query('network-route')
     def query(self, filter=None, params=None):
-        return self.datastore.query('network.routes', *(filter or []), **(params or {}))
+        return self.datastore.query_stream('network.routes', *(filter or []), **(params or {}))
 
 
 @description("Provides access to static host entries database")
 class HostsProvider(Provider):
     @query('network-host')
     def query(self, filter=None, params=None):
-        return self.datastore.query('network.hosts', *(filter or []), **(params or {}))
+        return self.datastore.query_stream('network.hosts', *(filter or []), **(params or {}))
 
 
 @description("Updates global network configuration settings")

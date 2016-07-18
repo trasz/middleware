@@ -85,7 +85,7 @@ class ReplicationLinkProvider(Provider):
         links = link_cache.query(*[], **{})
 
         links = list(map(extend, links))
-        return wrap(links).query(*(filter or []), **(params or {}))
+        return wrap(links).query(*(filter or []), stream=True, **(params or {}))
 
     def sync_query(self, filter=None, params=None):
         def extend(obj):

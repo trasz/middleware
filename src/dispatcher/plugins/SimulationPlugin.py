@@ -36,7 +36,7 @@ from freenas.utils import normalize
 @description('Provides information about simulated disks')
 class FakeDisksProvider(Provider):
     def query(self, filter=None, params=None):
-        return self.datastore.query('simulator.disks', *(filter or []), **(params or {}))
+        return self.datastore.query_stream('simulator.disks', *(filter or []), **(params or {}))
 
 
 @description("Creates a Simulated Fake Disk with the parameters provided")

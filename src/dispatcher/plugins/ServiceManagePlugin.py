@@ -89,7 +89,7 @@ class ServiceInfoProvider(Provider):
 
         result = group.map(result, jobs)
         result = list(map(lambda s: extend_dict(s, {'config': wrap(self.get_service_config(s['id']))}), result))
-        return wrap(result).query(*(filter or []), **(params or {}))
+        return wrap(result).query(*(filter or []), stream=True, **(params or {}))
 
     @accepts(str)
     @returns(h.object())

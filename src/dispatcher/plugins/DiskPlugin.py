@@ -94,7 +94,9 @@ class DiskProvider(Provider):
             disk['rname'] = 'disk:{0}'.format(disk['path'])
             return disk
 
-        return wrap(self.datastore.query('disks', callback=extend)).query(*(filter or []), **(params or {}))
+        return wrap(
+            self.datastore.query('disks', callback=extend)
+        ).query(*(filter or []), stream=True, **(params or {}))
 
     @accepts(str)
     @returns(bool)

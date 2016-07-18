@@ -39,7 +39,7 @@ logger = logging.getLogger('NTPPlugin')
 class NTPServersProvider(Provider):
     @query('ntp-server')
     def query(self, filter=None, params=None):
-        return self.datastore.query('ntpservers', *(filter or []), **(params or {}))
+        return self.datastore.query_stream('ntpservers', *(filter or []), **(params or {}))
 
 
 @description("Adds new NTP Server")

@@ -114,7 +114,7 @@ class UITransactionProvider(Provider):
 
     @pass_sender
     @accepts(str)
-    def query(self, identifier, sender):
+    def get_one(self, identifier, sender):
         if identifier not in transactions:
             return None
 

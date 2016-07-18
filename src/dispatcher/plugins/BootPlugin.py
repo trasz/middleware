@@ -59,7 +59,7 @@ class BootPoolProvider(Provider):
 class BootEnvironmentsProvider(Provider):
     @query('boot-environment')
     def query(self, filter=None, params=None):
-        return bootenvs.query(*(filter or []), **(params or {}))
+        return bootenvs.query(*(filter or []), stream=True, **(params or {}))
 
 
 @description(

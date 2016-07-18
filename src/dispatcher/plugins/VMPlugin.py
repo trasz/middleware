@@ -70,7 +70,9 @@ class VMProvider(Provider):
                         obj['template']['readme'] = readme_file.read()
             return obj
 
-        return self.datastore.query('vms', *(filter or []), callback=extend, **(params or {}))
+        return wrap(
+            self.datastore.query('vms', callback=extend)
+        ).query(*(filter or []), stream=True, **(params or {}))
 
     def get_vm_root(self, vm_id):
         vm = self.datastore.get_by_id('vms', vm_id)
@@ -169,7 +171,7 @@ class VMProvider(Provider):
 class VMSnapshotProvider(Provider):
     @query('vm-snapshot')
     def query(self, filter=None, params=None):
-        return self.datastore.query('vm.snapshots', *(filter or []), **(params or {}))
+        return self.datastore.query_stream('vm.snapshots', *(filter or []), **(params or {}))
 
     def get_dependent_datasets(self, id):
         snapshot = self.dispatcher.call_sync('vm.snapshot.query', [('id', '=', id)], {'single': True})
@@ -230,7 +232,7 @@ class VMTemplateProvider(Provider):
                     except ValueError:
                         pass
 
-        return wrap(templates).query(*(filter or []), **(params or {}))
+        return wrap(templates).query(*(filter or []), stream=True, **(params or {}))
 
 
 class VMBaseTask(ProgressTask):

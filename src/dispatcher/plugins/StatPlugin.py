@@ -76,7 +76,7 @@ class StatProvider(Provider):
     @query('statistic')
     def query(self, filter=None, params=None):
         stats = self.dispatcher.call_sync('statd.output.get_current_state')
-        return wrap(stats).query(*(filter or []), **(params or {}))
+        return wrap(stats).query(*(filter or []), stream=True, **(params or {}))
 
     @returns(h.array(str))
     def get_data_sources(self):
@@ -109,7 +109,7 @@ class CpuStatProvider(Provider):
 
             normalize_values(stat)
 
-        return wrap(stats).query(*(filter or []), **(params or {}))
+        return wrap(stats).query(*(filter or []), stream=True, **(params or {}))
 
 
 @description('Provides information about disk statistics')
@@ -126,7 +126,7 @@ class DiskStatProvider(Provider):
 
             normalize_values(stat)
 
-        return wrap(stats).query(*(filter or []), **(params or {}))
+        return wrap(stats).query(*(filter or []), stream=True, **(params or {}))
 
 
 @description('Provides information about network statistics')
@@ -143,7 +143,7 @@ class NetworkStatProvider(Provider):
 
             normalize_values(stat)
 
-        return wrap(stats).query(*(filter or []), **(params or {}))
+        return wrap(stats).query(*(filter or []), stream=True, **(params or {}))
 
 
 @description('Provides information about system statistics')
@@ -171,7 +171,7 @@ class SystemStatProvider(Provider):
 
             normalize_values(stat)
 
-        return wrap(stats).query(*(filter or []), **(params or {}))
+        return wrap(stats).query(*(filter or []), stream=True, **(params or {}))
 
 
 @accepts(str, h.ref('statistic'))

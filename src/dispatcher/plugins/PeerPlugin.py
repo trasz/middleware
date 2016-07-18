@@ -47,7 +47,7 @@ ssh_port = None
 class PeerProvider(Provider):
     @query('peer')
     def query(self, filter=None, params=None):
-        return self.datastore.query('peers', *(filter or []), **(params or {}))
+        return self.datastore.query_stream('peers', *(filter or []), **(params or {}))
 
     @private
     def get_ssh_keys(self):

@@ -178,7 +178,9 @@ class VolumeProvider(Provider):
 
             return vol
 
-        return self.datastore.query_stream('volumes', *(filter or []), callback=extend, **(params or {}))
+        return wrap(
+            self.datastore.query_stream('volumes', callback=extend)
+        ).query(*(filter or []), stream=True, **(params or {}))
 
     @description("Finds volumes available for import")
     @accepts()
@@ -414,7 +416,7 @@ class DatasetProvider(Provider):
     @query('volume-dataset')
     @generator
     def query(self, filter=None, params=None):
-        return datasets.query(*(filter or []), **(params or {}))
+        return datasets.query_stream(*(filter or []), **(params or {}))
 
 
 @description('Provides information about snapshots')
@@ -422,7 +424,7 @@ class SnapshotProvider(Provider):
     @query('volume-snapshot')
     @generator
     def query(self, filter=None, params=None):
-        return snapshots.query(*(filter or []), **(params or {}))
+        return snapshots.query_stream(*(filter or []), **(params or {}))
 
 
 @description("Creating a volume")

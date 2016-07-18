@@ -27,9 +27,8 @@
 
 import errno
 import krb5
-import itertools
-from freenas.dispatcher.rpc import SchemaHelper as h, accepts, returns, description, generator
-from task import Task, TaskException, VerifyException, Provider, query
+from freenas.dispatcher.rpc import SchemaHelper as h, accepts, generator
+from task import Task, VerifyException, Provider, query
 from freenas.utils.query import wrap
 
 
@@ -40,7 +39,7 @@ class KerberosRealmsProvider(Provider):
         return wrap(
             self.dispatcher.call_sync('dscached.management.get_realms') +
             self.datastore.query('kerberos.realms')
-        ).query(*(filter or []), **(params or {}))
+        ).query(*(filter or []), stream=True, **(params or {}))
 
 
 class KerberosKeytabsProvider(Provider):
@@ -62,7 +61,9 @@ class KerberosKeytabsProvider(Provider):
             del keytab['keytab']
             return keytab
 
-        return self.datastore.query('kerberos.keytabs', *(filter or []), callback=extend, **(params or {}))
+        return wrap(
+            self.datastore.query('kerberos.keytabs', callback=extend)
+        ).query(*(filter or []), stream=True, **(params or {}))
 
 
 @accepts(h.ref('kerberos-realm'))

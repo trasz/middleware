@@ -30,6 +30,7 @@ from freenas.dispatcher.rpc import RpcException, description, accepts, returns, 
 from freenas.dispatcher.rpc import SchemaHelper as h
 from task import Provider, Task, TaskException, query, TaskDescription
 from lib.system import system, SubprocessException
+from freenas.utils.query import wrap
 
 
 @description('Provides information about calendar tasks')
@@ -37,7 +38,7 @@ class CalendarTasksProvider(Provider):
     @query('calendar-task')
     @generator
     def query(self, filter=None, params=None):
-        return self.dispatcher.call_sync('scheduler.management.query', filter, params)
+        return wrap(self.dispatcher.call_sync('scheduler.management.query', filter, params)).query(stream=True)
 
 
 @accepts(

@@ -33,17 +33,16 @@ from task import TaskException
 from freenas.dispatcher.rpc import (
     RpcException,
     accepts,
-    description,
     returns,
     SchemaHelper as h
 )
 from task import (
     query,
     Provider,
-    Task,
-    VerifyException
+    Task
 )
 
+from freenas.utils.query import wrap
 from freenas.utils import normalize
 
 logger = logging.getLogger('DirectoryServicePlugin')
@@ -56,7 +55,9 @@ class DirectoryServicesProvider(Provider):
             directory['status'] = self.dispatcher.call_sync('dscached.management.get_status', directory['id'])
             return directory
 
-        return self.datastore.query('directories', *(filter or []), callback=extend, **(params or {}))
+        return wrap(
+            self.datastore.query('directories', callback=extend)
+        ).query(*(filter or []), stream=True, **(params or {}))
 
 
 class DirectoryServicesConfigureTask(Task):

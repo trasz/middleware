@@ -83,7 +83,7 @@ class IPMIProvider(Provider):
             ret['dhcp'] = True if ret['dhcp'] == 'DHCP Address' else False
             result.append(ret)
 
-        return wrap(result).query(*(filter or []), **(params or {}))
+        return wrap(result).query(*(filter or []), stream=True, **(params or {}))
 
 
 @accepts(int, h.ref('ipmi-configuration'))

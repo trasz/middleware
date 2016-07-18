@@ -57,7 +57,7 @@ class RsyncdModuleProvider(Provider):
     @description("Lists rsyncd modules present in the system")
     @query('rsyncd-module')
     def query(self, filter=None, params=None):
-        return self.datastore.query('rsyncd-module', *(filter or []), **(params or {}))
+        return self.datastore.query_stream('rsyncd-module', *(filter or []), **(params or {}))
 
 
 @private
