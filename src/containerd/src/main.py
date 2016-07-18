@@ -560,6 +560,17 @@ class DockerHost(object):
                         if ev['Action'] == 'start':
                             for i in get_docker_ports(details):
                                 p = pf.PF()
+
+                                if first_or_default(
+                                    lambda r: r.proxy_ports[0] == i['host_port'],
+                                    p.get_rules('rdr')
+                                ):
+                                    self.logger.warning('Cannot redirect port {0} to  {1}: already in use'.format(
+                                        i['host_port'],
+                                        ev['id']
+                                    ))
+                                    continue
+
                                 rule = pf.Rule()
                                 rule.dst.port_range = [i['host_port'], 0]
                                 rule.dst.port_op = pf.RuleOperator.EQ
