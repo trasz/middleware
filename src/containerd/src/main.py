@@ -536,6 +536,7 @@ class DockerHost(object):
         self.logger.debug('Listening for docker events on {0}'.format(self.vm.name))
         actions = {
             'create': 'create',
+            'pull': 'create',
             'destroy': 'delete'
         }
 
