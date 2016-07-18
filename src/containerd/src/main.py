@@ -106,6 +106,9 @@ def get_docker_ports(details):
     if 'HostConfig' not in details:
         return
 
+    if 'PortBindings' not in details['HostConfig']:
+        return
+
     for port, config in details['HostConfig']['PortBindings'].items():
         num, proto = port.split('/')
         yield {
@@ -117,6 +120,9 @@ def get_docker_ports(details):
 
 def get_docker_volumes(details):
     if 'HostConfig' not in details:
+        return
+
+    if 'Mounts' not in details['HostConfig']:
         return
 
     for mnt in details['HostConfig']['Mounts']:
