@@ -1131,7 +1131,7 @@ class Main(object):
     def docker_host_by_container_id(self, id):
         for host in self.docker_hosts.values():
             try:
-                if host.connection.containers(quiet=True, filters={'id': id}):
+                if host.connection.containers(all=True, quiet=True, filters={'id': id}):
                     return host
             except:
                 pass
