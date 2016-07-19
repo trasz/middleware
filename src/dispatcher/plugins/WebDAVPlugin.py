@@ -67,7 +67,12 @@ class WebDAVConfigureTask(Task):
             errors.add((0, 'certificate'), 'SSL protocol specified without choosing a certificate')
 
         if node['certificate']:
-            cert = self.dispatcher.call_sync('crypto.certificate.query', [('id', '=', node['certificate'])])
+            cert = self.dispatcher.call_sync(
+                'crypto.certificate.query',
+                [('id', '=', node['certificate'])],
+                {'single': True}
+            )
+
             if not cert:
                 errors.add((0, 'certificate'), 'SSL Certificate not found.')
 
