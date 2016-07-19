@@ -201,6 +201,33 @@ def _init(dispatcher, plugin):
         }
     })
 
+    plugin.register_schema_definition('docker-image', {
+        'type': 'object',
+        'additionalProperties': False,
+        'properties': {
+            'id': {'type': 'string'},
+            'names': {
+                'type': 'array',
+                'items': {'type': 'string'}
+            },
+            'size': {'type': 'integer'},
+            'host': {'type': 'string'}
+        }
+    })
+
+    plugin.register_schema_definition('docker-hub-image', {
+        'type': 'object',
+        'additionalProperties': False,
+        'properties': {
+            'id': {'type': 'string'},
+            'namespace': {'type': 'string'},
+            'description': {'type': 'string'},
+            'full_description': {'type': 'string'},
+            'star_count': {'type': 'integer'},
+            'updated_at': {'type': 'datetime'},
+        }
+    })
+
     plugin.register_schema_definition('docker-volume', {
         'type': 'object',
         'additionalProperties': False,
