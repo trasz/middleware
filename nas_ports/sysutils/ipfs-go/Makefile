@@ -1,7 +1,7 @@
 # $FreeBSD$
 
 PORTNAME=	ipfs-go
-PORTVERSION=	0.4.2
+PORTVERSION=	0.4.3
 DISTVERSIONPREFIX=	v
 CATEGORIES=	sysutils
 
@@ -15,6 +15,7 @@ USES=		gmake
 USE_GITHUB=	yes
 GH_ACCOUNT=	ipfs
 GH_PROJECT=	go-ipfs
+GH_TAGNAME=	v0.4.3-dev
 
 MAKE_ENV+=	GOPATH=${WRKSRC}
 
@@ -33,7 +34,7 @@ EXTRA_PATCHES+=	${FILESDIR}/extra-patch-32bit
 # Prepare for possible extra modules in future
 post-extract:
 	@${MKDIR} ${WRKSRC}/src/github.com/${GH_ACCOUNT}/${GH_PROJECT}
-.for src in CHANGELOG.md Dockerfile Godeps LICENSE Makefile README.md appveyor.yml assets bin blocks blockservice circle.yml cmd commands contribute.md core debug-guide.md dev.md diagnostics doc.go docs exchange flags fuse importer merkledag mfs misc namesys notifications package.json path pin releases.md repo roadmap.md routing tar test thirdparty tour unixfs
+.for src in CHANGELOG.md Dockerfile Dockerfile.fast Godeps ISSUE_TEMPLATE.md LICENSE Makefile README.md appveyor.yml assets bin blocks blockservice circle.yml cmd commands contribute.md core dev.md diagnostics doc.go docs exchange flags fuse importer merkledag mfs misc namesys notifications package.json path pin repo roadmap.md routing tar test thirdparty tour unixfs
 	${MV} ${WRKSRC}/${src} \
 		${WRKSRC}/src/github.com/${GH_ACCOUNT}/${GH_PROJECT}
 .endfor
