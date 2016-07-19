@@ -941,7 +941,7 @@ class VMSnapshotCreateTask(Task):
         if state != 'STOPPED':
             raise TaskException(errno.EACCES, 'Cannot create a snapshot of a running VM')
 
-        if self.dispatcher.call_sync('vm.snapshot.query', [('name', '=', name), ('parent.id', '=', id)]):
+        if self.dispatcher.call_sync('vm.snapshot.query', [('name', '=', name), ('parent.id', '=', id)], {'single': True}):
             raise TaskException(errno.EEXIST, 'Snapshot {0} of VM {1} already exists'.format(name, vm['name']))
 
         snapshot = {
@@ -1090,7 +1090,7 @@ class VMSnapshotPublishTask(ProgressTask):
         if ipfs_state == 'STOPPED':
             raise TaskException(errno.EIO, 'IPFS service is not running. You have to start it first.')
 
-        if self.dispatcher.call_sync('vm.template.query', [('name', '=', name)]):
+        if self.dispatcher.call_sync('vm.template.query', [('name', '=', name)], {'single': True}):
             raise TaskException(errno.EEXIST, 'Template {0} already exists'.format(name))
 
         self.set_progress(0, 'Preparing template file')
