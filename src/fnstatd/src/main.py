@@ -41,7 +41,7 @@ import signal
 import time
 import numpy as np
 import pandas as pd
-from datetime import datetime
+from datetime import datetime, timedelta
 import gevent
 import gevent.monkey
 import gevent.socket
@@ -76,11 +76,11 @@ class DataSourceBucket(object):
 
     @property
     def covered_start(self):
-        return datetime.now(dateutil.tz.tzlocal()) - self.retention
+        return datetime.utcnow() - self.retention
 
     @property
     def covered_end(self):
-        return datetime.now(dateutil.tz.tzlocal())
+        return datetime.utcnow()
 
     @property
     def intervals_count(self):
@@ -325,9 +325,19 @@ class OutputService(RpcService):
         return stats
 
     def get_stats(self, data_source, params):
-        start = params.pop('start')
+        start = params.pop('start', None)
         end = params.pop('end', datetime.utcnow())
+        timespan = params.pop('timespan', None)
         frequency = params.pop('frequency', '10S')
+
+        if start is None and timespan is None:
+            raise RpcException(errno.EINVAL, 'Either "start" or "timespan" is required')
+
+        if start is not None and timespan is not None:
+            raise RpcException(errno.EINVAL, 'Both "start" and "timespan" specified')
+
+        if timespan is not None:
+            start = datetime.utcnow() - timedelta(seconds=timespan)
 
         if type(data_source) is str:
             if data_source not in self.context.data_sources:
@@ -455,6 +465,7 @@ class Main(object):
             'properties': {
                 'start': {'type': 'datetime'},
                 'end': {'type': 'datetime'},
+                'timespan': {'type': 'integer'},
                 'frequency': {'type': 'string'}
             }
         })
