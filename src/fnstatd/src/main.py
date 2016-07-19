@@ -67,6 +67,10 @@ def parse_datetime(s):
     return dateutil.parser.parse(s)
 
 
+def local_to_utc(t):
+    return t.astimezone(dateutil.tz.tzutc()).replace(tzinfo=None)
+
+
 class DataSourceBucket(object):
     def __init__(self, index, obj):
         self.index = index
@@ -338,6 +342,12 @@ class OutputService(RpcService):
 
         if timespan is not None:
             start = datetime.utcnow() - timedelta(seconds=timespan)
+
+        if start.tzinfo:
+            start = local_to_utc(start)
+
+        if end.tzinfo:
+            end = local_to_utc(end)
 
         if type(data_source) is str:
             if data_source not in self.context.data_sources:
