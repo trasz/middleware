@@ -416,7 +416,7 @@ class DatasetProvider(Provider):
     @query('volume-dataset')
     @generator
     def query(self, filter=None, params=None):
-        return datasets.query_stream(*(filter or []), **(params or {}))
+        return datasets.query(*(filter or []), stream=True, **(params or {}))
 
 
 @description('Provides information about snapshots')
@@ -424,7 +424,7 @@ class SnapshotProvider(Provider):
     @query('volume-snapshot')
     @generator
     def query(self, filter=None, params=None):
-        return snapshots.query_stream(*(filter or []), **(params or {}))
+        return snapshots.query(*(filter or []), stream=True, **(params or {}))
 
 
 @description("Creating a volume")
