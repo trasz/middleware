@@ -333,11 +333,14 @@ class MongodbDatastore(object):
             i['id'] = i.pop('_id')
             return postprocess(i) if postprocess else i
 
-        for i in cur:
-            i['id'] = i.pop('_id')
-            r = postprocess(i) if postprocess else i
-            if r is not None:
-                yield r
+        def gen():
+            for i in cur:
+                i['id'] = i.pop('_id')
+                r = postprocess(i) if postprocess else i
+                if r is not None:
+                    yield r
+
+        return gen()
 
     @auto_retry
     def listen(self, collection, *args, **kwargs):
