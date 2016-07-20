@@ -1579,9 +1579,13 @@ def _depends():
 def _init(dispatcher, plugin):
     plugin.register_schema_definition('vm-status', {
         'type': 'object',
+        'readOnly': True,
         'properties': {
-            'state': {'$ref': 'vm-status-state'},
-            'nat_lease': {'$ref': 'vm-status-natlease'}
+            'state': {'$ref': 'vm-status-lease'},
+            'nat_lease': {'oneOf': [
+                {'$ref': 'vm-status-lease'},
+                {'type': 'null'}
+            ]}
         }
     })
 
@@ -1590,7 +1594,7 @@ def _init(dispatcher, plugin):
         'enum': ['STOPPED', 'BOOTLOADER', 'RUNNING']
     })
 
-    plugin.register_schema_definition('vm-status-natlease', {
+    plugin.register_schema_definition('vm-status-lease', {
         'type': 'object',
         'properties': {
             'client_ip': 'string'
@@ -1604,10 +1608,7 @@ def _init(dispatcher, plugin):
             'id': {'type': 'string'},
             'name': {'type': 'string'},
             'guest_type': {'$ref': 'vm-guest-type'},
-            'status': {'allOf': [
-                {'$ref': 'vm-status'},
-                {'readOnly': True}
-            ]},
+            'status': {'$ref': 'vm-status'},
             'description': {'type': 'string'},
             'enabled': {'type': 'boolean'},
             'immutable': {'type': 'boolean'},
