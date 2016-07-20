@@ -1603,7 +1603,7 @@ def _init(dispatcher, plugin):
         'properties': {
             'id': {'type': 'string'},
             'name': {'type': 'string'},
-            'type': {'$ref': 'vm-guest-type'},
+            'guest_type': {'$ref': 'vm-guest-type'},
             'status': {'allOf': [
                 {'$ref': 'vm-status'},
                 {'readOnly': True}
