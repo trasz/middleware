@@ -38,5 +38,5 @@ def apply(obj, ds):
             obj['type'] = template_name.split('-')[0]
             return obj
 
-    obj['type'] = 'freebsd'
+    obj['type'] = 'other'
     return obj

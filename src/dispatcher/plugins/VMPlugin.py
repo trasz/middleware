@@ -1773,6 +1773,9 @@ def _init(dispatcher, plugin):
             'pfsense',
             'solaris',
             'ubuntu',
+            'other-linux',
+            'other-unix',
+            'other'
         ]
     })
 
