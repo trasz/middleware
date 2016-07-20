@@ -1603,6 +1603,7 @@ def _init(dispatcher, plugin):
         'properties': {
             'id': {'type': 'string'},
             'name': {'type': 'string'},
+            'type': {'$ref': 'vm-guest-type'},
             'status': {'allOf': [
                 {'$ref': 'vm-status'},
                 {'readOnly': True}
@@ -1754,6 +1755,24 @@ def _init(dispatcher, plugin):
             '1024x768',
             '800x600',
             '640x480'
+        ]
+    })
+
+    plugin.register_schema_definition('vm-guest-type', {
+        'type': 'string',
+        'enum': [
+            'boot2docker',
+            'centos',
+            'debian',
+            'fedora',
+            'freebsd',
+            'freenas',
+            'netbsd',
+            'openbsd',
+            'opensuse',
+            'pfsense',
+            'solaris',
+            'ubuntu',
         ]
     })
 
