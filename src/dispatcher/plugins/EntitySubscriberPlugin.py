@@ -28,7 +28,7 @@
 
 import re
 import gevent
-from event import EventSource
+from event import EventSource, sync
 
 
 class EntitySubscriberEventSource(EventSource):
@@ -104,7 +104,7 @@ class EntitySubscriberEventSource(EventSource):
         service = re.match(r'^entity-subscriber\.([\.\w]+)\.changed$', event).group(1)
         self.handles[service] = self.dispatcher.register_event_handler(
             '{0}.changed'.format(service),
-            lambda e: self.changed(service, e))
+            sync(lambda e: self.changed(service, e)))
 
     def disable(self, event):
         service = re.match(r'^entity-subscriber\.([\.\w]+)\.changed$', event).group(1)

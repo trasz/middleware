@@ -556,7 +556,9 @@ class Dispatcher(object):
                         except BaseException:
                             self.logger.exception('Event handler for event %s failed', name)
 
-                    gevent.spawn(wrapper, h, name)
+                    greenlet = gevent.spawn(wrapper, h, name)
+                    if getattr(h, 'sync', False):
+                        greenlet.join()
 
     def emit_event(self, name, args):
         return self.dispatch_event(name, args)
