@@ -1585,6 +1585,10 @@ def _init(dispatcher, plugin):
             'nat_lease': {'oneOf': [
                 {'$ref': 'vm-status-lease'},
                 {'type': 'null'}
+            ]},
+            'management_lease': {'oneOf': [
+                {'$ref': 'vm-status-lease'},
+                {'type': 'null'}
             ]}
         }
     })
