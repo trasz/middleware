@@ -72,6 +72,12 @@ class CacheStore(object):
 
             return False
 
+    def clear(self):
+        with self.lock:
+            items = list(self.store.keys())
+            self.store.clear()
+            return items
+
     def exists(self, key):
         return key in self.store
 
@@ -141,6 +147,16 @@ class EventCacheStore(CacheStore):
             self.dispatcher.emit_event('{0}.changed'.format(self.name), {
                 'operation': 'delete',
                 'ids': [key]
+            })
+
+        return ret
+
+    def clear(self):
+        ret = super(EventCacheStore, self).clear()
+        if ret and self.ready:
+            self.dispatcher.emit_event('{0}.changed'.format(self.name), {
+                'operation': 'delete',
+                'ids': ret
             })
 
         return ret
