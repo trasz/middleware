@@ -35,8 +35,8 @@ def apply(obj, ds):
     if template:
         template_name = template.get('name')
         if template_name:
-            obj['type'] = template_name.split('-')[0]
+            obj['guest_type'] = template_name.split('-')[0]
             return obj
 
-    obj['type'] = 'other'
+    obj['guest_type'] = 'other'
     return obj
