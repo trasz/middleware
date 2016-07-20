@@ -1578,7 +1578,7 @@ def _depends():
 
 def _init(dispatcher, plugin):
     plugin.register_schema_definition('vm-status', {
-      'type': 'object',
+        'type': 'object',
         'properties': {
             'state': {'$ref': 'vm-status-state'},
             'nat_lease': {'$ref': 'vm-status-natlease'}
