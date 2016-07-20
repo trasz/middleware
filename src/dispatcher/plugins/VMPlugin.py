@@ -1581,7 +1581,7 @@ def _init(dispatcher, plugin):
         'type': 'object',
         'readOnly': True,
         'properties': {
-            'state': {'$ref': 'vm-status-lease'},
+            'state': {'$ref': 'vm-status-state'},
             'nat_lease': {'oneOf': [
                 {'$ref': 'vm-status-lease'},
                 {'type': 'null'}
