@@ -846,7 +846,7 @@ class Main(object):
                 'ids': [interface]
             })
 
-        client = dhcp.client.Client(interface, socket.gethostname())
+        client = dhcp.client.Client(interface, lambda: socket.gethostname())
         client.on_bind = bind
         client.on_unbind = unbind
         client.on_state_change = state_change
