@@ -265,10 +265,7 @@ class MongodbDatastore(object):
         count = kwargs.get('count', False)
 
         if single or count:
-            try:
-                next(self.query_stream(collection, *args, **kwargs))
-            except StopIteration as e:
-                return e.value
+            return self.query_stream(collection, *args, **kwargs)
 
         return list(self.query_stream(collection, *args, **kwargs))
 
