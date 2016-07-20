@@ -28,12 +28,20 @@
 import dockerhub
 from task import Provider, Task, ProgressTask, TaskDescription
 from cache import EventCacheStore
+from datastore.config import ConfigNode
 from freenas.utils import normalize
 from freenas.utils.query import wrap
-from freenas.dispatcher.rpc import generator
+from freenas.dispatcher.rpc import generator, accepts, returns, SchemaHelper as h
 
 
 containers = None
+images = None
+
+
+class DockerProvider(Provider):
+    @returns(h.ref('docker-config'))
+    def get_config(self):
+        return ConfigNode('container.docker', self.configstore).__getstate__()
 
 
 class DockerHostProvider(Provider):
@@ -85,6 +93,23 @@ class DockerImagesProvider(Provider):
 
     def get_hub_image(self, name):
         pass
+
+
+@accepts(h.ref('docker-config'))
+class DockerUpdateTask(Task):
+    @classmethod
+    def early_describe(cls):
+        return "Updating Docker global configuration"
+
+    def describe(self, container):
+        return TaskDescription("Updating Docker global configuration")
+
+    def verify(self, updated_params):
+        return ['system']
+
+    def run(self, updated_params):
+        node = ConfigNode('container.docker', self.configstore)
+        node.update(updated_params)
 
 
 class DockerContainerCreateTask(ProgressTask):
@@ -172,6 +197,14 @@ def _init(dispatcher, plugin):
 
     plugin.register_event_type('docker.host.changed')
     plugin.register_event_type('docker.container.changed')
+
+    plugin.register_schema_definition('docker-config', {
+        'type': 'object',
+        'additionalProperties': False,
+        'properties': {
+            'default_host': {'type': ['string', 'null']}
+        }
+    })
 
     plugin.register_schema_definition('docker', {
         'type': 'object',

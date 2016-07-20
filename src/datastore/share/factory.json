@@ -354,6 +354,7 @@
             "replication.key.private": null,
             "container.network.management": "169.254.16.1/20",
             "container.network.nat": "169.254.32.1/20",
+            "container.docker.default_host": null,
             "storage.hotsparing.autoreplace": true,
             "storage.hotsparing.strong_match": false,
             "directory.search_order": [],
