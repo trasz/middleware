@@ -513,6 +513,7 @@ class VMCreateTask(VMBaseTask):
         normalize(vm, {
             'enabled': True,
             'immutable': False,
+            'guest_type': 'other',
             'parent': None
         })
 
