@@ -46,3 +46,8 @@ class EventSource(object):
 
     def emit_event(self, type, **kwargs):
         self.dispatcher.dispatch_event(type, kwargs)
+
+
+def sync(fn):
+    fn.sync = True
+    return fn
