@@ -27,7 +27,7 @@
 
 
 def probe(obj, ds):
-    return 'type' not in obj
+    return 'guest_type' not in obj
 
 
 def apply(obj, ds):
