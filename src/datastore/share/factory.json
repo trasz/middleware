@@ -105,6 +105,7 @@
             "service.dyndns.auxiliary": null,
             "service.ipfs.enable": false,
             "service.ipfs.path": "/var/db/system/ipfs",
+            "service.ipfs.webui": false,
             "service.ctl.enable": false,
             "service.ctl.pool_space_threshold": null,
             "service.simulator.enable": false,
@@ -418,6 +419,13 @@
                     "file:local/collectd.conf"
                 ],
                 "name": "collectd"
+            },
+            "2f666193-7797-4876-a091-148a96e5ac37": {
+                "dependencies": [
+                    "group:services",
+                    "group:nginx"
+                ],
+                "name": "ipfs"
             },
             "fdf68c06-1f3f-47f8-af28-2402f3d45424": {
                 "dependencies": [
