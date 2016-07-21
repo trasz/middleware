@@ -1633,8 +1633,6 @@ def _init(dispatcher, plugin):
                     'boot_partition': {'type': ['string', 'null']},
                     'boot_directory': {'type': ['string', 'null']},
                     'cloud_init': {'type': ['string', 'null']},
-                    'vnc_enabled': {'type': 'boolean'},
-                    'vnc_port': {'type': ['integer', 'null']},
                     'vnc_password': {'type': ['string', 'null']},
                     'autostart': {'type': 'boolean'},
                     'docker_host': {'type': 'boolean'},
