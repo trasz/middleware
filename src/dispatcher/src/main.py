@@ -1221,6 +1221,7 @@ class ShellConnection(WebSocketApplication, EventEmitter):
         super(ShellConnection, self).__init__(ws)
         self.dispatcher = parent.context
         self.logger = logging.getLogger('ShellConnection')
+        self.token = None
         self.authenticated = False
         self.master = None
         self.slave = None
@@ -1266,6 +1267,7 @@ class ShellConnection(WebSocketApplication, EventEmitter):
             os.execve('/bin/sh', ['sh', '-c', shell], env)
 
         self.logger.info('Shell %s spawned as PID %d', shell, self.pid)
+        self.token.pid = self.pid
         self.closed.wait()
         gevent.joinall([rd, wr])
 
@@ -1295,10 +1297,9 @@ class ShellConnection(WebSocketApplication, EventEmitter):
             if 'token' not in message:
                 return
 
-            token = self.dispatcher.token_store.lookup_token(message['token'])
-
+            self.token = self.dispatcher.token_store.lookup_token(message['token'])
             self.authenticated = True
-            gevent.spawn(self.worker, token.user.name, token.shell)
+            gevent.spawn(self.worker, self.token.user.name, self.token.shell)
             self.ws.send(dumps({'status': 'ok'}))
             return
 

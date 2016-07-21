@@ -25,8 +25,10 @@
 #
 #####################################################################
 
+import os
 import sys
 import gc
+import signal
 import traceback
 import errno
 import subprocess
@@ -604,3 +606,14 @@ class ShellService(RpcService):
         return self.dispatcher.token_store.issue_token(
             ShellToken(user=sender.user, lifetime=60, shell=shell)
         )
+
+    @pass_sender
+    def resize(self, token, width, height):
+        conn = self.dispatcher.token_store.lookup_token(token)
+        if not conn:
+            raise RpcException(errno.ENOENT, 'Connection not found')
+
+        if not isinstance(conn, ShellToken):
+            raise RpcException(errno.EINVAL, 'Wrong ticket type provided')
+
+        os.kill(conn.pid, signal.SIGWINCH)
