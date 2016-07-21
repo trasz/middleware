@@ -386,7 +386,7 @@ class VMBaseTask(ProgressTask):
             if properties['type'] == 'VT9P':
                 if properties.get('auto'):
                     ds_name = os.path.join(vm_ds, res['name'])
-                    old_ds = self.dispatcher.call_sync('zfs.dataset.query', [('name', '=', ds_name)])
+                    old_ds = self.dispatcher.call_sync('zfs.dataset.query', [('name', '=', ds_name)], {'single': True})
                     if not old_ds:
                         self.join_subtasks(self.run_subtask('volume.dataset.create', {
                             'volume': vm['target'],
@@ -396,7 +396,7 @@ class VMBaseTask(ProgressTask):
                     if properties.get('source'):
                         if old_ds:
                             shutil.rmtree(
-                                self.dispatcher.call_sync('volume.get_dataset.path', ds_name),
+                                self.dispatcher.call_sync('volume.get_dataset_path', ds_name),
                                 ignore_errors=True
                             )
 
