@@ -171,9 +171,12 @@ class TokenStore(object):
         return token_id
 
     def keepalive_token(self, token_id):
-        token = self.lookup_token(token_id)
-        if not token:
-            raise TokenException('Token not found or expired')
+        if isinstance(token_id, Token):
+            token = token_id
+        else:
+            token = self.lookup_token(token_id)
+            if not token:
+                raise TokenException('Token not found or expired')
 
         if token.lifetime:
             gevent.kill(token.timer)
