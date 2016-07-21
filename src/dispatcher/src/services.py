@@ -25,7 +25,6 @@
 #
 #####################################################################
 
-import os
 import sys
 import gc
 import traceback
