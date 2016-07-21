@@ -1669,7 +1669,14 @@ def _init(dispatcher, plugin):
         'properties': {
             'name': {'type': 'string'},
             'type': {'$ref': 'vm-device-type'},
-            'properties': {'type': 'object'}
+            'properties': {'type': 'object'},
+            'config': {
+                'type': 'object',
+                'properties': {
+                    'vnc_enabled': {'type': 'boolean'},
+                    'vnc_port': {'type': ['integer', 'null']}
+                }
+            }
         },
         'required': ['name', 'type', 'properties']
     })
