@@ -128,8 +128,9 @@ class ShellToken(Token):
     def __init__(self, *args, **kwargs):
         super(ShellToken, self).__init__(*args, **kwargs)
         self.shell = kwargs.pop('shell')
-        self.master_pty = None
-        self.pid = None
+        self.width = kwargs.pop('width')
+        self.height = kwargs.pop('height')
+        self.resize = None
 
 
 class FileToken(Token):

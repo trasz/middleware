@@ -47,6 +47,9 @@ import traceback
 import tempfile
 import cgi
 import subprocess
+import struct
+import termios
+import fcntl
 import websocket  # do not remove - we import it only for side effects
 
 import gevent
@@ -1229,7 +1232,7 @@ class ShellConnection(WebSocketApplication, EventEmitter):
         self.pid = None
         self.inq = Queue()
 
-    def worker(self, user, shell):
+    def worker(self, user, shell, w, h):
         self.logger.info('Opening shell %s...', shell)
         env = os.environ.copy()
         env['TERM'] = 'xterm'
@@ -1258,6 +1261,11 @@ class ShellConnection(WebSocketApplication, EventEmitter):
             watcher.stop()
             self.closed.set()
 
+        def resize(width, height):
+            payload = struct.pack('HHHH', height, width, 0, 0)
+            fcntl.ioctl(self.master, termios.TIOCSWINSZ, payload)
+            os.kill(self.pid, signal.SIGWINCH)
+
         self.pid, self.master = forkpty_and_watch(callback)
         wr = gevent.spawn(write_worker)
         rd = gevent.spawn(read_worker)
@@ -1266,9 +1274,9 @@ class ShellConnection(WebSocketApplication, EventEmitter):
             os.seteuid(uinfo['uid'])
             os.execve('/bin/sh', ['sh', '-c', shell], env)
 
+        resize(w, h)
         self.logger.info('Shell %s spawned as PID %d', shell, self.pid)
-        self.token.pid = self.pid
-        self.token.master_pty = self.master
+        self.token.resize = resize
         self.closed.wait()
         gevent.joinall([rd, wr])
 
@@ -1300,7 +1308,8 @@ class ShellConnection(WebSocketApplication, EventEmitter):
 
             self.token = self.dispatcher.token_store.lookup_token(message['token'])
             self.authenticated = True
-            gevent.spawn(self.worker, self.token.user.name, self.token.shell)
+
+            gevent.spawn(self.worker, self.token.user.name, self.token.shell, self.token.width, self.token.height)
             self.ws.send(dumps({'status': 'ok'}))
             return
 

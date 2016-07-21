@@ -28,15 +28,11 @@
 import os
 import sys
 import gc
-import signal
 import traceback
 import errno
 import subprocess
 import gevent
 import logging
-import fcntl
-import struct
-import termios
 from resources import Resource
 from gevent.event import Event
 from gevent.lock import Semaphore
@@ -605,9 +601,9 @@ class ShellService(RpcService):
         return [proc.returncode, out]
 
     @pass_sender
-    def spawn(self, shell, sender):
+    def spawn(self, shell, width, height, sender):
         return self.dispatcher.token_store.issue_token(
-            ShellToken(user=sender.user, lifetime=60, shell=shell)
+            ShellToken(user=sender.user, lifetime=60, shell=shell, width=width, height=height)
         )
 
     def resize(self, token, width, height):
@@ -618,6 +614,5 @@ class ShellService(RpcService):
         if not isinstance(conn, ShellToken):
             raise RpcException(errno.EINVAL, 'Wrong ticket type provided')
 
-        payload = struct.pack('HHHH', height, width, 0, 0)
-        fcntl.ioctl(conn.master_pty, termios.TIOCSWINSZ, payload)
-        os.kill(conn.pid, signal.SIGWINCH)
+        if conn.resize:
+            conn.resize(width, height)
