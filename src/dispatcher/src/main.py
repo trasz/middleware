@@ -1319,6 +1319,8 @@ class ShellConnection(WebSocketApplication, EventEmitter):
                 i = '\n'
             self.inq.put(i)
 
+        self.dispatcher.token_store.keepalive_token(self.token)
+
 
 class FileConnection(WebSocketApplication, EventEmitter):
     BUFSIZE = 1024

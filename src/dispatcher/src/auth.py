@@ -188,7 +188,7 @@ class TokenStore(object):
                     token.lifetime,
                     self.revoke_token,
                     token_id
-            )
+                )
 
     def lookup_token(self, token_id):
         return self.tokens.get(token_id)
