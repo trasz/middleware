@@ -1157,11 +1157,13 @@ class VMSnapshotPublishTask(ProgressTask):
 
                 elif d['type'] == 'VOLUME':
                     dest_file = os.path.join(dest_path, d['name'] + '.tar.gz')
+                    self.join_subtasks(self.run_subtask('zfs.mount', publish_ds))
                     shutil.make_archive(
                         d['name'],
                         'gztar',
                         self.dispatcher.call_sync('volume.get_dataset_path', publish_ds)
                     )
+                    self.join_subtasks(self.run_subtask('zfs.umount', publish_ds))
 
                 if dest_file:
                     self.join_subtasks(self.run_subtask('zfs.destroy', publish_ds))
