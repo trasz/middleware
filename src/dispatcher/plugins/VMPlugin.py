@@ -37,6 +37,7 @@ import urllib.request
 import urllib.parse
 import urllib.error
 import shutil
+import tarfile
 import logging
 import datetime
 from task import Provider, Task, ProgressTask, VerifyException, TaskException, query, TaskWarning, TaskDescription
@@ -1158,11 +1159,9 @@ class VMSnapshotPublishTask(ProgressTask):
                 elif d['type'] == 'VOLUME':
                     dest_file = os.path.join(dest_path, d['name'] + '.tar.gz')
                     self.join_subtasks(self.run_subtask('zfs.mount', publish_ds))
-                    shutil.make_archive(
-                        d['name'],
-                        'gztar',
-                        self.dispatcher.call_sync('volume.get_dataset_path', publish_ds)
-                    )
+                    with tarfile.open(dest_file, 'w:gz') as tar_file:
+                        tar_file.add(self.dispatcher.call_sync('volume.get_dataset_path', publish_ds))
+                        tar_file.close()
                     self.join_subtasks(self.run_subtask('zfs.umount', publish_ds))
 
                 if dest_file:
