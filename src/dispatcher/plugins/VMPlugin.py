@@ -1709,7 +1709,8 @@ def _init(dispatcher, plugin):
         'additionalProperties': False,
         'properties': {
             'mode': {'$ref': 'vm-device-disk-mode'},
-            'size': {'type': 'integer'}
+            'size': {'type': 'integer'},
+            'source': {'type': 'string'}
         }
     })
 
