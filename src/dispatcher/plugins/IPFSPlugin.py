@@ -187,7 +187,7 @@ class IPFSConfigureTask(Task):
                             errno.EIO,
                             "Migrating ipfs path resulted in error: {0}".format(serr))
             node.update(ipfs)
-            self.dispatcher.call_sync('etcd.generation.generate_group', 'services')
+            self.dispatcher.call_sync('etcd.generation.generate_group', 'ipfs')
             self.dispatcher.dispatch_event('service.ipfs.changed', {
                 'operation': 'updated',
                 'ids': None,
@@ -197,7 +197,7 @@ class IPFSConfigureTask(Task):
                 errno.ENXIO, 'Cannot reconfigure IPFS: {0}'.format(str(e))
             )
 
-        return 'RELOAD'
+        return 'RESTART'
 
 
 class IPFSBaseTask(Task):
@@ -268,6 +268,7 @@ def _init(dispatcher, plugin):
             'type': {'enum': ['service-ipfs']},
             'enable': {'type': 'boolean'},
             'path': {'type': 'string'},
+            'webui': {'type': 'boolean'}
         },
         'additionalProperties': False,
     })
