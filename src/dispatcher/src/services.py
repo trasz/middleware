@@ -34,6 +34,9 @@ import errno
 import subprocess
 import gevent
 import logging
+import fcntl
+import struct
+import termios
 from resources import Resource
 from gevent.event import Event
 from gevent.lock import Semaphore
@@ -607,7 +610,6 @@ class ShellService(RpcService):
             ShellToken(user=sender.user, lifetime=60, shell=shell)
         )
 
-    @pass_sender
     def resize(self, token, width, height):
         conn = self.dispatcher.token_store.lookup_token(token)
         if not conn:
@@ -616,4 +618,6 @@ class ShellService(RpcService):
         if not isinstance(conn, ShellToken):
             raise RpcException(errno.EINVAL, 'Wrong ticket type provided')
 
+        payload = struct.pack('HHHH', height, width, 0, 0)
+        fcntl.ioctl(conn.master_pty, termios.TIOCSWINSZ, payload)
         os.kill(conn.pid, signal.SIGWINCH)

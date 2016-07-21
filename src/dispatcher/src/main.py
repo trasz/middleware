@@ -1268,6 +1268,7 @@ class ShellConnection(WebSocketApplication, EventEmitter):
 
         self.logger.info('Shell %s spawned as PID %d', shell, self.pid)
         self.token.pid = self.pid
+        self.token.master_pty = self.master
         self.closed.wait()
         gevent.joinall([rd, wr])
 
