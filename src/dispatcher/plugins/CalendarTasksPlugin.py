@@ -38,7 +38,11 @@ class CalendarTasksProvider(Provider):
     @query('calendar-task')
     @generator
     def query(self, filter=None, params=None):
-        return wrap(self.dispatcher.call_sync('scheduler.management.query', filter, params)).query(stream=True)
+        return wrap(self.dispatcher.call_sync('scheduler.management.query')).query(
+            *(filter or []),
+            stream=True,
+            **(params or {})
+        )
 
 
 @accepts(
