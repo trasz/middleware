@@ -177,9 +177,9 @@ class VirtualMachine(object):
     def nat_lease(self):
         return self.context.mgmt.allocations.get(self.get_link_address('NAT'))
 
-    def get_link_address(self, type):
+    def get_link_address(self, mode):
         nic = first_or_default(
-            lambda d: d['type'] == 'NIC' and d['properties']['type'] == type,
+            lambda d: d['type'] == 'NIC' and d['properties']['mode'] == mode,
             self.devices
         )
 
@@ -283,7 +283,7 @@ class VirtualMachine(object):
             iface.description = 'vm:{0}:{1}'.format(self.name, name)
             iface.up()
 
-            if nic['type'] == 'BRIDGE':
+            if nic['mode'] == 'BRIDGED':
                 if nic['bridge']:
                     try:
                         target_if = netif.get_interface(nic['bridge'])
@@ -307,11 +307,11 @@ class VirtualMachine(object):
                             new_bridge.add_member(nic['bridge'])
                             new_bridge.add_member(iface.name)
 
-            if nic['type'] == 'MANAGEMENT':
+            if nic['mode'] == 'MANAGEMENT':
                 mgmt = netif.get_interface('mgmt0', bridge=True)
                 mgmt.add_member(iface.name)
 
-            if nic['type'] == 'NAT':
+            if nic['mode'] == 'NAT':
                 mgmt = netif.get_interface('nat0', bridge=True)
                 mgmt.add_member(iface.name)
 
