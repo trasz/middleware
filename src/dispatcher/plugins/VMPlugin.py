@@ -1667,14 +1667,13 @@ def _init(dispatcher, plugin):
         'properties': {
             'name': {'type': 'string'},
             'type': {'$ref': 'vm-device-type'},
-            'properties': {'type': 'object'},
-            'config': {
-                'type': 'object',
-                'properties': {
-                    'vnc_enabled': {'type': 'boolean'},
-                    'vnc_port': {'type': ['integer', 'null']}
-                }
-            }
+            'properties': {'oneOf': [
+                {'$ref': 'vm-device-nic'},
+                {'$ref': 'vm-device-disk'},
+                {'$ref': 'vm-device-cdrom'},
+                {'$ref': 'vm-device-volume'},
+                {'$ref': 'vm-device-graphics'},
+            ]}
         },
         'required': ['name', 'type', 'properties']
     })
@@ -1746,7 +1745,9 @@ def _init(dispatcher, plugin):
         'type': 'object',
         'additionalProperties': False,
         'properties': {
-            'resolution': {'$ref': 'vm-device-graphics-resolution'}
+            'resolution': {'$ref': 'vm-device-graphics-resolution'},
+            'vnc_enabled': {'type': 'boolean'},
+            'vnc_port': {'type': ['integer', 'null']}
         }
     })
 
