@@ -1169,8 +1169,8 @@ class VMSnapshotPublishTask(ProgressTask):
 
                     sha256_hash = sha256(dest_file, BLOCKSIZE)
 
-                    ipfs_hashes = self.join_subtasks(self.run_subtask('ipfs.add', dest_file))[0]
-                    ipfs_hash = self.get_path_hash(ipfs_hashes, dest_path[1:])
+                    ipfs_hashes = self.join_subtasks(self.run_subtask('ipfs.add', dest_path))[0]
+                    ipfs_hash = self.get_path_hash(ipfs_hashes, dest_path)
 
                     with open(os.path.join(dest_path, 'sha256'), 'w') as f:
                         f.write(sha256_hash)
@@ -1178,7 +1178,7 @@ class VMSnapshotPublishTask(ProgressTask):
                     template['template']['fetch'].append(
                         {
                             'name': d['name'],
-                            'url': self.dispatcher.call_sync('ipfs.hash_to_link', ipfs_hash['Hash']),
+                            'url': self.dispatcher.call_sync('ipfs.hash_to_link', ipfs_hash),
                             'sha256': sha256_hash
                         }
                     )
@@ -1202,21 +1202,16 @@ class VMSnapshotPublishTask(ProgressTask):
         with open(os.path.join(template_path, 'template.json'), 'w') as f:
             f.write(json.dumps(template))
 
-        template_files = []
-        for dirpath, _, filenames in os.walk(template_path):
-            for f in filenames:
-                template_files.append(os.path.join(dirpath, f))
-
-        ipfs_hashes = self.join_subtasks(self.run_subtask('ipfs.add', template_files))[0]
-        ipfs_link = 'ipfs://' + self.get_path_hash(ipfs_hashes, template_path[1:])['Hash']
+        ipfs_hashes = self.join_subtasks(self.run_subtask('ipfs.add', template_path))[0]
+        ipfs_link = 'ipfs://' + self.get_path_hash(ipfs_hashes, template_path)
         self.set_progress(100, 'Upload finished - template link: {0}'.format(ipfs_link))
         with open(os.path.join(template_path, 'hash'), 'w') as hash_file:
             hash_file.write(ipfs_link)
 
     def get_path_hash(self, ipfs_hashes, dest_path):
         for ipfs_hash in ipfs_hashes:
-            if ipfs_hash['Name'] == dest_path:
-                return ipfs_hash
+            if ipfs_hash['Name'] == dest_path and 'Hash' in ipfs_hash:
+                return ipfs_hash['Hash']
 
 
 @accepts(str)
