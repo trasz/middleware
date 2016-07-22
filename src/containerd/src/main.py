@@ -285,10 +285,14 @@ class VirtualMachine(object):
 
             if nic['mode'] == 'BRIDGED':
                 if nic['bridge']:
+                    bridge_if = nic['bridge']
+                    if bridge_if == 'default':
+                        bridge_if = self.context.client.call_sync('networkd.configuration.get_default_interface')
+
                     try:
-                        target_if = netif.get_interface(nic['bridge'])
+                        target_if = netif.get_interface(bridge_if)
                     except KeyError:
-                        raise RpcException(errno.ENOENT, 'Target interface {0} does not exist'.format(nic['bridge']))
+                        raise RpcException(errno.ENOENT, 'Target interface {0} does not exist'.format(bridge_if))
 
                     if isinstance(target_if, netif.BridgeInterface):
                         target_if.add_member(iface.name)
@@ -296,15 +300,15 @@ class VirtualMachine(object):
                         bridges = list(b for b in netif.list_interfaces().keys() if 'brg' in b)
                         for b in bridges:
                             bridge = netif.get_interface(b, bridge=True)
-                            if nic['bridge'] in bridge.members:
+                            if bridge_if in bridge.members:
                                 bridge.add_member(iface.name)
                                 break
                         else:
                             new_bridge = netif.get_interface(netif.create_interface('bridge'))
                             new_bridge.rename('brg{0}'.format(len(bridges)))
-                            new_bridge.description = 'vm bridge to {0}'.format(nic['bridge'])
+                            new_bridge.description = 'vm bridge to {0}'.format(bridge_if)
                             new_bridge.up()
-                            new_bridge.add_member(nic['bridge'])
+                            new_bridge.add_member(bridge_if)
                             new_bridge.add_member(iface.name)
 
             if nic['mode'] == 'MANAGEMENT':

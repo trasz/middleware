@@ -365,9 +365,6 @@ class VMBaseTask(ProgressTask):
                 'link_address': self.dispatcher.call_sync('vm.generate_mac')
             })
 
-            if res['properties'].get('mode') == 'BRIDGED' and res['properties'].get('bridge') == 'default':
-                res['properties']['bridge'] = self.dispatcher.call_sync('networkd.configuration.get_default_interface')
-
         if res['type'] == 'VOLUME':
             properties = res['properties']
             mgmt_net = ipaddress.ip_interface(self.configstore.get('container.network.management'))
