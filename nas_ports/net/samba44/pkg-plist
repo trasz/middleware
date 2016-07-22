@@ -193,6 +193,8 @@ lib/libnetapi.so
 lib/libnetapi.so.0
 lib/libsamba-credentials.so
 lib/libsamba-credentials.so.0
+lib/libsamba-errors.so
+lib/libsamba-errors.so.1
 lib/libsamba-hostconfig.so
 lib/libsamba-hostconfig.so.0
 lib/libsamba-passdb.so
@@ -209,6 +211,8 @@ lib/libsmbldap.so
 lib/libsmbldap.so.0
 lib/libtevent-util.so
 lib/libtevent-util.so.0
+lib/libtevent-unix-util.so
+lib/libtevent-unix-util.so.0
 lib/libwbclient.so
 lib/libwbclient.so.0
 lib/nss_winbind.so.1
@@ -406,6 +410,7 @@ lib/samba/libauth-samba4.so
 lib/samba/libauth-unix-token-samba4.so
 lib/samba/libauth4-samba4.so
 lib/samba/libauthkrb5-samba4.so
+lib/samba/libcom_err-samba4.so.0
 lib/samba/libcli-cldap-samba4.so
 lib/samba/libcli-ldap-common-samba4.so
 lib/samba/libcli-ldap-samba4.so
