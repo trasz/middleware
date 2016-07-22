@@ -140,7 +140,18 @@ class DockerContainerCreateTask(ProgressTask):
 
 
 class DockerContainerDeleteTask(ProgressTask):
-    pass
+    @classmethod
+    def early_describe(cls):
+        return "Deleting a Docker container"
+
+    def describe(self, id):
+        return TaskDescription("Deleting Docker container {name}".format(name=id))
+
+    def verify(self, id):
+        return []
+
+    def run(self, id):
+        pass
 
 
 class DockerContainerStartTask(Task):
@@ -182,7 +193,31 @@ def _depends():
 
 
 def _init(dispatcher, plugin):
+    global containers
+    global images
+
     containers = EventCacheStore(dispatcher, 'docker.container')
+    images = EventCacheStore(dispatcher, 'docker.image')
+
+    def sync_image_cache():
+        with images.lock:
+            images.clear()
+            images.populate(dispatcher.call_sync('containerd.docker.query_images'))
+
+    def sync_container_cache():
+        with images.lock:
+            images.clear()
+            images.populate(dispatcher.call_sync('containerd.docker.query_images'))
+
+    def on_host_event(args):
+        sync_container_cache()
+        sync_image_cache()
+
+    def on_image_event(args):
+        sync_image_cache()
+
+    def on_container_event(args):
+        sync_container_cache()
 
     plugin.register_provider('docker.host', DockerHostProvider)
     plugin.register_provider('docker.container', DockerContainerProvider)
@@ -214,7 +249,7 @@ def _init(dispatcher, plugin):
             'name': {'type': 'string'},
             'command': {'type': 'string'},
             'image': {'type': 'string'},
-            'host': {'type': 'string'},
+            'host': {'type': ['string', 'null']},
             'hostname': {'type': ['string', 'null']},
             'memory_limit': {'type': ['integer', 'null']},
             'expose_ports': {'type': 'boolean'},
@@ -259,7 +294,7 @@ def _init(dispatcher, plugin):
                 'items': {'type': 'string'}
             },
             'size': {'type': 'integer'},
-            'host': {'type': 'string'}
+            'host': {'type': ['string', 'null']}
         }
     })
 
@@ -271,6 +306,7 @@ def _init(dispatcher, plugin):
             'namespace': {'type': 'string'},
             'description': {'type': 'string'},
             'full_description': {'type': 'string'},
+            'pull_count': {'type': 'integer'},
             'star_count': {'type': 'integer'},
             'updated_at': {'type': 'datetime'},
         }
