@@ -163,6 +163,7 @@ class VirtualMachine(object):
         self.tap_interfaces = {}
         self.vnc_socket = None
         self.vnc_port = None
+        self.active_vnc_ports = []
         self.thread = None
         self.exiting = False
         self.docker_host = None
@@ -239,10 +240,12 @@ class VirtualMachine(object):
                 index += 1
 
             if i['type'] == 'GRAPHICS':
-                self.init_vnc()
-                w, h = i['properties']['resolution'].split('x')
-                args += ['-s', '{0}:0,fbuf,unix={1},w={2},h={3},vncserver'.format(index, self.vnc_socket, w, h)]
-                index += 1
+                if i['properties'].get('vnc_enabled', False):
+                    port = i['properties'].get('vnc_port', 5900)
+                    self.init_vnc(index, port)
+                    w, h = i['properties']['resolution'].split('x')
+                    args += ['-s', '{0}:0,fbuf,unix={1},w={2},h={3},vncserver'.format(index, self.vnc_socket, w, h)]
+                    index += 1
 
             if i['type'] == 'USB':
                 xhci_devices[i['properties']['device']] = i.get('config')
@@ -263,16 +266,19 @@ class VirtualMachine(object):
         self.logger.debug('bhyve args: {0}'.format(args))
         return args
 
-    def init_vnc(self):
-        self.vnc_socket = '/var/run/containerd/{0}.vnc.sock'.format(self.id)
-        self.cleanup_vnc()
+    def init_vnc(self, index, port):
+        self.vnc_socket = '/var/run/containerd/{0}.{1}.vnc.sock'.format(self.id, index)
+        self.cleanup_vnc(port)
 
-        if self.config.get('vnc_enabled', False):
-            self.context.proxy_server.add_proxy(self.config['vnc_port'], self.vnc_socket)
+        self.context.proxy_server.add_proxy(port, self.vnc_socket)
+        self.active_vnc_ports.append(port)
 
-    def cleanup_vnc(self):
-        if self.config.get('vnc_enabled', False):
-            self.context.proxy_server.remove_proxy(self.config['vnc_port'])
+    def cleanup_vnc(self, port=None):
+        if port:
+            self.context.proxy_server.remove_proxy(port)
+        else:
+            for p in self.active_vnc_ports:
+                self.context.proxy_server.remove_proxy(p)
 
         if self.vnc_socket and os.path.exists(self.vnc_socket):
             os.unlink(self.vnc_socket)
