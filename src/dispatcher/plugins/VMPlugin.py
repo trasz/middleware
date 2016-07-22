@@ -654,16 +654,16 @@ class VMUpdateTask(VMBaseTask):
 
         if 'devices' in updated_params:
             name = ""
-            already_enabled = False
+            graphics_exist = False
             for device in updated_params['devices']:
-                if device['type'] == 'GRAPHICS' and device['properties'].get('vnc_enabled', False):
-                    if already_enabled:
+                if device['type'] == 'GRAPHICS':
+                    if graphics_exist:
                         raise VerifyException(errno.EEXIST,
-                                              'Multiple "GRAPHICS" type devices enabled: {0},{1}'.format(
+                                              'Multiple "GRAPHICS" type devices detected: {0},{1}'.format(
                                                   name, device['name'])
                         )
                     else:
-                        already_enabled = True
+                        graphics_exist = True
                         name = device['name']
 
         return ['system']
