@@ -1684,6 +1684,7 @@ def _init(dispatcher, plugin):
                 {'$ref': 'vm-device-cdrom'},
                 {'$ref': 'vm-device-volume'},
                 {'$ref': 'vm-device-graphics'},
+                {'$ref': 'vm-device-usb'}
             ]}
         },
         'required': ['name', 'type', 'properties']
@@ -1797,7 +1798,7 @@ def _init(dispatcher, plugin):
         'type': 'object',
         'additionalProperties': False,
         'properties': {
-            'device': {'type': 'string'},
+            'device': {'$ref': 'vm-device-usb-device'},
             'config': {
                 'type': 'object'  # XXX: not sure what goes there
             }
