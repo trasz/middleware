@@ -365,7 +365,7 @@ class VMBaseTask(ProgressTask):
                 'link_address': self.dispatcher.call_sync('vm.generate_mac')
             })
 
-            if res['properties'].get('type') == 'BRIDGE' and res['properties'].get('bridge') == 'default':
+            if res['properties'].get('mode') == 'BRIDGED' and res['properties'].get('bridge') == 'default':
                 res['properties']['bridge'] = self.dispatcher.call_sync('networkd.configuration.get_default_interface')
 
         if res['type'] == 'VOLUME':
