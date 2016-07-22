@@ -243,9 +243,9 @@ class VirtualMachine(object):
                 if i['properties'].get('vnc_enabled', False):
                     port = i['properties'].get('vnc_port', 5900)
                     self.init_vnc(index, port)
-                    w, h = i['properties']['resolution'].split('x')
-                    args += ['-s', '{0}:0,fbuf,unix={1},w={2},h={3},vncserver'.format(index, self.vnc_socket, w, h)]
-                    index += 1
+                w, h = i['properties']['resolution'].split('x')
+                args += ['-s', '{0}:0,fbuf,unix={1},w={2},h={3},vncserver'.format(index, self.vnc_socket, w, h)]
+                index += 1
 
             if i['type'] == 'USB':
                 xhci_devices[i['properties']['device']] = i.get('config')
