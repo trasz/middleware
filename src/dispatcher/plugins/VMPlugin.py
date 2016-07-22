@@ -647,6 +647,20 @@ class VMUpdateTask(VMBaseTask):
         if not self.datastore.exists('vms', ('id', '=', id)):
             raise VerifyException(errno.ENOENT, 'VM {0} not found'.format(id))
 
+        if 'devices' in updated_params:
+            name = ""
+            already_enabled = False
+            for device in updated_params['devices']:
+                if device['type'] == 'GRAPHICS' and device['properties'].get('vnc_enabled', False):
+                    if already_enabled:
+                        raise VerifyException(errno.EEXIST,
+                                              'Multiple "GRAPHICS" type devices enabled: {0},{1}'.format(
+                                                  name, device['name'])
+                        )
+                    else:
+                        already_enabled = True
+                        name = device['name']
+
         return ['system']
 
     def run(self, id, updated_params):
