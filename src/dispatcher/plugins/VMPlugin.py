@@ -1773,7 +1773,7 @@ def _init(dispatcher, plugin):
             'netbsd64',
             'openbsd32',
             'openbsd64',
-            'windows64'
+            'windows64',
             'solaris64',
             'other'
         ]
