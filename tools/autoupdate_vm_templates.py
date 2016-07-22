@@ -6,6 +6,7 @@ import os
 import sys
 import json
 import datetime
+from collections import OrderedDict
 
 if len(sys.argv) < 2:
     exit('Please provide VM templates repository path')
@@ -13,19 +14,13 @@ if len(sys.argv) < 2:
 for root, dirs, files in os.walk(sys.argv[1]):
     if 'template.json' in files:
         path = os.path.join(root, 'template.json')
-        with open(path, 'r') as f:
-            new = ''
-            for line in f:
-                if 'updated_at' in line:
-                    new += '        "updated_at": {"$date": '
-                    new += '"{0}"'.format(str(datetime.datetime.utcnow()).split('.')[0].replace(' ', 'T'))
-                    new += '},\n'
-                else:
-                    new += line
-
         try:
-            json.loads(new)
+            with open(path, 'r') as f:
+                template = json.load(f, object_pairs_hook=OrderedDict)
         except ValueError as e:
             exit('Error parsing {} template. Please check its syntax \n Error message: \n {}'.format(path, e))
+
+        template['template']['updated_at']['$date'] = datetime.datetime.utcnow().isoformat().split('.')[0]
+
         with open(path, 'w') as f:
-            f.write(new)
+            json.dump(template, f, indent=4)
