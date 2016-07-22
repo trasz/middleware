@@ -374,6 +374,9 @@ function StatsController($scope, $location, $routeParams, $route, $rootScope) {
             end: {"$date": moment().format()},
             frequency: $("#frequency").val()
         }], function (response) {
+            for (var i in response.data) {
+                response.data[i][0] = moment(response.data[i][0]["$date"]).unix();
+            }
             render_chart(response.data);
         });
     }
