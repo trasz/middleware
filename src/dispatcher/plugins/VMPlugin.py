@@ -1770,20 +1770,14 @@ def _init(dispatcher, plugin):
     plugin.register_schema_definition('vm-guest-type', {
         'type': 'string',
         'enum': [
-            'boot2docker',
-            'centos',
-            'debian',
-            'fedora',
-            'freebsd',
-            'freenas',
-            'netbsd',
-            'openbsd',
-            'opensuse',
-            'pfsense',
-            'solaris',
-            'ubuntu',
-            'other-linux',
-            'other-unix',
+            'linux64',
+            'freebsd32',
+            'freebsd64',
+            'netbsd64',
+            'openbsd32',
+            'openbsd64',
+            'windows64'
+            'solaris64',
             'other'
         ]
     })
