@@ -232,7 +232,7 @@ class VMTemplateProvider(Provider):
                         if os.path.isdir(os.path.join(cache_dir, template['template']['name'])):
                             template['template']['cached'] = True
                         total_fetch_size = 0
-                        for file in template['fetch']:
+                        for file in template['template']['fetch']:
                             total_fetch_size += file.get('size', 0)
 
                         template['template']['fetch_size'] = total_fetch_size
