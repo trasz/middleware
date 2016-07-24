@@ -245,6 +245,10 @@ class VMTemplateProvider(Provider):
 
 
 class VMBaseTask(ProgressTask):
+    def __init__(self, dispatcher, datastore):
+        super(VMBaseTask, self).__init__(dispatcher, datastore)
+        self.vm_ds = None
+
     def init_dataset(self, vm):
         pool = vm['target']
         root_ds = os.path.join(pool, 'vm')
