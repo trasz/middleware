@@ -357,7 +357,7 @@ class OutputService(RpcService):
             df = ds.query(start, end, frequency)
             return {
                 'data': [
-                    [datetime.fromtimestamp(df.index[i].value // 10 ** 9), str(df[i])] for i in range(len(df))
+                    [datetime.utcfromtimestamp(df.index[i].value // 10 ** 9), str(df[i])] for i in range(len(df))
                 ]
             }
 
@@ -372,7 +372,7 @@ class OutputService(RpcService):
 
             return {
                 'data': [
-                    [datetime.fromtimestamp(final.index[i].value // 10 ** 9)] + [str(final[col][i]) for col in data_source] for i in range(len(final))
+                    [datetime.utcfromtimestamp(final.index[i].value // 10 ** 9)] + [str(final[col][i]) for col in data_source] for i in range(len(final))
                 ]
             }
 
