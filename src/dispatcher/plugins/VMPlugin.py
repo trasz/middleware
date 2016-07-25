@@ -419,8 +419,27 @@ class VMBaseTask(ProgressTask):
             progress_cb(100, 'Creating {0}'.format(res['type'].lower()))
 
     def update_device(self, vm, old_res, new_res):
+        vm_ds = os.path.join(vm['target'], 'vm', vm['name'])
+        if new_res['type'] in ['DISK', 'VOLUME']:
+            if old_res['name'] != new_res['name']:
+                if not (new_res['type'] == 'VOLUME' and not new_res['properties']['auto']):
+                    self.join_subtasks(self.run_subtask(
+                        'zfs.rename',
+                        os.path.join(vm_ds, old_res['name']),
+                        os.path.join(vm_ds, new_res['name'])
+                    ))
+                    if new_res['type'] == 'VOLUME':
+                        self.join_subtasks(self.run_subtask('zfs.mount', os.path.join(vm_ds, new_res['name'])))
+                        self.join_subtasks(self.run_subtask('zfs.umount', os.path.join(vm_ds, new_res['name'])))
+
         if new_res['type'] == 'DISK':
-            pass
+            if old_res['properties']['size'] != new_res['properties']['size']:
+                ds_name = os.path.join(vm_ds, new_res['name'])
+                self.join_subtasks(self.run_subtask(
+                    'zfs.update',
+                    ds_name,
+                    {'volsize': {'value': new_res['properties']['size']}}
+                ))
 
     def delete_device(self, vm, res):
         reserved_datasets = self.dispatcher.call_sync('vm.get_reserved_datasets', vm['id'])
