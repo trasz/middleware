@@ -50,6 +50,11 @@ freenasrsync_utils() {
 	myrsync ${REPO_PARENT_PATH}/py-freenas-utils/freenas/utils/ "root@${1}":/usr/local/lib/python3.4/site-packages/freenas/utils/
 }
 
+freenasrsync_update() {
+	myrsync ${REPO_PARENT_PATH}/freenas-pkgtools/lib/ "root@${1}:/usr/local/lib/freenasOS/"
+	myrsyncnodel ${REPO_PARENT_PATH}/freenas-pkgtools/freenas-update/freenas-update.py "root@${1}:/usr/local/bin/freenas-update"
+	ssh root@${1} '/bin/chmod +x /usr/local/bin/freenas-update'
+}
 
 freenasrsync_client() {
 	# python dispatcher client stuff
