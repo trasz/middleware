@@ -27,7 +27,7 @@
 
 import os
 import errno
-from task import Task, Provider, VerifyException, TaskDescription
+from task import Task, Provider, TaskException, TaskDescription
 from freenas.dispatcher.rpc import description, accepts, generator
 from freenas.dispatcher.rpc import SchemaHelper as h
 from freenas.utils import normalize
@@ -99,12 +99,12 @@ class ConfigureFakeDisk(Task):
         return TaskDescription("Updating simulated disk {name}", name=disk.get('path', id) if disk else id)
 
     def verify(self, id, updated_params):
-        if not self.datastore.exists('simulator.disks', ('id', '=', id)):
-            raise VerifyException(errno.ENOENT, 'Disk {0} not found'.format(id))
-
         return ['system-dataset']
 
     def run(self, id, updated_params):
+        if not self.datastore.exists('simulator.disks', ('id', '=', id)):
+            raise TaskException(errno.ENOENT, 'Disk {0} not found'.format(id))
+
         disk = self.datastore.get_by_id('simulator.disks', id)
         disk.update(updated_params)
         self.datastore.update('simulator.disks', id, disk)
@@ -124,12 +124,12 @@ class DeleteFakeDisk(Task):
         return TaskDescription("Deleting simulated disk {name}", name=disk.get('path', id) if disk else id)
 
     def verify(self, id):
-        if not self.datastore.exists('simulator.disks', ('id', '=', id)):
-            raise VerifyException(errno.ENOENT, 'Disk {0} not found'.format(id))
-
         return ['system-dataset']
 
     def run(self, id):
+        if not self.datastore.exists('simulator.disks', ('id', '=', id)):
+            raise TaskException(errno.ENOENT, 'Disk {0} not found'.format(id))
+
         self.datastore.delete('simulator.disks', id)
         self.dispatcher.call_sync('etcd.generation.generate_group', 'ctl')
         self.dispatcher.call_sync('service.reload', 'ctl')

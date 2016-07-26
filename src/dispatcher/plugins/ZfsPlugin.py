@@ -374,15 +374,14 @@ class ZpoolCreateTask(Task):
         return TaskDescription('Creating ZFS pool {name}', name=name)
 
     def verify(self, name, topology, params=None):
-        zfs = get_zfs()
-        if name in zfs.pools:
-            raise VerifyException(errno.EEXIST, 'Pool with same name already exists')
-
         return self.__get_disks(topology)
 
     def run(self, name, topology, params=None):
         params = params or {}
         zfs = get_zfs()
+        if name in zfs.pools:
+            raise TaskException(errno.EEXIST, 'Pool with same name already exists')
+
         mountpoint = params.get('mountpoint')
 
         if not mountpoint:
@@ -741,6 +740,10 @@ class ZpoolImportTask(Task):
 
     def run(self, guid, name=None, properties=None):
         zfs = get_zfs()
+        pool = first_or_default(lambda p: str(p.guid) == guid, zfs.find_import())
+        if not pool:
+            raise TaskException(errno.ENOENT, 'Pool with GUID {0} not found'.format(guid))
+
         opts = properties or {}
         try:
             pool = first_or_default(lambda p: str(p.guid) == guid, zfs.find_import())
@@ -860,6 +863,10 @@ class ZfsDatasetCreateTask(Task):
         return ['zpool:{0}'.format(pool_name)]
 
     def run(self, path, type, props=None):
+        pool_name = path.split('/')[0]
+        if not pool_exists(pool_name):
+            raise TaskException(errno.ENOENT, 'Pool {0} not found'.format(pool_name))
+
         self.check_type(type)
         try:
             props = props or {}

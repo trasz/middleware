@@ -37,7 +37,7 @@ import libzfs
 from resources import Resource
 from freenas.dispatcher.rpc import RpcException, accepts, returns, description, private
 from freenas.dispatcher.rpc import SchemaHelper as h
-from task import Task, Provider, VerifyException, TaskDescription
+from task import Task, Provider, TaskException, TaskDescription
 from freenas.utils.copytree import copytree
 
 
@@ -274,12 +274,12 @@ class SystemDatasetImport(Task):
         return TaskDescription('Importing .system dataset from volume {name}', name=pool)
 
     def verify(self, pool):
-        if not self.dispatcher.call_sync('zfs.dataset.query', [('pool', '=', pool), ('name', '~', '.system')], {'single': True}):
-            raise VerifyException('System dataset not found on pool {0}'.format(pool))
-
         return ['root']
 
     def run(self, pool):
+        if not self.dispatcher.call_sync('zfs.dataset.query', [('pool', '=', pool), ('name', '~', '.system')], {'single': True}):
+            raise TaskException(errno.ENOENT, 'System dataset not found on pool {0}'.format(pool))
+
         status = self.dispatcher.call_sync('system_dataset.status')
         services = self.configstore.get('system.dataset.services')
         restart = [s for s in services if self.configstore.get('service.{0}.enable'.format(s))]

@@ -35,7 +35,7 @@ from freenas.utils import normalize
 from freenas.utils.query import wrap
 from datastore.config import ConfigNode
 from gevent import hub
-from task import Provider, Task, TaskException, TaskDescription, VerifyException, query, TaskWarning
+from task import Provider, Task, TaskException, TaskDescription, query, TaskWarning
 from debug import AttachFile, AttachCommandOutput
 
 
@@ -231,16 +231,16 @@ class DeleteInterfaceTask(Task):
         return TaskDescription("Deleting network interface {name}", name=iface.get('name', ''))
 
     def verify(self, id):
-        iface = self.datastore.get_by_id('network.interfaces', id)
-        if not iface:
-            raise VerifyException(errno.ENOENT, 'Interface {0} does not exist'.format(id))
-
-        if iface['type'] not in ('VLAN', 'LAGG', 'BRIDGE'):
-            raise VerifyException(errno.EBUSY, 'Cannot delete physical interface')
-
         return ['system']
 
     def run(self, id):
+        iface = self.datastore.get_by_id('network.interfaces', id)
+        if not iface:
+            raise TaskException(errno.ENOENT, 'Interface {0} does not exist'.format(id))
+
+        if iface['type'] not in ('VLAN', 'LAGG', 'BRIDGE'):
+            raise TaskException(errno.EBUSY, 'Cannot delete physical interface')
+
         self.datastore.delete('network.interfaces', id)
         try:
             self.dispatcher.call_sync('networkd.configuration.configure_network', timeout=60)
@@ -268,12 +268,12 @@ class ConfigureInterfaceTask(Task):
         return TaskDescription("Updating configuration of network interface {name}", name=iface.get('name', ''))
 
     def verify(self, id, updated_fields):
-        if not self.datastore.exists('network.interfaces', ('id', '=', id)):
-            raise VerifyException(errno.ENOENT, 'Interface {0} does not exist'.format(id))
-
         return ['system']
 
     def run(self, id, updated_fields):
+        if not self.datastore.exists('network.interfaces', ('id', '=', id)):
+            raise TaskException(errno.ENOENT, 'Interface {0} does not exist'.format(id))
+
         task = 'networkd.configuration.configure_interface'
         entity = self.datastore.get_by_id('network.interfaces', id)
 
@@ -352,16 +352,16 @@ class InterfaceUpTask(Task):
         return TaskDescription("Setting network interface {name} up", name=iface.get('name', ''))
 
     def verify(self, id):
-        iface = self.datastore.get_by_id('network.interfaces', id)
-        if not iface:
-            raise VerifyException(errno.ENOENT, 'Interface {0} does not exist'.format(id))
-
-        if not iface['enabled']:
-            raise VerifyException(errno.ENXIO, 'Interface {0} is disabled'.format(id))
-
         return ['system']
 
     def run(self, id):
+        iface = self.datastore.get_by_id('network.interfaces', id)
+        if not iface:
+            raise TaskException(errno.ENOENT, 'Interface {0} does not exist'.format(id))
+
+        if not iface['enabled']:
+            raise TaskException(errno.ENXIO, 'Interface {0} is disabled'.format(id))
+
         try:
             self.dispatcher.call_sync('networkd.configuration.up_interface', id)
         except RpcException as err:
@@ -385,16 +385,16 @@ class InterfaceDownTask(Task):
         return TaskDescription("Setting network interface {name} down", name=iface.get('name', ''))
 
     def verify(self, id):
-        iface = self.datastore.get_by_id('network.interfaces', id)
-        if not iface:
-            raise VerifyException(errno.ENOENT, 'Interface {0} does not exist'.format(id))
-
-        if not iface['enabled']:
-            raise VerifyException(errno.ENXIO, 'Interface {0} is disabled'.format(id))
-
         return ['system']
 
     def run(self, id):
+        iface = self.datastore.get_by_id('network.interfaces', id)
+        if not iface:
+            raise TaskException(errno.ENOENT, 'Interface {0} does not exist'.format(id))
+
+        if not iface['enabled']:
+            raise TaskException(errno.ENXIO, 'Interface {0} is disabled'.format(id))
+
         try:
             self.dispatcher.call_sync('networkd.configuration.down_interface', id)
         except RpcException as err:
@@ -418,19 +418,19 @@ class InterfaceRenewTask(Task):
         return TaskDescription("Renewing IP address of network interface {name}", name=iface.get('name', ''))
 
     def verify(self, id):
-        interface = self.datastore.get_by_id('network.interfaces', id)
-        if not interface:
-            raise VerifyException(errno.ENOENT, 'Interface {0} does not exist'.format(id))
-
-        if not interface['enabled']:
-            raise VerifyException(errno.ENXIO, 'Interface {0} is disabled'.format(id))
-
-        if not interface['dhcp']:
-            raise VerifyException(errno.EINVAL, 'Cannot renew a lease on interface that is not configured for DHCP')
-
         return ['system']
 
     def run(self, id):
+        interface = self.datastore.get_by_id('network.interfaces', id)
+        if not interface:
+            raise TaskException(errno.ENOENT, 'Interface {0} does not exist'.format(id))
+
+        if not interface['enabled']:
+            raise TaskException(errno.ENXIO, 'Interface {0} is disabled'.format(id))
+
+        if not interface['dhcp']:
+            raise TaskException(errno.EINVAL, 'Cannot renew a lease on interface that is not configured for DHCP')
+
         try:
             self.dispatcher.call_sync('networkd.configuration.renew_lease', id)
         except RpcException as err:
@@ -456,11 +456,12 @@ class AddHostTask(Task):
         return TaskDescription("Adding static host {name}", name=host['id'])
 
     def verify(self, host):
-        if self.datastore.exists('network.hosts', ('id', '=', host['id'])):
-            raise VerifyException(errno.EEXIST, 'Host entry {0} already exists'.format(host['id']))
         return ['system']
 
     def run(self, host):
+        if self.datastore.exists('network.hosts', ('id', '=', host['id'])):
+            raise TaskException(errno.EEXIST, 'Host entry {0} already exists'.format(host['id']))
+
         self.datastore.insert('network.hosts', host)
 
         try:
@@ -485,12 +486,12 @@ class UpdateHostTask(Task):
         return TaskDescription("Updating static host {name}", name=id)
 
     def verify(self, id, updated_fields):
-        if not self.datastore.exists('network.hosts', ('id', '=', id)):
-            raise VerifyException(errno.ENOENT, 'Host entry {0} does not exist'.format(id))
-
         return ['system']
 
     def run(self, id, updated_fields):
+        if not self.datastore.exists('network.hosts', ('id', '=', id)):
+            raise TaskException(errno.ENOENT, 'Host entry {0} does not exist'.format(id))
+
         host = self.datastore.get_one('network.hosts', ('id', '=', id))
         host.update(updated_fields)
         self.datastore.update('network.hosts', host['id'], host)
@@ -517,12 +518,12 @@ class DeleteHostTask(Task):
         return TaskDescription("Deleting static host {name}", name=id)
 
     def verify(self, id):
-        if not self.datastore.exists('network.hosts', ('id', '=', id)):
-            raise VerifyException(errno.ENOENT, 'Host entry {0} does not exist'.format(id))
-
         return ['system']
 
     def run(self, id):
+        if not self.datastore.exists('network.hosts', ('id', '=', id)):
+            raise TaskException(errno.ENOENT, 'Host entry {0} does not exist'.format(id))
+
         self.datastore.delete('network.hosts', id)
 
         try:
@@ -550,21 +551,24 @@ class AddRouteTask(Task):
         return TaskDescription("Adding static route {name}", name=route['id'])
 
     def verify(self, route):
+        return ['system']
+
+    def run(self, route):
         if self.datastore.exists('network.routes', ('id', '=', route['id'])):
-            raise VerifyException(errno.EEXIST, 'Route {0} exists'.format(route['id']))
+            raise TaskException(errno.EEXIST, 'Route {0} exists'.format(route['id']))
 
         for r in self.dispatcher.call_sync('network.route.query'):
             if (r['network'] == route['network']) and \
                (r['netmask'] == route['netmask']) and \
                (r['gateway'] == route['gateway']):
-                raise VerifyException(errno.EINVAL, 'Cannot create two identical routes differing only in name.')
+                raise TaskException(errno.EINVAL, 'Cannot create two identical routes differing only in name.')
 
         if route['type'] == 'INET':
             max_cidr = 32
         else:
             max_cidr = 128
         if not (0 <= route['netmask'] <= max_cidr):
-            raise VerifyException(
+            raise TaskException(
                 errno.EINVAL,
                 'Netmask value {0} is not valid. Allowed values are 0-{1} (CIDR).'.format(route['netmask'], max_cidr)
             )
@@ -572,16 +576,13 @@ class AddRouteTask(Task):
         try:
             ipaddress.ip_network(os.path.join(route['network'], str(route['netmask'])))
         except ValueError:
-            raise VerifyException(
+            raise TaskException(
                 errno.EINVAL,
                 '{0} would have host bits set. Change network or netmask to represent a valid network'.format(
                     os.path.join(route['network'], str(route['netmask']))
                 )
             )
 
-        return ['system']
-
-    def run(self, route):
         network = ipaddress.ip_network(os.path.join(route['network'], str(route['netmask'])))
         if ipaddress.ip_address(route['gateway']) in network:
             self.add_warning(
@@ -614,20 +615,24 @@ class UpdateRouteTask(Task):
         return TaskDescription("Updating static route {name}", name=id)
 
     def verify(self, name, updated_fields):
+        return ['system']
+
+    def run(self, name, updated_fields):
         if not self.datastore.exists('network.routes', ('id', '=', name)):
-            raise VerifyException(errno.ENOENT, 'Route {0} does not exist'.format(name))
+            raise TaskException(errno.ENOENT, 'Route {0} does not exist'.format(name))
 
         route = self.datastore.get_one('network.routes', ('id', '=', name))
         net = updated_fields['network'] if 'network' in updated_fields else route['network']
         netmask = updated_fields['netmask'] if 'netmask' in updated_fields else route['netmask']
         type = updated_fields['type'] if 'type' in updated_fields else route['type']
+        gateway = updated_fields['gateway'] if 'gateway' in updated_fields else route['gateway']
 
         if type == 'INET':
             max_cidr = 32
         else:
             max_cidr = 128
         if not (0 <= netmask <= max_cidr):
-            raise VerifyException(
+            raise TaskException(
                 errno.EINVAL,
                 'Netmask value {0} is not valid. Allowed values are 0-{1} (CIDR).'.format(route['netmask'], max_cidr)
             )
@@ -635,20 +640,12 @@ class UpdateRouteTask(Task):
         try:
             ipaddress.ip_network(os.path.join(net, str(netmask)))
         except ValueError:
-            raise VerifyException(
+            raise TaskException(
                 errno.EINVAL,
                 '{0} would have host bits set. Change network or netmask to represent a valid network'.format(
                     os.path.join(net, str(netmask))
                 )
             )
-
-        return ['system']
-
-    def run(self, name, updated_fields):
-        route = self.datastore.get_one('network.routes', ('id', '=', name))
-        gateway = updated_fields['gateway'] if 'gateway' in updated_fields else route['gateway']
-        net = updated_fields['network'] if 'network' in updated_fields else route['network']
-        netmask = updated_fields['netmask'] if 'netmask' in updated_fields else route['netmask']
 
         network = ipaddress.ip_network(os.path.join(net, str(netmask)))
         if ipaddress.ip_address(gateway) in network:
@@ -684,12 +681,12 @@ class DeleteRouteTask(Task):
         return TaskDescription("Deleting static route {name}", name=id)
 
     def verify(self, id):
-        if not self.datastore.exists('network.routes', ('id', '=', id)):
-            raise VerifyException(errno.ENOENT, 'route {0} does not exist'.format(id))
-
         return ['system']
 
     def run(self, id):
+        if not self.datastore.exists('network.routes', ('id', '=', id)):
+            raise TaskException(errno.ENOENT, 'route {0} does not exist'.format(id))
+
         self.datastore.delete('network.routes', id)
         try:
             self.dispatcher.call_sync('networkd.configuration.configure_routes')

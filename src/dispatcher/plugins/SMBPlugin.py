@@ -34,7 +34,7 @@ from datastore.config import ConfigNode
 from freenas.dispatcher.rpc import RpcException, SchemaHelper as h, description, accepts, returns, private
 from lib.system import system, SubprocessException
 from lib.freebsd import get_sysctl
-from task import Task, Provider, TaskException, ValidationException, TaskDescription
+from task import Task, Provider, TaskException, TaskDescription
 from debug import AttachFile, AttachCommandOutput
 from freenas.utils.permissions import get_unix_permissions, get_integer, perm_to_oct_string
 
@@ -85,33 +85,29 @@ class SMBConfigureTask(Task):
         return TaskDescription('Configuring SMB service')
 
     def verify(self, smb):
-        errors = ValidationException()
+        return ['system']
+
+    def run(self, smb):
         node = ConfigNode('service.smb', self.configstore).__getstate__()
 
         netbiosname = smb.get('netbiosname')
         if netbiosname is not None:
             for n in netbiosname:
                 if not validate_netbios_name(n):
-                    errors.add((0, 'netbiosname'), 'Invalid name {0}'.format(n))
+                    raise TaskException(errno.EINVAL, 'Invalid name {0}'.format(n))
         else:
             netbiosname = node['netbiosname']
 
         workgroup = smb.get('workgroup')
         if workgroup is not None:
             if not validate_netbios_name(workgroup):
-                errors.add((0, 'workgroup'), 'Invalid name')
+                raise TaskException(errno.EINVAL, 'Invalid name')
         else:
             workgroup = node['workgroup']
 
         if workgroup.lower() in [i.lower() for i in netbiosname]:
-            errors.add((0, 'netbiosname'), 'NetBIOS and Workgroup must be unique')
+            raise TaskException(errno.EINVAL, 'NetBIOS and Workgroup must be unique')
 
-        if errors:
-            raise errors
-
-        return ['system']
-
-    def run(self, smb):
         try:
             action = 'NONE'
             node = ConfigNode('service.smb', self.configstore)

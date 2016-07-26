@@ -35,7 +35,7 @@ from datetime import datetime
 from freenas.dispatcher.jsonenc import dumps, loads
 from freenas.dispatcher.fd import FileDescriptor
 from freenas.dispatcher.rpc import RpcException, accepts, returns, description, SchemaHelper as h, generator
-from task import Provider, Task, ProgressTask, VerifyException, TaskException, TaskDescription
+from task import Provider, Task, ProgressTask, TaskException, TaskDescription
 from freenas.utils import normalize, first_or_default
 from freenas.utils.query import wrap
 
@@ -79,15 +79,15 @@ class CreateBackupTask(Task):
         return TaskDescription('Creating backup task {name}', name=backup.get('name', '') if backup else '')
 
     def verify(self, backup):
-        if 'id' in backup and self.datastore.exists('backup', ('id', '=', backup['id'])):
-            raise VerifyException('Backup with ID {0} already exists'.format(backup['id']))
-
-        if self.datastore.exists('backup', ('name', '=', backup['name'])):
-            raise VerifyException('Backup with name {0} already exists'.format(backup['name']))
-
         return ['system']
 
     def run(self, backup):
+        if 'id' in backup and self.datastore.exists('backup', ('id', '=', backup['id'])):
+            raise TaskException(errno.EEXIST, 'Backup with ID {0} already exists'.format(backup['id']))
+
+        if self.datastore.exists('backup', ('name', '=', backup['name'])):
+            raise TaskException(errno.EEXIST, 'Backup with name {0} already exists'.format(backup['name']))
+
         normalize(backup, {
             'properties': {}
         })
@@ -117,12 +117,12 @@ class UpdateBackupTask(Task):
         return TaskDescription('Updating backup task {name}', name=backup.get('name', id) if backup else id)
 
     def verify(self, id, updated_params):
-        if not self.datastore.exists('backup', ('id', '=', id)):
-            raise VerifyException(errno.ENOENT, 'Backup {0} not found'.format(id))
-
         return ['system']
 
     def run(self, id, updated_params):
+        if not self.datastore.exists('backup', ('id', '=', id)):
+            raise TaskException(errno.ENOENT, 'Backup {0} not found'.format(id))
+
         backup = self.datastore.get_by_id('backup', id)
         backup.update(updated_params)
         self.datastore.update('backup', id, backup)
@@ -147,12 +147,12 @@ class DeleteBackupTask(Task):
         return TaskDescription('Deleting backup task {name}', name=backup.get('name', id) if backup else id)
 
     def verify(self, id):
-        if not self.datastore.exists('backup', ('id', '=', id)):
-            raise VerifyException(errno.ENOENT, 'Backup {0} not found'.format(id))
-
         return ['system']
 
     def run(self, id):
+        if not self.datastore.exists('backup', ('id', '=', id)):
+            raise TaskException(errno.ENOENT, 'Backup {0} not found'.format(id))
+
         self.datastore.delete('backup', id)
         self.dispatcher.emit_event('backup.changed', {
             'operation': 'delete',
@@ -223,9 +223,6 @@ class BackupSyncTask(ProgressTask):
         return TaskDescription('Sending data to backup {name}', name=backup.get('name', id) if backup else id)
 
     def verify(self, id, snapshot=True, dry_run=False):
-        if not self.datastore.exists('backup', ('id', '=', id)):
-            raise VerifyException(errno.ENOENT, 'Backup {0} not found'.format(id))
-
         return ['system']
 
     def generate_manifest(self, backup, previous_manifest, actions):
@@ -279,6 +276,9 @@ class BackupSyncTask(ProgressTask):
         thr.join(timeout=1)
 
     def run(self, id, snapshot=True, dry_run=False):
+        if not self.datastore.exists('backup', ('id', '=', id)):
+            raise TaskException(errno.ENOENT, 'Backup {0} not found'.format(id))
+
         # Check for previous manifest
         manifest = None
         snapshots = []

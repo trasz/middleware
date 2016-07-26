@@ -36,7 +36,7 @@ import time
 from datastore.config import ConfigNode
 from freenas.dispatcher.rpc import RpcException, SchemaHelper as h, description, accepts, private, returns
 from lib.system import system, SubprocessException
-from task import Task, Provider, TaskException, ValidationException, TaskDescription
+from task import Task, Provider, TaskException, TaskDescription
 
 logger = logging.getLogger('UPSPlugin')
 
@@ -151,29 +151,25 @@ class UPSConfigureTask(Task):
         return TaskDescription('Configuring UPS service')
 
     def verify(self, ups):
-        errors = ValidationException()
+        return ['system']
+
+    def run(self, ups):
         node = ConfigNode('service.ups', self.configstore).__getstate__()
         node.update(ups)
 
         if node['mode'] == 'MASTER' and not node['driver_port']:
-            errors.add((0, 'driver_port'), 'This field is required')
+            raise TaskException(errno.EINVAL, 'This field is required')
 
         if node['mode'] == 'SLAVE' and not node['remote_host']:
-            errors.add((0, 'remote_host'), 'This field is required')
+            raise TaskException(errno.EINVAL, 'This field is required')
 
         if not re.search(r'^[a-z0-9\.\-_]+$', node['identifier'], re.I):
-            errors.add((0, 'identifier'), 'Use alphanumeric characters, ".", "-" and "_"')
+            raise TaskException(errno.EINVAL, 'Use alphanumeric characters, ".", "-" and "_"')
 
         for i in ('monitor_user', 'monitor_password'):
             if re.search(r'[ #]', node[i], re.I):
-                errors.add((0, i), 'Spaces or number signs are not allowed')
+                raise TaskException(errno.EINVAL, 'Spaces or number signs are not allowed')
 
-        if errors:
-            raise errors
-
-        return ['system']
-
-    def run(self, ups):
         try:
             node = ConfigNode('service.ups', self.configstore)
             node.update(ups)

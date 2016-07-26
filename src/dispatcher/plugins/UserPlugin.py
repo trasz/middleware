@@ -186,9 +186,6 @@ class UserCreateTask(Task):
         for code, message in check_unixname(user['username']):
             errors.add((0, 'username'), message, code=code)
 
-        if self.datastore.exists('users', ('username', '=', user['username'])):
-            raise VerifyException(errno.EEXIST, 'User with given name already exists')
-
         if 'groups' in user and len(user['groups']) > 64:
             errors.add(
                 (0, 'groups'),
@@ -232,6 +229,9 @@ class UserCreateTask(Task):
         return ['system']
 
     def run(self, user):
+        if self.datastore.exists('users', ('username', '=', user['username'])):
+            raise TaskException(errno.EEXIST, 'User with given name already exists')
+
         if 'uid' not in user:
             # Need to get next free UID
             uid = self.dispatcher.call_sync('user.next_uid', user.get('group') is None)
@@ -333,11 +333,7 @@ class UserDeleteTask(Task):
 
     def verify(self, id):
         user = self.datastore.get_by_id('users', id)
-
-        if user is None:
-            raise VerifyException(errno.ENOENT, 'User with UID {0} does not exist'.format(id))
-
-        if user['builtin']:
+        if user and user['builtin']:
             raise VerifyException(errno.EPERM, 'Cannot delete builtin user {0}'.format(user['username']))
 
         return ['system']
@@ -345,6 +341,9 @@ class UserDeleteTask(Task):
     def run(self, id):
         try:
             user = self.datastore.get_by_id('users', id)
+            if user is None:
+                raise TaskException(errno.ENOENT, 'User with UID {0} does not exist'.format(id))
+
             group = self.datastore.get_by_id('groups', user['group'])
             if group and user['uid'] == group['gid']:
                 self.add_warning(TaskWarning(
@@ -391,35 +390,8 @@ class UserUpdateTask(Task):
         return TaskDescription("Updating user {name}", name=user['username'] if user else id)
 
     def verify(self, id, updated_fields):
-        user = self.datastore.get_by_id('users', id)
         errors = ValidationException()
         normalize_name(updated_fields, 'username')
-
-        if user is None:
-            errors.add(
-                (1, 'id'), "User with id: {0} does not exist".format(id), code=errno.ENOENT
-            )
-            raise errors
-
-        if user.get('builtin'):
-            if 'home' in updated_fields:
-                errors.add(
-                    (1, 'home'), "Cannot change builtin user's home directory", code=errno.EPERM
-                )
-
-            # Similarly ignore uid changes for builtin users
-            if 'uid' in updated_fields:
-                errors.add((1, 'uid'), "Cannot change builtin user's UID", code=errno.EPERM)
-
-            if 'username' in updated_fields:
-                errors.add(
-                    (1, 'username'), "Cannot change builtin user's username", code=errno.EPERM
-                )
-
-            if 'locked' in updated_fields:
-                errors.add(
-                    (1, 'locked'), "Cannot change builtin user's locked flag", code=errno.EPERM
-                )
 
         if updated_fields.get('full_name') and ':' in updated_fields['full_name']:
             errors.add((1, 'full_name'), 'The character ":" is not allowed')
@@ -467,6 +439,31 @@ class UserUpdateTask(Task):
 
         try:
             user = self.datastore.get_by_id('users', id)
+            if user is None:
+                raise TaskException(
+                    errno.ENOENT, "User with id: {0} does not exist".format(id)
+                )
+
+            if user.get('builtin'):
+                if 'home' in updated_fields:
+                    raise TaskException(
+                        errno.EPERM, "Cannot change builtin user's home directory"
+                    )
+
+                # Similarly ignore uid changes for builtin users
+                if 'uid' in updated_fields:
+                    raise TaskException(errno.EPERM, "Cannot change builtin user's UID")
+
+                if 'username' in updated_fields:
+                    raise TaskException(
+                        errno.EPERM, "Cannot change builtin user's username"
+                    )
+
+                if 'locked' in updated_fields:
+                    raise TaskException(
+                        errno.EPERM, "Cannot change builtin user's locked flag"
+                    )
+
             if not user:
                 raise TaskException(errno.ENOENT, 'User {0} not found'.format(id))
 
@@ -545,26 +542,24 @@ class GroupCreateTask(Task):
         for code, message in check_unixname(group['name']):
             errors.add((0, 'name'), message, code=code)
 
-        if self.datastore.exists('groups', ('name', '=', group['name'])):
-            errors.add(
-                (0, "name"),
-                'Group {0} already exists'.format(group['name']),
-                code=errno.EEXIST
-            )
-
-        if 'gid' in group and self.datastore.exists('groups', ('gid', '=', group['gid'])):
-            errors.add(
-                (0, "gid"),
-                'Group with GID {0} already exists'.format(group['gid']),
-                code=errno.EEXIST
-            )
-
         if errors:
             raise errors
 
         return ['system']
 
     def run(self, group):
+        if self.datastore.exists('groups', ('name', '=', group['name'])):
+            raise TaskException(
+                errno.EEXIST,
+                'Group {0} already exists'.format(group['name'])
+            )
+
+        if 'gid' in group and self.datastore.exists('groups', ('gid', '=', group['gid'])):
+            raise TaskException(
+                errno.EEXIST,
+                'Group with GID {0} already exists'.format(group['gid'])
+            )
+
         if 'gid' not in group:
             # Need to get next free GID
             gid = self.dispatcher.call_sync('group.next_gid')
@@ -616,20 +611,19 @@ class GroupUpdateTask(Task):
             for code, message in check_unixname(updated_fields['name']):
                 errors.add((1, 'name'), message, code=code)
 
-            # Check if there is another group with same name being renamed to
-            if self.datastore.exists('groups', ('name', '=', updated_fields['name']), ('id', '!=', id)):
-                errors.add(
-                    (1, "name"),
-                    'Group {0} already exists'.format(updated_fields['name']),
-                    code=errno.EEXIST
-                )
-
         if errors:
             raise errors
 
         return ['system']
 
     def run(self, id, updated_fields):
+        if 'name' in updated_fields:
+            if self.datastore.exists('groups', ('name', '=', updated_fields['name']), ('id', '!=', id)):
+                raise TaskException(
+                    errno.EEXIST,
+                    'Group {0} already exists'.format(updated_fields['name'])
+                )
+
         try:
             normalize_name(updated_fields, 'name')
             group = self.datastore.get_by_id('groups', id)
@@ -664,10 +658,8 @@ class GroupDeleteTask(Task):
     def verify(self, id):
         # Check if group exists
         group = self.datastore.get_by_id('groups', id)
-        if group is None:
-            raise VerifyException(errno.ENOENT, 'Group with given ID does not exist')
 
-        if group['builtin'] is True:
+        if group and group['builtin'] is True:
             raise VerifyException(
                 errno.EINVAL, 'Group {0} is built-in and can not be deleted'.format(group['name']))
 
@@ -676,6 +668,8 @@ class GroupDeleteTask(Task):
     def run(self, id):
         try:
             group = self.datastore.get_by_id('groups', id)
+            if group is None:
+                raise TaskException(errno.ENOENT, 'Group with given ID does not exist')
 
             # Remove group from users
             for i in self.datastore.query('users', ('groups', 'in', group['gid'])):

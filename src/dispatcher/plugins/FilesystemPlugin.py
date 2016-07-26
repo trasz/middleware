@@ -34,7 +34,7 @@ from freenas.dispatcher.rpc import (
     RpcException, description, accepts, returns, pass_sender, private
 )
 from freenas.dispatcher.rpc import SchemaHelper as h
-from task import Provider, Task, TaskStatus, TaskWarning, VerifyException, TaskException, TaskDescription
+from task import Provider, Task, TaskStatus, TaskWarning, TaskException, TaskDescription
 from auth import FileToken
 from freenas.utils.permissions import modes_to_oct, get_type
 
@@ -244,12 +244,6 @@ class SetPermissionsTask(Task):
         return TaskDescription('Setting permissions on path {name}', name=path)
 
     def verify(self, path, permissions, recursive=False):
-        if not os.path.exists(path):
-            raise VerifyException(errno.ENOENT, 'Path {0} does not exist'.format(path))
-
-        if recursive and not os.path.isdir(path):
-            raise VerifyException(errno.EINVAL, 'Recursive specified, but {0} is not directory'.format(path))
-
         try:
             pool, ds, rest = self.dispatcher.call_sync('volume.decode_path', path)
             return ['zfs:{0}'.format(ds)]
@@ -257,6 +251,12 @@ class SetPermissionsTask(Task):
             return []
 
     def run(self, path, permissions, recursive=False):
+        if not os.path.exists(path):
+            raise TaskException(errno.ENOENT, 'Path {0} does not exist'.format(path))
+
+        if recursive and not os.path.isdir(path):
+            raise TaskException(errno.EINVAL, 'Recursive specified, but {0} is not directory'.format(path))
+
         if permissions.get('user') or permissions.get('group'):
             user = permissions.get('user')
             group = permissions.get('group')

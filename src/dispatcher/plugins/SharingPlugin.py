@@ -276,12 +276,15 @@ class UpdateShareTask(Task):
         return TaskDescription("Updating share {name}", name=share.get('name', id) if share else id)
 
     def verify(self, id, updated_fields):
+        return ['system']
+
+    def run(self, id, updated_fields):
         share = self.datastore.get_by_id('shares', id)
         if not share:
-            raise VerifyException(errno.ENOENT, 'Share not found')
+            raise TaskException(errno.ENOENT, 'Share not found')
 
         if share['immutable']:
-            raise VerifyException(errno.EACCES, 'Cannot modify immutable share {0}.'.format(id))
+            raise TaskException(errno.EACCES, 'Cannot modify immutable share {0}.'.format(id))
 
         if 'name' in updated_fields or 'type' in updated_fields:
             share.update(updated_fields)
@@ -291,7 +294,7 @@ class UpdateShareTask(Task):
                 ('type', '=', share['type']),
                 ('name', '=', share['name'])
             ):
-                raise VerifyException(errno.EEXIST, 'Share {0} of type {1} already exists'.format(
+                raise TaskException(errno.EEXIST, 'Share {0} of type {1} already exists'.format(
                     share['name'],
                     share['type']
                 ))
@@ -301,14 +304,11 @@ class UpdateShareTask(Task):
         share_path = self.dispatcher.call_sync('share.expand_path', path_after_update, type_after_update)
 
         if not os.path.exists(share_path):
-            raise VerifyException(
+            raise TaskException(
                 errno.ENOENT,
                 'Selected share target {0} does not exist'.format(path_after_update)
             )
 
-        return ['system']
-
-    def run(self, id, updated_fields):
         share = self.datastore.get_by_id('shares', id)
         remove_unchanged(updated_fields, share)
 
@@ -392,21 +392,20 @@ class ImportShareTask(Task):
         if not self.dispatcher.call_sync('share.supported_types').get(share['type']):
             raise VerifyException(errno.ENXIO, 'Unknown sharing type {0}'.format(share['type']))
 
-        if self.datastore.exists(
-            'shares',
-            ('type', '=', share['type']),
-            ('name', '=', share['name'])
-        ):
-            raise VerifyException(errno.EEXIST, 'Share {0} of type {1} already exists'.format(
-                share['name'],
-                share['type']
-            ))
-
         return ['system']
 
     def run(self, config_path, name, type):
 
         share = load_config(config_path, '{0}-{1}'.format(type, name))
+        if self.datastore.exists(
+            'shares',
+            ('type', '=', share['type']),
+            ('name', '=', share['name'])
+        ):
+            raise TaskException(errno.EEXIST, 'Share {0} of type {1} already exists'.format(
+                share['name'],
+                share['type']
+            ))
 
         ids = self.join_subtasks(self.run_subtask('share.{0}.import'.format(share['type']), share))
 
@@ -434,12 +433,12 @@ class ShareSetImmutableTask(Task):
         )
 
     def verify(self, id, immutable):
-        if not self.datastore.exists('shares', id):
-            raise VerifyException(errno.ENOENT, 'Share {0} does not exist'.format(id))
-
         return ['system']
 
     def run(self, id, immutable):
+        if not self.datastore.exists('shares', id):
+            raise TaskException(errno.ENOENT, 'Share {0} does not exist'.format(id))
+
         share = self.datastore.get_by_id('shares', id)
         share['immutable'] = immutable
         share['enabled'] = not immutable
@@ -462,14 +461,13 @@ class DeleteShareTask(Task):
         return TaskDescription("Deleting share {name}", name=share.get('name', id) if share else id)
 
     def verify(self, id):
-        share = self.datastore.get_by_id('shares', id)
-        if not share:
-            raise VerifyException(errno.ENOENT, 'Share not found')
-
         return ['system']
 
     def run(self, id):
         share = self.datastore.get_by_id('shares', id)
+        if not share:
+            raise TaskException(errno.ENOENT, 'Share not found')
+
         path = self.dispatcher.call_sync('share.get_directory_path', share['id'])
 
         try:
@@ -499,14 +497,12 @@ class ExportShareTask(Task):
         return TaskDescription("Exporting share {name}", name=share.get('name', id) if share else id)
 
     def verify(self, id):
-        share = self.datastore.get_by_id('shares', id)
-        if not share:
-            raise VerifyException(errno.ENOENT, 'Share not found')
-
         return ['system']
 
     def run(self, id):
         share = self.datastore.get_by_id('shares', id)
+        if not share:
+            raise TaskException(errno.ENOENT, 'Share not found')
 
         self.join_subtasks(self.run_subtask('share.{0}.delete'.format(share['type']), id))
         self.dispatcher.dispatch_event('share.changed', {

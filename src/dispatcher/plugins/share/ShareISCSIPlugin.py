@@ -30,7 +30,7 @@ import errno
 import uuid
 import hashlib
 import ctl
-from task import Task, Provider, VerifyException, TaskDescription
+from task import Task, Provider, VerifyException, TaskDescription, TaskException
 from freenas.dispatcher.rpc import RpcException, description, accepts, returns, private, generator
 from freenas.dispatcher.rpc import SchemaHelper as h
 from freenas.utils import normalize
@@ -247,13 +247,13 @@ class CreateISCSITargetTask(Task):
         return TaskDescription('Creating iSCSI share target {name}', name=target.get('id', '') if target else '')
 
     def verify(self, target):
-        for i in target.get('extents', []):
-            if not self.datastore.exists('shares', ('type', '=', 'iscsi'), ('name', '=', i['name'])):
-                raise VerifyException(errno.ENOENT, "Share {0} not found".format(i['name']))
-
         return ['service:ctl']
 
     def run(self, target):
+        for i in target.get('extents', []):
+            if not self.datastore.exists('shares', ('type', '=', 'iscsi'), ('name', '=', i['name'])):
+                raise TaskException(errno.ENOENT, "Share {0} not found".format(i['name']))
+
         normalize(target, {
             'description': None,
             'auth_group': 'no-authentication',
@@ -281,23 +281,23 @@ class UpdateISCSITargetTask(Task):
         return TaskDescription('Updating iSCSI share target {name}', name=id)
 
     def verify(self, id, updated_params):
+        return ['service:ctl']
+
+    def run(self, id, updated_params):
         if not self.datastore.exists('iscsi.targets', ('id', '=', id)):
-            raise VerifyException(errno.ENOENT, 'Target {0} does not exist'.format(id))
+            raise TaskException(errno.ENOENT, 'Target {0} does not exist'.format(id))
 
         if 'extents' in updated_params:
             seen_numbers = []
             for i in updated_params['extents']:
                 if not self.datastore.exists('shares', ('type', '=', 'iscsi'), ('name', '=', i['name'])):
-                    raise VerifyException(errno.ENOENT, "Share {0} not found".format(i['name']))
+                    raise TaskException(errno.ENOENT, "Share {0} not found".format(i['name']))
 
                 if i['number'] in seen_numbers:
-                    raise VerifyException(errno.EEXIST, "LUN number {0} used twice".format(i['number']))
+                    raise TaskException(errno.EEXIST, "LUN number {0} used twice".format(i['number']))
 
                 seen_numbers.append(i['number'])
 
-        return ['service:ctl']
-
-    def run(self, id, updated_params):
         target = self.datastore.get_by_id('iscsi.targets', id)
         target.update(updated_params)
         self.datastore.update('iscsi.targets', id, target)
@@ -320,12 +320,12 @@ class DeleteISCSITargetTask(Task):
         return TaskDescription('Deleting iSCSI share target {name}', name=id)
 
     def verify(self, id):
-        if not self.datastore.exists('iscsi.targets', ('id', '=', id)):
-            raise VerifyException(errno.ENOENT, 'Target {0} does not exist'.format(id))
-
         return ['service:ctl']
 
     def run(self, id):
+        if not self.datastore.exists('iscsi.targets', ('id', '=', id)):
+            raise TaskException(errno.ENOENT, 'Target {0} does not exist'.format(id))
+
         self.datastore.delete('iscsi.targets', id)
         self.dispatcher.call_sync('etcd.generation.generate_group', 'ctl')
         self.dispatcher.call_sync('service.reload', 'ctl')
@@ -382,12 +382,12 @@ class UpdateISCSIAuthGroupTask(Task):
         return TaskDescription('Updating iSCSI auth group {name}', name=id)
 
     def verify(self, id, updated_params):
-        if not self.datastore.exists('iscsi.auth', ('id', '=', id)):
-            raise VerifyException(errno.ENOENT, 'Auth group {0} does not exist'.format(id))
-
         return ['service:ctl']
 
     def run(self, id, updated_params):
+        if not self.datastore.exists('iscsi.auth', ('id', '=', id)):
+            raise TaskException(errno.ENOENT, 'Auth group {0} does not exist'.format(id))
+
         ag = self.datastore.get_by_id('iscsi.auth', id)
         ag.update(updated_params)
         self.datastore.update('iscsi.auth', id, ag)
@@ -410,12 +410,12 @@ class DeleteISCSIAuthGroupTask(Task):
         return TaskDescription('Deleting iSCSI auth group {name}', name=id)
 
     def verify(self, id):
-        if not self.datastore.exists('iscsi.auth', ('id', '=', id)):
-            raise VerifyException(errno.ENOENT, 'Auth group {0} does not exist'.format(id))
-
         return ['service:ctl']
 
     def run(self, id):
+        if not self.datastore.exists('iscsi.auth', ('id', '=', id)):
+            raise TaskException(errno.ENOENT, 'Auth group {0} does not exist'.format(id))
+
         self.datastore.delete('iscsi.auth', id)
         self.dispatcher.call_sync('etcd.generation.generate_group', 'ctl')
         self.dispatcher.call_sync('service.reload', 'ctl')
@@ -467,12 +467,12 @@ class UpdateISCSIPortalTask(Task):
         return TaskDescription('Updating iSCSI portal {name}', name=id)
 
     def verify(self, id, updated_params):
-        if not self.datastore.exists('iscsi.portals', ('id', '=', id)):
-            raise VerifyException(errno.ENOENT, 'Portal {0} does not exist'.format(id))
-
         return ['service:ctl']
 
     def run(self, id, updated_params):
+        if not self.datastore.exists('iscsi.portals', ('id', '=', id)):
+            raise TaskException(errno.ENOENT, 'Portal {0} does not exist'.format(id))
+
         ag = self.datastore.get_by_id('iscsi.portals', id)
         ag.update(updated_params)
         self.datastore.update('iscsi.portals', id, ag)
@@ -495,12 +495,12 @@ class DeleteISCSIPortalTask(Task):
         return TaskDescription('Deleting iSCSI portal {name}', name=id)
 
     def verify(self, id):
-        if not self.datastore.exists('iscsi.portals', ('id', '=', id)):
-            raise VerifyException(errno.ENOENT, 'Portal {0} does not exist'.format(id))
-
         return ['service:ctl']
 
     def run(self, id):
+        if not self.datastore.exists('iscsi.portals', ('id', '=', id)):
+            raise TaskException(errno.ENOENT, 'Portal {0} does not exist'.format(id))
+
         self.datastore.delete('iscsi.portals', id)
         self.dispatcher.call_sync('etcd.generation.generate_group', 'ctl')
         self.dispatcher.call_sync('service.reload', 'ctl')

@@ -300,12 +300,12 @@ class ServiceManageTask(Task):
         return TaskDescription("{action}ing service {name}", action=action.title(), name=svc['name'])
 
     def verify(self, id, action):
-        if not self.datastore.exists('service_definitions', ('id', '=', id)):
-            raise VerifyException(errno.ENOENT, 'Service {0} not found'.format(id))
-
         return ['system']
 
     def run(self, id, action):
+        if not self.datastore.exists('service_definitions', ('id', '=', id)):
+            raise TaskException(errno.ENOENT, 'Service {0} not found'.format(id))
+
         service = self.datastore.get_by_id('service_definitions', id)
         hook_rpc = service.get('{0}_rpc'.format(action))
         name = service['name']
@@ -355,9 +355,12 @@ class UpdateServiceConfigTask(Task):
         return TaskDescription("Updating configuration of service {name}", name=svc['name'])
 
     def verify(self, id, updated_fields):
-        svc = self.datastore.get_by_id('service_definitions', id)
-        if not svc:
-            raise VerifyException(
+        return ['system']
+
+    def run(self, id, updated_fields):
+        service_def = self.datastore.get_by_id('service_definitions', id)
+        if not service_def:
+            raise TaskException(
                 errno.ENOENT,
                 'Service {0} not found'.format(id)
             )
@@ -367,16 +370,12 @@ class UpdateServiceConfigTask(Task):
                 if x == 'type':
                     continue
 
-                if not self.configstore.exists('service.{0}.{1}'.format(svc['name'], x)):
-                    raise VerifyException(
+                if not self.configstore.exists('service.{0}.{1}'.format(service_def['name'], x)):
+                    raise TaskException(
                         errno.ENOENT,
                         'Service {0} does not have the following key: {1}'.format(
-                            svc['name'], x))
+                            service_def['name'], x))
 
-        return ['system']
-
-    def run(self, id, updated_fields):
-        service_def = self.datastore.get_by_id('service_definitions', id)
         node = ConfigNode('service.{0}'.format(service_def['name']), self.configstore)
         restart = False
         reload = False

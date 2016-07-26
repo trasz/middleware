@@ -596,12 +596,12 @@ class VMImportTask(VMBaseTask):
         if not self.dispatcher.call_sync('volume.query', [('id', '=', volume)], {'single': True}):
             raise VerifyException(errno.ENXIO, 'Volume {0} doesn\'t exist'.format(volume))
 
-        if self.datastore.exists('vms', ('name', '=', name)):
-            raise VerifyException(errno.EEXIST, 'VM {0} already exists'.format(name))
-
         return ['zpool:{0}'.format(volume)]
 
     def run(self, name, volume):
+        if self.datastore.exists('vms', ('name', '=', name)):
+            raise TaskException(errno.EEXIST, 'VM {0} already exists'.format(name))
+
         try:
             vm = load_config(
                 self.dispatcher.call_sync(
@@ -644,12 +644,12 @@ class VMSetImmutableTask(VMBaseTask):
         )
 
     def verify(self, id, immutable):
-        if not self.datastore.exists('vms', ('id', '=', id)):
-            raise VerifyException(errno.ENOENT, 'VM {0} does not exist'.format(id))
-
         return ['system']
 
     def run(self, id, immutable):
+        if not self.datastore.exists('vms', ('id', '=', id)):
+            raise TaskException(errno.ENOENT, 'VM {0} does not exist'.format(id))
+
         vm = self.datastore.get_by_id('vms', id)
         vm['enabled'] = not immutable
         vm['immutable'] = immutable
@@ -672,18 +672,18 @@ class VMUpdateTask(VMBaseTask):
         return TaskDescription('Updating VM {name}', name=vm.get('name', '') if vm else '')
 
     def verify(self, id, updated_params):
-        if not self.datastore.exists('vms', ('id', '=', id)):
-            raise VerifyException(errno.ENOENT, 'VM {0} not found'.format(id))
-
         if 'devices' in updated_params:
             name = ""
             graphics_exist = False
             for device in updated_params['devices']:
                 if device['type'] == 'GRAPHICS':
                     if graphics_exist:
-                        raise VerifyException(errno.EEXIST,
-                                              'Multiple "GRAPHICS" type devices detected: {0},{1}'.format(
-                                                  name, device['name'])
+                        raise VerifyException(
+                            errno.EEXIST,
+                            'Multiple "GRAPHICS" type devices detected: {0},{1}'.format(
+                                name,
+                                device['name']
+                            )
                         )
                     else:
                         graphics_exist = True
@@ -692,6 +692,9 @@ class VMUpdateTask(VMBaseTask):
         return ['system']
 
     def run(self, id, updated_params):
+        if not self.datastore.exists('vms', ('id', '=', id)):
+            raise TaskException(errno.ENOENT, 'VM {0} not found'.format(id))
+
         if 'config' in updated_params and updated_params['config']['ncpus'] > 16:
             raise TaskException(errno.EINVAL, 'Upper limit of VM cores exceeded. Maximum permissible value is 16.')
 
@@ -777,12 +780,12 @@ class VMDeleteTask(Task):
         return TaskDescription('Deleting VM {name}', name=vm.get('name', '') if vm else '')
 
     def verify(self, id):
-        if not self.datastore.exists('vms', ('id', '=', id)):
-            raise VerifyException(errno.ENOENT, 'VM {0} not found'.format(id))
-
         return ['system']
 
     def run(self, id):
+        if not self.datastore.exists('vms', ('id', '=', id)):
+            raise TaskException(errno.ENOENT, 'VM {0} not found'.format(id))
+
         vm = self.datastore.get_by_id('vms', id)
         try:
             delete_config(
@@ -833,12 +836,12 @@ class VMExportTask(Task):
         return TaskDescription('Exporting VM {name}', name=vm.get('name', '') if vm else '')
 
     def verify(self, id):
-        if not self.datastore.exists('vms', ('id', '=', id)):
-            raise VerifyException(errno.ENOENT, 'VM {0} not found'.format(id))
-
         return ['system']
 
     def run(self, id):
+        if not self.datastore.exists('vms', ('id', '=', id)):
+            raise TaskException(errno.ENOENT, 'VM {0} not found'.format(id))
+
         self.datastore.delete('vms', id)
         self.dispatcher.dispatch_event('vm.changed', {
             'operation': 'delete',
@@ -858,12 +861,13 @@ class VMStartTask(Task):
         return TaskDescription('Starting VM {name}', name=vm.get('name', '') if vm else '')
 
     def verify(self, id):
-        vm = self.dispatcher.call_sync('vm.query', [('id', '=', id)], {'single': True})
-        if not vm['enabled']:
-            raise VerifyException(errno.EACCES, "Cannot start disabled VM {0}".format(id))
         return ['system']
 
     def run(self, id):
+        vm = self.dispatcher.call_sync('vm.query', [('id', '=', id)], {'single': True})
+        if not vm['enabled']:
+            raise TaskException(errno.EACCES, "Cannot start disabled VM {0}".format(id))
+
         self.dispatcher.call_sync('containerd.management.start_vm', id)
         self.dispatcher.dispatch_event('vm.changed', {
             'operation': 'update',

@@ -251,17 +251,6 @@ class TransportSendTask(Task):
         if 'server_address' in transport:
             raise VerifyException(EINVAL, 'Server address cannot be specified')
 
-        host = self.dispatcher.call_sync(
-            'peer.query',
-            [('address', '=', client_address), ('type', '=', 'replication')],
-            {'single': True}
-        )
-        if not host:
-            raise VerifyException(
-                ENOENT,
-                'Client address {0} is not on local known replication hosts list'.format(client_address)
-            )
-
         return []
 
     def run(self, fd, transport):
@@ -274,6 +263,18 @@ class TransportSendTask(Task):
         cdef uint32_t header_size = 2 * sizeof(uint32_t)
         cdef int rd_fd = fd.fd
         cdef int wr_fd
+
+        client_address = transport.get('client_address')
+        host = self.dispatcher.call_sync(
+            'peer.query',
+            [('address', '=', client_address), ('type', '=', 'replication')],
+            {'single': True}
+        )
+        if not host:
+            raise TaskException(
+                ENOENT,
+                'Client address {0} is not on local known replication hosts list'.format(client_address)
+            )
 
         try:
             buffer_size = transport.get('buffer_size', 1024*1024)
@@ -541,19 +542,6 @@ class TransportReceiveTask(ProgressTask):
         if 'server_port' not in transport:
             raise VerifyException(ENOENT, 'Server port is not specified')
 
-        server_address = transport.get('server_address')
-
-        host = self.dispatcher.call_sync(
-            'peer.query',
-            [('address', '=', server_address), ('type', '=', 'replication')],
-            {'single': True}
-        )
-        if not host:
-            raise VerifyException(
-                ENOENT,
-                'Server address {0} is not on local known replication hosts list'.format(server_address)
-            )
-
         return []
 
     def run(self, transport):
@@ -569,6 +557,19 @@ class TransportReceiveTask(ProgressTask):
         cdef int header_wr
 
         progress_t = None
+
+        server_address = transport.get('server_address')
+        host = self.dispatcher.call_sync(
+            'peer.query',
+            [('address', '=', server_address), ('type', '=', 'replication')],
+            {'single': True}
+        )
+        if not host:
+            raise TaskException(
+                ENOENT,
+                'Server address {0} is not on local known replication hosts list'.format(server_address)
+            )
+
         try:
             buffer_size = transport.get('buffer_size', 1024*1024)
 

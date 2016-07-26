@@ -185,21 +185,22 @@ class DiskGPTFormatTask(Task):
         if fstype not in ['freebsd-zfs']:
             raise VerifyException(errno.EINVAL, "Unsupported fstype {0}".format(fstype))
 
+        return ['disk:{0}'.format(disk['path'])]
+
+    def run(self, id, fstype, params=None):
+        disk = disk_by_id(self.dispatcher, id)
+
         allocation = self.dispatcher.call_sync(
             'volume.get_disks_allocation',
             [disk['path']]
         ).get(disk['path'])
 
         if allocation is not None:
-            raise VerifyException(
+            raise TaskException(
                 errno.EINVAL,
                 "Cannot perform format operation on an allocated disk {0}".format(disk['path'])
             )
 
-        return ['disk:{0}'.format(disk['path'])]
-
-    def run(self, id, fstype, params=None):
-        disk = disk_by_id(self.dispatcher, id)
         if params is None:
             params = {}
 
@@ -322,21 +323,22 @@ class DiskEraseTask(Task):
         if not get_disk_by_path(disk['path']):
             raise VerifyException(errno.ENOENT, "Disk {0} not found".format(id))
 
+        return ['disk:{0}'.format(disk['path'])]
+
+    def run(self, id, erase_method=None):
+        disk = disk_by_id(self.dispatcher, id)
+
         allocation = self.dispatcher.call_sync(
             'volume.get_disks_allocation',
             [disk['path']]
         ).get(disk['path'])
 
         if allocation is not None:
-            raise VerifyException(
+            raise TaskException(
                 errno.EINVAL,
                 "Cannot perform erase operation on an allocated disk {0}".format(disk['path'])
             )
 
-        return ['disk:{0}'.format(disk['path'])]
-
-    def run(self, id, erase_method=None):
-        disk = disk_by_id(self.dispatcher, id)
         try:
             system('/sbin/zpool', 'labelclear', '-f', disk['path'])
         except SubprocessException:
@@ -404,17 +406,18 @@ class DiskConfigureTask(Task):
         if not disk:
             raise VerifyException(errno.ENOENT, 'Disk {0} not found'.format(id))
 
-        if not self.dispatcher.call_sync('disk.is_online', disk['path']):
-            raise VerifyException(errno.EINVAL, 'Cannot configure offline disk')
-
-        if not disk['status']['smart_capable']:
-            if 'smart' in updated_fields or 'smart_options' in updated_fields:
-                raise VerifyException(errno.EINVAL, 'Disk is not SMART capable')
-
         return ['disk:{0}'.format(disk['path'])]
 
     def run(self, id, updated_fields):
         disk = self.datastore.get_by_id('disks', id)
+
+        if not self.dispatcher.call_sync('disk.is_online', disk['path']):
+            raise TaskException(errno.EINVAL, 'Cannot configure offline disk')
+
+        if not disk['status']['smart_capable']:
+            if 'smart' in updated_fields or 'smart_options' in updated_fields:
+                raise TaskException(errno.EINVAL, 'Disk is not SMART capable')
+
         disk.update(updated_fields)
         self.datastore.update('disks', disk['id'], disk)
 
@@ -469,12 +472,14 @@ class DiskDeleteTask(Task):
         if not disk:
             raise VerifyException(errno.ENOENT, 'Disk {0} not found'.format(id))
 
-        if self.dispatcher.call_sync('disk.is_online', disk['path']):
-            raise VerifyException(errno.EINVAL, 'Cannot delete online disk')
-
         return ['disk:{0}'.format(os.path.basename(disk['path']))]
 
     def run(self, id):
+        disk = self.datastore.get_by_id('disks', id)
+
+        if self.dispatcher.call_sync('disk.is_online', disk['path']):
+            raise TaskException(errno.EINVAL, 'Cannot delete online disk')
+
         self.datastore.delete('disks', id)
 
 

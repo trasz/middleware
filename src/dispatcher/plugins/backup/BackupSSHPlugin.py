@@ -153,7 +153,7 @@ class BackupSSHDeleteTask(Task):
         return TaskDescription('Deleting SSH backup task {name}', name=name)
 
     def verify(self, backup, name):
-        pass
+        return []
 
     def run(self, backup, name):
         conn = open_ssh_connection(backup)

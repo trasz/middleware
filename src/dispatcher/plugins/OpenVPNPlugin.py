@@ -86,43 +86,50 @@ class OpenVpnConfigureTask(Task):
         return TaskDescription('Configuring OpenVPN service')
 
     def verify(self, openvpn):
+        return ['system']
+
+    def run(self, openvpn):
         interface_pattern = '(tap|tun)[0-9]'
         node = ConfigNode('service.openvpn', self.configstore).__getstate__()
         node.update(openvpn)
-        
+
         if not re.search(interface_pattern, node['dev']):
-            raise VerifyException(errno.EINVAL,
-                                  '{0} Bad interface name. Allowed values tap/tun[0-9].'.format(node['dev']))
+            raise TaskException(
+                errno.EINVAL,
+                '{0} Bad interface name. Allowed values tap/tun[0-9].'.format(node['dev'])
+            )
 
         if node['server_bridge_extended']:
             try:
                 bridge_ip = ipaddress.ip_address(node['server_bridge_ip'])
-                netmask = node['server_bridge_netmask']									
+                netmask = node['server_bridge_netmask']
                 ip_range_begin = ipaddress.ip_address(node['server_bridge_range_begin'])
                 ip_range_end = ipaddress.ip_address(node['server_bridge_range_end'])
-                subnet = ipaddress.ip_network('{0}/{1}'.format(bridge_ip, netmask), strict=False) 
-      
+                subnet = ipaddress.ip_network('{0}/{1}'.format(bridge_ip, netmask), strict=False)
+
             except ValueError as e:
-                raise VerifyException(errno.EINVAL, str(e))
+                raise TaskException(errno.EINVAL, str(e))
 
             if (ip_range_begin not in subnet) or (ip_range_end not in subnet):
-                raise VerifyException(errno.EINVAL, 
-                                      'Provided range of remote client IP adresses is invalid.')			
+                raise TaskException(
+                    errno.EINVAL,
+                    'Provided range of remote client IP adresses is invalid.'
+                )
 
             if (bridge_ip >= ip_range_begin) and (bridge_ip <= ip_range_end):
-                raise VerifyException(errno.EINVAL, 
-                                      'Provided bridge IP address is in the client ip range.')
+                raise TaskException(
+                    errno.EINVAL,
+                    'Provided bridge IP address is in the client ip range.'
+                )
 
         if (node['keepalive_ping_interval'] * 2) >= node['keepalive_peer_down']:
-            raise VerifyException(errno.EINVAL, 'The second parameter to keepalive must be'
-                                  'at least twice the value of the first parameter.'
-                                  'Recommended setting is keepalive 10 60.')
+            raise TaskException(
+                errno.EINVAL,
+                'The second parameter to keepalive must be'
+                'at least twice the value of the first parameter.'
+                'Recommended setting is keepalive 10 60.'
+            )
 
-        return ['system']
-
-    def run(self, openvpn):
-        node = ConfigNode('service.openvpn', self.configstore).__getstate__()
-        node.update(openvpn)
         ca_cert = self.datastore.get_by_id('crypto.certificates', node['ca'])
         if not ca_cert:
             raise TaskException(errno.EINVAL,
@@ -233,22 +240,24 @@ class BridgeOpenVPNtoLocalNetwork(Task):
         return TaskDescription('Bridging OpenVPN to main interface')
 
     def verify(self, bridge_enable=False):
+        return['system']
+
+    def run(self, bridge_enable=False):
         vpn_interface = self.configstore.get('service.openvpn.dev')
         if bridge_enable:
             try:
                 vpn_interface = netif.get_interface(vpn_interface)
 
             except KeyError:
-                raise VerifyException(errno.EINVAL, 
-                                      '{0} interface does not exist - Verify OpenVPN status'.format(vpn_interface))
+                raise TaskException(
+                    errno.EINVAL,
+                    '{0} interface does not exist - Verify OpenVPN status'.format(vpn_interface)
+                )
 
             default_interface = self.dispatcher.call_sync('networkd.configuration.get_default_interface')
             if not default_interface:
-                raise VerifyException(errno.EINVAL, 'No default interface configured. Verify network setup.')
+                raise TaskException(errno.EINVAL, 'No default interface configured. Verify network setup.')
 
-        return['system']
-
-    def run(self, bridge_enable=False):
         node = ConfigNode('service.openvpn', self.configstore).__getstate__()
         interface_list = list(netif.list_interfaces().keys())
         default_interface = self.dispatcher.call_sync('networkd.configuration.get_default_interface')

@@ -30,7 +30,7 @@ import re
 
 from datastore.config import ConfigNode
 from freenas.dispatcher.rpc import RpcException, SchemaHelper as h, description, accepts, returns, private
-from task import Task, Provider, TaskException, ValidationException, TaskDescription
+from task import Task, Provider, TaskException, TaskDescription
 
 logger = logging.getLogger('SNMPPlugin')
 
@@ -55,38 +55,37 @@ class SNMPConfigureTask(Task):
         return TaskDescription('Configuring SNMP service')
 
     def verify(self, snmp):
-        errors = ValidationException()
+        return ['system']
+
+    def run(self, snmp):
         node = ConfigNode('service.snmp', self.configstore).__getstate__()
         node.update(snmp)
 
         if node['contact']:
             if '@' in node['contact']:
                 if not jsonschema._format.is_email(node['contact']):
-                    errors.add((0, 'contact'), 'Invalid e-mail address')
+                    raise TaskException(errno.EINVAL, 'Invalid e-mail address')
             elif not re.match(r'^[-_a-zA-Z0-9\s]+$', node['contact']):
-                errors.add((0, 'contact'), 'Must contain only alphanumeric characters, _, - or a valid e-mail address')
+                raise TaskException(
+                    errno.EINVAL,
+                    'Must contain only alphanumeric characters, _, - or a valid e-mail address'
+                )
 
         if not node['community']:
             if not node['v3']:
-                errors.add((0, 'community'), errno.ENOENT, 'This field is required')
+                raise TaskException(errno.ENOENT, 'This field is required')
         elif not re.match(r'^[-_a-zA-Z0-9\s]+$', node['community']):
-            errors.add(
-                (0, 'community'),
+            raise TaskException(
+                errno.EINVAL,
                 'The community must contain only alphanumeric characters, _ or -'
             )
 
         if node['v3_password'] and len(node['v3_password']) < 8:
-            errors.add((0, 'v3_password'), 'Password must contain at least 8 characters')
+            raise TaskException(errno.EINVAL, 'Password must contain at least 8 characters')
 
         if node['v3_privacy_passphrase'] and len(node['v3_privacy_passphrase']) < 8:
-            errors.add((0, 'v3_password'), 'Passphrase must contain at least 8 characters')
+            raise TaskException(errno.EINVAL, 'Passphrase must contain at least 8 characters')
 
-        if errors:
-            raise errors
-
-        return ['system']
-
-    def run(self, snmp):
         try:
             node = ConfigNode('service.snmp', self.configstore)
             node.update(snmp)

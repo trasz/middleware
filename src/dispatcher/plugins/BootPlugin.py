@@ -31,7 +31,7 @@ import errno
 import logging
 import bsd
 from datetime import datetime
-from task import Provider, Task, ProgressTask, VerifyException, TaskException, query, TaskDescription
+from task import Provider, Task, ProgressTask, TaskException, query, TaskDescription
 from cache import EventCacheStore
 from utils import split_dataset
 from freenas.dispatcher.rpc import accepts, returns, description, SchemaHelper as h, generator
@@ -94,13 +94,13 @@ class BootEnvironmentActivate(Task):
         return TaskDescription("Activating the Boot Environment {name}", name=name)
 
     def verify(self, name):
-        be = FindClone(name)
-        if not be:
-            raise VerifyException(errno.ENOENT, 'Boot environment {0} not found'.format(name))
-
         return ['system']
 
     def run(self, name):
+        be = FindClone(name)
+        if not be:
+            raise TaskException(errno.ENOENT, 'Boot environment {0} not found'.format(name))
+
         if not ActivateClone(name):
             raise TaskException(errno.EIO, 'Cannot activate the {0} boot environment'.format(name))
 
@@ -121,7 +121,7 @@ class BootEnvironmentUpdate(Task):
     def run(self, id, updated_params):
         be = FindClone(id)
         if not be:
-            raise VerifyException(errno.ENOENT, 'Boot environment {0} not found'.format(id))
+            raise TaskException(errno.ENOENT, 'Boot environment {0} not found'.format(id))
 
         if 'id' in updated_params:
             if not RenameClone(id, updated_params['id']):
@@ -143,13 +143,13 @@ class BootEnvironmentsDelete(Task):
         return TaskDescription("Deleting the Boot Environment {name}", name=id)
 
     def verify(self, id):
-        be = FindClone(id)
-        if not be:
-            raise VerifyException(errno.ENOENT, 'Boot environment {0} not found'.format(id))
-
         return ['system']
 
     def run(self, id):
+        be = FindClone(id)
+        if not be:
+            raise TaskException(errno.ENOENT, 'Boot environment {0} not found'.format(id))
+
         if not DeleteClone(id):
             raise TaskException(errno.EIO, 'Cannot delete the {0} boot environment'.format(id))
 

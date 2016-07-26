@@ -151,28 +151,21 @@ class RsyncdModuleUpdateTask(Task):
         return TaskDescription('Updating rsync module {name}', name=rsyncmod.get('name', '') if rsyncmod else '')
 
     def verify(self, uuid, updated_fields):
-
-        rsyncmod = self.datastore.get_by_id('rsyncd-module', uuid)
-        if rsyncmod is None:
-            raise VerifyException(errno.ENOENT, 'Rsync module {0} does not exist'.format(uuid))
-
-        rsyncmod.update(updated_fields)
-
-        errors = ValidationException()
-
-        if re.search(r'[/\]]', rsyncmod['name']):
-            errors.add((1, 'name'), 'The name cannot contain slash or a closing square backet.')
-
-        if errors:
-            raise errors
-
         return ['system']
 
     def run(self, uuid, updated_fields):
 
         rsyncmod = self.datastore.get_by_id('rsyncd-module', uuid)
+
+        if rsyncmod is None:
+            raise TaskException(errno.ENOENT, 'Rsync module {0} does not exist'.format(uuid))
+
+        rsyncmod.update(updated_fields)
+
+        if re.search(r'[/\]]', rsyncmod['name']):
+            raise TaskException(errno.EINVAL, 'The name cannot contain slash or a closing square bracket.')
+
         try:
-            rsyncmod.update(updated_fields)
             self.datastore.update('rsyncd-module', uuid, rsyncmod)
             self.dispatcher.call_sync('etcd.generation.generate_group', 'rsyncd')
             self.dispatcher.call_sync('service.restart', 'rsyncd')
@@ -199,14 +192,12 @@ class RsyncdModuleDeleteTask(Task):
         return TaskDescription('Deleting rsync module {name}', name=rsyncmod.get('name', '') if rsyncmod else '')
 
     def verify(self, uuid):
-
-        rsyncmod = self.datastore.get_by_id('rsyncd-module', uuid)
-        if rsyncmod is None:
-            raise VerifyException(errno.ENOENT, 'Rsync module {0} does not exist'.format(uuid))
-
         return ['system']
 
     def run(self, uuid):
+        rsyncmod = self.datastore.get_by_id('rsyncd-module', uuid)
+        if rsyncmod is None:
+            raise TaskException(errno.ENOENT, 'Rsync module {0} does not exist'.format(uuid))
 
         try:
             self.datastore.delete('rsyncd-module', uuid)
@@ -256,11 +247,6 @@ class RsyncCopyTask(ProgressTask):
     def verify(self, params):
         errors = ValidationException()
 
-        if self.datastore.get_one('users', ('username', '=', params.get('user'))) is None:
-            raise VerifyException(
-                errno.ENOENT, 'User {0} does not exist'.format(params.get('user'))
-            )
-
         path = params.get('path')
         rmode = params.get('rsync_mode')
         remote_path = params.get('remote_path')
@@ -268,7 +254,7 @@ class RsyncCopyTask(ProgressTask):
         remote_module = params.get('remote_module')
 
         if path in [None, ''] or path.isspace():
-            errors.append(('path', errno.EINVAL, 'The Path is required'))
+            errors.add('path', errno.EINVAL, 'The Path is required')
         elif not os.path.exists(path):
             raise VerifyException(
                 errno.ENOENT,
@@ -286,18 +272,23 @@ class RsyncCopyTask(ProgressTask):
             )
 
         if rmode == 'SSH' and (remote_path in [None, ''] or remote_path.isspace()):
-            errors.append(('remote_path', errno.EINVAL, 'The Remote Path is required'))
+            errors.add('remote_path', errno.EINVAL, 'The Remote Path is required')
         elif rmode == 'MODULE' and (remote_module in [None, ''] or remote_module.isspace()):
-            errors.append(('remote_module', errno.EINVAL, 'The Remote Module is required'))
+            errors.add('remote_module', errno.EINVAL, 'The Remote Module is required')
 
         if remote_host in [None, ''] or remote_host.isspace():
-            errors.append(('remote_host', errno.EINVAL, 'A Remote Host needs to be specified'))
+            errors.add('remote_host', errno.EINVAL, 'A Remote Host needs to be specified')
         if errors:
             raise ValidationException(errors)
 
         return []
 
     def run(self, params):
+        if self.datastore.get_one('users', ('username', '=', params.get('user'))) is None:
+            raise TaskException(
+                errno.ENOENT, 'User {0} does not exist'.format(params.get('user'))
+            )
+
         self.message = 'Starting Rsync Task'
         self.set_progress(0)
         with open(os.path.join(params['path'], '.lock'), 'wb+') as lockfile:

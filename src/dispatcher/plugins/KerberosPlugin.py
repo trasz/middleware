@@ -28,7 +28,7 @@
 import errno
 import krb5
 from freenas.dispatcher.rpc import SchemaHelper as h, accepts, generator
-from task import Task, VerifyException, Provider, query
+from task import Task, TaskException, Provider, query
 from freenas.utils.query import wrap
 
 
@@ -119,12 +119,12 @@ class KerberosRealmDeleteTask(Task):
 ))
 class KerberosKeytabCreateTask(Task):
     def verify(self, keytab):
-        if self.datastore.exists('kerberos.keytabs', ('name', '=', keytab['name'])):
-            raise VerifyException(errno.EEXIST, 'Keytab {0} already exists'.format(keytab['name']))
-
         return ['system']
 
     def run(self, keytab):
+        if self.datastore.exists('kerberos.keytabs', ('name', '=', keytab['name'])):
+            raise TaskException(errno.EEXIST, 'Keytab {0} already exists'.format(keytab['name']))
+
         id = self.datastore.insert('kerberos.keytabs', keytab)
         generate_keytab(self.datastore)
         self.dispatcher.dispatch_event('kerberos.keytab.changed', {
@@ -140,12 +140,12 @@ class KerberosKeytabCreateTask(Task):
 ))
 class KerberosKeytabUpdateTask(Task):
     def verify(self, id, updated_fields):
-        if not self.datastore.exists('kerberos.keytabs', ('id', '=', id)):
-            raise VerifyException(errno.ENOENT, 'Keytab with ID {0} doesn\'t exist'.format(id))
-        
         return ['system']
 
     def run(self, id, updated_fields):
+        if not self.datastore.exists('kerberos.keytabs', ('id', '=', id)):
+            raise TaskException(errno.ENOENT, 'Keytab with ID {0} doesn\'t exist'.format(id))
+
         keytab = self.datastore.get_by_id('kerberos.keytabs', id)
         keytab.update(updated_fields)
         self.datastore.update('kerberos.keytabs', id, keytab)
@@ -159,12 +159,12 @@ class KerberosKeytabUpdateTask(Task):
 @accepts(str)
 class KerberosKeytabDeleteTask(Task):
     def verify(self, id):
-        if not self.datastore.exists('kerberos.keytabs', ('id', '=', id)):
-            raise VerifyException(errno.ENOENT, 'Keytab with ID {0} doesn\'t exist'.format(id))
-
         return ['system']
 
     def run(self, id):
+        if not self.datastore.exists('kerberos.keytabs', ('id', '=', id)):
+            raise TaskException(errno.ENOENT, 'Keytab with ID {0} doesn\'t exist'.format(id))
+
         self.datastore.delete('kerberos.keytabs', id)
         generate_keytab(self.datastore)
         self.dispatcher.dispatch_event('kerberos.keytab.changed', {

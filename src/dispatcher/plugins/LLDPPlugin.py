@@ -56,24 +56,16 @@ class LLDPConfigureTask(Task):
         return TaskDescription('Configuring {name} LLDP service', name=node['save_description'] or '')
 
     def verify(self, lldp):
-        errors = ValidationException()
-        node = ConfigNode('service.lldp', self.configstore).__getstate__()
-        node.update(lldp)
-
-        # Lazy load pycountry due to extra verbose DEBUG logging
-        import pycountry
-        if node['country_code'] and node['country_code'] not in pycountry.countries.indices['alpha2']:
-            errors.add((0, 'country_code'), 'Invalid ISO-3166 alpha 2 code')
-
-        if errors:
-            raise errors
-
         return ['system']
 
     def run(self, lldp):
+        node = ConfigNode('service.lldp', self.configstore).__getstate__()
+        node.update(lldp)
+        import pycountry
+        if node['country_code'] and node['country_code'] not in pycountry.countries.indices['alpha2']:
+            raise TaskException(errno.EINVAL, 'Invalid ISO-3166 alpha 2 code')
+
         try:
-            node = ConfigNode('service.lldp', self.configstore)
-            node.update(lldp)
             self.dispatcher.dispatch_event('service.lldp.changed', {
                 'operation': 'updated',
                 'ids': None,

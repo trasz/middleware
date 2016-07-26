@@ -89,9 +89,6 @@ class TunableCreateTask(Task):
 
         errors = ValidationException()
 
-        if self.datastore.exists('tunables', ('var', '=', tunable['var'])):
-            errors.add((1, 'var'), 'This variable already exists.', code=errno.EEXIST)
-
         if '"' in tunable['value'] or "'" in tunable['value']:
             errors.add((1, 'value'), 'Quotes are not allowed')
 
@@ -111,6 +108,9 @@ class TunableCreateTask(Task):
         return ['system']
 
     def run(self, tunable):
+        if self.datastore.exists('tunables', ('var', '=', tunable['var'])):
+            raise TaskException(errno.EEXIST, 'This variable already exists.')
+
         try:
             if 'enabled' not in tunable:
                 tunable['enabled'] = True
@@ -151,10 +151,6 @@ class TunableUpdateTask(Task):
 
     def verify(self, id, updated_fields):
 
-        tunable = self.datastore.get_by_id('tunables', id)
-        if tunable is None:
-            raise VerifyException(errno.ENOENT, 'Tunable with given ID does not exist')
-
         errors = ValidationException()
 
         if 'var' in updated_fields and self.datastore.exists(
@@ -166,25 +162,28 @@ class TunableUpdateTask(Task):
             if '"' in updated_fields['value'] or "'" in updated_fields['value']:
                 errors.add((1, 'value'), 'Quotes are not allowed')
 
-        if 'type' in updated_fields:
-            if updated_fields['type'] in ('LOADER', 'RC') and not VAR_LOADER_RC_RE.match(tunable['var']):
-                errors.add((1, 'var'), VAR_SYSCTL_FORMAT)
-            elif updated_fields['type'] == 'SYSCTL':
-                if not VAR_SYSCTL_RE.match(tunable['var']):
-                    errors.add((1, 'var'), VAR_LOADER_RC_FORMAT)
-                try:
-                    sysctl.sysctlnametomib(tunable['var'])
-                except OSError:
-                    errors.add((1, 'var'), 'Sysctl variable does not exist')
-
         if errors:
             raise errors
 
         return ['system']
 
     def run(self, id, updated_fields):
+        tunable = self.datastore.get_by_id('tunables', id)
+        if tunable is None:
+            raise TaskException(errno.ENOENT, 'Tunable with given ID does not exist')
+
+        if 'type' in updated_fields:
+            if updated_fields['type'] in ('LOADER', 'RC') and not VAR_LOADER_RC_RE.match(tunable['var']):
+                raise TaskException(errno.EINVAL, VAR_SYSCTL_FORMAT)
+            elif updated_fields['type'] == 'SYSCTL':
+                if not VAR_SYSCTL_RE.match(tunable['var']):
+                    raise TaskException(errno.EINVAL, VAR_LOADER_RC_FORMAT)
+                try:
+                    sysctl.sysctlnametomib(tunable['var'])
+                except OSError:
+                    raise TaskException(errno.ENOENT, 'Sysctl variable does not exist')
+
         try:
-            tunable = self.datastore.get_by_id('tunables', id)
             tunable.update(updated_fields)
 
             if tunable.get('enabled') and tunable['type'] == 'SYSCTL':
@@ -221,15 +220,12 @@ class TunableDeleteTask(Task):
         return TaskDescription("Deleting Tunable {name}", name=tunable.get('var', id) if tunable else id)
 
     def verify(self, id):
-
-        tunable = self.datastore.get_by_id('tunables', id)
-        if tunable is None:
-            raise VerifyException(errno.ENOENT, 'Tunable with given ID does not exist')
-
         return ['system']
 
     def run(self, id):
         tunable = self.datastore.get_by_id('tunables', id)
+        if tunable is None:
+            raise TaskException(errno.ENOENT, 'Tunable with given ID does not exist')
 
         try:
             self.datastore.delete('tunables', id)

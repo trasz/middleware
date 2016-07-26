@@ -444,12 +444,12 @@ class VolumeCreateTask(ProgressTask):
         return TaskDescription("Creating volume {name}", name=volume['id'])
 
     def verify(self, volume, password=None):
-        if self.datastore.exists('volumes', ('id', '=', volume['id'])):
-            raise VerifyException(errno.EEXIST, 'Volume with same name already exists')
-
         return ['disk:{0}'.format(disk_spec_to_path(self.dispatcher, i)) for i, _ in get_disks(volume['topology'])]
 
     def run(self, volume, password=None):
+        if self.datastore.exists('volumes', ('id', '=', volume['id'])):
+            raise TaskException(errno.EEXIST, 'Volume with same name already exists')
+
         name = volume['id']
         type = volume.get('type', 'zfs')
         params = volume.get('params') or {}
@@ -573,17 +573,18 @@ class VolumeAutoCreateTask(Task):
         return TaskDescription("Creating the volume {name}", name=name)
 
     def verify(self, name, type, layout, disks, cache_disks=None, log_disks=None, encryption=False, password=None):
-        if self.datastore.exists('volumes', ('id', '=', name)):
-            raise VerifyException(
-                errno.EEXIST,
-                'Volume with same name already exists'
-            )
         if isinstance(disks, str) and disks == 'auto':
             return ['disk:{0}'.format(disk) for disk in self.dispatcher.call_sync('disk.query', {'select': 'path'})]
         else:
             return ['disk:{0}'.format(disk_spec_to_path(self.dispatcher, i)) for i in disks]
 
     def run(self, name, type, layout, disks, cache_disks=None, log_disks=None, encryption=False, password=None):
+        if self.datastore.exists('volumes', ('id', '=', name)):
+            raise TaskException(
+                errno.EEXIST,
+                'Volume with same name already exists'
+            )
+
         vdevs = []
         ltype = VOLUME_LAYOUTS[layout]
         ndisks = DISKS_PER_VDEV[ltype]
@@ -1009,18 +1010,6 @@ class VolumeImportTask(Task):
         if enc_params is None:
             enc_params = {}
 
-        if self.datastore.exists('volumes', ('id', '=', id)):
-            raise VerifyException(
-                errno.ENOENT,
-                'Volume with id {0} already exists'.format(id)
-            )
-
-        if self.datastore.exists('volumes', ('id', '=', new_name)):
-            raise VerifyException(
-                errno.ENOENT,
-                'Volume with name {0} already exists'.format(new_name)
-            )
-
         if enc_params.get('key', None) is None:
             return self.verify_subtask('zfs.pool.import', id)
         else:
@@ -1034,6 +1023,18 @@ class VolumeImportTask(Task):
                 return ['disk:{0}'.format(i) for i in disks]
 
     def run(self, id, new_name, params=None, enc_params=None, password=None):
+        if self.datastore.exists('volumes', ('id', '=', id)):
+            raise TaskException(
+                errno.ENOENT,
+                'Volume with id {0} already exists'.format(id)
+            )
+
+        if self.datastore.exists('volumes', ('id', '=', new_name)):
+            raise TaskException(
+                errno.ENOENT,
+                'Volume with name {0} already exists'.format(new_name)
+            )
+
         if enc_params is None:
             enc_params = {}
 
@@ -1242,7 +1243,7 @@ class VolumeAutoReplaceTask(Task):
     def run(self, id, failed_vdev, password=None):
         vol = self.dispatcher.call_sync('volume.query', [('id', '=', id)], {'single': True})
         if not vol:
-            raise VerifyException(errno.ENOENT, 'Volume {0} not found'.format(id))
+            raise TaskException(errno.ENOENT, 'Volume {0} not found'.format(id))
 
         def do_replace(disk, global_spare=False):
             if vol.get('encrypted', False):
@@ -1379,6 +1380,9 @@ class VolumeAutoImportTask(Task):
         return ['zpool:{0}'.format(volume)]
 
     def run(self, volume, scope):
+        if not self.datastore.exists('volumes', ('id', '=', volume)):
+            raise TaskException(errno.ENOENT, 'Volume {0} not found'.format(volume))
+
         with self.dispatcher.get_lock('volumes'):
             vol = self.dispatcher.call_sync('volume.query', [('id', '=', volume)], {'single': True})
             share_types = self.dispatcher.call_sync('share.supported_types')
@@ -1523,28 +1527,31 @@ class VolumeUnlockTask(Task):
             raise VerifyException(errno.ENOENT, 'Volume {0} not found'.format(id))
 
         vol = self.dispatcher.call_sync('volume.query', [('id', '=', id)], {'single': True})
-        encryption = vol.get('encryption')
-
-        if encryption['key'] is None:
-            raise VerifyException(errno.EINVAL, 'Volume {0} is not encrypted'.format(id))
-
-        if vol.get('providers_presence', 'ALL') == 'ALL':
-            raise VerifyException(errno.EINVAL, 'Volume {0} does not have any locked providers'.format(id))
-
-        if encryption['hashed_password'] is not None:
-            if password is None:
-                raise VerifyException(errno.EINVAL, 'Volume {0} is protected with password. Provide a valid password.'
-                                      .format(id))
-            if not is_password(password,
-                               encryption.get('salt', ''),
-                               encryption.get('hashed_password', '')):
-                raise VerifyException(errno.EINVAL, 'Password provided for volume {0} unlock is not valid'.format(id))
 
         return ['disk:{0}'.format(d) for d, _ in get_disks(vol['topology'])]
 
     def run(self, id, password=None, params=None):
         with self.dispatcher.get_lock('volumes'):
             vol = self.dispatcher.call_sync('volume.query', [('id', '=', id)], {'single': True})
+
+            encryption = vol.get('encryption')
+
+            if encryption['key'] is None:
+                raise TaskException(errno.EINVAL, 'Volume {0} is not encrypted'.format(id))
+
+            if vol.get('providers_presence', 'ALL') == 'ALL':
+                raise TaskException(errno.EINVAL, 'Volume {0} does not have any locked providers'.format(id))
+
+            if encryption['hashed_password'] is not None:
+                if password is None:
+                    raise TaskException(
+                        errno.EINVAL,
+                        'Volume {0} is protected with password. Provide a valid password.'.format(id)
+                    )
+                if not is_password(password,
+                                   encryption.get('salt', ''),
+                                   encryption.get('hashed_password', '')):
+                    raise TaskException(errno.EINVAL, 'Password provided for volume {0} unlock is not valid'.format(id))
 
             subtasks = []
             for vdev, _ in iterate_vdevs(vol['topology']):
@@ -1601,19 +1608,22 @@ class VolumeRekeyTask(Task):
         if not self.datastore.exists('volumes', ('id', '=', id)):
             raise VerifyException(errno.ENOENT, 'Volume {0} not found'.format(id))
 
+        return ['disk:{0}'.format(d) for d in self.dispatcher.call_sync('volume.get_volume_disks', id)]
+
+    def run(self, id, password=None):
+        if not self.datastore.exists('volumes', ('id', '=', id)):
+            raise TaskException(errno.ENOENT, 'Volume {0} not found'.format(id))
+
         vol = self.dispatcher.call_sync('volume.query', [('id', '=', id)], {'single': True})
 
         encryption = vol.get('encryption')
 
         if encryption['key'] is None:
-            raise VerifyException(errno.EINVAL, 'Volume {0} is not encrypted'.format(id))
+            raise TaskException(errno.EINVAL, 'Volume {0} is not encrypted'.format(id))
 
         if vol.get('providers_presence', 'NONE') != 'ALL':
-            raise VerifyException(errno.EINVAL, 'Every provider associated with volume {0} must be online'.format(id))
+            raise TaskException(errno.EINVAL, 'Every provider associated with volume {0} must be online'.format(id))
 
-        return ['disk:{0}'.format(d) for d in self.dispatcher.call_sync('volume.get_volume_disks', id)]
-
-    def run(self, id, password=None):
         with self.dispatcher.get_lock('volumes'):
             vol = self.datastore.get_by_id('volumes', id)
             encryption = vol.get('encryption')
@@ -1675,22 +1685,25 @@ class VolumeBackupKeysTask(Task):
         if not self.datastore.exists('volumes', ('id', '=', id)):
             raise VerifyException(errno.ENOENT, 'Volume {0} not found'.format(id))
 
+        return ['disk:{0}'.format(d) for d in self.dispatcher.call_sync('volume.get_volume_disks', id)]
+
+    def run(self, id, out_path=None):
+        if not self.datastore.exists('volumes', ('id', '=', id)):
+            raise TaskException(errno.ENOENT, 'Volume {0} not found'.format(id))
+
         vol = self.dispatcher.call_sync('volume.query', [('id', '=', id)], {'single': True})
 
         encryption = vol.get('encryption')
 
         if encryption['key'] is None:
-            raise VerifyException(errno.EINVAL, 'Volume {0} is not encrypted'.format(id))
+            raise TaskException(errno.EINVAL, 'Volume {0} is not encrypted'.format(id))
 
         if vol.get('providers_presence', 'NONE') != 'ALL':
-            raise VerifyException(errno.EINVAL, 'Every provider associated with volume {0} must be online'.format(id))
+            raise TaskException(errno.EINVAL, 'Every provider associated with volume {0} must be online'.format(id))
 
         if out_path is None:
-            raise VerifyException(errno.EINVAL, 'Output file is not specified')
+            raise TaskException(errno.EINVAL, 'Output file is not specified')
 
-        return ['disk:{0}'.format(d) for d in self.dispatcher.call_sync('volume.get_volume_disks', id)]
-
-    def run(self, id, out_path=None):
         with self.dispatcher.get_lock('volumes'):
             disks = self.dispatcher.call_sync('volume.get_volume_disks', id)
             out_data = {}
@@ -1729,23 +1742,28 @@ class VolumeRestoreKeysTask(Task):
 
         vol = self.dispatcher.call_sync('volume.query', [('id', '=', id)], {'single': True})
 
-        encryption = vol.get('encryption')
-
-        if encryption['key'] is None:
-            raise VerifyException(errno.EINVAL, 'Volume {0} is not encrypted'.format(id))
-
-        if vol.get('providers_presence', 'ALL') != 'NONE':
-            raise VerifyException(errno.EINVAL, 'Volume {0} cannot have any online providers'.format(id))
-
-        if in_path is None:
-            raise VerifyException(errno.EINVAL, 'Input file is not specified')
-
-        if password is None:
-            raise VerifyException(errno.EINVAL, 'Password is not specified')
-
         return ['disk:{0}'.format(d) for d, _ in get_disks(vol['topology'])]
 
     def run(self, id, password=None, in_path=None):
+        if not self.datastore.exists('volumes', ('id', '=', id)):
+            raise TaskException(errno.ENOENT, 'Volume {0} not found'.format(id))
+
+        vol = self.dispatcher.call_sync('volume.query', [('id', '=', id)], {'single': True})
+
+        encryption = vol.get('encryption')
+
+        if encryption['key'] is None:
+            raise TaskException(errno.EINVAL, 'Volume {0} is not encrypted'.format(id))
+
+        if vol.get('providers_presence', 'ALL') != 'NONE':
+            raise TaskException(errno.EINVAL, 'Volume {0} cannot have any online providers'.format(id))
+
+        if in_path is None:
+            raise TaskException(errno.EINVAL, 'Input file is not specified')
+
+        if password is None:
+            raise TaskException(errno.EINVAL, 'Password is not specified')
+
         vol = self.datastore.get_by_id('volumes', id)
         with open(in_path, 'rb') as in_file:
             enc_data = in_file.read()
@@ -1792,6 +1810,10 @@ class VolumeScrubTask(ProgressTask):
         self.abort_subtasks()
 
     def run(self, id):
+        vol = self.dispatcher.call_sync('volume.query', [('id', '=', id)], {'single': True})
+        if not vol:
+            raise TaskException(errno.ENOENT, 'Volume {0} not found'.format(id))
+
         self.join_subtasks(self.run_subtask(
             'zfs.pool.scrub', id,
             progress_callback=self.set_progress
@@ -1825,6 +1847,10 @@ class VolumeOfflineVdevTask(Task):
         return ['disk:{0}'.format(d) for d, _ in get_disks(vol['topology'])]
 
     def run(self, id, vdev_guid):
+        vol = self.dispatcher.call_sync('volume.query', [('id', '=', id)], {'single': True})
+        if not vol:
+            raise TaskException(errno.ENOENT, 'Volume {0} not found'.format(id))
+
         self.join_subtasks(self.run_subtask(
             'zfs.pool.offline_disk',
             id,
@@ -1859,6 +1885,10 @@ class VolumeOnlineVdevTask(Task):
         return ['disk:{0}'.format(d) for d, _ in get_disks(vol['topology'])]
 
     def run(self, id, vdev_guid):
+        vol = self.dispatcher.call_sync('volume.query', [('id', '=', id)], {'single': True})
+        if not vol:
+            raise TaskException(errno.ENOENT, 'Volume {0} not found'.format(id))
+
         self.join_subtasks(self.run_subtask(
             'zfs.pool.online_disk',
             id,
@@ -1886,6 +1916,9 @@ class DatasetCreateTask(Task):
         return ['zpool:{0}'.format(dataset['volume'])]
 
     def run(self, dataset):
+        if not self.datastore.exists('volumes', ('id', '=', dataset['volume'])):
+            raise TaskException(errno.ENOENT, 'Volume {0} not found'.format(dataset['volume']))
+
         props = {}
         normalize(dataset, {
             'type': 'FILESYSTEM',
@@ -1944,6 +1977,10 @@ class DatasetDeleteTask(Task):
         return ['zpool:{0}'.format(pool_name)]
 
     def run(self, id):
+        pool_name, _, ds = id.partition('/')
+        if not self.datastore.exists('volumes', ('id', '=', pool_name)):
+            raise TaskException(errno.ENOENT, 'Volume {0} not found'.format(pool_name))
+
         deps = self.dispatcher.call_sync('zfs.dataset.get_dependencies', id)
         ds = self.dispatcher.call_sync('volume.dataset.query', [('id', '=', id)], {'single': True})
         if not ds:
@@ -2014,6 +2051,10 @@ class DatasetConfigureTask(Task):
         }))
 
     def run(self, id, updated_params):
+        pool_name, _, ds = id.partition('/')
+        if not self.datastore.exists('volumes', ('id', '=', pool_name)):
+            raise TaskException(errno.ENOENT, 'Volume {0} not found'.format(pool_name))
+
         pool_name, _, _ = id.partition('/')
         ds = wrap(self.dispatcher.call_sync('zfs.dataset.query', [('id', '=', id)], {'single': True}))
 

@@ -338,7 +338,6 @@ class ReplicationCreateTask(ReplicationBaseTask):
 
     def verify(self, link):
         partners = link['partners']
-        name = link['name']
         ip_matches = False
 
         ips = self.dispatcher.call_sync('network.config.get_my_ips')
@@ -350,9 +349,6 @@ class ReplicationCreateTask(ReplicationBaseTask):
         if not ip_matches:
             raise VerifyException(errno.EINVAL, 'Provided partner IPs do not create a valid pair. Check addresses.')
 
-        if self.datastore.exists('replication.links', ('name', '=', name)):
-            raise VerifyException(errno.EEXIST, 'Replication link with name {0} already exists'.format(name))
-
         if len(partners) != 2:
             raise VerifyException(
                 errno.EINVAL,
@@ -361,10 +357,6 @@ class ReplicationCreateTask(ReplicationBaseTask):
 
         if not len(link['datasets']):
             raise VerifyException(errno.ENOENT, 'At least one dataset have to be specified')
-
-        for dataset in link['datasets']:
-            if not self.dispatcher.call_sync('zfs.dataset.query', [('name', '=', dataset)], {'single': True}):
-                raise VerifyException(errno.ENOENT, 'Dataset {0} does not exist'.format(dataset))
 
         if link['master'] not in partners:
             raise VerifyException(
@@ -381,6 +373,13 @@ class ReplicationCreateTask(ReplicationBaseTask):
         return ['replication']
 
     def run(self, link):
+        if self.datastore.exists('replication.links', ('name', '=', link['name'])):
+            raise TaskException(errno.EEXIST, 'Replication link with name {0} already exists'.format(link['name']))
+
+        for dataset in link['datasets']:
+            if not self.dispatcher.call_sync('zfs.dataset.query', [('name', '=', dataset)], {'single': True}):
+                raise TaskException(errno.ENOENT, 'Dataset {0} does not exist'.format(dataset))
+
         link['id'] = link['name']
         if 'update_date' not in link:
             link['update_date'] = str(datetime.utcnow())
@@ -622,6 +621,9 @@ class ReplicationDeleteTask(ReplicationBaseTask):
         return ['replication:{0}'.format(name)]
 
     def run(self, name, scrub=False):
+        if not self.datastore.exists('replication.links', ('name', '=', name)):
+            raise TaskException(errno.ENOENT, 'Replication link {0} do not exist.'.format(name))
+
         link = self.join_subtasks(self.run_subtask('replication.get_latest_link', name))[0]
         is_master, remote = self.get_replication_state(link)
         remote_client = None
@@ -684,13 +686,12 @@ class ReplicationUpdateTask(ReplicationBaseTask):
             if not len(updated_fields['datasets']):
                 raise VerifyException(errno.ENOENT, 'At least one dataset have to be specified')
 
-            for dataset in updated_fields['datasets']:
-                if not self.dispatcher.call_sync('zfs.dataset.query', [('name', '=', dataset)], {'single': True}):
-                    raise VerifyException(errno.ENOENT, 'Dataset {0} does not exist'.format(dataset))
-
         return ['replication:{0}'.format(name)]
 
     def run(self, name, updated_fields):
+        if not self.datastore.exists('replication.links', ('name', '=', name)):
+            raise TaskException(errno.ENOENT, 'Replication link {0} do not exist.'.format(name))
+
         link = self.join_subtasks(self.run_subtask('replication.get_latest_link', name))[0]
         original_link = copy.deepcopy(link)
         old_name = link['name']
@@ -709,6 +710,10 @@ class ReplicationUpdateTask(ReplicationBaseTask):
         updated_fields['update_date'] = str(datetime.utcnow())
 
         if 'datasets' in updated_fields:
+            for dataset in updated_fields['datasets']:
+                if not self.dispatcher.call_sync('zfs.dataset.query', [('name', '=', dataset)], {'single': True}):
+                    raise TaskException(errno.ENOENT, 'Dataset {0} does not exist'.format(dataset))
+
             if not remote_available:
                 raise TaskException(
                     errno.EACCES,
@@ -844,6 +849,9 @@ class ReplicationSyncTask(ReplicationBaseTask):
         return ['replication:{0}'.format(name)]
 
     def run(self, name, transport_plugins):
+        if not self.datastore.exists('replication.links', ('name', '=', name)):
+            raise TaskException(errno.ENOENT, 'Replication link {0} do not exist.'.format(name))
+
         start_time = time.time()
         total_size = 0
         status = 'SUCCESS'
@@ -921,6 +929,9 @@ class ReplicationReserveServicesTask(ReplicationBaseTask):
         return []
 
     def run(self, name):
+        if not self.datastore.exists('replication.links', ('name', '=', name)):
+            raise TaskException(errno.ENOENT, 'Replication link {0} do not exist.'.format(name))
+
         service_types = ['shares', 'vms']
         link = self.join_subtasks(self.run_subtask('replication.get_latest_link', name))[0]
         is_master, remote = self.get_replication_state(link)
@@ -986,6 +997,9 @@ class SnapshotDatasetTask(Task):
         return ['zfs:{0}'.format(dataset)]
 
     def run(self, dataset, recursive, lifetime, prefix='auto', replicable=False):
+        if not self.dispatcher.call_sync('zfs.dataset.query', [('name', '=', dataset)], {'single': True}):
+            raise TaskException(errno.ENOENT, 'Dataset {0} not found'.format(dataset))
+
         snapname = '{0}-{1:%Y%m%d.%H%M}'.format(prefix, datetime.utcnow())
         params = {
             'org.freenas:uuid': {'value': str(uuid.uuid4())},
@@ -1368,6 +1382,9 @@ class ReplicationGetLatestLinkTask(ReplicationBaseTask):
         return []
 
     def run(self, name):
+        if not self.datastore.exists('replication.links', ('name', '=', name)):
+            raise TaskException(errno.ENOENT, 'Replication link {0} do not exist.'.format(name))
+
         local_link = self.dispatcher.call_sync('replication.link.get_one_local', name)
         ips = self.dispatcher.call_sync('network.config.get_my_ips')
         remote = ''
@@ -1429,6 +1446,9 @@ class ReplicationUpdateLinkTask(Task):
         return []
 
     def run(self, link):
+        if not self.datastore.exists('replication.links', ('name', '=', link['name'])):
+            raise TaskException(errno.ENOENT, 'Replication link {0} do not exist.'.format(link['name']))
+
         local_link = self.dispatcher.call_sync('replication.link.get_one_local', link['name'])
         for partner in local_link['partners']:
             if partner not in link.get('partners', []):
@@ -1462,6 +1482,9 @@ class ReplicationRoleUpdateTask(ReplicationBaseTask):
         return ['replication:{0}'.format(name)]
 
     def run(self, name):
+        if not self.datastore.exists('replication.links', ('name', '=', name)):
+            raise TaskException(errno.ENOENT, 'Replication link {0} do not exist.'.format(name))
+
         link = self.join_subtasks(self.run_subtask('replication.get_latest_link', name))[0]
         if not link['bidirectional']:
             return
@@ -1510,6 +1533,9 @@ class ReplicationCheckDatasetsTask(ReplicationBaseTask):
         return ['replication:{0}'.format(link['name'])]
 
     def run(self, link):
+        if not self.datastore.exists('replication.links', ('name', '=', link['name'])):
+            raise TaskException(errno.ENOENT, 'Replication link {0} do not exist.'.format(link['name']))
+
         self.check_datasets_valid(link)
 
 

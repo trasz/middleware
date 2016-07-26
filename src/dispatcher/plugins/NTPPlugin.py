@@ -27,7 +27,7 @@
 import errno
 import logging
 from datastore import DatastoreException
-from task import Task, Provider, TaskException, ValidationException, VerifyException, query, TaskDescription
+from task import Task, Provider, TaskException, query, TaskDescription
 from freenas.dispatcher.rpc import RpcException, accepts, description, generator
 from freenas.dispatcher.rpc import SchemaHelper as h
 from lib.system import system, SubprocessException
@@ -57,14 +57,15 @@ class NTPServerCreateTask(Task):
         return TaskDescription("Creating NTP Server {name}", name=ntp['address'])
 
     def verify(self, ntp, force=False):
-        errors = ValidationException()
+        return ['system']
 
+    def run(self, ntp, force=False):
         try:
             system('ntpdate', '-q', ntp['address'])
         except SubprocessException:
             if not force:
-                errors.add(
-                    (0, 'address'),
+                raise TaskException(
+                    errno.EACCES,
                     'Server could not be reached. Check "Force" to continue regardless.'
                 )
 
@@ -72,14 +73,8 @@ class NTPServerCreateTask(Task):
         maxpoll = ntp.get('maxpoll', 10)
 
         if not maxpoll > minpoll:
-            errors.add((0, 'maxpoll'), 'Max Poll should be higher than Min Poll')
+            raise TaskException(errno.EINVAL, 'Max Poll should be higher than Min Poll')
 
-        if errors:
-            raise errors
-
-        return ['system']
-
-    def run(self, ntp, force=False):
         try:
             pkey = self.datastore.insert('ntpservers', ntp)
             self.dispatcher.call_sync('etcd.generation.generate_group', 'ntpd')
@@ -107,37 +102,30 @@ class NTPServerUpdateTask(Task):
         return TaskDescription("Creating NTP Server {name}", name=ntp.get('address', '') or '')
 
     def verify(self, id, updated_fields, force=False):
+        return ['system']
 
+    def run(self, id, updated_fields, force=False):
         ntp = self.datastore.get_by_id('ntpservers', id)
         if ntp is None:
-            raise VerifyException(errno.ENOENT, 'NTP Server with given ID does not exist')
-
-        errors = ValidationException()
+            raise TaskException(errno.ENOENT, 'NTP Server with given ID does not exist')
 
         try:
             if 'address' in updated_fields:
                 system('ntpdate', '-q', updated_fields['address'])
         except SubprocessException:
             if not force:
-                errors.append((
-                    'address',
+                raise TaskException(
                     errno.EINVAL,
-                    'Server could not be reached. Check "Force" to continue regardless.'))
+                    'Server could not be reached. Check "Force" to continue regardless.'
+                )
 
         minpoll = updated_fields.get('minpoll', ntp.get('minpoll'))
         maxpoll = updated_fields.get('maxpoll', ntp.get('maxpoll'))
 
         if minpoll is not None and maxpoll is not None and not maxpoll > minpoll:
-            errors.append(('maxpoll', errno.EINVAL, 'Max Poll should be higher than Min Poll'))
+            raise TaskException(errno.EINVAL, 'Max Poll should be higher than Min Poll')
 
-        if errors:
-            raise ValidationException(errors)
-
-        return ['system']
-
-    def run(self, id, updated_fields, force=False):
         try:
-            ntp = self.datastore.get_by_id('ntpservers', id)
             ntp.update(updated_fields)
             self.datastore.update('ntpservers', id, ntp)
             self.dispatcher.call_sync('etcd.generation.generate_group', 'ntpd')
@@ -165,12 +153,13 @@ class NTPServerDeleteTask(Task):
         return TaskDescription("Creating NTP Server {name}", name=ntp.get('address', '') or '')
 
     def verify(self, id):
-        ntp = self.datastore.get_by_id('ntpservers', id)
-        if ntp is None:
-            raise VerifyException(errno.ENOENT, 'NTP Server with given ID does not exist')
         return ['system']
 
     def run(self, id):
+        ntp = self.datastore.get_by_id('ntpservers', id)
+        if ntp is None:
+            raise TaskException(errno.ENOENT, 'NTP Server with given ID does not exist')
+
         try:
             self.datastore.delete('ntpservers', id)
             self.dispatcher.call_sync('etcd.generation.generate_group', 'ntpd')

@@ -147,7 +147,7 @@ class DirectoryServiceUpdateTask(Task):
 @accepts(str)
 class DirectoryServiceDeleteTask(Task):
     def verify(self, id):
-        pass
+        return ['system']
 
     def run(self, id):
         directory = self.datastore.get_by_id('directories', id)

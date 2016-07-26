@@ -30,7 +30,7 @@ import logging
 
 from datastore.config import ConfigNode
 from freenas.dispatcher.rpc import RpcException, SchemaHelper as h, description, accepts, returns, private
-from task import Task, Provider, TaskException, ValidationException, TaskDescription
+from task import Task, Provider, TaskException, TaskDescription
 
 logger = logging.getLogger('WebDAVPlugin')
 
@@ -56,15 +56,17 @@ class WebDAVConfigureTask(Task):
         return TaskDescription('Configuring WebDAV service')
 
     def verify(self, webdav):
-        errors = ValidationException()
+        return ['system']
+
+    def run(self, webdav):
         node = ConfigNode('service.webdav', self.configstore).__getstate__()
         node.update(webdav)
 
         if node['http_port'] == node['https_port']:
-            errors.add((0, 'http_port'), 'HTTP and HTTPS ports cannot be the same')
+            raise TaskException(errno.EINVAL, 'HTTP and HTTPS ports cannot be the same')
 
         if 'HTTPS' in node['protocol'] and not node['certificate']:
-            errors.add((0, 'certificate'), 'SSL protocol specified without choosing a certificate')
+            raise TaskException(errno.EINVAL, 'SSL protocol specified without choosing a certificate')
 
         if node['certificate']:
             cert = self.dispatcher.call_sync(
@@ -74,14 +76,8 @@ class WebDAVConfigureTask(Task):
             )
 
             if not cert:
-                errors.add((0, 'certificate'), 'SSL Certificate not found.')
+                raise TaskException(errno.ENOENT, 'SSL Certificate not found.')
 
-        if errors:
-            raise errors
-
-        return ['system']
-
-    def run(self, webdav):
         try:
             node = ConfigNode('service.webdav', self.configstore)
             node.update(webdav)

@@ -132,10 +132,6 @@ class CertificateCreateTask(Task):
         if '"' in certificate['name']:
             raise VerifyException(errno.EINVAL, 'Provide certificate name without : `"`')
 
-        if self.datastore.exists('crypto.certificates', ('name', '=', certificate['name'])):
-            raise VerifyException(errno.EEXIST,
-                                  'Certificate named "{0}" already exists'.format(certificate['name']))
-
         if certificate['type'] in ('CERT_INTERNAL', 'CA_INTERNAL', 'CA_INTERMEDIATE'):
             if not certificate['selfsigned'] and not certificate['signing_ca_name']:
                 raise VerifyException(errno.ENOENT,
@@ -147,11 +143,6 @@ class CertificateCreateTask(Task):
         if certificate['type'] == 'CA_INTERMEDIATE':
             if not certificate['signing_ca_name']:
                 raise VerifyException(errno.ENOENT, '"signing_ca_name" field value not specified')
-
-        if certificate['signing_ca_name']:
-            if not self.datastore.exists('crypto.certificates', ('name', '=', certificate['signing_ca_name'])):
-                raise VerifyException(errno.ENOENT,
-                                      'Signing certificate "{0}" not found'.format(certificate['signing_ca_name']))
 
         return ['system']
 
@@ -209,6 +200,14 @@ class CertificateCreateTask(Task):
             k = crypto.PKey()
             k.generate_key(crypto.TYPE_RSA, key_length)
             return k
+
+        if self.datastore.exists('crypto.certificates', ('name', '=', certificate['name'])):
+            raise TaskException(errno.EEXIST, 'Certificate named "{0}" already exists'.format(certificate['name']))
+
+        if certificate['signing_ca_name']:
+            if not self.datastore.exists('crypto.certificates', ('name', '=', certificate['signing_ca_name'])):
+                raise TaskException(errno.ENOENT,
+                                      'Signing certificate "{0}" not found'.format(certificate['signing_ca_name']))
 
         try:
             certificate['selfsigned'] = certificate.get('selfsigned', False)
@@ -280,10 +279,6 @@ class CertificateImportTask(Task):
         if '"' in certificate['name']:
             raise VerifyException(errno.EINVAL, 'Provide certificate name without : `"`')
 
-        if self.datastore.exists('crypto.certificates', ('name', '=', certificate['name'])):
-            raise VerifyException(errno.EEXIST,
-                                  'Certificate named "{0}" already exists'.format(certificate['name']))
-
         if certificate['type'] not in ('CERT_EXISTING', 'CA_EXISTING'):
             raise VerifyException(errno.EINVAL, 'Invalid certificate type')
 
@@ -293,7 +288,7 @@ class CertificateImportTask(Task):
 
         if 'certificate' in certificate:
             try:
-                cert = crypto.load_certificate(crypto.FILETYPE_PEM, certificate['certificate'])
+                crypto.load_certificate(crypto.FILETYPE_PEM, certificate['certificate'])
             except Exception:
                 raise VerifyException(errno.EINVAL, 'Invalid certificate')
 
@@ -306,6 +301,9 @@ class CertificateImportTask(Task):
         return ['system']
 
     def run(self, certificate):
+        if self.datastore.exists('crypto.certificates', ('name', '=', certificate['name'])):
+            raise TaskException(errno.EEXIST, 'Certificate named "{0}" already exists'.format(certificate['name']))
+
         certificate['certificate'] = certificate.get('certificate', None)
         certificate['privatekey'] = certificate.get('privatekey', None)
         certificate['serial'] = None
@@ -345,33 +343,6 @@ class CertificateUpdateTask(Task):
         return TaskDescription("Updating certificate {name}", name=cert.get('name', '') if cert else '')
 
     def verify(self, id, updated_fields):
-        if not self.datastore.exists('crypto.certificates', ('id', '=', id)):
-            raise VerifyException(errno.ENOENT, 'Certificate ID {0} does not exist'.format(id))
-
-        cert = self.datastore.get_by_id('crypto.certificates', id)
-        if cert['type'] in ('CA_EXISTING', 'CERT_EXISTING'):
-            if 'certificate' in updated_fields:
-                try:
-                    cert = crypto.load_certificate(crypto.FILETYPE_PEM, updated_fields['certificate'])
-                except Exception:
-                    raise VerifyException(errno.EINVAL, 'Invalid certificate')
-            if 'privatekey' in updated_fields:
-                try:
-                    key = crypto.load_privatekey(crypto.FILETYPE_PEM, updated_fields['privatekey'])
-                except Exception:
-                    raise VerifyException(errno.EINVAL, 'Invalid privatekey')
-            if 'name' in updated_fields:
-                if self.datastore.exists('crypto.certificates', ('name', '=', updated_fields['name'])):
-                    raise VerifyException(errno.EEXIST,
-                                          'Certificate name : "{0}" already in use'.format(updated_fields['name']))
-        else:
-            if len(updated_fields) > 1 or 'name' not in updated_fields:
-                raise VerifyException(errno.EINVAL, 'Only "name" field can be modified'.format(id))
-
-            if self.datastore.exists('crypto.certificates', ('name', '=', updated_fields['name'])):
-                raise VerifyException(errno.EEXIST,
-                                      'Certificate name : "{0}" already in use'.format(updated_fields['name']))
-
         return ['system']
 
     def run(self, id, updated_fields):
@@ -383,7 +354,32 @@ class CertificateUpdateTask(Task):
             return [c['id'] for c in certs]
 
         ids = [id]
+        if not self.datastore.exists('crypto.certificates', ('id', '=', id)):
+            raise TaskException(errno.ENOENT, 'Certificate ID {0} does not exist'.format(id))
+
         cert = self.datastore.get_by_id('crypto.certificates', id)
+        if cert['type'] in ('CA_EXISTING', 'CERT_EXISTING'):
+            if 'certificate' in updated_fields:
+                try:
+                    crypto.load_certificate(crypto.FILETYPE_PEM, updated_fields['certificate'])
+                except Exception:
+                    raise TaskException(errno.EINVAL, 'Invalid certificate')
+            if 'privatekey' in updated_fields:
+                try:
+                    crypto.load_privatekey(crypto.FILETYPE_PEM, updated_fields['privatekey'])
+                except Exception:
+                    raise TaskException(errno.EINVAL, 'Invalid privatekey')
+            if 'name' in updated_fields:
+                if self.datastore.exists('crypto.certificates', ('name', '=', updated_fields['name'])):
+                    raise TaskException(errno.EEXIST,
+                                        'Certificate name : "{0}" already in use'.format(updated_fields['name']))
+        else:
+            if len(updated_fields) > 1 or 'name' not in updated_fields:
+                raise TaskException(errno.EINVAL, 'Only "name" field can be modified'.format(id))
+
+            if self.datastore.exists('crypto.certificates', ('name', '=', updated_fields['name'])):
+                raise TaskException(errno.EEXIST,
+                                    'Certificate name : "{0}" already in use'.format(updated_fields['name']))
 
         try:
             if 'certificate' in updated_fields:
@@ -421,8 +417,6 @@ class CertificateDeleteTask(Task):
         return TaskDescription("Deleting certificate {name}", name=cert.get('name', '') if cert else '')
 
     def verify(self, id):
-        if not self.datastore.exists('crypto.certificates', ('id', '=', id)):
-            raise VerifyException(errno.ENOENT, 'Certificate ID {0} does not exist'.format(id))
         return ['system']
 
     def run(self, id):
@@ -437,6 +431,9 @@ class CertificateDeleteTask(Task):
             for (cid, _) in certs:
                 nested.extend(get_related_certs_ids_and_names(cid))
             return certs + nested
+
+        if not self.datastore.exists('crypto.certificates', ('id', '=', id)):
+            raise TaskException(errno.ENOENT, 'Certificate ID {0} does not exist'.format(id))
 
         certs = get_related_certs_ids_and_names(id)
         certs.extend(get_subject_cert_id_and_name())
