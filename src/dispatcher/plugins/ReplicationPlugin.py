@@ -378,7 +378,7 @@ class ReplicationCreateTask(ReplicationBaseTask):
                 'Replication of services is available only when bi-directional replication is selected'
             )
 
-        return []
+        return ['replication']
 
     def run(self, link):
         link['id'] = link['name']
@@ -431,7 +431,7 @@ class ReplicationPrepareSlaveTask(ReplicationBaseTask):
         return TaskDescription("Preparing slave for replication link {name}", name=link.get('name') or '')
 
     def verify(self, link):
-        return []
+        return ['replication']
 
     def run(self, link):
         def match_disk(empty_disks, path):
