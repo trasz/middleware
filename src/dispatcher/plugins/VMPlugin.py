@@ -516,7 +516,7 @@ class VMCreateTask(VMBaseTask):
             if not template:
                 raise TaskException(errno.ENOENT, 'Template {0} not found'.format(vm['template'].get('name')))
 
-            template['template'].pop('readme')
+            template['template'].pop('readme', None)
 
             result = {}
             for key in vm:
@@ -725,7 +725,7 @@ class VMUpdateTask(VMBaseTask):
             self.join_subtasks(self.run_subtask('zfs.rename', vm_ds, new_vm_ds))
 
         if 'template' in updated_params:
-            readme = updated_params['template'].pop('readme')
+            readme = updated_params['template'].pop('readme', None)
             if readme:
                 root = self.dispatcher.call_sync('vm.get_vm_root', vm['id'])
                 with open(os.path.join(root, 'README.md'), 'w') as readme_file:
