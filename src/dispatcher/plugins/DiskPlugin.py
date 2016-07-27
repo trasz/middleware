@@ -502,17 +502,16 @@ class DiskGELIInitTask(Task):
         if not disk:
             raise VerifyException(errno.ENOENT, "Disk {0} not found".format(id))
 
-        key = params.get('key', None)
-        if key is None:
-            raise VerifyException(errno.EINVAL, "No key for encryption specified")
+        if not ('key' in params or 'password' in params):
+            raise VerifyException(errno.EINVAL, "At least one of key, password have to be specified for encryption")
 
         return ['disk:{0}'.format(disk['path'])]
 
     def run(self, id, params=None):
         if params is None:
             params = {}
-        key = base64.b64decode(params.get('key', None))
-        password = params.get('password', None)
+        key = base64.b64decode(params.get('key', ''))
+        password = params.get('password', '')
         disk_info = disk_by_id(self.dispatcher, id)
         disk_status = disk_info.get('status', None)
         if disk_status is not None:
@@ -527,18 +526,20 @@ class DiskGELIInitTask(Task):
             pass
 
         with tempfile.NamedTemporaryFile('wb') as keyfile:
-            keyfile.write(key)
-            keyfile.flush()
+            with tempfile.NamedTemporaryFile('w') as passfile:
+                keyfile.write(key)
+                keyfile.flush()
+                passfile.write(password)
+                passfile.flush()
             try:
-                if password is not None:
-                    with tempfile.NamedTemporaryFile('w') as passfile:
-                        passfile.write(password)
-                        passfile.flush()
-                        system('/sbin/geli', 'init', '-s', str(4096), '-K', keyfile.name, '-J', passfile.name,
-                               '-B none', data_partition_path)
-                else:
+                if password and key:
+                    system('/sbin/geli', 'init', '-s', str(4096), '-K', keyfile.name, '-J', passfile.name,
+                           '-B none', data_partition_path)
+                elif key:
                     system('/sbin/geli', 'init', '-s', str(4096), '-K', keyfile.name, '-P', '-B none',
                            data_partition_path)
+                else:
+                    system('/sbin/geli', 'init', '-s', str(4096), '-J', passfile.name, '-B none', data_partition_path)
             except SubprocessException as err:
                 raise TaskException(errno.EFAULT, 'Cannot init encrypted partition: {0}'.format(err.err))
 
@@ -559,10 +560,10 @@ class DiskGELISetUserKeyTask(Task):
         if not disk:
             raise VerifyException(errno.ENOENT, "Disk {0} not found".format(id))
 
-        if params.get('key', None) is None:
-            raise VerifyException(errno.EINVAL, "No key specified for operation")
+        if not ('key' in params or 'password' in params):
+            raise VerifyException(errno.EINVAL, "At least one of key, password have to be specified for encryption")
 
-        if params.get('slot', None) not in [0,1]:
+        if params.get('slot', None) not in [0, 1]:
             raise VerifyException(errno.EINVAL, "Chosen key slot value {0} is not in valid range [0-1]".
                                   format(params.get('slot', None)))
 
@@ -571,29 +572,31 @@ class DiskGELISetUserKeyTask(Task):
     def run(self, id, params=None):
         if params is None:
             params = {}
-        key = base64.b64decode(params.get('key', None))
-        password = params.get('password', None)
-        slot = params.get('slot', None)
+        key = base64.b64decode(params.get('key', ''))
+        password = params.get('password', '')
+        slot = params.get('slot', 0)
         disk_info = disk_by_id(self.dispatcher, id)
-        disk_status = disk_info.get('status', None)
-        if disk_status is not None:
+        disk_status = disk_info.get('status')
+        if disk_status:
             data_partition_path = os.path.join('/dev/gptid/', disk_status.get('data_partition_uuid'))
         else:
             raise TaskException(errno.EINVAL, 'Cannot get disk status for: {0}'.format(disk_info['path']))
 
         with tempfile.NamedTemporaryFile('wb') as keyfile:
-            keyfile.write(key)
-            keyfile.flush()
+            with tempfile.NamedTemporaryFile('w') as passfile:
+                keyfile.write(key)
+                keyfile.flush()
+                passfile.write(password)
+                passfile.flush()
             try:
-                if password is not None:
-                    with tempfile.NamedTemporaryFile('w') as passfile:
-                        passfile.write(password)
-                        passfile.flush()
-                        system('/sbin/geli', 'setkey', '-K', keyfile.name, '-J', passfile.name,
-                               '-n', str(slot), data_partition_path)
-                else:
+                if password and key:
+                     system('/sbin/geli', 'setkey', '-K', keyfile.name, '-J', passfile.name,
+                            '-n', str(slot), data_partition_path)
+                elif key:
                     system('/sbin/geli', 'setkey', '-K', keyfile.name, '-P', '-n', str(slot),
                            data_partition_path)
+                else:
+                    system('/sbin/geli', 'setkey', '-J', passfile.name, '-n', str(slot), data_partition_path)
             except SubprocessException as err:
                 raise TaskException(errno.EFAULT, 'Cannot set new key for encrypted partition: {0}'.format(err.err))
 
@@ -621,8 +624,8 @@ class DiskGELIDelUserKeyTask(Task):
 
     def run(self, id, slot):
         disk_info = disk_by_id(self.dispatcher, id)
-        disk_status = disk_info.get('status', None)
-        if disk_status is not None:
+        disk_status = disk_info.get('status')
+        if disk_status:
             data_partition_path = os.path.join('/dev/gptid/', disk_status.get('data_partition_uuid'))
         else:
             raise TaskException(errno.EINVAL, 'Cannot get disk status for: {0}'.format(disk_info['path']))
@@ -657,8 +660,8 @@ class DiskGELIBackupMetadataTask(Task):
 
     def run(self, id):
         disk_info = disk_by_id(self.dispatcher, id)
-        disk_status = disk_info.get('status', None)
-        if disk_status is not None:
+        disk_status = disk_info.get('status')
+        if disk_status:
             data_partition_path = os.path.join('/dev/gptid/', disk_status.get('data_partition_uuid'))
         else:
             raise TaskException(errno.EINVAL, 'Cannot get disk status for: {0}'.format(disk_info['path']))
@@ -697,8 +700,8 @@ class DiskGELIRestoreMetadataTask(Task):
         disk = metadata.get('disk')
         disk_info = self.dispatcher.call_sync('disk.query', [('path', 'in', disk),
                                                              ('online', '=', True)], {'single': True})
-        disk_status = disk_info.get('status', None)
-        if disk_status is not None:
+        disk_status = disk_info.get('status')
+        if disk_status:
             data_partition_path = os.path.join('/dev/gptid/', disk_status.get('data_partition_uuid'))
         else:
             raise TaskException(errno.EINVAL, 'Cannot get disk status for: {0}'.format(disk))
@@ -730,35 +733,36 @@ class DiskGELIAttachTask(Task):
         if not disk:
             raise VerifyException(errno.ENOENT, "Disk {0} not found".format(id))
 
-        key = params.get('key', None)
-        if key is None:
-            raise VerifyException(errno.EINVAL, "No key for attach specified")
+        if not ('key' in params or 'password' in params):
+            raise VerifyException(errno.EINVAL, "At least one of key, password have to be specified")
 
         return ['disk:{0}'.format(disk['path'])]
 
     def run(self, id, params=None):
         if params is None:
             params = {}
-        key = base64.b64decode(params.get('key', None))
-        password = params.get('password', None)
+        key = base64.b64decode(params.get('key', ''))
+        password = params.get('password', '')
         disk_info = disk_by_id(self.dispatcher, id)
-        disk_status = disk_info.get('status', None)
-        if disk_status is not None:
+        disk_status = disk_info.get('status')
+        if disk_status:
             data_partition_path = disk_status.get('data_partition_path')
         else:
             raise TaskException(errno.EINVAL, 'Cannot get disk status for: {0}'.format(disk_info['path']))
 
         with tempfile.NamedTemporaryFile('wb') as keyfile:
-            keyfile.write(key)
-            keyfile.flush()
+            with tempfile.NamedTemporaryFile('w') as passfile:
+                keyfile.write(key)
+                keyfile.flush()
+                passfile.write(password)
+                passfile.flush()
             try:
-                if password is not None:
-                    with tempfile.NamedTemporaryFile('w') as passfile:
-                        passfile.write(password)
-                        passfile.flush()
-                        system('/sbin/geli', 'attach', '-k', keyfile.name, '-j', passfile.name, data_partition_path)
-                else:
+                if password and key:
+                    system('/sbin/geli', 'attach', '-k', keyfile.name, '-j', passfile.name, data_partition_path)
+                elif key:
                     system('/sbin/geli', 'attach', '-k', keyfile.name, '-p', data_partition_path)
+                else:
+                    system('/sbin/geli', 'attach', '-j', passfile.name, data_partition_path)
                 self.dispatcher.call_sync('disk.update_disk_cache', disk_info['path'], timeout=120)
             except SubprocessException as err:
                 logger.warning('Cannot attach encrypted partition: {0}'.format(err.err))
@@ -785,8 +789,8 @@ class DiskGELIDetachTask(Task):
     def run(self, id):
         disk_info = disk_by_id(self.dispatcher, id)
 
-        disk_status = disk_info.get('status', None)
-        if disk_status is not None:
+        disk_status = disk_info.get('status')
+        if disk_status:
             data_partition_path = disk_status.get('data_partition_path')
         else:
             raise TaskException(errno.EINVAL, 'Cannot get disk status for: {0}'.format(disk_info['path']))
@@ -819,8 +823,8 @@ class DiskGELIKillTask(Task):
     def run(self, id):
         disk_info = disk_by_id(self.dispatcher, id)
 
-        disk_status = disk_info.get('status', None)
-        if disk_status is not None:
+        disk_status = disk_info.get('status')
+        if disk_status:
             data_partition_path = disk_status.get('data_partition_path')
         else:
             raise TaskException(errno.EINVAL, 'Cannot get disk status for: {0}'.format(disk_info['path']))

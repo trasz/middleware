@@ -148,7 +148,7 @@ class VolumeProvider(Provider):
                         'upgraded': is_upgraded(config),
                     })
 
-            encrypted = vol.get('encrypted', False)
+            encrypted = vol.get('key_encrypted', False) or vol.get('password_encrypted', False)
             if encrypted is True:
                 online = 0
                 offline = 0
@@ -297,7 +297,8 @@ class VolumeProvider(Provider):
         result = []
         vol = self.dispatcher.call_sync('volume.query', [('id', '=', name)], {'single': True})
 
-        if vol.get('encrypted', False) is False or vol.get('providers_presence', 'NONE') != 'NONE':
+        encrypted = vol.get('key_encrypted', False) or vol.get('password_encrypted', False)
+        if not encrypted or vol.get('providers_presence', 'NONE') != 'NONE':
             for dev in self.dispatcher.call_sync('zfs.pool.get_disks', name):
                 try:
                     result.append(self.dispatcher.call_sync('disk.partition_to_disk', dev))
@@ -458,19 +459,20 @@ class VolumeCreateTask(ProgressTask):
             'mountpoint',
             os.path.join(VOLUMES_ROOT, volume['id'])
         )
-        encryption = volume.pop('encrypted', False)
+        key_encryption = volume.pop('key_encrypted', False)
+        password_encryption = volume.pop('password_encrypted', False)
 
         self.dispatcher.run_hook('volume.pre_create', {'name': name})
-        if encryption:
+        if key_encryption:
             key = base64.b64encode(os.urandom(64)).decode('utf-8')
-            if password is not None:
-                salt, digest = get_digest(password)
-            else:
-                salt = None
-                digest = None
         else:
             key = None
-            password = None
+
+        if password_encryption:
+            if not password:
+                raise TaskException(errno.EINVAL, 'Please provide a password when choosing a password based encryption')
+            salt, digest = get_digest(password)
+        else:
             salt = None
             digest = None
 
@@ -495,7 +497,7 @@ class VolumeCreateTask(ProgressTask):
 
         self.set_progress(20)
 
-        if encryption:
+        if key_encryption or password_encryption:
             subtasks = []
             for disk_id in disk_ids:
                 subtasks.append(self.run_subtask('disk.geli.init', disk_id, {
@@ -547,11 +549,12 @@ class VolumeCreateTask(ProgressTask):
                 'mountpoint': mountpoint,
                 'topology': volume['topology'],
                 'encryption': {
-                    'key': key if key else None,
+                    'key': key,
                     'hashed_password': digest,
                     'salt': salt,
-                    'slot': 0 if key else None},
-                'encrypted': True if key else False,
+                    'slot': 0 if key_encryption or password_encryption else None},
+                'key_encrypted': key_encryption,
+                'password_encrypted': password_encryption,
                 'attributes': volume.get('attributes', {})
             })
 
@@ -569,16 +572,16 @@ class VolumeAutoCreateTask(Task):
     def early_describe(cls):
         return "Creating a volume"
 
-    def describe(self, name, type, layout, disks, cache_disks=None, log_disks=None, encryption=False, password=None):
+    def describe(self, name, type, layout, disks, cache_disks=None, log_disks=None, key_encryption=False, password=None):
         return TaskDescription("Creating the volume {name}", name=name)
 
-    def verify(self, name, type, layout, disks, cache_disks=None, log_disks=None, encryption=False, password=None):
+    def verify(self, name, type, layout, disks, cache_disks=None, log_disks=None, key_encryption=False, password=None):
         if isinstance(disks, str) and disks == 'auto':
             return ['disk:{0}'.format(disk) for disk in self.dispatcher.call_sync('disk.query', {'select': 'path'})]
         else:
             return ['disk:{0}'.format(disk_spec_to_path(self.dispatcher, i)) for i in disks]
 
-    def run(self, name, type, layout, disks, cache_disks=None, log_disks=None, encryption=False, password=None):
+    def run(self, name, type, layout, disks, cache_disks=None, log_disks=None, key_encryption=False, password=None):
         if self.datastore.exists('volumes', ('id', '=', name)):
             raise TaskException(
                 errno.EEXIST,
@@ -645,7 +648,8 @@ class VolumeAutoCreateTask(Task):
                     'cache': cache_vdevs,
                     'log': log_vdevs
                 },
-                'encrypted': encryption
+                'key_encrypted': key_encryption,
+                'password_encrypted': True if password else False
             },
             password
         ))
@@ -677,7 +681,6 @@ class VolumeDestroyTask(Task):
         if not vol:
             raise TaskException(errno.ENOENT, 'Volume {0} not found'.format(id))
 
-        encryption = vol.get('encryption', {})
         config = self.dispatcher.call_sync('zfs.pool.query', [('id', '=', id)], {'single': True})
 
         self.dispatcher.run_hook('volume.pre_destroy', {'name': id})
@@ -706,7 +709,7 @@ class VolumeDestroyTask(Task):
                     else:
                         raise
 
-            if encryption.get('key', None) is not None:
+            if vol['key_encrypted'] or vol['password_encrypted']:
                 subtasks = []
                 if 'topology' in vol:
                     for dname, _ in get_disks(vol['topology']):
@@ -926,7 +929,7 @@ class VolumeUpdateTask(Task):
 
             self.join_subtasks(*subtasks)
 
-            if encryption['key'] is not None:
+            if encryption['key'] or encryption['hashed_password']:
                 subtasks = []
                 for vdev, group in iterate_vdevs(new_vdevs):
                     subtasks.append(self.run_subtask(
@@ -939,7 +942,7 @@ class VolumeUpdateTask(Task):
                     ))
                 self.join_subtasks(*subtasks)
 
-                if encryption['slot'] is not 0:
+                if encryption['slot'] != 0:
                     subtasks = []
                     for vdev, group in iterate_vdevs(new_vdevs):
                         subtasks.append(self.run_subtask(
@@ -1010,9 +1013,7 @@ class VolumeImportTask(Task):
         if enc_params is None:
             enc_params = {}
 
-        if enc_params.get('key', None) is None:
-            return self.verify_subtask('zfs.pool.import', id)
-        else:
+        if enc_params.get('key') or password:
             disks = enc_params.get('disks', None)
             if disks is None:
                 raise VerifyException(
@@ -1021,6 +1022,8 @@ class VolumeImportTask(Task):
                 if isinstance(disks, str):
                     disks = [disks]
                 return ['disk:{0}'.format(i) for i in disks]
+        else:
+            return self.verify_subtask('zfs.pool.import', id)
 
     def run(self, id, new_name, params=None, enc_params=None, password=None):
         if self.datastore.exists('volumes', ('id', '=', id)):
@@ -1039,25 +1042,23 @@ class VolumeImportTask(Task):
             enc_params = {}
 
         with self.dispatcher.get_lock('volumes'):
-            key = enc_params.get('key', None)
-            if key is not None:
+            key = enc_params.get('key')
+
+            if password:
+                salt, digest = get_digest(password)
+            else:
+                salt = None
+                digest = None
+
+            if key or password:
                 disks = enc_params.get('disks', [])
                 if isinstance(disks, str):
                     disks = [disks]
-
-                if password is not None:
-                    salt, digest = get_digest(password)
-                else:
-                    salt = None
-                    digest = None
 
                 attach_params = {'key': key, 'password': password}
                 for dname in disks:
                     disk_id = self.dispatcher.call_sync('disk.path_to_id', dname)
                     self.join_subtasks(self.run_subtask('disk.geli.attach', disk_id, attach_params))
-            else:
-                salt = None
-                digest = None
 
             mountpoint = os.path.join(VOLUMES_ROOT, new_name)
             self.join_subtasks(self.run_subtask('zfs.pool.import', id, new_name, params))
@@ -1074,11 +1075,12 @@ class VolumeImportTask(Task):
                 'guid': id,
                 'type': 'zfs',
                 'encryption': {
-                    'key': key if key else None,
+                    'key': key ,
                     'hashed_password': digest,
                     'salt': salt,
-                    'slot': 0 if key else None},
-                'encrypted': True if key else False,
+                    'slot': 0 if key or password else None},
+                'key_encrypted': True if key else False,
+                'password_encrypted': True if password else False,
                 'mountpoint': mountpoint
             })
 
@@ -1179,7 +1181,7 @@ class VolumeDetachTask(Task):
 
         encryption = vol.get('encryption')
 
-        if encryption['key'] is not None:
+        if encryption['key'] or encryption['hashed_password']:
             subtasks = []
             for dname in disks:
                 disk_id = self.dispatcher.call_sync('disk.path_to_id', dname)
@@ -1246,8 +1248,19 @@ class VolumeAutoReplaceTask(Task):
             raise TaskException(errno.ENOENT, 'Volume {0} not found'.format(id))
 
         def do_replace(disk, global_spare=False):
-            if vol.get('encrypted', False):
+            if vol.get('key_encrypted') or vol.get('password_encrypted'):
                 encryption = vol['encryption']
+                if vol.get('password_encrypted'):
+                    if not is_password(
+                            password,
+                            encryption.get('salt', ''),
+                            encryption.get('hashed_password', '')
+                    ):
+                        raise TaskException(
+                            errno.EINVAL,
+                            'Password provided for volume {0} is not valid'.format(id)
+                        )
+
                 self.join_subtasks(self.run_subtask('disk.geli.init', disk['id'], {
                     'key': encryption['key'],
                     'password': password
@@ -1317,20 +1330,18 @@ class VolumeLockTask(Task):
         if not vol:
             raise VerifyException(errno.ENOENT, 'Volume {0} not found'.format(id))
 
-        encryption = vol.get('encryption')
-
-        if encryption['key'] is None:
-            raise VerifyException(errno.EINVAL, 'Volume {0} is not encrypted'.format(id))
-
-        if vol.get('providers_presence', 'NONE') == 'NONE':
-            raise VerifyException(errno.EINVAL, 'Volume {0} does not have any unlocked providers'.format(id))
-
         return ['disk:{0}'.format(d) for d in self.dispatcher.call_sync('volume.get_volume_disks', id)]
 
     def run(self, id):
         vol = self.dispatcher.call_sync('volume.query', [('id', '=', id)], {'single': True})
         if not vol:
             raise TaskException(errno.ENOENT, 'Volume {0} not found'.format(id))
+
+        if not (vol.get('key_encrypted') or vol.get('password_encrypted')):
+            raise TaskException(errno.EINVAL, 'Volume {0} is not encrypted'.format(id))
+
+        if vol.get('providers_presence', 'NONE') == 'NONE':
+            raise TaskException(errno.EINVAL, 'Volume {0} does not have any unlocked providers'.format(id))
 
         self.dispatcher.run_hook('volume.pre_detach', {'name': id})
 
@@ -1342,7 +1353,7 @@ class VolumeLockTask(Task):
             for vdev, _ in iterate_vdevs(vol['topology']):
                 if vol['providers_presence'] == 'PART':
                     vdev_conf = self.dispatcher.call_sync('disk.get_disk_config', vdev)
-                    if vdev_conf.get('encrypted', False) is True:
+                    if vdev_conf.get('encrypted'):
                         subtasks.append(self.run_subtask(
                             'disk.geli.detach',
                             self.dispatcher.call_sync('disk.path_to_id', vdev['path'])
@@ -1536,13 +1547,13 @@ class VolumeUnlockTask(Task):
 
             encryption = vol.get('encryption')
 
-            if encryption['key'] is None:
+            if not (vol.get('key_encrypted') or vol.get('password_encrypted')):
                 raise TaskException(errno.EINVAL, 'Volume {0} is not encrypted'.format(id))
 
             if vol.get('providers_presence', 'ALL') == 'ALL':
                 raise TaskException(errno.EINVAL, 'Volume {0} does not have any locked providers'.format(id))
 
-            if encryption['hashed_password'] is not None:
+            if encryption['hashed_password']:
                 if password is None:
                     raise TaskException(
                         errno.EINVAL,
@@ -1557,7 +1568,7 @@ class VolumeUnlockTask(Task):
             for vdev, _ in iterate_vdevs(vol['topology']):
                 if vol['providers_presence'] == 'PART':
                     vdev_conf = self.dispatcher.call_sync('disk.get_disk_config', vdev)
-                    if vdev_conf.get('encrypted', False) is False:
+                    if not vdev_conf.get('encrypted'):
                         subtasks.append(self.run_subtask(
                             'disk.geli.attach',
                             self.dispatcher.call_sync('disk.path_to_id', vdev['path']),
@@ -1595,30 +1606,28 @@ class VolumeUnlockTask(Task):
 
 
 @description("Generates and sets new key for encrypted ZFS volume")
-@accepts(str, h.one_of(str, None))
+@accepts(str, bool, h.one_of(str, None))
 class VolumeRekeyTask(Task):
     @classmethod
     def early_describe(cls):
         return "Regenerating the keys of encrypted volume"
 
-    def describe(self, id, password=None):
+    def describe(self, id, key_encrypted, password=None):
         return TaskDescription("Regenerating the keys of the encrypted volume {name}", name=id)
 
-    def verify(self, id, password=None):
+    def verify(self, id, key_encrypted, password=None):
         if not self.datastore.exists('volumes', ('id', '=', id)):
             raise VerifyException(errno.ENOENT, 'Volume {0} not found'.format(id))
 
         return ['disk:{0}'.format(d) for d in self.dispatcher.call_sync('volume.get_volume_disks', id)]
 
-    def run(self, id, password=None):
+    def run(self, id, key_encrypted, password=None):
         if not self.datastore.exists('volumes', ('id', '=', id)):
             raise TaskException(errno.ENOENT, 'Volume {0} not found'.format(id))
 
         vol = self.dispatcher.call_sync('volume.query', [('id', '=', id)], {'single': True})
 
-        encryption = vol.get('encryption')
-
-        if encryption['key'] is None:
+        if not (vol.get('key_encrypted') or vol.get('password_encrypted')):
             raise TaskException(errno.EINVAL, 'Volume {0} is not encrypted'.format(id))
 
         if vol.get('providers_presence', 'NONE') != 'ALL':
@@ -1629,9 +1638,14 @@ class VolumeRekeyTask(Task):
             encryption = vol.get('encryption')
             disks = self.dispatcher.call_sync('volume.get_volume_disks', id)
 
-            key = base64.b64encode(os.urandom(64)).decode('utf-8')
+            if key_encrypted:
+                key = base64.b64encode(os.urandom(64)).decode('utf-8')
+            else:
+                key = None
+
             slot = 0 if encryption['slot'] is 1 else 1
-            if password is not None:
+
+            if password:
                 salt, digest = get_digest(password)
             else:
                 salt = None
@@ -1656,6 +1670,8 @@ class VolumeRekeyTask(Task):
                 'slot': slot}
 
             vol['encryption'] = encryption
+            vol['key_encrypted'] = key_encrypted
+            vol['password_encrypted'] = True if password else False
             self.datastore.update('volumes', vol['id'], vol)
 
             slot = 0 if encryption['slot'] is 1 else 1
@@ -1693,9 +1709,7 @@ class VolumeBackupKeysTask(Task):
 
         vol = self.dispatcher.call_sync('volume.query', [('id', '=', id)], {'single': True})
 
-        encryption = vol.get('encryption')
-
-        if encryption['key'] is None:
+        if not (vol.get('key_encrypted') or vol.get('password_encrypted')):
             raise TaskException(errno.EINVAL, 'Volume {0} is not encrypted'.format(id))
 
         if vol.get('providers_presence', 'NONE') != 'ALL':
@@ -1750,9 +1764,7 @@ class VolumeRestoreKeysTask(Task):
 
         vol = self.dispatcher.call_sync('volume.query', [('id', '=', id)], {'single': True})
 
-        encryption = vol.get('encryption')
-
-        if encryption['key'] is None:
+        if not (vol.get('key_encrypted') or vol.get('password_encrypted')):
             raise TaskException(errno.EINVAL, 'Volume {0} is not encrypted'.format(id))
 
         if vol.get('providers_presence', 'ALL') != 'NONE':
@@ -2699,7 +2711,8 @@ def _init(dispatcher, plugin):
             for i in args['ids']:
                 with dispatcher.get_lock('volumes'):
                     volume = dispatcher.call_sync('volume.query', [('id', '=', i)], {'single': True})
-                    if volume and volume.get('encrypted', False) == False:
+                    encrypted = volume.get('key_encrypted') or volume.get('password_encrypted')
+                    if volume and not encrypted:
                         logger.info('Volume {0} is going away'.format(volume['id']))
                         dispatcher.datastore.delete('volumes', volume['id'])
                         dispatcher.dispatch_event('volume.changed', {
@@ -2814,7 +2827,8 @@ def _init(dispatcher, plugin):
             'rname': {'type': 'string'},
             'topology': {'$ref': 'zfs-topology'},
             'scan': {'$ref': 'zfs-scan'},
-            'encrypted': {'type': 'boolean'},
+            'key_encrypted': {'type': 'boolean'},
+            'password_encrypted': {'type': 'boolean'},
             'encryption': {'$ref': 'volume-encryption'},
             'providers_presence': {
                 'oneOf': [
