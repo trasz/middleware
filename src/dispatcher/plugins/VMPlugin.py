@@ -726,9 +726,10 @@ class VMUpdateTask(VMBaseTask):
 
         if 'template' in updated_params:
             readme = updated_params['template'].pop('readme', '')
-            if readme:
-                root = self.dispatcher.call_sync('vm.get_vm_root', vm['id'])
-                with open(os.path.join(root, 'README.md'), 'w') as readme_file:
+            root = self.dispatcher.call_sync('vm.get_vm_root', vm['id'])
+            readme_path = get_readme(root)
+            if readme_path or readme:
+                with open(readme_path, 'w') as readme_file:
                     readme_file.write(readme)
 
         if 'devices' in updated_params:
