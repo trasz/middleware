@@ -1663,6 +1663,7 @@ def _init(dispatcher, plugin):
                 'properties': {
                     'name': {'type': 'string'},
                     'path': {'type': 'string'},
+                    'readme': {'type': ['string', 'null']},
                     'cached': {'type': 'boolean'}
                 }
             },
