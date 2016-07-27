@@ -2954,7 +2954,7 @@ def _init(dispatcher, plugin):
     plugin.register_schema_definition('volume-import-params', {
         'type': 'object',
         'properties': {
-            'key': {'type': 'string'},
+            'key': {'type': ['string', 'null']},
             'disks': {
                 'type': 'array',
                 'items': {'type': 'string'}
