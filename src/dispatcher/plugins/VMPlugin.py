@@ -725,7 +725,7 @@ class VMUpdateTask(VMBaseTask):
             self.join_subtasks(self.run_subtask('zfs.rename', vm_ds, new_vm_ds))
 
         if 'template' in updated_params:
-            readme = updated_params['template'].pop('readme', None)
+            readme = updated_params['template'].pop('readme', '')
             if readme:
                 root = self.dispatcher.call_sync('vm.get_vm_root', vm['id'])
                 with open(os.path.join(root, 'README.md'), 'w') as readme_file:
