@@ -107,7 +107,7 @@ def _init(dispatcher, plugin):
     plugin.register_schema_definition('service-sshd-sftploglevel', {
         'type': 'string',
         'enum': ['QUIET', 'FATAL', 'ERROR', 'INFO',
-                  'VERBOSE', 'DEBUG', 'DEBUG2', 'DEBUG3']
+                 'VERBOSE', 'DEBUG', 'DEBUG2', 'DEBUG3']
     })
 
     plugin.register_schema_definition('service-sshd-sftplogfacility', {
