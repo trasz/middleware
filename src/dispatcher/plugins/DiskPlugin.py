@@ -531,17 +531,17 @@ class DiskGELIInitTask(Task):
                 keyfile.flush()
                 passfile.write(password)
                 passfile.flush()
-            try:
-                if password and key:
-                    system('/sbin/geli', 'init', '-s', str(4096), '-K', keyfile.name, '-J', passfile.name,
-                           '-B none', data_partition_path)
-                elif key:
-                    system('/sbin/geli', 'init', '-s', str(4096), '-K', keyfile.name, '-P', '-B none',
-                           data_partition_path)
-                else:
-                    system('/sbin/geli', 'init', '-s', str(4096), '-J', passfile.name, '-B none', data_partition_path)
-            except SubprocessException as err:
-                raise TaskException(errno.EFAULT, 'Cannot init encrypted partition: {0}'.format(err.err))
+                try:
+                    if password and key:
+                        system('/sbin/geli', 'init', '-s', str(4096), '-K', keyfile.name, '-J', passfile.name,
+                               '-B none', data_partition_path)
+                    elif key:
+                        system('/sbin/geli', 'init', '-s', str(4096), '-K', keyfile.name, '-P', '-B none',
+                               data_partition_path)
+                    else:
+                        system('/sbin/geli', 'init', '-s', str(4096), '-J', passfile.name, '-B none', data_partition_path)
+                except SubprocessException as err:
+                    raise TaskException(errno.EFAULT, 'Cannot init encrypted partition: {0}'.format(err.err))
 
 
 @accepts(str, h.ref('disk-set-key-params'))
@@ -588,17 +588,17 @@ class DiskGELISetUserKeyTask(Task):
                 keyfile.flush()
                 passfile.write(password)
                 passfile.flush()
-            try:
-                if password and key:
-                     system('/sbin/geli', 'setkey', '-K', keyfile.name, '-J', passfile.name,
-                            '-n', str(slot), data_partition_path)
-                elif key:
-                    system('/sbin/geli', 'setkey', '-K', keyfile.name, '-P', '-n', str(slot),
-                           data_partition_path)
-                else:
-                    system('/sbin/geli', 'setkey', '-J', passfile.name, '-n', str(slot), data_partition_path)
-            except SubprocessException as err:
-                raise TaskException(errno.EFAULT, 'Cannot set new key for encrypted partition: {0}'.format(err.err))
+                try:
+                    if password and key:
+                         system('/sbin/geli', 'setkey', '-K', keyfile.name, '-J', passfile.name,
+                                '-n', str(slot), data_partition_path)
+                    elif key:
+                        system('/sbin/geli', 'setkey', '-K', keyfile.name, '-P', '-n', str(slot),
+                               data_partition_path)
+                    else:
+                        system('/sbin/geli', 'setkey', '-J', passfile.name, '-n', str(slot), data_partition_path)
+                except SubprocessException as err:
+                    raise TaskException(errno.EFAULT, 'Cannot set new key for encrypted partition: {0}'.format(err.err))
 
 
 @accepts(str, int)
@@ -756,16 +756,16 @@ class DiskGELIAttachTask(Task):
                 keyfile.flush()
                 passfile.write(password)
                 passfile.flush()
-            try:
-                if password and key:
-                    system('/sbin/geli', 'attach', '-k', keyfile.name, '-j', passfile.name, data_partition_path)
-                elif key:
-                    system('/sbin/geli', 'attach', '-k', keyfile.name, '-p', data_partition_path)
-                else:
-                    system('/sbin/geli', 'attach', '-j', passfile.name, data_partition_path)
-                self.dispatcher.call_sync('disk.update_disk_cache', disk_info['path'], timeout=120)
-            except SubprocessException as err:
-                logger.warning('Cannot attach encrypted partition: {0}'.format(err.err))
+                try:
+                    if password and key:
+                        system('/sbin/geli', 'attach', '-k', keyfile.name, '-j', passfile.name, data_partition_path)
+                    elif key:
+                        system('/sbin/geli', 'attach', '-k', keyfile.name, '-p', data_partition_path)
+                    else:
+                        system('/sbin/geli', 'attach', '-j', passfile.name, data_partition_path)
+                    self.dispatcher.call_sync('disk.update_disk_cache', disk_info['path'], timeout=120)
+                except SubprocessException as err:
+                    logger.warning('Cannot attach encrypted partition: {0}'.format(err.err))
 
 
 @accepts(str)
