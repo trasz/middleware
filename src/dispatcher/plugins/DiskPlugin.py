@@ -527,9 +527,9 @@ class DiskGELIInitTask(Task):
 
         with tempfile.NamedTemporaryFile('wb') as keyfile:
             with tempfile.NamedTemporaryFile('w') as passfile:
-                keyfile.write(key)
+                keyfile.write(key or '')
                 keyfile.flush()
-                passfile.write(password)
+                passfile.write(password or '')
                 passfile.flush()
             try:
                 if password and key:
@@ -584,9 +584,9 @@ class DiskGELISetUserKeyTask(Task):
 
         with tempfile.NamedTemporaryFile('wb') as keyfile:
             with tempfile.NamedTemporaryFile('w') as passfile:
-                keyfile.write(key)
+                keyfile.write(key or '')
                 keyfile.flush()
-                passfile.write(password)
+                passfile.write(password or '')
                 passfile.flush()
             try:
                 if password and key:
@@ -752,9 +752,9 @@ class DiskGELIAttachTask(Task):
 
         with tempfile.NamedTemporaryFile('wb') as keyfile:
             with tempfile.NamedTemporaryFile('w') as passfile:
-                keyfile.write(key)
+                keyfile.write(key or '')
                 keyfile.flush()
-                passfile.write(password)
+                passfile.write(password or '')
                 passfile.flush()
             try:
                 if password and key:
