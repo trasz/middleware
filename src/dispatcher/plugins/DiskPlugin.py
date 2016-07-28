@@ -811,7 +811,7 @@ class DiskGELIKillTask(Task):
 
     def describe(self, id):
         disk = disk_by_id(self.dispatcher, id)
-        return TaskDescription("Killing encrypted partition of {0}", name=os.path.basename(disk['path']))
+        return TaskDescription("Killing encrypted partition of {name}", name=os.path.basename(disk['path']))
 
     def verify(self, id):
         disk = disk_by_id(self.dispatcher, id)
