@@ -242,7 +242,9 @@ class VirtualMachine(object):
             if i['type'] == 'GRAPHICS':
                 if i['properties'].get('vnc_enabled', False):
                     port = i['properties'].get('vnc_port', 5900)
-                    self.init_vnc(index, port)
+                    self.init_vnc(index, vnc_enabled=True, vnc_port=port)
+                else:
+                    self.init_vnc(index, vnc_enabled=False)
                 w, h = i['properties']['resolution'].split('x')
                 args += ['-s', '{0}:0,fbuf,unix={1},w={2},h={3},vncserver'.format(index, self.vnc_socket, w, h)]
                 index += 1
@@ -266,16 +268,17 @@ class VirtualMachine(object):
         self.logger.debug('bhyve args: {0}'.format(args))
         return args
 
-    def init_vnc(self, index, port):
+    def init_vnc(self, index, vnc_enabled, vnc_port=5900):
         self.vnc_socket = '/var/run/containerd/{0}.{1}.vnc.sock'.format(self.id, index)
-        self.cleanup_vnc(port)
+        self.cleanup_vnc(vnc_port)
 
-        self.context.proxy_server.add_proxy(port, self.vnc_socket)
-        self.active_vnc_ports.append(port)
+        if vnc_enabled:
+            self.context.proxy_server.add_proxy(vnc_port, self.vnc_socket)
+            self.active_vnc_ports.append(vnc_port)
 
-    def cleanup_vnc(self, port=None):
-        if port:
-            self.context.proxy_server.remove_proxy(port)
+    def cleanup_vnc(self, vnc_port=None):
+        if vnc_port:
+            self.context.proxy_server.remove_proxy(vnc_port)
         else:
             for p in self.active_vnc_ports:
                 self.context.proxy_server.remove_proxy(p)
