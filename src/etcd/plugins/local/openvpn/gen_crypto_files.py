@@ -28,8 +28,7 @@
 import os
 
 
-OPENVPN_DIR = '/usr/local/etc/openvpn'
-CERT_DIR = '/etc/certificates'
+OPENVPN_DIR = '/etc/local/openvpn'
 
 
 def write_dh_parameters(dh):
