@@ -510,8 +510,8 @@ class DiskGELIInitTask(Task):
     def run(self, id, params=None):
         if params is None:
             params = {}
-        key = base64.b64decode(params.get('key', ''))
-        password = params.get('password', '')
+        key = base64.b64decode(params.get('key', '') or '')
+        password = params.get('password', '') or ''
         disk_info = disk_by_id(self.dispatcher, id)
         disk_status = disk_info.get('status', None)
         if disk_status is not None:
@@ -527,9 +527,9 @@ class DiskGELIInitTask(Task):
 
         with tempfile.NamedTemporaryFile('wb') as keyfile:
             with tempfile.NamedTemporaryFile('w') as passfile:
-                keyfile.write(key or '')
+                keyfile.write(key)
                 keyfile.flush()
-                passfile.write(password or '')
+                passfile.write(password)
                 passfile.flush()
             try:
                 if password and key:
@@ -572,8 +572,8 @@ class DiskGELISetUserKeyTask(Task):
     def run(self, id, params=None):
         if params is None:
             params = {}
-        key = base64.b64decode(params.get('key', ''))
-        password = params.get('password', '')
+        key = base64.b64decode(params.get('key', '') or '')
+        password = params.get('password', '') or ''
         slot = params.get('slot', 0)
         disk_info = disk_by_id(self.dispatcher, id)
         disk_status = disk_info.get('status')
@@ -584,9 +584,9 @@ class DiskGELISetUserKeyTask(Task):
 
         with tempfile.NamedTemporaryFile('wb') as keyfile:
             with tempfile.NamedTemporaryFile('w') as passfile:
-                keyfile.write(key or '')
+                keyfile.write(key)
                 keyfile.flush()
-                passfile.write(password or '')
+                passfile.write(password)
                 passfile.flush()
             try:
                 if password and key:
@@ -741,8 +741,8 @@ class DiskGELIAttachTask(Task):
     def run(self, id, params=None):
         if params is None:
             params = {}
-        key = base64.b64decode(params.get('key', ''))
-        password = params.get('password', '')
+        key = base64.b64decode(params.get('key', '') or '')
+        password = params.get('password', '') or ''
         disk_info = disk_by_id(self.dispatcher, id)
         disk_status = disk_info.get('status')
         if disk_status:
@@ -752,9 +752,9 @@ class DiskGELIAttachTask(Task):
 
         with tempfile.NamedTemporaryFile('wb') as keyfile:
             with tempfile.NamedTemporaryFile('w') as passfile:
-                keyfile.write(key or '')
+                keyfile.write(key)
                 keyfile.flush()
-                passfile.write(password or '')
+                passfile.write(password)
                 passfile.flush()
             try:
                 if password and key:
