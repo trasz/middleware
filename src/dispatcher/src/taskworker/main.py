@@ -45,7 +45,7 @@ from datastore.config import ConfigStore
 
 def serialize_error(err):
     etype, _, _ = sys.exc_info()
-    stacktrace = traceback.format_exc() if etype else traceback.format_stack()
+    stacktrace = traceback.format_exc() if etype else ''.join(traceback.format_stack())
 
     ret = {
         'type': type(err).__name__,
