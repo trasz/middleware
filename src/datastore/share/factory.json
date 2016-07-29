@@ -353,6 +353,7 @@
             "network.netwait.addresses": [],
             "replication.key.public": null,
             "replication.key.private": null,
+            "replication.auto_recovery_ping_interval": 60,
             "container.network.management": "169.254.16.1/20",
             "container.network.nat": "169.254.32.1/20",
             "container.docker.default_host": null,

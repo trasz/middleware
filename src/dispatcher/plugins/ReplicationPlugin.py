@@ -32,6 +32,8 @@ import os
 import errno
 import time
 import copy
+import gevent
+import socket
 import logging
 from cache import CacheStore
 from resources import Resource
@@ -113,6 +115,20 @@ class ReplicationLinkProvider(Provider):
         else:
             return None
 
+    def get_replication_state(self, link):
+        is_master = False
+        remote = ''
+        ips = self.dispatcher.call_sync('network.config.get_my_ips')
+        for ip in ips:
+            for partner in link['partners']:
+                if partner == ip and partner == link['master']:
+                    is_master = True
+        for partner in link['partners']:
+            if partner not in ips:
+                remote = partner
+
+        return is_master, remote
+
     @private
     def put_status(self, name, status):
         status_cache.put(name, status)
@@ -181,18 +197,7 @@ class ReplicationLinkProvider(Provider):
 
 class ReplicationBaseTask(Task):
     def get_replication_state(self, link):
-        is_master = False
-        remote = ''
-        ips = self.dispatcher.call_sync('network.config.get_my_ips')
-        for ip in ips:
-            for partner in link['partners']:
-                if partner == ip and partner == link['master']:
-                    is_master = True
-        for partner in link['partners']:
-            if partner not in ips:
-                remote = partner
-
-        return is_master, remote
+        return self.dispatcher.call_sync('replication.link.get_replication_state', link)
 
     def set_datasets_readonly(self, datasets, readonly, client=None):
         for dataset in datasets:
@@ -325,7 +330,10 @@ class ReplicationBaseTask(Task):
 @description("Sets up a replication link")
 @accepts(h.all_of(
         h.ref('replication-link'),
-        h.required('name', 'partners', 'master', 'datasets', 'replicate_services', 'bidirectional', 'recursive')
+        h.required(
+            'name', 'partners', 'master', 'datasets', 'replicate_services', 'bidirectional',
+            'auto_recover', 'recursive'
+        )
     )
 )
 class ReplicationCreateTask(ReplicationBaseTask):
@@ -364,11 +372,17 @@ class ReplicationCreateTask(ReplicationBaseTask):
                 'Replication master must be one of replication partners {0}, {1}'.format(*partners)
             )
 
-        if link['replicate_services'] and not link['bidirectional']:
-            raise VerifyException(
-                errno.EINVAL,
-                'Replication of services is available only when bi-directional replication is selected'
-            )
+        if not link['bidirectional']:
+            if link['replicate_services']:
+                raise VerifyException(
+                    errno.EINVAL,
+                    'Replication of services is available only when bi-directional replication is selected'
+                )
+            if link['auto_recover']:
+                raise VerifyException(
+                    errno.EINVAL,
+                    'Automatic recovery to master is available only when bi-directional replication is selected'
+                )
 
         return ['replication']
 
@@ -383,6 +397,8 @@ class ReplicationCreateTask(ReplicationBaseTask):
         link['id'] = link['name']
         if 'update_date' not in link:
             link['update_date'] = str(datetime.utcnow())
+
+        link['initial_master'] = link['master']
 
         self.check_datasets_valid(link)
 
@@ -693,6 +709,11 @@ class ReplicationUpdateTask(ReplicationBaseTask):
             raise TaskException(errno.ENOENT, 'Replication link {0} do not exist.'.format(name))
 
         link = self.join_subtasks(self.run_subtask('replication.get_latest_link', name))[0]
+
+        if 'initial_master' in updated_fields:
+            if updated_fields['initial_master'] != link['initial_master']:
+                raise TaskException(errno.EINVAL, 'Initial master cannot be modified')
+
         original_link = copy.deepcopy(link)
         old_name = link['name']
         is_master, remote = self.get_replication_state(link)
@@ -730,6 +751,12 @@ class ReplicationUpdateTask(ReplicationBaseTask):
                     'Replication master must be one of replication partners {0}, {1}'.format(*partners)
                 )
 
+            if link['auto_recover']:
+                raise TaskException(
+                    errno.EINVAL,
+                    'Manual role swap is not available when automatic recovery is selected'
+                )
+
         if any(key in updated_fields for key in ['id', 'name', 'partners']):
             new_is_master, new_remote = self.get_replication_state(link)
             try:
@@ -747,7 +774,7 @@ class ReplicationUpdateTask(ReplicationBaseTask):
 
             new_remote_client.disconnect()
 
-        if any(key in updated_fields for key in ['recursive', 'datasets', 'bidirectional']):
+        if any(key in updated_fields for key in ['recursive', 'datasets', 'bidirectional', 'auto_recover']):
             if not remote_available:
                 raise TaskException(errno.EACCES, 'Remote {0} is unreachable.'.format(remote))
             self.check_datasets_valid(link)
@@ -757,11 +784,17 @@ class ReplicationUpdateTask(ReplicationBaseTask):
                 self.remove_datastore_timestamps(link)
             )
 
-        if link['replicate_services'] and not link['bidirectional']:
-            raise TaskException(
-                errno.EINVAL,
-                'Replication of services is available only when bi-directional replication is selected'
-            )
+        if not link['bidirectional']:
+            if link['replicate_services']:
+                raise TaskException(
+                    errno.EINVAL,
+                    'Replication of services is available only when bi-directional replication is selected'
+                )
+            if link['auto_recover']:
+                raise TaskException(
+                    errno.EINVAL,
+                    'Automatic recovery to master is available only when bi-directional replication is selected'
+                )
 
         if not link['replicate_services']:
             for service in ['shares', 'vms']:
@@ -802,7 +835,6 @@ class ReplicationUpdateTask(ReplicationBaseTask):
                 ))
 
         self.join_subtasks(self.run_subtask('replication.update_link', link))
-        self.dispatcher.call_sync('replication.link.link_cache_put', link)
 
         if remote_available and link['replicate_services']:
             try:
@@ -1589,12 +1621,17 @@ def _init(dispatcher, plugin):
                 'items': {'type': 'string'}
             },
             'master': {'type': 'string'},
+            'initial_master': {
+                'type': 'string',
+                'readOnly': True
+            },
             'update_date': {'type': 'string'},
             'datasets': {
                 'type': 'array',
                 'items': {'type': 'string'}
             },
             'bidirectional': {'type': 'boolean'},
+            'auto_recover': {'type': 'boolean'},
             'replicate_services': {'type': 'boolean'},
             'recursive': {'type': 'boolean'},
             'status': {'$ref': 'replication-status'}
@@ -1688,22 +1725,36 @@ def _init(dispatcher, plugin):
         # Query, if possible, performs sync of replication links cache at both ends of each link
         links = dispatcher.call_sync('replication.link.sync_query')
         # And retry failed ones over encrypted link
+        resync = False
         for link in links:
             try:
                 dispatcher.call_task_sync('replication.reserve_services', link['name'])
                 status = link.get('status')
-                if status:
-                    if status['status'] == 'FAILED':
-                        dispatcher.call_task_sync(
-                            'replication.sync',
-                            link['name'],
-                            [{
-                                'name': 'encrypt',
-                                'type': 'AES128'
-                            }]
-                        )
+                is_master, _ = dispatcher.call_sync('replication.link.get_replication_state', link)
+                recover = link['auto_recover'] and link['initial_master'] != link['master'] and not is_master
+                if (status and status['status'] == 'FAILED') or recover:
+                    dispatcher.call_task_sync(
+                        'replication.sync',
+                        link['name'],
+                        [{
+                            'name': 'encrypt',
+                            'type': 'AES128'
+                        }]
+                    )
+                if recover:
+                    link['update_date'] = str(datetime.utcnow())
+                    link['master'] = link['initial_master']
+                    dispatcher.call_task_sync('replication.update_link', link)
+                    dispatcher.dispatch_event('replication.link.changed', {
+                        'operation': 'update',
+                        'ids': [link['id']]
+                    })
+                    resync = True
             except TaskException:
                 pass
+
+            if resync:
+                dispatcher.call_sync('replication.link.sync_query')
 
     def update_resources(args):
         links = dispatcher.call_sync('replication.link.local_query')
@@ -1721,6 +1772,28 @@ def _init(dispatcher, plugin):
                     new_parents=get_replication_resources(dispatcher, link)
                 )
 
+    def recover_replications():
+        interval = dispatcher.configstore.get('replication.auto_recovery_ping_interval')
+        while True:
+            gevent.sleep(interval)
+            for link in dispatcher.call_sync('replication.link.local_query', [('auto_recover', '=', True)]):
+                is_master, remote = dispatcher.call_sync('replication.link.get_replication_state', link)
+                if is_master:
+                    continue
+
+                s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                try:
+                    s.connect(('hostname', 22))
+                except socket.error:
+                    link['update_date'] = str(datetime.utcnow())
+                    link['master'] = link['partners'][1] if link['master'] == link['partners'][0] else link['partners'][0]
+                    dispatcher.call_task_sync('replication.update_link', link)
+                    dispatcher.dispatch_event('replication.link.changed', {
+                        'operation': 'update',
+                        'ids': [link['id']]
+                    })
+                s.close()
+
     plugin.register_event_handler('plugin.service_resume', on_etcd_resume)
     plugin.register_event_handler('replication.link.changed', on_replication_change)
     plugin.register_event_handler('network.changed', update_link_cache)
@@ -1732,3 +1805,5 @@ def _init(dispatcher, plugin):
             parents=get_replication_resources(dispatcher, link)
         )
         dispatcher.call_sync('replication.link.link_cache_put', link)
+
+    gevent.spawn(recover_replications)
