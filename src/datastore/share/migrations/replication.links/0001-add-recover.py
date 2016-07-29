@@ -32,4 +32,5 @@ def probe(obj, ds):
 
 def apply(obj, ds):
     obj['auto_recover'] = False
+    obj['initial_master'] = obj['master']
     return obj
