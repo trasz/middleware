@@ -218,14 +218,14 @@ class ReplicationBaseTask(Task):
     def set_datasets_mount(self, datasets, mount, recursive=False, client=None):
         caller = client or self.dispatcher
         for dataset in datasets:
-            mounted = caller.call_sync(
-                'zfs.dataset.query',
+            temp_mounted = caller.call_sync(
+                'volume.dataset.query',
                 [('name', '=', dataset['name'])],
-                {'select': 'mounted', 'single': True}
+                {'select': 'temp_mountpoint', 'single': True}
             )
 
             if client:
-                if mount and mounted:
+                if mount and temp_mounted:
                     call_task_and_check_state(
                         client,
                         'zfs.umount',
@@ -240,7 +240,7 @@ class ReplicationBaseTask(Task):
                     recursive
                 )
             else:
-                if mount and mounted:
+                if mount and temp_mounted:
                     self.join_subtasks(self.run_subtask(
                         'zfs.umount',
                         dataset['name'],
