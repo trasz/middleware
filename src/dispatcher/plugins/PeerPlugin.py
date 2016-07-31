@@ -98,6 +98,14 @@ class PeerCreateTask(Task):
         if self.datastore.exists('peers', ('name', '=', peer['name'])):
             raise TaskException(errno.EINVAL, 'Peer entry {0} already exists'.format(peer['name']))
 
+        ips = self.dispatcher.call_sync('network.config.get_my_ips')
+
+        if peer['address'] in ips:
+            raise TaskException(
+                errno.EINVAL,
+                'Please specify a remote address. {0} is a local machine address'.format(peer['address'])
+            )
+
         if peer['type'] == 'replication':
             self.join_subtasks(self.run_subtask('peer.replication.create', peer))
         else:
