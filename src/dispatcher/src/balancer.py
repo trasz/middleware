@@ -130,6 +130,10 @@ class TaskExecutor(object):
         self.task.add_warning(warning)
 
     def run(self, task):
+        def match_file(module, f):
+            name, ext = os.path.splitext(f)
+            return module == name and ext in ['.py', '.pyc', '.so']
+
         with self.cv:
             self.cv.wait_for(lambda: self.state == WorkerState.ASSIGNED)
             self.result = AsyncResult()
@@ -146,10 +150,7 @@ class TaskExecutor(object):
             found = False
             try:
                 for root, _, files in os.walk(dir):
-                    file = first_or_default(
-                        lambda f: module_name == f.rsplit('.', 1)[0] and f.rsplit('.', 1)[1] in ['py', 'pyc', 'so'],
-                        files
-                    )
+                    file = first_or_default(lambda f: match_file(module_name, f), files)
                     if file:
                         filename = os.path.join(root, file)
                         found = True
