@@ -231,7 +231,10 @@ class TaskDescription(object):
         self.fmt = fmt
 
     def __str__(self):
-        return self.fmt.format(**self.kwargs)
+        try:
+            return self.fmt.format(**self.kwargs)
+        except (KeyError, IndexError):
+            return self.fmt
 
     def __getstate__(self):
         return {
