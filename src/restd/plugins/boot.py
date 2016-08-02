@@ -9,5 +9,10 @@ class BootPoolItem(SingleItemBase):
         return None
 
 
+class BootEnvironmentItem(CRUDBase):
+    namespace = 'boot.environment'
+
+
 def _init(rest):
     rest.register_singleitem(BootPoolItem)
+    rest.register_crud(BootEnvironmentItem)
