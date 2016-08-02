@@ -333,11 +333,14 @@ class SingleItemBase(object):
 
     def __init__(self, rest, dispatcher):
 
-        type('{0}Resource'.format(self.__class__.__name__), (ProviderMixin, self.resource_class, ), {
+        put = self.get_update_method_name()
+        resource = {
             'name': self.name or self.namespace.replace('.', '/'),
             'get': 'rpc:{0}'.format(self.get_retrieve_method_name()),
-            'put': 'task:{0}'.format(self.get_update_method_name()),
-        })(rest)
+        }
+        if put is not None:
+            resource['put'] = 'task:{0}'.format(put)
+        type('{0}Resource'.format(self.__class__.__name__), (ProviderMixin, self.resource_class, ), resource)(rest)
 
     def get_retrieve_method_name(self):
         return '{0}.get_config'.format(self.namespace)
