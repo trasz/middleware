@@ -25,7 +25,7 @@ prestart()
    /usr/local/sbin/sdsinit
 
    if [ -z "$(check_pidfile /var/run/devd.pid /sbin/devd)" ]; then
-        /sbin/devd
+        /sbin/devd -q
    fi
 
    if [ "$(check_pidfile /var/run/dispatcher.pid /usr/sbin/daemon)" ]; then
