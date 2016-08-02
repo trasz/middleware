@@ -60,7 +60,7 @@ class JSONTranslator(object):
 
     def process_response(self, req, resp, resource):
         if 'result' in req.context:
-            resp.body = JsonEncoder().encode(req.context['result'])
+            resp.body = JsonEncoder(indent=True).encode(req.context['result'])
 
 
 class AuthMiddleware(object):
