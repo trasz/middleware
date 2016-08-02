@@ -1,4 +1,4 @@
-from base import CRUDBase, SingleItemBase
+from base import CRUDBase, EntityResource, SingleItemBase
 
 
 class BootPoolItem(SingleItemBase):
@@ -9,10 +9,20 @@ class BootPoolItem(SingleItemBase):
         return None
 
 
-class BootEnvironmentItem(CRUDBase):
+class BootEnvironmentEntity(EntityResource):
+
+    def run_post(self, req, kwargs):
+        return req.context['doc']
+
+
+class BootEnvironmentResource(CRUDBase):
     namespace = 'boot.environment'
+    entity_class = BootEnvironmentEntity
+
+    def get_create_method_name(self):
+        return 'boot.environment.clone'
 
 
 def _init(rest):
     rest.register_singleitem(BootPoolItem)
-    rest.register_crud(BootEnvironmentItem)
+    rest.register_crud(BootEnvironmentResource)
