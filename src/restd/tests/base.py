@@ -19,6 +19,7 @@ class CRUDTestCase(RESTTestCase):
         self.assertEqual(r.status_code, 200)
         data = r.json()
         self.assertTrue(isinstance(data, list))
+        return r
 
 
 class SingleItemTestCase(RESTTestCase):
@@ -30,3 +31,4 @@ class SingleItemTestCase(RESTTestCase):
         self.assertEqual(r.status_code, 200)
         data = r.json()
         self.assertTrue(isinstance(data, dict))
+        return r
