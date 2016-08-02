@@ -1621,10 +1621,7 @@ def _init(dispatcher, plugin):
                 'items': {'type': 'string'}
             },
             'master': {'type': 'string'},
-            'initial_master': {
-                'type': 'string',
-                'readOnly': True
-            },
+            'initial_master': {'type': 'string'},
             'update_date': {'type': 'string'},
             'datasets': {
                 'type': 'array',
