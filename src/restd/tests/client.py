@@ -13,4 +13,4 @@ class Client(object):
             auth=self.auth,
             headers={'Content-Type': "application/json"},
         )
-        return r.json()
+        return r
