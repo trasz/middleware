@@ -1,3 +1,4 @@
+import json
 import requests
 
 
@@ -12,5 +13,14 @@ class Client(object):
             self.uri + self.base_path + path,
             auth=self.auth,
             headers={'Content-Type': "application/json"},
+        )
+        return r
+
+    def post(self, path, data=None):
+        r = requests.post(
+            self.uri + self.base_path + path,
+            auth=self.auth,
+            headers={'Content-Type': "application/json"},
+            data=json.dumps(data or ''),
         )
         return r
