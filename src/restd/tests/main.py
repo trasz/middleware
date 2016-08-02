@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 import unittest
 
-from base import CRUDTestCase
+from base import CRUDTestCase, SingleItemTestCase
 
 
 def remove_abstract_tests(tests):
@@ -9,8 +9,8 @@ def remove_abstract_tests(tests):
         return tests
     rv = []
     for test in tests._tests:
-        # Skip CRUDTestCase
-        if test.__class__ is CRUDTestCase:
+        # Skip abstract test cases
+        if test.__class__ in (CRUDTestCase, SingleItemTestCase):
             continue
         rv.append(remove_abstract_tests(test))
     tests._tests = rv
