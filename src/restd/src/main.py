@@ -71,7 +71,8 @@ class AuthMiddleware(object):
         if auth is None or not auth.startswith('Basic '):
             raise falcon.HTTPUnauthorized(
                 'Authorization token required',
-                'Provide a Basic Authentication header'
+                'Provide a Basic Authentication header',
+                ['Basic realm="FreeNAS"'],
             )
         try:
             username, password = base64.b64decode(auth[6:]).decode('utf8').split(':', 1)
@@ -79,6 +80,7 @@ class AuthMiddleware(object):
             raise falcon.HTTPUnauthorized(
                 'Invalid Authorization token',
                 'Provide a valid Basic Authentication header',
+                ['Basic realm="FreeNAS"'],
             )
 
         try:
