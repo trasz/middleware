@@ -33,9 +33,6 @@ class VolumeCRUD(CRUDBase):
         VolumeUpgradeResource,
     )
 
-    def get_delete_method_name(self):
-        return '{0}.destroy'.format(self.namespace)
-
 
 def _init(rest):
     rest.register_crud(DatasetCRUD)
