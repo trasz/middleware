@@ -14,7 +14,7 @@ class CRUDTestCase(RESTTestCase):
 
     name = None
 
-    def test_list(self):
+    def test_retrieve(self):
         r = self.client.get(self.name)
         self.assertEqual(r.status_code, 200)
         data = r.json()
@@ -25,7 +25,7 @@ class SingleItemTestCase(RESTTestCase):
 
     name = None
 
-    def test_list(self):
+    def test_retrieve(self):
         r = self.client.get(self.name)
         self.assertEqual(r.status_code, 200)
         data = r.json()
