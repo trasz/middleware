@@ -12,3 +12,6 @@ class BootPoolTestCase(SingleItemTestCase):
 
 class BootEnvironmentTestCase(CRUDTestCase):
     name = 'boot/environment'
+
+    def get_create_data(self):
+        return ['newtestenv']

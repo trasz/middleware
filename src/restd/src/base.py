@@ -1,8 +1,11 @@
 import falcon
+import logging
 
 from freenas.dispatcher.rpc import RpcException
 
 from swagger import normalize_schema
+
+log = logging.getLogger('restd.base')
 
 
 class Task(object):
