@@ -21,6 +21,13 @@ def normalize_schema(obj):
             ref = obj['$ref']
             if not ref.startswith('#/definitions/'):
                 obj['$ref'] = '#/definitions/{0}'.format(ref)
+        if 'type' in obj:
+            typ = obj['type']
+            # datetime type is not json schema compliant
+            # replace it with {"type": "string", "format": "date-time"}
+            if isinstance(typ, str) and typ == 'datetime':
+                obj['type'] = 'string'
+                obj['format'] = 'date-time'
         for key in obj:
             normalize_schema(obj[key])
     elif isinstance(obj, (list, tuple)):
