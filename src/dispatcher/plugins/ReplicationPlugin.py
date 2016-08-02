@@ -1540,7 +1540,12 @@ class ReplicationRoleUpdateTask(ReplicationBaseTask):
                 action_type = True
 
             for service in ['shares', 'vms']:
-                for reserved_item in self.dispatcher.call_sync('replication.link.get_{0}_{1}'.format(relation_type, service), name):
+                items = self.dispatcher.call_sync(
+                    'replication.link.get_{0}_{1}'.format(relation_type, service),
+                    name,
+                    timeout=300
+                )
+                for reserved_item in items:
                     self.join_subtasks(self.run_subtask(
                         '{0}.immutable.set'.format(service[:-1]),
                         reserved_item['id'],
