@@ -29,12 +29,12 @@ class SNMPService(SingleItemBase):
     namespace = 'service.snmp'
 
 
-class SSHService(SingleItemBase):
-    namespace = 'service.ssh'
+class SSHDService(SingleItemBase):
+    namespace = 'service.sshd'
 
 
-class TFTPService(SingleItemBase):
-    namespace = 'service.tftp'
+class TFTPDService(SingleItemBase):
+    namespace = 'service.tftpd'
 
 
 class UPSService(SingleItemBase):
@@ -53,7 +53,7 @@ def _init(rest):
     rest.register_singleitem(SMARTDService)
     rest.register_singleitem(SMBService)
     rest.register_singleitem(SNMPService)
-    rest.register_singleitem(SSHService)
-    rest.register_singleitem(TFTPService)
+    rest.register_singleitem(SSHDService)
+    rest.register_singleitem(TFTPDService)
     rest.register_singleitem(UPSService)
     rest.register_singleitem(WebDAVService)
