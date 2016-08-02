@@ -1778,9 +1778,17 @@ def _init(dispatcher, plugin):
                 if is_master:
                     continue
 
+                peer_ssh_port = dispatcher.call_sync(
+                    'peer.query',
+                    [('type', '=', 'replication'), ('address', '=', remote)],
+                    {'single': True, 'select': 'credentials.port'}
+                )
+                if not peer_ssh_port:
+                    continue
+
                 s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
                 try:
-                    s.connect(('hostname', 22))
+                    s.connect((remote, peer_ssh_port))
                 except socket.error:
                     link['update_date'] = str(datetime.utcnow())
                     link['master'] = link['partners'][1] if link['master'] == link['partners'][0] else link['partners'][0]
