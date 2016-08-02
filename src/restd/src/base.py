@@ -19,7 +19,7 @@ class Task(object):
     def run(self, req, kwargs):
         run_args = getattr(self.resource, 'run_{0}'.format(self.method), None)
         if run_args:
-            args = run_args(req, kwargs)[0]
+            args = run_args(req, kwargs)
         else:
             args = []
             if 'id' in kwargs:
@@ -133,9 +133,10 @@ class Resource(object):
         method_op = getattr(self, method)
         type_, name = self._get_type_name(method_op)
 
+        rv = None
         if type_ == 'task':
             t = Task(self, req.context['client'], method, name=name)
-            t.run(req, kwargs)
+            rv = t.run(req, kwargs)
         else:
             r = RPC(self, req.context['client'], method, name=name)
             req.context['result'] = r.run(req, kwargs)
@@ -144,6 +145,7 @@ class Resource(object):
             resp.status = falcon.HTTP_201
         elif method == 'delete':
             resp.status = falcon.HTTP_204
+        return rv
 
     def doc(self):
         rv = {}
@@ -254,7 +256,8 @@ class EntityResource(Resource):
         rv = super(EntityResource, self).do(method, req, resp, *args, **kwargs)
         if method == 'post':
             kwargs['single'] = True
-            rv = self.do('get', req, resp, *args, **kwargs)
+            if rv:
+                rv = self.do('get', req, resp, *args, **kwargs)
             resp.status = falcon.HTTP_201
         return rv
 
