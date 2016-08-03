@@ -8,19 +8,19 @@ class Client(object):
         self.base_path = base_path or ''
         self.uri = uri
 
-    def get(self, path, params=None):
-        r = requests.get(
+    def request(self, method, path, params=None, data=None):
+        r = requests.request(
+            method,
             self.uri + self.base_path + path,
-            auth=self.auth,
+            params=params,
+            data=json.dumps(data or ''),
             headers={'Content-Type': "application/json"},
+            auth=self.auth,
         )
         return r
 
+    def get(self, path, params=None):
+        return self.request('GET', path, params=params)
+
     def post(self, path, data=None):
-        r = requests.post(
-            self.uri + self.base_path + path,
-            auth=self.auth,
-            headers={'Content-Type': "application/json"},
-            data=json.dumps(data or ''),
-        )
-        return r
+        return self.request('POST', path, data=data)
