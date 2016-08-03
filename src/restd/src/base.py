@@ -20,14 +20,14 @@ class Task(object):
         self.dispatcher = dispatcher
         self.method = method
 
-    def run(self, req, kwargs):
+    def run(self, req, urlparams):
         run_args = getattr(self.resource, 'run_{0}'.format(self.method), None)
         if run_args:
-            args = run_args(req, kwargs)
+            args = run_args(req, urlparams)
         else:
             args = []
-            if 'id' in kwargs:
-                args.append(kwargs['id'])
+            if 'id' in urlparams:
+                args.append(urlparams['id'])
             if 'doc' in req.context:
                 args.append(req.context['doc'])
         try:
@@ -58,18 +58,18 @@ class RPC(object):
         self.dispatcher = dispatcher
         self.method = method
 
-    def run(self, req, kwargs):
+    def run(self, req, urlparams):
         run_args = getattr(self.resource, 'run_{0}'.format(self.method), None)
         if run_args:
-            args, kwargs = run_args(req, kwargs)
+            args, urlparams = run_args(req, urlparams)
         else:
             if 'doc' in req.context:
                 args = req.context['doc']
             else:
                 args = []
-        log.debug('Calling RPC {0} with args {1} {2}'.format(self.name, args, kwargs))
+        log.debug('Calling RPC {0} with args {1} {2}'.format(self.name, args, urlparams))
         try:
-            result = self.dispatcher.call_sync(self.name, *args, **kwargs)
+            result = self.dispatcher.call_sync(self.name, *args, **urlparams)
         except RpcException as e:
             raise falcon.HTTPBadRequest(e.message, str(e))
         return result
@@ -136,17 +136,19 @@ class Resource(object):
         assert type_ in ('task', 'rpc')
         return type_, name
 
-    def do(self, method, req, resp, **kwargs):
+    def do(self, method, req, resp, **urlparams):
+        """Runs the corresponding task or RPC for the given method of this
+        resource"""
         method_op = getattr(self, method)
         type_, name = self._get_type_name(method_op)
 
         rv = None
         if type_ == 'task':
             t = Task(self, req.context['client'], method, name=name)
-            rv = t.run(req, kwargs)
+            rv = t.run(req, urlparams)
         else:
             r = RPC(self, req.context['client'], method, name=name)
-            req.context['result'] = r.run(req, kwargs)
+            req.context['result'] = r.run(req, urlparams)
 
         if method == 'post':
             resp.status = falcon.HTTP_201
@@ -218,7 +220,7 @@ class Resource(object):
 
 class EntityResource(Resource):
 
-    def run_get(self, req, kwargs):
+    def run_get(self, req, urlparams):
         args = []
         for key, val in req.params.items():
             if '__' in key:
@@ -234,7 +236,7 @@ class EntityResource(Resource):
                         val = True
                     elif val.lower() in ('false', '0'):
                         val = False
-                kwargs[key] = val
+                urlparams[key] = val
                 continue
 
             op_map = {
@@ -257,7 +259,7 @@ class EntityResource(Resource):
                 val = False
             args.append((field, op, val))
 
-        return [args, kwargs], {}
+        return [args, urlparams], {}
 
     def do(self, method, req, resp, *args, **kwargs):
         rv = super(EntityResource, self).do(method, req, resp, *args, **kwargs)
