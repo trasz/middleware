@@ -1,5 +1,6 @@
 import falcon
 import logging
+import pprint
 
 from freenas.dispatcher.rpc import RpcException
 
@@ -30,9 +31,11 @@ class Task(object):
             if 'doc' in req.context:
                 args.append(req.context['doc'])
         try:
+            log.debug('Calling task {0} with args {1}'.format(self.name, args))
             result = self.dispatcher.call_task_sync(self.name, *args)
         except RpcException as e:
             raise falcon.HTTPBadRequest(e.message, str(e))
+        log.debug('Task {0} finished: {1}'.format(self.name, pprint.pformat(result)))
         if result['state'] != 'FINISHED':
             if result['error']:
                 title = result['error']['type']
@@ -64,6 +67,7 @@ class RPC(object):
                 args = req.context['doc']
             else:
                 args = []
+        log.debug('Calling RPC {0} with args {1} {2}'.format(self.name, args, kwargs))
         try:
             result = self.dispatcher.call_sync(self.name, *args, **kwargs)
         except RpcException as e:
