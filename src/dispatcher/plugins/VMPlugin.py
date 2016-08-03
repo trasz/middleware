@@ -1860,7 +1860,6 @@ def _init(dispatcher, plugin):
         return True
 
     def on_snapshot_change(args):
-        logger.debug(args)
         with dispatcher.get_lock('vm_snapshots'):
             if args['operation'] == 'delete':
                 vm_snapshots = dispatcher.call_sync('vm.snapshot.query')
