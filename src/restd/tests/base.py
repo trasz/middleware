@@ -22,20 +22,20 @@ class CRUDTestCase(RESTTestCase):
 
     def test_create(self):
         r = self.client.post(self.name, self.get_create_data())
-        self.assertEqual(r.status_code, 201)
+        self.assertEqual(r.status_code, 201, msg=r.text)
         data = r.json()
         return r
 
     def test_retrieve(self):
         r = self.client.get(self.name)
-        self.assertEqual(r.status_code, 200)
+        self.assertEqual(r.status_code, 200, msg=r.text)
         data = r.json()
         self.assertIsInstance(data, list)
         return r
 
     def test_delete(self):
         r = self.client.delete('{0}/{1}'.format(self.name, self.get_delete_identifier()))
-        self.assertEqual(r.status_code, 204)
+        self.assertEqual(r.status_code, 204, msg=r.text)
 
 
 class SingleItemTestCase(RESTTestCase):
