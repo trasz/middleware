@@ -309,7 +309,7 @@ class UserCreateTask(Task):
             'ids': [id]
         })
 
-        return uid
+        return id
 
     def rollback(self, user):
         if self.datastore.exists('users', ('id', '=', self.id)):
