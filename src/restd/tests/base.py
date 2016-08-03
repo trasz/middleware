@@ -36,6 +36,7 @@ class CRUDTestCase(RESTTestCase):
     def test_delete(self):
         r = self.client.delete('{0}/{1}'.format(self.name, self.get_delete_identifier()))
         self.assertEqual(r.status_code, 204, msg=r.text)
+        return r
 
 
 class SingleItemTestCase(RESTTestCase):
