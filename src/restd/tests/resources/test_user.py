@@ -40,3 +40,9 @@ class UserTestCase(CRUDTestCase):
             return data[0]['id']
         else:
             self.skipTest('User not found.')
+
+    def test_080_delete(self):
+        super(UserTestCase, self).test_080_delete()
+        r = self.client.delete('group/apitest')
+        self.assertEqual(r.status_code, 204, msg=r.text)
+        return r

@@ -20,20 +20,20 @@ class CRUDTestCase(RESTTestCase):
     def get_delete_identifier(self):
         raise NotImplementedError('get_delete_identifier needs to be implemented')
 
-    def test_create(self):
+    def test_040_create(self):
         r = self.client.post(self.name, self.get_create_data())
         self.assertEqual(r.status_code, 201, msg=r.text)
         data = r.json()
         return r
 
-    def test_retrieve(self):
+    def test_020_retrieve(self):
         r = self.client.get(self.name)
         self.assertEqual(r.status_code, 200, msg=r.text)
         data = r.json()
         self.assertIsInstance(data, list)
         return r
 
-    def test_delete(self):
+    def test_080_delete(self):
         r = self.client.delete('{0}/{1}'.format(self.name, self.get_delete_identifier()))
         self.assertEqual(r.status_code, 204, msg=r.text)
         return r
