@@ -20,10 +20,11 @@ class Task(object):
         self.dispatcher = dispatcher
         self.method = method
 
-    def run(self, req, urlparams):
-        run_args = getattr(self.resource, 'run_{0}'.format(self.method), None)
-        if run_args:
-            args = run_args(req, urlparams)
+    def run(self, req, urlparams, get_args=None):
+        if get_args is None:
+            get_args = getattr(self.resource, 'run_{0}'.format(self.method), None)
+        if get_args:
+            args = get_args(req, urlparams)
         else:
             args = []
             if 'id' in urlparams:
@@ -58,10 +59,11 @@ class RPC(object):
         self.dispatcher = dispatcher
         self.method = method
 
-    def run(self, req, urlparams):
-        run_args = getattr(self.resource, 'run_{0}'.format(self.method), None)
-        if run_args:
-            args, urlparams = run_args(req, urlparams)
+    def run(self, req, urlparams, get_args=None):
+        if get_args is None:
+            get_args = getattr(self.resource, 'run_{0}'.format(self.method), None)
+        if get_args:
+            args, urlparams = get_args(req, urlparams)
         else:
             if 'doc' in req.context:
                 args = req.context['doc']
@@ -145,10 +147,10 @@ class Resource(object):
         rv = None
         if type_ == 'task':
             t = Task(self, req.context['client'], method, name=name)
-            rv = t.run(req, urlparams)
+            rv = req.context['result'] = t.run(req, urlparams)['result']
         else:
             r = RPC(self, req.context['client'], method, name=name)
-            req.context['result'] = r.run(req, urlparams)
+            rv = req.context['result'] = r.run(req, urlparams)
 
         if method == 'post':
             resp.status = falcon.HTTP_201
@@ -264,9 +266,19 @@ class EntityResource(Resource):
     def do(self, method, req, resp, *args, **kwargs):
         rv = super(EntityResource, self).do(method, req, resp, *args, **kwargs)
         if method == 'post':
-            kwargs['single'] = True
             if rv:
-                rv = self.do('get', req, resp, *args, **kwargs)
+                """
+                Generally in CRUD a POST will mean item creation and the goal
+                here is to return the item created.
+                Dispatcher tasks usually return just the `id` so we need to
+                query for the object. This is done calling the `get` method.
+                """
+                typ, name = self._get_type_name(self.get)
+                if typ == 'rpc':
+                    r = RPC(self, req.context['client'], 'get', name=name)
+                    req.context['result'] = r.run(req, {}, get_args=lambda a, b: [[[('id', '=', rv)], {'single': True}], {}])
+                else:
+                    raise NotImplementedError('{0} not implemented'.format(typ))
             resp.status = falcon.HTTP_201
         return rv
 
