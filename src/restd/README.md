@@ -13,5 +13,5 @@ Running tests:
 
 ```
 cd tests
-env URI="http://freenas.local" ./main.py
+./main.py --uri http://freenas.local
 ```

@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+import argparse
+import os
 import unittest
 
 from base import CRUDTestCase, SingleItemTestCase
@@ -18,6 +20,13 @@ def remove_abstract_tests(tests):
 
 
 def main():
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument('-u', '--uri', required=True)
+    args = parser.parse_args()
+
+    os.environ.setdefault('URI', args.uri)
+
     loader = unittest.TestLoader()
     tests = loader.discover('resources')
     tests = remove_abstract_tests(tests)
