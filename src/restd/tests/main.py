@@ -23,6 +23,7 @@ def main():
 
     parser = argparse.ArgumentParser()
     parser.add_argument('-u', '--uri', required=True)
+    parser.add_argument('-v', '--verbose', action='store_true')
     args = parser.parse_args()
 
     os.environ.setdefault('URI', args.uri)
@@ -31,7 +32,7 @@ def main():
     tests = loader.discover('resources')
     tests = remove_abstract_tests(tests)
 
-    testRunner = unittest.runner.TextTestRunner()
+    testRunner = unittest.runner.TextTestRunner(verbosity=2 if args.verbose else 1)
     testRunner.run(tests)
 
 if __name__ == '__main__':
