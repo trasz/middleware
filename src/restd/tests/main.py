@@ -19,7 +19,7 @@ def filter_tests(tests, only=None, skip=None, skip_class=None):
                 continue
             if skip and test.__module__ in skip:
                 continue
-            if test.__class__.__name__ in skip_class:
+            if skip_class and test.__class__.__name__ in skip_class:
                 continue
         rv.append(filter_tests(test, only=only, skip=skip, skip_class=skip_class))
     tests._tests = rv
