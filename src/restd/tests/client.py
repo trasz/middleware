@@ -13,7 +13,7 @@ class Client(object):
             method,
             self.uri + self.base_path + path,
             params=params,
-            data=json.dumps(data or ''),
+            data=json.dumps(data) if data else None,
             headers={'Content-Type': "application/json"},
             auth=self.auth,
         )
