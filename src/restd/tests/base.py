@@ -43,7 +43,7 @@ class SingleItemTestCase(RESTTestCase):
 
     name = None
 
-    def test_retrieve(self):
+    def test_020_retrieve(self):
         r = self.client.get(self.name)
         self.assertEqual(r.status_code, 200)
         data = r.json()
