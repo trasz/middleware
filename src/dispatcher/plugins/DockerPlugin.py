@@ -82,7 +82,14 @@ class DockerImagesProvider(Provider):
 
     @generator
     def search(self, term):
-        return self.dispatcher.call_sync('containerd.docker.search', term)
+        hub = dockerhub.DockerHub()
+        for i in hub.search(term):
+            yield {
+                'name': i['repo_name'],
+                'description': i['short_description'],
+                'star_count': i['star_count'],
+                'pull_count': i['pull_count']
+            }
 
     def get_hub_image(self, name):
         pass

@@ -51,7 +51,6 @@ import docker
 import ipaddress
 import pf
 import urllib.parse
-import dockerhub
 from bsd import kld, sysctl
 from gevent.queue import Queue
 from gevent.event import Event
@@ -780,17 +779,6 @@ class DockerService(RpcService):
                 })
 
         return result
-
-    @generator
-    def search(self, term):
-        hub = dockerhub.DockerHub()
-        for i in hub.search(term):
-            yield {
-                'name': i['repo_name'],
-                'description': i['short_description'],
-                'star_count': i['star_count'],
-                'pull_count': i['pull_count']
-            }
 
     @generator
     def pull(self, name, host):
