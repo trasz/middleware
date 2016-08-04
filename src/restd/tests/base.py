@@ -17,8 +17,8 @@ class CRUDTestCase(RESTTestCase):
     def get_create_data(self):
         raise NotImplementedError('get_create_data needs to be implemented')
 
-    def get_update_data(self):
-        raise NotImplementedError('get_update_data must be implemented')
+    def get_update_ident_data(self):
+        raise NotImplementedError('get_update_ident_data must be implemented')
 
     def get_delete_identifier(self):
         raise NotImplementedError('get_delete_identifier needs to be implemented')
@@ -37,7 +37,8 @@ class CRUDTestCase(RESTTestCase):
         return r
 
     def test_060_update(self):
-        r = self.client.put(self.name, self.get_update_data())
+        identifier, data = self.get_update_ident_data()
+        r = self.client.put(self.name + '/' + identifier, data)
         self.assertEqual(r.status_code, 200, msg=r.text)
         return r
 
