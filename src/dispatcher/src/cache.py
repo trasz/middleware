@@ -56,6 +56,23 @@ class CacheStore(object):
 
             return False
 
+    def update(self, **kwargs):
+        with self.lock:
+            items = {}
+            created = []
+            updated = []
+            for k, v in kwargs.items():
+                items[k] = self.CacheItem()
+                items[k].data = v
+                items[k].valid.set()
+                if k in self.store:
+                    updated.append(k)
+                else:
+                    created.append(k)
+
+            self.store.update(**items)
+            return created, updated
+
     def get(self, key, default=None, timeout=None):
         item = self.store.get(key)
         if item:
@@ -140,6 +157,22 @@ class EventCacheStore(CacheStore):
             })
 
         return ret
+
+    def update(self, **kwargs):
+        created, updated = super(EventCacheStore, self).update(**kwargs)
+        if self.ready:
+            if created:
+                self.dispatcher.emit_event('{0}.changed'.format(self.name), {
+                    'operation': 'create',
+                    'ids': created
+                })
+            if updated:
+                self.dispatcher.emit_event('{0}.changed'.format(self.name), {
+                    'operation': 'update',
+                    'ids': updated
+                })
+
+        return created, updated
 
     def remove(self, key):
         ret = super(EventCacheStore, self).remove(key)
