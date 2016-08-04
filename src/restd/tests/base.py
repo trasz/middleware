@@ -43,9 +43,17 @@ class SingleItemTestCase(RESTTestCase):
 
     name = None
 
+    def get_update_data(self):
+        raise NotImplementedError('get_update_data must be implemented')
+
     def test_020_retrieve(self):
         r = self.client.get(self.name)
-        self.assertEqual(r.status_code, 200)
+        self.assertEqual(r.status_code, 200, msg=r.text)
         data = r.json()
         self.assertIsInstance(data, dict)
+        return r
+
+    def test_040_update(self):
+        r = self.client.put(self.name, self.get_update_data())
+        self.assertEqual(r.status_code, 200, msg=r.text)
         return r

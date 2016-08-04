@@ -25,5 +25,8 @@ class Client(object):
     def post(self, path, data=None):
         return self.request('POST', path, data=data)
 
+    def put(self, path, data=None):
+        return self.request('PUT', path, data=data)
+
     def delete(self, path):
         return self.request('DELETE', path)
