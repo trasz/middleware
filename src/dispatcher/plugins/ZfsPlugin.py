@@ -1238,8 +1238,17 @@ def sync_dataset_cache(dispatcher, dataset, old_dataset=None, recursive=False):
                 Resource('zfs:{0}'.format(dataset)),
                 parents=['zpool:{0}'.format(pool)])
 
+        ds_snapshots = {}
         for i in ds.snapshots:
-            sync_snapshot_cache(dispatcher, i.name)
+            try:
+                ds_snapshots[i.name] = wrap(i.__getstate__())
+            except libzfs.ZFSException as e:
+                if e.code == libzfs.Error.NOENT:
+                    snapshots.remove(i.name)
+
+                logger.warning("Cannot read snapshot status from snapshot {0}".format(i.name))
+
+        snapshots.update(**ds_snapshots)
 
         if recursive:
             for i in ds.children:
@@ -1737,17 +1746,27 @@ def _init(dispatcher, plugin):
         pools = EventCacheStore(dispatcher, 'zfs.pool', sort_funct)
         datasets = EventCacheStore(dispatcher, 'zfs.dataset', sort_funct)
         snapshots = EventCacheStore(dispatcher, 'zfs.snapshot', sort_funct)
-        
+
+        pools_dict = {}
         for i in zfs.pools:
-            sync_zpool_cache(dispatcher, i.name)
+            pools_dict[i.name] = wrap(i.__getstate__(False))
+            zpool_sync_resources(dispatcher, i.name)
+        pools.update(**pools_dict)
 
         logger.info("Syncing ZFS datasets...")
+        datasets_dict = {}
         for i in zfs.datasets:
-            sync_dataset_cache(dispatcher, i.name)
+            datasets_dict[i.name] = wrap(i.__getstate__(recursive=False))
+            dispatcher.register_resource(
+                Resource('zfs:{0}'.format(i.name)),
+                parents=['zpool:{0}'.format(i.pool.name)])
+        datasets.update(**datasets_dict)
 
         logger.info("Syncing ZFS snapshots...")
+        snapshots_dict = {}
         for i in zfs.snapshots:
-            sync_snapshot_cache(dispatcher, i.name)
+            snapshots_dict[i.name] = wrap(i.__getstate__())
+        snapshots.update(**snapshots_dict)
 
         pools.ready = True
         datasets.ready = True
