@@ -45,7 +45,7 @@ from freenas.dispatcher.jsonenc import dumps
 from balancer import TaskState
 from resources import Resource
 from debug import AttachData, AttachCommandOutput
-from freenas.utils import first_or_default
+from freenas.utils import first_or_default, threadsafe_iterator
 from freenas.utils.query import wrap
 
 
@@ -219,7 +219,7 @@ class ZfsDatasetProvider(Provider):
         try:
             zfs = get_zfs()
             ds = zfs.get_dataset(dataset_name)
-            snaps = list(ds.snapshots)
+            snaps = list(threadpool.apply(lambda: threadsafe_iterator(ds.snapshots)))
             snaps.sort(key=lambda s: int(s.properties['creation'].rawvalue))
             return snaps
         except libzfs.ZFSException as err:
@@ -1239,7 +1239,7 @@ def sync_dataset_cache(dispatcher, dataset, old_dataset=None, recursive=False):
                 parents=['zpool:{0}'.format(pool)])
 
         ds_snapshots = {}
-        for i in ds.snapshots:
+        for i in threadpool.apply(lambda: threadsafe_iterator(ds.snapshots)):
             try:
                 ds_snapshots[i.name] = wrap(i.__getstate__())
             except libzfs.ZFSException as e:
@@ -1748,14 +1748,14 @@ def _init(dispatcher, plugin):
         snapshots = EventCacheStore(dispatcher, 'zfs.snapshot', sort_funct)
 
         pools_dict = {}
-        for i in zfs.pools:
+        for i in threadpool.apply(lambda: threadsafe_iterator(zfs.pools)):
             pools_dict[i.name] = wrap(i.__getstate__(False))
             zpool_sync_resources(dispatcher, i.name)
         pools.update(**pools_dict)
 
         logger.info("Syncing ZFS datasets...")
         datasets_dict = {}
-        for i in zfs.datasets:
+        for i in threadpool.apply(lambda: threadsafe_iterator(zfs.datasets)):
             datasets_dict[i.name] = wrap(i.__getstate__(recursive=False))
             dispatcher.register_resource(
                 Resource('zfs:{0}'.format(i.name)),
@@ -1764,7 +1764,7 @@ def _init(dispatcher, plugin):
 
         logger.info("Syncing ZFS snapshots...")
         snapshots_dict = {}
-        for i in zfs.snapshots:
+        for i in threadpool.apply(lambda: threadsafe_iterator(zfs.snapshots)):
             snapshots_dict[i.name] = wrap(i.__getstate__())
         snapshots.update(**snapshots_dict)
 
