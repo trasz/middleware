@@ -709,6 +709,11 @@ class VolumeDestroyTask(Task):
                     else:
                         raise
 
+            try:
+                os.rmdir(vol['mountpoint'])
+            except FileNotFoundError:
+                pass
+
             if vol['key_encrypted'] or vol['password_encrypted']:
                 subtasks = []
                 if 'topology' in vol:
