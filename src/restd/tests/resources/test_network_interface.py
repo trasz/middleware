@@ -27,5 +27,10 @@ class NetworkInterfaceTestCase(CRUDTestCase):
         r = self.client.post(self.name + '/vlan0/renew')
         self.assertEqual(r.status_code, 201, msg=r.text)
 
+    def get_update_ident_data(self):
+        return 'vlan0', {
+            'noipv6': True,
+        }
+
     def get_delete_identifier(self):
         return 'vlan0'
