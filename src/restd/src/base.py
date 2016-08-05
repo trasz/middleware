@@ -116,6 +116,7 @@ class Resource(object):
         child.parent = self
 
     def get_uri(self):
+        assert self.name is not None
         if self.parent is None:
             return '/{0}'.format(self.name)
         return '{0}/{1}'.format(self.parent.get_uri(), self.name)
