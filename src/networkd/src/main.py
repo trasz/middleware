@@ -547,6 +547,7 @@ class ConfigurationService(RpcService):
                 self.logger.error('Cannot add static route to {0}: {1}'.format(describe_route(i), str(e)))
 
     def configure_dns(self):
+        self.logger.info('Starting DNS configuration')
         resolv = io.StringIO()
         proc = subprocess.Popen(
             ['/sbin/resolvconf', '-a', 'lo0'],
