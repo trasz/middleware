@@ -1,7 +1,7 @@
 from base import CRUDTestCase
 
 
-class NetworkInterfaceTestCase(CRUDTestCase):
+class NetworkInterfaceVLANTestCase(CRUDTestCase):
     name = 'network/interface'
 
     def get_create_data(self):
