@@ -359,6 +359,8 @@ class SingleItemBase(object):
     namespace = None
     resource_class = Resource
 
+    subresources = None
+
     def __init__(self, rest, dispatcher):
 
         put = self.get_update_method_name()
@@ -368,7 +370,13 @@ class SingleItemBase(object):
         }
         if put is not None:
             resource['put'] = 'task:{0}'.format(put)
-        type('{0}Resource'.format(self.__class__.__name__), (ProviderMixin, self.resource_class, ), resource)(rest)
+        resource_obj = type('{0}Resource'.format(self.__class__.__name__), (ProviderMixin, self.resource_class, ), resource)(rest)
+
+        # Instantiate subresources
+        # e.g. /resource_name/subresource_name
+        if self.subresources is not None:
+            for subresource in self.subresources:
+                subresource(rest, parent=resource_obj)
 
     def get_retrieve_method_name(self):
         return '{0}.get_config'.format(self.namespace)
