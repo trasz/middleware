@@ -808,6 +808,7 @@ class Main(object):
 
             if lease.dns_addresses and self.configstore.get('network.dhcp.assign_dns'):
                 inp = []
+                addrs = []
                 proc = subprocess.Popen(
                     ['/sbin/resolvconf', '-a', interface],
                     stdout=subprocess.PIPE,
