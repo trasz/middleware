@@ -384,7 +384,7 @@ class UpdateServiceConfigTask(Task):
         if updated_config is None:
             return
 
-        del updated_config['type']
+        updated_config.pop('type', None)
 
         if service_def.get('task'):
             enable = updated_config.pop('enable', None)
