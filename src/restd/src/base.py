@@ -220,7 +220,7 @@ class Resource(object):
         return rv
 
 
-class EntityResource(Resource):
+class ResourceQueryMixin:
 
     def run_get(self, req, urlparams):
         args = []
@@ -262,6 +262,9 @@ class EntityResource(Resource):
             args.append((field, op, val))
 
         return [args, urlparams], {}
+
+
+class EntityResource(Resource, ResourceQueryMixin):
 
     def do(self, method, req, resp, *args, **kwargs):
         rv = super(EntityResource, self).do(method, req, resp, *args, **kwargs)
