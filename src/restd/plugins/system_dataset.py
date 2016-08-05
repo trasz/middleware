@@ -1,10 +1,15 @@
-from base import Resource
+from base import SingleItemBase
 
 
-class SystemDataset(Resource):
-    name = 'system_dataset'
-    get = 'rpc:system_dataset.status'
+class SystemDataset(SingleItemBase):
+    namespace = 'system_dataset'
+
+    def get_retrieve_method_name(self):
+        return 'system_dataset.status'
+
+    def get_update_method_name(self):
+        return 'system_dataset.migrate'
 
 
 def _init(rest):
-    rest.register_resource(SystemDataset)
+    rest.register_singleitem(SystemDataset)
