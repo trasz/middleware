@@ -16,5 +16,10 @@ class BootEnvironmentTestCase(CRUDTestCase):
     def get_create_data(self):
         return ['newtestenv']
 
+    def get_update_ident_data(self):
+        return 'newtestenv', {
+            'id': 'newtestenv2',
+        }
+
     def get_delete_identifier(self):
-        return 'newtestenv'
+        return 'newtestenv2'
