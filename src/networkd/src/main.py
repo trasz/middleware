@@ -821,15 +821,22 @@ class Main(object):
                         continue
 
                     inp.append('nameserver {0}'.format(i))
+                    addrs.append(i)
 
                 if lease.domain_name:
                     inp.append('search {0}'.format(lease.domain_name))
 
                 proc.communicate('\n'.join(inp).encode('ascii'))
                 proc.wait()
+                self.client.emit_event('network.dns.configured', {
+                    'addresses': addrs,
+                })
                 self.logger.info('Updated DNS configuration')
             else:
                 subprocess.call(['/sbin/resolvconf', '-d', interface])
+                self.client.emit_event('network.dns.configured', {
+                    'addresses': [],
+                })
                 self.logger.info('Deleted DNS configuration')
 
         def unbind(lease, reason):
