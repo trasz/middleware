@@ -13,3 +13,26 @@ class ShareSMBTestCase(CRUDTestCase):
             'type': 'smb',
             'properties': {'type': 'service-smb'},
         }
+
+    def get_update_ident_data(self):
+        r = self.client.get(self.name, params={
+            'name': 'share_smb_test',
+        })
+        self.assertEqual(r.status_code, 200)
+        data = r.json()
+        if not data:
+            self.skipTest('Share not found.')
+        return data[0]['id'], {
+            'sudo': True,
+        }
+
+    def get_delete_identifier(self):
+        r = self.client.get(self.name, params={
+            'name': 'share_smb_test',
+        })
+        self.assertEqual(r.status_code, 200)
+        data = r.json()
+        if data:
+            return data[0]['id']
+        else:
+            self.skipTest('Share not found.')
