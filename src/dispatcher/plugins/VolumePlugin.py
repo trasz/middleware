@@ -2738,7 +2738,15 @@ def _init(dispatcher, plugin):
                             'id': i['name'],
                             'guid': str(i['guid']),
                             'type': 'zfs',
-                            'attributes': {}
+                            'attributes': {},
+                            'key_encrypted': False,
+                            'password_encrypted': False,
+                            'encryption': {
+                                'key': None,
+                                'hashed_password': None,
+                                'salt': None,
+                                'slot': None
+                            }
                         })
                     except DuplicateKeyException:
                         # already inserted by task
