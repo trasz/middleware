@@ -170,6 +170,9 @@ class RESTApi(object):
     def register_singleitem(self, klass):
         klass(self, self.dispatcher)
 
+    def register_resource(self, klass):
+        klass(self)
+
     def run(self):
         self.init_dispatcher()
         self.init_metadata()
