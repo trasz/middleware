@@ -1743,9 +1743,14 @@ def _init(dispatcher, plugin):
         zfs = get_zfs()
         logger.info("Syncing ZFS pools...")
         sort_funct = lambda d: (os.path.dirname(d), os.path.basename(d))
+
+        def snap_sort_funct(d):
+            ds, snap = d.split('@', 1)
+            return os.path.dirname(ds), os.path.basename(ds), snap
+
         pools = EventCacheStore(dispatcher, 'zfs.pool', sort_funct)
         datasets = EventCacheStore(dispatcher, 'zfs.dataset', sort_funct)
-        snapshots = EventCacheStore(dispatcher, 'zfs.snapshot', sort_funct)
+        snapshots = EventCacheStore(dispatcher, 'zfs.snapshot', snap_sort_funct)
 
         pools_dict = {}
         for i in threadpool.apply(lambda: threadsafe_iterator(zfs.pools)):
