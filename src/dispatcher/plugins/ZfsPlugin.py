@@ -1746,7 +1746,8 @@ def _init(dispatcher, plugin):
 
         def snap_sort_funct(d):
             ds, snap = d.split('@', 1)
-            return os.path.dirname(ds), os.path.basename(ds), snap
+            par, base = sort_funct(ds)
+            return par, base, snap
 
         pools = EventCacheStore(dispatcher, 'zfs.pool', sort_funct)
         datasets = EventCacheStore(dispatcher, 'zfs.dataset', sort_funct)
