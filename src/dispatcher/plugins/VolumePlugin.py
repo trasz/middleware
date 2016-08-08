@@ -2815,6 +2815,7 @@ def _init(dispatcher, plugin):
         'type': 'object',
         'title': 'volume',
         'additionalProperties': False,
+        'readOnly': True,
         'properties': {
             'id': {'type': 'string'},
             'guid': {
@@ -2848,8 +2849,7 @@ def _init(dispatcher, plugin):
                     'blocksize': {'type': 'number'},
                     'swapsize': {'type': 'number'}
                 }
-            },
-            'readOnly': True
+            }
         }
     })
 
