@@ -2642,12 +2642,6 @@ def _init(dispatcher, plugin):
         except (ValueError, TypeError):
             pass
 
-        uuid_source = snapshot.get('properties.org\\.freenas:uuid.source')
-        if not uuid_source or uuid_source == 'INHERITED':
-            dispatcher.submit_task('zfs.update', snapshot['name'], {
-                'org.freenas:uuid': {'value': str(uuid.uuid4())}
-            })
-
         return {
             'id': snapshot['name'],
             'volume': pool,
@@ -2674,12 +2668,6 @@ def _init(dispatcher, plugin):
                 perms = dispatcher.call_sync('filesystem.stat', ds['mountpoint'])
             except RpcException:
                 pass
-
-        uuid_source = ds.get('properties.org\\.freenas:uuid.source')
-        if not uuid_source or uuid_source == 'INHERITED':
-            dispatcher.submit_task('zfs.update', ds['name'], {
-                'org.freenas:uuid': {'value': str(uuid.uuid4())}
-            })
 
         temp_mountpoint = None
         if ds.get('properties.readonly.parsed') and ds.get('properties.mounted.value') == 'yes':
