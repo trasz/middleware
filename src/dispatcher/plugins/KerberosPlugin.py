@@ -37,7 +37,7 @@ class KerberosRealmsProvider(Provider):
     @generator
     def query(self, filter=None, params=None):
         return wrap(
-            self.dispatcher.call_sync('dscached.management.get_realms') +
+            list(self.dispatcher.call_sync('dscached.management.get_realms')) +
             self.datastore.query('kerberos.realms')
         ).query(*(filter or []), stream=True, **(params or {}))
 
