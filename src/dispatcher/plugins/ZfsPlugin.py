@@ -45,7 +45,7 @@ from freenas.dispatcher.jsonenc import dumps
 from balancer import TaskState
 from resources import Resource
 from debug import AttachData, AttachCommandOutput
-from freenas.utils import first_or_default, threadsafe_iterator
+from freenas.utils import first_or_default
 from freenas.utils.query import wrap
 
 
@@ -1346,45 +1346,6 @@ def collect_debug(dispatcher):
 
 def _depends():
     return ['DevdPlugin', 'DiskPlugin']
-
-
-def zfsprop_schema_creator(**kwargs):
-    """
-    A little helper function to programmatically create zfs property type
-    schmeas. It returns a schema dict with top level 'type' being an object.
-
-    Note: If nothing is specified then it defaults to a source='string'
-    and value='string'.
-
-    Usage: zfsprop_schema_creator(propety_name=schema_type_as_str)
-    Examples:
-        Call: zfsprop_schema_creator(value='integer')
-        Returns: {
-            type: 'object',
-            properties: {
-                'source': {'type': 'string'},
-                'value': {'type': 'integer'},
-            }
-        }
-        zfsprop_schema_creator(source='string', value='integer')
-        Returns: {
-            type: 'object',
-            properties: {
-                'source': {'type': 'string'},
-                'value': {'type': 'integer'},
-            }
-        }
-    """
-    result = {
-        'type': 'object',
-        'properties': {
-            'source': {'type': 'string'},
-            'value': {'type': 'string'},
-        }
-    }
-    for key, value in kwargs.items():
-        result['properties'][key] = {'type': value}
-    return result
 
 
 def _init(dispatcher, plugin):
