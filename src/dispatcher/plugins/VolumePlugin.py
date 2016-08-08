@@ -2848,7 +2848,8 @@ def _init(dispatcher, plugin):
                     'blocksize': {'type': 'number'},
                     'swapsize': {'type': 'number'}
                 }
-            }
+            },
+            'readOnly': True
         }
     })
 
