@@ -1743,36 +1743,40 @@ def _init(dispatcher, plugin):
 
         zfs = get_zfs()
         logger.info("Syncing ZFS pools...")
-        sort_funct = lambda d: (os.path.dirname(d), os.path.basename(d))
 
-        def snap_sort_funct(d):
+        def sort_func(d):
+            return os.path.dirname(d), os.path.basename(d)
+
+        def snap_sort_func(d):
             ds, snap = d.split('@', 1)
-            par, base = sort_funct(ds)
+            par, base = sort_func(ds)
             return par, base, snap
 
-        pools = EventCacheStore(dispatcher, 'zfs.pool', sort_funct)
-        datasets = EventCacheStore(dispatcher, 'zfs.dataset', sort_funct)
-        snapshots = EventCacheStore(dispatcher, 'zfs.snapshot', snap_sort_funct)
+        pools = EventCacheStore(dispatcher, 'zfs.pool', sort_func)
+        datasets = EventCacheStore(dispatcher, 'zfs.dataset', sort_func)
+        snapshots = EventCacheStore(dispatcher, 'zfs.snapshot', snap_sort_func)
 
         pools_dict = {}
-        for i in threadpool.apply(lambda: threadsafe_iterator(zfs.pools)):
-            pools_dict[i.name] = wrap(i.__getstate__(False))
-            zpool_sync_resources(dispatcher, i.name)
+        for i in threadpool.apply(lambda: [wrap(p.__getstate__(False)) for p in zfs.pools]):
+            name = i['name']
+            pools_dict[name] = i
+            zpool_sync_resources(dispatcher, name)
         pools.update(**pools_dict)
 
         logger.info("Syncing ZFS datasets...")
         datasets_dict = {}
-        for i in threadpool.apply(lambda: threadsafe_iterator(zfs.datasets)):
-            datasets_dict[i.name] = wrap(i.__getstate__(recursive=False))
+        for i in threadpool.apply(lambda: [wrap(d.__getstate__(False)) for d in zfs.datasets]):
+            name = i['id']
+            datasets_dict[name] = i
             dispatcher.register_resource(
-                Resource('zfs:{0}'.format(i.name)),
-                parents=['zpool:{0}'.format(i.pool.name)])
+                Resource('zfs:{0}'.format(name)),
+                parents=['zpool:{0}'.format(i['pool'])])
         datasets.update(**datasets_dict)
 
         logger.info("Syncing ZFS snapshots...")
         snapshots_dict = {}
-        for i in threadpool.apply(lambda: threadsafe_iterator(zfs.snapshots)):
-            snapshots_dict[i.name] = wrap(i.__getstate__())
+        for i in threadpool.apply(lambda: [wrap(s.__getstate__(False)) for s in zfs.snapshots]):
+            snapshots_dict[i['id']] = i
         snapshots.update(**snapshots_dict)
 
         pools.ready = True
