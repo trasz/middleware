@@ -219,8 +219,8 @@ class ZfsDatasetProvider(Provider):
         try:
             zfs = get_zfs()
             ds = zfs.get_dataset(dataset_name)
-            snaps = list(threadpool.apply(lambda: threadsafe_iterator(ds.snapshots)))
-            snaps.sort(key=lambda s: int(s.properties['creation'].rawvalue))
+            snaps = threadpool.apply(lambda: [wrap(d.__getstate__(False)) for d in ds.snapshots])
+            snaps.sort(key=lambda s: int(s['properties.creation.rawvalue']))
             return snaps
         except libzfs.ZFSException as err:
             if err.code == libzfs.Error.NOENT:
@@ -1239,14 +1239,15 @@ def sync_dataset_cache(dispatcher, dataset, old_dataset=None, recursive=False):
                 parents=['zpool:{0}'.format(pool)])
 
         ds_snapshots = {}
-        for i in threadpool.apply(lambda: threadsafe_iterator(ds.snapshots)):
+        for i in threadpool.apply(lambda: [wrap(d.__getstate__(False)) for d in ds.snapshots]):
+            name = i['name']
             try:
-                ds_snapshots[i.name] = wrap(i.__getstate__())
+                ds_snapshots[name] = i
             except libzfs.ZFSException as e:
                 if e.code == libzfs.Error.NOENT:
-                    snapshots.remove(i.name)
+                    snapshots.remove(name)
 
-                logger.warning("Cannot read snapshot status from snapshot {0}".format(i.name))
+                logger.warning("Cannot read snapshot status from snapshot {0}".format(name))
 
         snapshots.update(**ds_snapshots)
 
