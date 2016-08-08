@@ -99,6 +99,7 @@ class UserProvider(Provider):
         pass
 
     @description("Retrieve the next UID available")
+    @accepts(bool)
     @returns(int)
     def next_uid(self, check_gid=False):
         start_uid, end_uid = self.dispatcher.configstore.get('accounts.local_uid_range')

@@ -1,0 +1,29 @@
+#!/bin/sh
+#
+# $FreeBSD$
+#
+
+# PROVIDE: restd
+# REQUIRE: dispatcher
+# BEFORE: FILESYSTEMS
+
+. /etc/rc.subr
+
+name="restd"
+rcvar="restd_enable"
+pidfile="/var/run/restd.pid"
+command="/usr/sbin/daemon"
+start_precmd="prestart"
+
+prestart()
+{
+    rc_flags="-P ${pidfile} /usr/local/sbin/crash-wrapper /usr/local/sbin/restd ${rc_flags}"
+
+   if [ "$(check_pidfile /var/run/restd.pid /usr/sbin/daemon)" ]; then
+        echo "ERROR: restd is already running"
+        exit 1
+   fi
+}
+
+load_rc_config $name
+run_rc_command $*
