@@ -91,7 +91,7 @@ def get_replication_client(dispatcher, remote):
 
     except (AuthenticationException, SSHException):
         raise TaskException(errno.EAUTH, 'Cannot connect to {0}'.format(remote))
-    except (OSError, ConnectionRefusedError):
+    except OSError:
         raise TaskException(errno.ECONNREFUSED, 'Cannot connect to {0}'.format(remote))
     except IOError:
         raise TaskException(errno.EINVAL, 'Provided host key is not valid')

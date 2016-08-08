@@ -68,7 +68,7 @@ class TransportCatcherSSH(object):
         self.sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
         try:
             self.sock.connect('/var/run/dispatcher.sock')
-        except PermissionError:
+        except OSError:
             self.stdout_fd.write(struct.pack('II', 0xbadbeef0, 0))
             self.stdout_fd.flush()
             self.stdin_fd.close()

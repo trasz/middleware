@@ -158,7 +158,7 @@ class TaskExecutor(object):
 
                 if found:
                     break
-            except FileNotFoundError:
+            except OSError:
                 continue
 
         try:
@@ -244,7 +244,7 @@ class TaskExecutor(object):
     def terminate(self):
         try:
             self.proc.terminate()
-        except ProcessLookupError:
+        except OSError:
             self.balancer.logger.warning('Executor process with PID {0} already dead'.format(self.proc.pid))
 
     def executor(self):
