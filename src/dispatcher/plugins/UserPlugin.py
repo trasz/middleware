@@ -701,12 +701,13 @@ def _init(dispatcher, plugin):
         'type': 'object',
         'properties': {
             'id': {'type': 'string'},
-            'sid': {'type': 'string'},
+            'sid': {'type': 'string', 'readOnly': True},
             'uid': {
                 'type': 'integer',
                 'minimum': 0,
                 'maximum': 4294967295
             },
+            'gid': {'type': 'string', 'readOnly': True},
             'builtin': {'type': 'boolean', 'readOnly': True},
             'username': {'type': 'string'},
             'full_name': {'type': ['string', 'null']},
