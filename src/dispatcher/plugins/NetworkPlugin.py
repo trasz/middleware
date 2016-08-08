@@ -937,7 +937,6 @@ def _init(dispatcher, plugin):
     plugin.register_event_type('network.interface.flags_changed')
     plugin.register_event_type('network.route.added')
     plugin.register_event_type('network.route.deleted')
-    plugin.register_event_type('network.route.deleted')
     plugin.register_event_type('network.dns.configured')
     plugin.register_event_type('network.interface.configured')
 
