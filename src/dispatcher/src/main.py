@@ -1,5 +1,4 @@
-#!/usr/local/bin/python3.4
-#+
+#
 # Copyright 2014 iXsystems, Inc.
 # All rights reserved
 #
@@ -58,9 +57,9 @@ from pyee import EventEmitter
 from gevent.os import tp_read, tp_write, forkpty_and_watch
 from gevent.queue import Queue
 from gevent.lock import RLock
-from gevent.event import AsyncResult, Event
+from gevent.event import Event
 from gevent.pywsgi import WSGIServer
-from geventwebsocket import WebSocketServer, WebSocketApplication, Resource, WebSocketError
+from geventwebsocket import WebSocketApplication, WebSocketError
 
 from datastore import get_datastore
 from datastore.migrate import migrate_db, MigrationException

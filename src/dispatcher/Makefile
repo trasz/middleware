@@ -10,14 +10,20 @@ install:
 	install tools/sdsinit ${STAGEDIR}${PREFIX}/sbin/
 	install tools/taskworker ${STAGEDIR}${PREFIX}/libexec/
 	install -d ${STAGEDIR}${PREFIX}/lib/dispatcher/src
+	install -d ${STAGEDIR}${PREFIX}/lib/dispatcher/src/frontend
+	install -d ${STAGEDIR}${PREFIX}/lib/dispatcher/src/lib
+	install -d ${STAGEDIR}${PREFIX}/lib/dispatcher/src/taskworker
 	install -d ${STAGEDIR}${PREFIX}/lib/dispatcher/plugins
 	install -d ${STAGEDIR}${PREFIX}/lib/dispatcher/pydev
 	install -d ${STAGEDIR}${PREFIX}/libexec/dispatcher
-	cp -R src/ ${STAGEDIR}${PREFIX}/lib/dispatcher/src/
+	${PYTHON} setup.py build_ext --build-lib=${STAGEDIR}${PREFIX}/lib/dispatcher/src/
+	cp src/run.py ${STAGEDIR}${PREFIX}/lib/dispatcher/src/
+	cp -R src/frontend/ ${STAGEDIR}${PREFIX}/lib/dispatcher/src/frontend/
+	cp -R src/taskworker/ ${STAGEDIR}${PREFIX}/lib/dispatcher/src/taskworker/
 	cp -R plugins/ ${STAGEDIR}${PREFIX}/lib/dispatcher/plugins/
 	cp -R pydev/ ${STAGEDIR}${PREFIX}/lib/dispatcher/pydev/
 	cp -R libexec/ ${STAGEDIR}${PREFIX}/libexec/dispatcher/
-	${PYTHON} setup_plugins.py install --install-lib=${STAGEDIR}${PREFIX}/lib/dispatcher/plugins/
+	${PYTHON} setup_plugins.py build_ext --build-lib=${STAGEDIR}${PREFIX}/lib/dispatcher/plugins/
 	cp -R plugins/*.html ${STAGEDIR}${PREFIX}/lib/dispatcher/plugins/
 	cp -R plugins/*.c ${STAGEDIR}${PREFIX}/lib/dispatcher/plugins/
 	cp ${BROWSERIFY_BUNDLE} ${STAGEDIR}${PREFIX}/lib/dispatcher/src/frontend/static/middleware.js
