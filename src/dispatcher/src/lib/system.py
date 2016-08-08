@@ -27,6 +27,8 @@
 
 import logging
 import subprocess
+from freenas.utils.trace_logger import TRACE
+
 
 logger = logging.getLogger('system')
 
@@ -54,7 +56,13 @@ def system(*args, **kwargs):
     logger.debug("Running command: %s", ' '.join(args))
 
     if proc.returncode != 0:
-        logger.warning("Command %s failed, return code %d, stderr output: %s", ' '.join(args), proc.returncode, err)
+        logger.log(
+            TRACE,
+            "Command %s failed, return code %d, stderr output: %s",
+            ' '.join(args),
+            proc.returncode,
+            err.decode('utf-8')
+        )
         raise SubprocessException(proc.returncode, out.decode('utf-8'), err.decode('utf-8'))
 
     return out.decode('utf8'), err.decode('utf8')
