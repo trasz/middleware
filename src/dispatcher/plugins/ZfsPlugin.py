@@ -1735,6 +1735,7 @@ def _init(dispatcher, plugin):
         os.mkdir('/data/zfs')
 
     # Do initial caches sync
+    zfs_cache_start = time.time()
     try:
         global pools
         global datasets
@@ -1779,6 +1780,8 @@ def _init(dispatcher, plugin):
         snapshots.ready = True
     except libzfs.ZFSException as err:
         logger.error("Cannot sync ZFS caches: {0}".format(str(err)))
+    finally:
+        logger.info("Syncing ZFS cache took {0:.0f} ms".format((time.time() - zfs_cache_start) * 1000))
 
     try:
         zfs = get_zfs()
