@@ -21,3 +21,16 @@ class FilesystemTestCase(RESTTestCase):
         self.assertEqual(r.status_code, 201)
         data = r.json()
         self.assertIsInstance(data, list)
+
+
+class FileTestCase(RESTTestCase):
+    name = 'file'
+
+    def test_020_set_permissions(self):
+        r = self.client.post(self.name + '/set_permissions', data=[
+            '/mnt/tank/permission', {
+                'user': 'daemon',
+            }
+        ])
+        self.assertEqual(r.status_code, 201)
+        data = r.json()
