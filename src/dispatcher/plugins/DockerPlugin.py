@@ -158,7 +158,7 @@ class DockerContainerDeleteTask(ProgressTask):
         return []
 
     def run(self, id):
-        pass
+        self.dispatcher.call_sync('containerd.docker.create', id)
 
 
 class DockerContainerStartTask(Task):
