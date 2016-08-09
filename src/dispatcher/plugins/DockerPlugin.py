@@ -31,7 +31,7 @@ from cache import EventCacheStore
 from datastore.config import ConfigNode
 from freenas.utils import normalize
 from freenas.utils.query import wrap
-from freenas.dispatcher.rpc import generator, accepts, returns, SchemaHelper as h
+from freenas.dispatcher.rpc import generator, accepts, returns, SchemaHelper as h, RpcException
 
 
 containers = None
@@ -58,7 +58,7 @@ class DockerHostProvider(Provider):
             try:
                 ret['status'] = self.dispatcher.call_sync('containerd.docker.get_host_status', obj['id'])
                 ret['state'] = 'UP'
-            except:
+            except RpcException:
                 pass
 
             return ret
