@@ -91,6 +91,10 @@ class DockerImagesProvider(Provider):
                 'pull_count': i['pull_count']
             }
 
+    def readme(self, repo_name):
+        hub = dockerhub.DockerHub()
+        return hub.get_repository(repo_name)['full_description']
+
     def get_hub_image(self, name):
         pass
 
