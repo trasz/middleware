@@ -75,7 +75,7 @@ class ShareISCSITestCase(RESTTestCase):
     def test_030_target_update(self):
         r = self.client.put(self.name + '/target/tgt0', data={
             'extents': [
-                {'name': 'aa', 'number': 0},
+                {'name': 'testiscsishare', 'number': 0},
             ]
         })
 
