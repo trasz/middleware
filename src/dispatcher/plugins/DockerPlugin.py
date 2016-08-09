@@ -93,7 +93,7 @@ class DockerImagesProvider(Provider):
 
     def readme(self, repo_name):
         hub = dockerhub.DockerHub()
-        return hub.get_repository(repo_name)['full_description']
+        return hub.get_repository(repo_name).get('full_description', None)
 
     def get_hub_image(self, name):
         pass
