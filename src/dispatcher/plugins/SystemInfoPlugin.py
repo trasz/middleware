@@ -108,17 +108,6 @@ class SystemInfoProvider(Provider):
             'memory_size': get_sysctl("hw.physmem")
         }
 
-    @accepts()
-    @returns(h.ref('system-time'))
-    def time(self):
-        boot_time = datetime.fromtimestamp(psutil.boot_time(), tz=tz.tzlocal())
-        return {
-            'system_time': datetime.now(tz=tz.tzlocal()).isoformat(),
-            'boot_time': boot_time.isoformat(),
-            'uptime': (datetime.now(tz=tz.tzlocal()) - boot_time).total_seconds(),
-            'timezone': time.tzname[time.daylight],
-        }
-
 
 @description("Provides informations about general system settings")
 class SystemGeneralProvider(Provider):
@@ -189,6 +178,21 @@ class SystemAdvancedProvider(Provider):
             'motd': cs.get('system.motd'),
             'boot_scrub_internal': cs.get('system.boot_scrub_internal'),
             'periodic_notify_user': cs.get('system.periodic.notify_user'),
+        }
+
+
+@description("Provides informations about system time")
+class SystemTimeProvider(Provider):
+
+    @accepts()
+    @returns(h.ref('system-time'))
+    def get_config(self):
+        boot_time = datetime.fromtimestamp(psutil.boot_time(), tz=tz.tzlocal())
+        return {
+            'system_time': datetime.now(tz=tz.tzlocal()).isoformat(),
+            'boot_time': boot_time.isoformat(),
+            'uptime': (datetime.now(tz=tz.tzlocal()) - boot_time).total_seconds(),
+            'timezone': time.tzname[time.daylight],
         }
 
 
@@ -703,6 +707,7 @@ def _init(dispatcher, plugin):
     plugin.register_provider("system.advanced", SystemAdvancedProvider)
     plugin.register_provider("system.general", SystemGeneralProvider)
     plugin.register_provider("system.info", SystemInfoProvider)
+    plugin.register_provider("system.time", SystemTimeProvider)
     plugin.register_provider("system.ui", SystemUIProvider)
 
     # Register task handlers
