@@ -6,10 +6,16 @@ class DiskIsOnlineResource(Resource):
     post = 'rpc:disk.is_online'
 
 
+class DiskPartitionToDiskResource(Resource):
+    name = 'partition_to_disk'
+    post = 'rpc:disk.partition_to_disk'
+
+
 class DiskResource(CRUDBase):
     namespace = 'disk'
     entity_resources = (
         DiskIsOnlineResource,
+        DiskPartitionToDiskResource
     )
 
     def get_create_method_name(self):

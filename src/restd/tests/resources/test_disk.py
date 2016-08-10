@@ -37,3 +37,22 @@ class DiskTestCase(CRUDTestCase):
         ])
         data = r.json()
         self.assertEqual(data, True)
+
+    def test_031_partition_to_disk(self):
+        r = self.client.get(self.name, params={
+            'online': True,
+        })
+        self.assertEqual(r.status_code, 200, msg=r.text)
+        disks = r.json()
+        disk = None
+        for d in disks:
+            if 'status' in d and 'partitions' in d['status']:
+                disk = d
+                break
+        if disk is None:
+            self.skipTest('No disks with partition have been found.')
+        r = self.client.post(self.name + '/partition_to_disk', data=[
+            disk['status']['partitions'][0]['paths'][0],
+        ])
+        data = r.json()
+        self.assertEqual(disk['path'], data)
