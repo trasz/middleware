@@ -71,7 +71,6 @@ def privileged():
         logging.warning('privileged(): sender unknown, assuming no')
         return False
 
-    logging.info('creds = {0}'.format(sender.credentials))
     return sender.credentials and sender.credentials['uid'] == 0
 
 
