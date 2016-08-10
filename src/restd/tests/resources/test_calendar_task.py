@@ -26,11 +26,11 @@ class CalendarTaskTestCase(CRUDTestCase):
         r = self.client.get(self.name, params={
             'name': 'volume.scrub',
         })
-        self.assertEqual(r.status_code, 200)
+        self.assertEqual(r.status_code, 200, msg=r.text)
         data = r.json()
         if data:
             return data[0]['id'], {
-                'args': ['tank2'],
+                'args': ['tank'],
             }
         else:
             self.skipTest('Calendar task not found.')
@@ -39,9 +39,19 @@ class CalendarTaskTestCase(CRUDTestCase):
         r = self.client.get(self.name, params={
             'name': 'volume.scrub',
         })
-        self.assertEqual(r.status_code, 200)
+        self.assertEqual(r.status_code, 200, msg=r.text)
         data = r.json()
         if data:
             return data[0]['id']
         else:
             self.skipTest('Calendar task not found.')
+
+    def test_050_run(self):
+        r = self.client.get(self.name, params={
+            'name': 'volume.scrub',
+        })
+        self.assertEqual(r.status_code, 200, msg=r.text)
+        data = r.json()
+        taskid = data[0]['id']
+        r = self.client.post(self.name + '/id/' + taskid + '/run')
+        self.assertEqual(r.status_code, 201, msg=r.text)
