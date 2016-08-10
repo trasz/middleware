@@ -35,7 +35,7 @@ from datetime import datetime
 from plugin import DirectoryServicePlugin, DirectoryState
 from utils import obtain_or_renew_ticket, join_dn, domain_to_dn, get_srv_records
 from freenas.utils import normalize, first_or_default
-from freenas.utils.query import wrap
+from freenas.utils.query import get
 
 
 FREEIPA_REALM_ID = uuid.UUID('e44553e1-0c0b-11e6-9898-000c2957240a')
@@ -95,39 +95,39 @@ class FreeIPAPlugin(DirectoryServicePlugin):
         })
 
     def convert_user(self, entry):
-        entry = wrap(dict(entry['attributes']))
+        entry = dict(entry['attributes'])
         group = None
 
         if 'gidNumber.0' in entry:
             group = self.search_one(
                 self.group_dn,
-                '(gidNumber={0})'.format(entry['gidNumber.0']),
+                '(gidNumber={0})'.format(get(entry, 'gidNumber.0')),
                 attributes='ipaUniqueID'
             )
 
-            group = wrap(dict(group['attributes']))
+            group = dict(group['attributes'])
 
         return {
-            'id': entry['ipaUniqueID.0'],
-            'uid': int(entry['uidNumber.0']),
-            'gid': int(entry['gidNumber.0']),
+            'id': get(entry, 'ipaUniqueID.0'),
+            'uid': int(get(entry, 'uidNumber.0')),
+            'gid': int(get(entry, 'gidNumber.0')),
             'builtin': False,
-            'username': entry['uid.0'],
-            'full_name': entry.get('gecos.0', entry.get('displayName.0', '<unknown>')),
-            'shell': entry.get('loginShell.0', '/bin/sh'),
-            'home': entry.get('homeDirectory.0', '/nonexistent'),
-            'sshpubkey': entry.get('ipaSshPubKey.0', None),
-            'group': group['ipaUniqueID.0'] if group else None,
+            'username': get(entry, 'uid.0'),
+            'full_name': get(entry, 'gecos.0', get(entry, 'displayName.0', '<unknown>')),
+            'shell': get(entry, 'loginShell.0', '/bin/sh'),
+            'home': get(entry, 'homeDirectory.0', '/nonexistent'),
+            'sshpubkey': get(entry, 'ipaSshPubKey.0', None),
+            'group': get(group, 'ipaUniqueID.0') if group else None,
             'groups': [],
             'sudo': False
         }
 
     def convert_group(self, entry):
-        entry = wrap(dict(entry['attributes']))
+        entry = dict(entry['attributes'])
         return {
-            'id': entry['ipaUniqueID.0'],
-            'gid': int(entry['gidNumber.0']),
-            'name': entry['cn.0'],
+            'id': get(entry, 'ipaUniqueID.0'),
+            'gid': int(get(entry, 'gidNumber.0')),
+            'name': get(entry, 'cn.0'),
             'builtin': False,
             'sudo': False
         }

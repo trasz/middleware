@@ -35,7 +35,7 @@ import threading
 from plugin import DirectoryServicePlugin, DirectoryState
 from freenas.dispatcher.jsonenc import load, dump
 from freenas.utils import first_or_default, crypted_password, nt_password
-from freenas.utils.query import wrap
+from freenas.utils.query import query
 
 
 logger = logging.getLogger(__name__)
@@ -44,8 +44,8 @@ logger = logging.getLogger(__name__)
 class FlatFilePlugin(DirectoryServicePlugin):
     def __init__(self, context):
         self.context = context
-        self.passwd = wrap([])
-        self.group = wrap([])
+        self.passwd = []
+        self.group = []
         self.passwd_filename = None
         self.group_filename = None
         self.watch_thread = None
@@ -53,13 +53,13 @@ class FlatFilePlugin(DirectoryServicePlugin):
     def __load(self):
         try:
             with open(self.passwd_filename, 'r') as f:
-                self.passwd = wrap(load(f))
+                self.passwd = load(f)
         except (IOError, ValueError) as err:
             logger.warn('Cannot read {0}: {1}'.format(self.passwd_filename, str(err)))
 
         try:
             with open(self.group_filename, 'r') as f:
-                self.group = wrap(load(f))
+                self.group = load(f)
         except (IOError, ValueError) as err:
             logger.warn('Cannot read {0}: {1}'.format(self.group_filename, str(err)))
 
@@ -92,47 +92,47 @@ class FlatFilePlugin(DirectoryServicePlugin):
     def getpwent(self, filter=None, params=None):
         filter = filter or []
         filter.append(('uid', '!=', 0))
-        return self.passwd.query(*filter, **(params or {}))
+        return query(self.passwd, *filter, **(params or {}))
 
     def getpwnam(self, name):
         if name == 'root':
             return None
 
-        return self.passwd.query(('username', '=', name), single=True)
+        return query(self.passwd, ('username', '=', name), single=True)
 
     def getpwuid(self, uid):
         if uid == 0:
             return None
 
-        return self.passwd.query(('uid', '=', uid), single=True)
+        return query(self.passwd, ('uid', '=', uid), single=True)
 
     def getpwuuid(self, uuid):
-        return self.passwd.query(('id', '=', uuid), single=True)
+        return query(self.passwd, ('id', '=', uuid), single=True)
 
     def getgrent(self, filter=None, params=None):
         filter = filter or []
         filter.append(('gid', '!=', 0))
-        return self.group.query(*filter, **(params or {}))
+        return query(self.group, *filter, **(params or {}))
 
     def getgrnam(self, name):
         if name == 'wheel':
             return None
 
-        return self.group.query(('name', '=', name), single=True)
+        return query(self.group, ('name', '=', name), single=True)
 
     def getgrgid(self, gid):
         if gid == 0:
             return None
 
-        return self.group.query(('gid', '=', gid), single=True)
+        return query(self.group, ('gid', '=', gid), single=True)
 
     def getgruuid(self, uuid):
-        return self.group.query(('id', '=', uuid), single=True)
+        return query(self.group, ('id', '=', uuid), single=True)
 
     def change_password(self, username, password):
         try:
             with open(self.passwd_filename, 'r') as f:
-                passwd = wrap(load(f))
+                passwd = load(f)
 
             user = first_or_default(lambda u: u['username'] == username, passwd)
             if not user:

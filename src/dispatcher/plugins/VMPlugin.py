@@ -43,10 +43,9 @@ import datetime
 from task import Provider, Task, ProgressTask, VerifyException, TaskException, query, TaskWarning, TaskDescription
 from freenas.dispatcher.rpc import RpcException, generator
 from freenas.dispatcher.rpc import SchemaHelper as h, description, accepts
-from freenas.utils import first_or_default, normalize, deep_update, process_template, in_directory, sha256
+from freenas.utils import first_or_default, normalize, deep_update, process_template, in_directory, sha256, query as q
 from utils import save_config, load_config, delete_config
 from freenas.utils.decorators import throttle
-from freenas.utils.query import wrap
 from freenas.utils.copytree import copytree
 
 
@@ -72,9 +71,12 @@ class VMProvider(Provider):
                         obj['template']['readme'] = readme_file.read()
             return obj
 
-        return wrap(
-            self.datastore.query('vms', callback=extend)
-        ).query(*(filter or []), stream=True, **(params or {}))
+        return q.query(
+            self.datastore.query('vms', callback=extend),
+            *(filter or []),
+            stream=True,
+            **(params or {})
+        )
 
     def get_vm_root(self, vm_id):
         vm = self.datastore.get_by_id('vms', vm_id)
@@ -163,7 +165,7 @@ class VMProvider(Provider):
         )
         dependent_datasets = [dataset]
         for d in child_datasets:
-            if wrap(devices).query(('name', '=', d.split('/')[-1]), ('type', 'in', ['DISK', 'VOLUME'])):
+            if q.query(devices, ('name', '=', d.split('/')[-1]), ('type', 'in', ['DISK', 'VOLUME'])):
                 dependent_datasets.append(d)
 
         return dependent_datasets
@@ -194,7 +196,7 @@ class VMSnapshotProvider(Provider):
         )
         dependent_datasets = [dataset]
         for d in child_datasets:
-            if wrap(devices).query(('name', '=', d.split('/')[-1]), ('type', 'in', ['DISK', 'VOLUME'])):
+            if q.query(devices, ('name', '=', d.split('/')[-1]), ('type', 'in', ['DISK', 'VOLUME'])):
                 dependent_datasets.append(d)
 
         return dependent_datasets
@@ -244,7 +246,7 @@ class VMTemplateProvider(Provider):
                     except ValueError:
                         pass
 
-        return wrap(templates).query(*(filter or []), stream=True, **(params or {}))
+        return q.query(templates, *(filter or []), stream=True, **(params or {}))
 
 
 class VMBaseTask(ProgressTask):

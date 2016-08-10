@@ -40,7 +40,7 @@ from datastore.config import ConfigStore
 from freenas.dispatcher.rpc import RpcService, RpcException, private, generator
 from freenas.dispatcher.client import Client, ClientError
 from freenas.utils import exclude, configure_logging
-from freenas.utils.query import wrap
+from freenas.utils.query import query
 from freenas.utils.debug import DebugService
 
 
@@ -101,7 +101,7 @@ class ManagementService(RpcService):
                 'schedule': schedule
             }
 
-        return wrap(list(map(serialize, self.context.scheduler.get_jobs()))).query(*(filter or []), **(params or {}))
+        return query(list(map(serialize, self.context.scheduler.get_jobs())), *(filter or []), **(params or {}))
 
     @private
     def add(self, task):

@@ -44,8 +44,7 @@ from task import Provider, Task, ProgressTask, VerifyException, TaskException, T
 from freenas.dispatcher.rpc import RpcException, SchemaHelper as h, description, accepts, returns, private, generator
 from freenas.dispatcher.fd import FileDescriptor
 from utils import get_replication_client, call_task_and_check_state
-from freenas.utils import first_or_default
-from freenas.utils.query import wrap
+from freenas.utils import first_or_default, query as q
 
 logger = logging.getLogger(__name__)
 
@@ -88,7 +87,7 @@ class ReplicationLinkProvider(Provider):
         links = link_cache.query(*[], **{})
 
         links = list(map(extend, links))
-        return wrap(links).query(*(filter or []), stream=True, **(params or {}))
+        return q.query(links, *(filter or []), stream=True, **(params or {}))
 
     def sync_query(self, filter=None, params=None):
         def extend(obj):
@@ -102,7 +101,7 @@ class ReplicationLinkProvider(Provider):
             latest_links.append(self.dispatcher.call_task_sync('replication.get_latest_link', link['name']))
 
         latest_links = list(map(extend, latest_links))
-        return wrap(latest_links).query(*(filter or []), **(params or {}))
+        return q.query(latest_links, *(filter or []), **(params or {}))
 
     def local_query(self, filter=None, params=None):
         return self.datastore.query(
@@ -271,17 +270,19 @@ class ReplicationBaseTask(Task):
         return out_link
 
     def check_datasets_valid(self, link):
-        datasets = wrap(
-            self.dispatcher.call_sync('replication.link.datasets_from_link', link)
-        ).query(*[], **{'select': 'name'})
+        datasets = q.query(
+            self.dispatcher.call_sync('replication.link.datasets_from_link', link),
+            select='name'
+        )
         is_master, remote = self.get_replication_state(link)
 
         links = self.dispatcher.call_sync('replication.link.sync_query', [('name', '!=', link['name'])])
         for dataset in datasets:
             for l in links:
-                l_datasets = wrap(
-                    self.dispatcher.call_sync('replication.link.datasets_from_link', l)
-                ).query(*[], **{'select': 'name'})
+                l_datasets = q.query(
+                    self.dispatcher.call_sync('replication.link.datasets_from_link', l),
+                    select='name'
+                )
                 l_is_master, remote = self.get_replication_state(l)
 
                 if dataset in l_datasets:
@@ -310,7 +311,7 @@ class ReplicationBaseTask(Task):
         if not link['recursive']:
             return datasets_to_replicate
 
-        datasets_names = wrap(datasets_to_replicate).query(*[], **{'select': 'name'})
+        datasets_names = q.query(datasets_to_replicate, select='name')
         len_sorted_datasets = sorted(datasets_names, key=lambda item: (len(item), item))
 
         parent_datasets = []
@@ -322,7 +323,7 @@ class ReplicationBaseTask(Task):
 
         result = []
         for dataset in parent_datasets:
-            result.append(wrap(datasets_to_replicate).query(*[('name', '=', dataset)], **{'single': True}))
+            result.append(q.query(datasets_to_replicate, ('name', '=', dataset), single=True))
 
         return result
 
@@ -1100,8 +1101,8 @@ class CalculateReplicationDeltaTask(Task):
             return {
                 'name': snap['name'],
                 'snapshot_name': snap['snapshot_name'],
-                'created_at': datetime.fromtimestamp(int(snap['properties.creation.rawvalue'])),
-                'uuid': snap.get('properties.org\\.freenas:uuid')
+                'created_at': datetime.fromtimestamp(int(q.get(snap, 'properties.creation.rawvalue'))),
+                'uuid': q.get(snap, 'properties.org\\.freenas:uuid')
             }
 
         def extend_with_snapshot_name(snap):
@@ -1123,10 +1124,11 @@ class CalculateReplicationDeltaTask(Task):
 
             local_snapshots = list(map(
                 convert_snapshot,
-                wrap(self.dispatcher.call_sync('zfs.dataset.get_snapshots', localfs))
+                self.dispatcher.call_sync('zfs.dataset.get_snapshots', localfs)
             ))
 
-            remote_snapshots = wrap(snapshots_list).query(
+            remote_snapshots = q.query(
+                snapshots_list,
                 ('name', '~', '^{0}@'.format(remotefs))
             )
 
@@ -1265,7 +1267,7 @@ class ReplicateDatasetTask(ProgressTask):
         remote_client = get_replication_client(self.dispatcher, remote)
 
         def is_replicated(snapshot):
-            if snapshot.get('properties.org\\.freenas:replicate.value') != 'yes':
+            if q.get(snapshot, 'properties.org\\.freenas:replicate.value') != 'yes':
                 # Snapshot is not subject to replication
                 return False
 
@@ -1273,15 +1275,15 @@ class ReplicateDatasetTask(ProgressTask):
 
         self.set_progress(0, 'Reading replication state from remote side...')
 
-        remote_datasets = wrap(remote_client.call_sync(
+        remote_datasets = remote_client.call_sync(
             'zfs.dataset.query',
             [('id', '~', '^{0}(/|$)'.format(remoteds))]
-        ))
+        )
 
-        remote_snapshots = wrap(remote_client.call_sync(
+        remote_snapshots = remote_client.call_sync(
             'zfs.snapshot.query',
             [('id', '~', '^{0}(/|$|@)'.format(remoteds))]
-        ))
+        )
 
         remote_data = []
 
@@ -1291,8 +1293,8 @@ class ReplicateDatasetTask(ProgressTask):
 
             remote_data.append({
                 'name': i['name'],
-                'created_at': datetime.fromtimestamp(int(i['properties.creation.rawvalue'])),
-                'uuid': i.get('properties.org\\.freenas:uuid.value')
+                'created_at': datetime.fromtimestamp(int(q.get(i, 'properties.creation.rawvalue'))),
+                'uuid': q.get(i, 'properties.org\\.freenas:uuid.value')
             })
 
         for i in remote_snapshots:
@@ -1301,8 +1303,8 @@ class ReplicateDatasetTask(ProgressTask):
 
             remote_data.append({
                 'name': i['name'],
-                'created_at': datetime.fromtimestamp(int(i['properties.creation.rawvalue'])),
-                'uuid': i.get('properties.org\\.freenas:uuid.value')
+                'created_at': datetime.fromtimestamp(int(q.get(i, 'properties.creation.rawvalue'))),
+                'uuid': q.get(i, 'properties.org\\.freenas:uuid.value')
             })
 
         (actions, send_size), = self.join_subtasks(self.run_subtask(
@@ -1584,7 +1586,7 @@ def get_services(dispatcher, service, relation, link_name):
         dataset_path = dispatcher.call_sync('volume.get_dataset_path', dataset['name'])
         s = dispatcher.call_sync('{0}.get_dependencies'.format(service), dataset_path, False, False)
         if relation == 'reserved':
-            s = wrap(s).query(('immutable', '=', True))
+            s = q.query(s, ('immutable', '=', True))
         services.extend(s)
 
     return services
@@ -1592,7 +1594,7 @@ def get_services(dispatcher, service, relation, link_name):
 
 def get_replication_resources(dispatcher, link):
     resources = ['replication']
-    datasets = wrap(dispatcher.call_sync('replication.link.datasets_from_link', link)).query(*[], **{'select': 'name'})
+    datasets = q.query(dispatcher.call_sync('replication.link.datasets_from_link', link), select='name')
     for dataset in datasets:
         resources.append('zfs:{0}'.format(dataset))
     return resources

@@ -33,8 +33,7 @@ import ctl
 from task import Task, Provider, VerifyException, TaskDescription, TaskException
 from freenas.dispatcher.rpc import RpcException, description, accepts, returns, private, generator
 from freenas.dispatcher.rpc import SchemaHelper as h
-from freenas.utils import normalize
-from freenas.utils.query import wrap
+from freenas.utils import normalize, query as q
 
 
 @description("Provides info about configured iSCSI shares")
@@ -60,8 +59,8 @@ class ISCSISharesProvider(Provider):
 
     @returns(str)
     def generate_serial(self):
-        nic = wrap(self.dispatcher.call_sync('network.interface.query', [('type', '=', 'ETHER')], {'single': True}))
-        laddr = nic['status.link_address'].replace(':', '')
+        nic = self.dispatcher.call_sync('network.interface.query', [('type', '=', 'ETHER')], {'single': True})
+        laddr = q.get(nic, 'status.link_address').replace(':', '')
         idx = 0
 
         while True:

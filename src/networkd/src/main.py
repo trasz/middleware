@@ -45,7 +45,6 @@ from datastore import get_datastore, DatastoreException
 from datastore.config import ConfigStore
 from freenas.dispatcher.client import Client, ClientError
 from freenas.dispatcher.rpc import RpcService, RpcException, private
-from freenas.utils.query import wrap
 from freenas.utils.debug import DebugService
 from freenas.utils import configure_logging, first_or_default
 from functools import reduce
@@ -407,7 +406,7 @@ class ConfigurationService(RpcService):
 
     def query_routes(self):
         rtable = netif.RoutingTable()
-        return list(wrap(rtable.routes))
+        return [r.__getstate__() for r in rtable.routes]
 
     def configure_network(self):
         if self.config.get('network.autoconfigure'):

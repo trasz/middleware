@@ -43,8 +43,7 @@ from task import (
     Task
 )
 
-from freenas.utils.query import wrap
-from freenas.utils import normalize
+from freenas.utils import normalize, query as q
 
 logger = logging.getLogger('DirectoryServicePlugin')
 
@@ -57,9 +56,12 @@ class DirectoryServicesProvider(Provider):
             directory['status'] = self.dispatcher.call_sync('dscached.management.get_status', directory['id'])
             return directory
 
-        return wrap(
-            self.datastore.query('directories', callback=extend)
-        ).query(*(filter or []), stream=True, **(params or {}))
+        return q.query(
+            self.datastore.query('directories', callback=extend),
+            *(filter or []),
+            stream=True,
+            **(params or {})
+        )
 
 
 class DirectoryServicesConfigureTask(Task):

@@ -37,7 +37,7 @@ import pymongo.errors
 import pymongo.cursor
 from six import string_types
 from datastore import DatastoreException, DuplicateKeyException
-from freenas.utils.query import wrap
+from freenas.utils.query import get
 
 
 def auto_retry(fn):
@@ -287,13 +287,12 @@ class MongodbDatastore(object):
         if select:
             def select_fn(fn, obj):
                 obj = fn(obj) if fn else obj
-                obj = wrap(obj)
 
                 if isinstance(select, (list, tuple)):
-                    return [obj.get(i) for i in select]
+                    return [get(obj, i) for i in select]
 
                 if isinstance(select, str):
-                    return obj.get(select)
+                    return get(obj, select)
 
             old = postprocess
             postprocess = lambda o: select_fn(old, o)

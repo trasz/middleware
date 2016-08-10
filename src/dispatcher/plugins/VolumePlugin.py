@@ -53,8 +53,7 @@ from freenas.dispatcher.rpc import (
 )
 from utils import first_or_default, load_config
 from datastore import DuplicateKeyException
-from freenas.utils import include, exclude, normalize, chunks, yesno_to_bool, remove_unchanged
-from freenas.utils.query import wrap
+from freenas.utils import include, exclude, normalize, chunks, yesno_to_bool, remove_unchanged, query as q
 from freenas.utils.copytree import count_files, copytree
 from cryptography.fernet import Fernet, InvalidToken
 
@@ -99,7 +98,7 @@ class VolumeProvider(Provider):
     @generator
     def query(self, filter=None, params=None):
         def is_upgraded(pool):
-            if pool['properties.version.value'] != '-':
+            if q.get(pool, 'properties.version.value') != '-':
                 return False
 
             for feat in pool['features']:
@@ -109,7 +108,7 @@ class VolumeProvider(Provider):
             return True
 
         def extend(vol):
-            config = wrap(self.dispatcher.call_sync('zfs.pool.query', [('id', '=', vol['id'])], {'single': True}))
+            config = self.dispatcher.call_sync('zfs.pool.query', [('id', '=', vol['id'])], {'single': True})
             if not config:
                 vol['status'] = 'UNKNOWN'
             else:
@@ -143,8 +142,8 @@ class VolumeProvider(Provider):
 
                 if config['status'] != 'UNAVAIL':
                     vol.update({
-                        'description': config.get('root_dataset.properties.org\\.freenas:description.value'),
-                        'mountpoint': config['root_dataset.properties.mountpoint.value'],
+                        'description': q.get(config, 'root_dataset.properties.org\\.freenas:description.value'),
+                        'mountpoint': q.get(config, 'root_dataset.properties.mountpoint.value'),
                         'upgraded': is_upgraded(config),
                     })
 
@@ -178,9 +177,12 @@ class VolumeProvider(Provider):
 
             return vol
 
-        return wrap(
-            self.datastore.query_stream('volumes', callback=extend)
-        ).query(*(filter or []), stream=True, **(params or {}))
+        return q.query(
+            self.datastore.query_stream('volumes', callback=extend),
+            *(filter or []),
+            stream=True,
+            **(params or {})
+        )
 
     @description("Finds volumes available for import")
     @accepts()
@@ -221,7 +223,7 @@ class VolumeProvider(Provider):
     def find_media(self):
         result = []
 
-        for disk in wrap(self.dispatcher.call_sync('disk.query', [('path', 'in', self.get_available_disks())])):
+        for disk in self.dispatcher.call_sync('disk.query', [('path', 'in', self.get_available_disks())]):
             # Try whole disk first
             typ, label = fstyp(disk['path'])
             if typ:
@@ -233,7 +235,7 @@ class VolumeProvider(Provider):
                 })
                 continue
 
-            for part in disk['status.partitions']:
+            for part in q.get(disk, 'status.partitions'):
                 path = part['paths'][0]
                 typ, label = fstyp(path)
                 if typ:
@@ -602,7 +604,8 @@ class VolumeAutoCreateTask(Task):
                 key=lambda item: (not item['status']['is_ssd'], item['mediasize'], item['status']['max_rotation']),
                 reverse=True
             )
-            disks = wrap(available_disks).query(
+            disks = q.query(
+                available_disks,
                 ('status.is_ssd', '=', available_disks[0]['status']['is_ssd']),
                 ('status.max_rotation', '=', available_disks[0]['status']['max_rotation']),
                 ('mediasize', '=', available_disks[0]['mediasize']),
@@ -2074,7 +2077,7 @@ class DatasetConfigureTask(Task):
             raise TaskException(errno.ENOENT, 'Volume {0} not found'.format(pool_name))
 
         pool_name, _, _ = id.partition('/')
-        ds = wrap(self.dispatcher.call_sync('zfs.dataset.query', [('id', '=', id)], {'single': True}))
+        ds = self.dispatcher.call_sync('zfs.dataset.query', [('id', '=', id)], {'single': True})
 
         if not ds:
             raise TaskException(errno.ENOENT, 'Dataset {0} not found'.format(id))
@@ -2630,7 +2633,6 @@ def _init(dispatcher, plugin):
     boot_pool = dispatcher.call_sync('zfs.pool.get_boot_pool')
 
     def convert_snapshot(snapshot):
-        snapshot = wrap(snapshot)
         dataset, _, name = snapshot['name'].partition('@')
         pool = dataset.partition('/')[0]
         lifetime = None
@@ -2639,7 +2641,7 @@ def _init(dispatcher, plugin):
             return None
 
         try:
-            lifetime = int(snapshot.get('properties.org\\.freenas:lifetime.value'))
+            lifetime = int(q.get(snapshot, 'properties.org\\.freenas:lifetime.value'))
         except (ValueError, TypeError):
             pass
 
@@ -2649,7 +2651,7 @@ def _init(dispatcher, plugin):
             'dataset': dataset,
             'name': name,
             'lifetime': lifetime,
-            'replicable': yesno_to_bool(snapshot.get('properties.org\\.freenas:replicable.value')),
+            'replicable': yesno_to_bool(q.get(snapshot, 'properties.org\\.freenas:replicable.value')),
             'properties': include(
                 snapshot['properties'],
                 'used', 'referenced', 'compressratio', 'clones', 'creation'
@@ -2658,7 +2660,6 @@ def _init(dispatcher, plugin):
         }
 
     def convert_dataset(ds):
-        ds = wrap(ds)
         perms = None
 
         if ds['pool'] == boot_pool['id']:
@@ -2671,9 +2672,9 @@ def _init(dispatcher, plugin):
                 pass
 
         temp_mountpoint = None
-        if ds.get('properties.readonly.parsed') and ds.get('properties.mounted.value') == 'yes':
+        if q.get(ds, 'properties.readonly.parsed') and q.get(ds, 'properties.mounted.value') == 'yes':
             for mnt in bsd.getmntinfo():
-                if mnt.source == ds['name'] and mnt.dest != ds.get('properties.mountpoint.parsed'):
+                if mnt.source == ds['name'] and mnt.dest != q.get(ds, 'properties.mountpoint.parsed'):
                     temp_mountpoint = mnt.dest
                     break
 
@@ -2683,10 +2684,10 @@ def _init(dispatcher, plugin):
             'rname': 'zfs:{0}'.format(ds['id']),
             'volume': ds['pool'],
             'type': ds['type'],
-            'mountpoint': ds.get('properties.mountpoint.value'),
+            'mountpoint': q.get(ds, 'properties.mountpoint.value'),
             'temp_mountpoint': temp_mountpoint,
-            'mounted': yesno_to_bool(ds.get('properties.mounted.value')),
-            'volsize': ds.get('properties.volsize.parsed'),
+            'mounted': yesno_to_bool(q.get(ds, 'properties.mounted.value')),
+            'volsize': q.get(ds, 'properties.volsize.parsed'),
             'properties': include(
                 ds['properties'],
                 'used', 'available', 'compression', 'atime', 'dedup',
@@ -2696,7 +2697,7 @@ def _init(dispatcher, plugin):
                 'usedbyrefreservation', 'usedbysnapshots', 'usedbydataset',
                 'usedbychildren', 'logicalused', 'logicalreferenced', 'readonly'
             ),
-            'permissions_type': ds.get('properties.org\\.freenas:permissions_type.value'),
+            'permissions_type': q.get(ds, 'properties.org\\.freenas:permissions_type.value'),
             'permissions': perms['permissions'] if perms else None
         }
 
@@ -2753,7 +2754,7 @@ def _init(dispatcher, plugin):
                         'mountpoint': {'value': os.path.join(VOLUMES_ROOT, i['name'])}
                     })
 
-                    if i['properties.altroot.source'] != 'DEFAULT':
+                    if q.get(i, 'properties.altroot.source') != 'DEFAULT':
                         # Ouch. That pool is created or imported with altroot.
                         # We need to export and reimport it to remove altroot property
                         dispatcher.call_task_sync('zfs.pool.export', i['name'])
@@ -2802,8 +2803,7 @@ def _init(dispatcher, plugin):
             gevent.sleep(interval)
             ts = int(time.time())
             for snap in dispatcher.call_sync('volume.snapshot.query'):
-                snap = wrap(snap)
-                creation = int(snap['properties.creation.rawvalue'])
+                creation = int(q.get(snap, 'properties.creation.rawvalue'))
                 lifetime = snap['lifetime']
 
                 if lifetime is None:

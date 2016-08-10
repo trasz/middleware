@@ -30,9 +30,8 @@ import errno
 from freenas.dispatcher.rpc import description, accepts, returns, private
 from freenas.dispatcher.rpc import SchemaHelper as h, generator
 from task import Task, TaskException, TaskDescription, VerifyException, Provider, RpcException, query, TaskWarning
-from freenas.utils import normalize, in_directory, remove_unchanged
+from freenas.utils import normalize, in_directory, remove_unchanged, query as q
 from utils import split_dataset, save_config, load_config, delete_config
-from freenas.utils.query import wrap
 
 
 @description("Provides information on shares")
@@ -53,9 +52,12 @@ class SharesProvider(Provider):
             share['permissions'] = perms['permissions'] if perms else None
             return share
 
-        return wrap(
-            self.datastore.query('shares', callback=extend)
-        ).query(*(filter or []), stream=True, **(params or {}))
+        return q.query(
+            self.datastore.query('shares', callback=extend),
+            *(filter or []),
+            stream=True,
+            **(params or {})
+        )
 
     @description("Returns list of supported sharing providers")
     @accepts()

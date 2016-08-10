@@ -63,6 +63,7 @@ from freenas.dispatcher.client import Client, ClientError
 from freenas.dispatcher.rpc import RpcService, RpcException, private, generator
 from freenas.utils.debug import DebugService
 from freenas.utils import first_or_default, configure_logging
+from freenas.utils.query import get
 from vnc import app
 from mgmt import ManagementNetwork
 from ec2 import EC2MetadataServer
@@ -853,7 +854,7 @@ class ServerResource(Resource):
             raise Exception("No apps defined")
 
         if 'wsgi.websocket' in environ:
-            ws = environ['wsgi.websocket']
+            ws = get(environ, 'wsgi.websocket')
             current_app = current_app(ws, self.context)
             current_app.ws = ws  # TODO: needed?
             current_app.handle()

@@ -40,8 +40,7 @@ from bsd import geom, getswapinfo
 from gevent.lock import RLock
 from resources import Resource
 from datetime import datetime, timedelta
-from freenas.utils import first_or_default
-from freenas.utils.query import wrap
+from freenas.utils import first_or_default, query as q
 from cam import CamDevice
 from cache import CacheStore
 from lib.geom import confxml
@@ -94,9 +93,12 @@ class DiskProvider(Provider):
             disk['rname'] = 'disk:{0}'.format(disk['path'])
             return disk
 
-        return wrap(
-            self.datastore.query('disks', callback=extend)
-        ).query(*(filter or []), stream=True, **(params or {}))
+        return q.query(
+            self.datastore.query('disks', callback=extend),
+            *(filter or []),
+            stream=True,
+            **(params or {})
+        )
 
     @accepts(str)
     @returns(bool)
@@ -981,14 +983,14 @@ def get_disk_by_path(path):
             return disk
 
         if disk['is_multipath']:
-            if path in disk['multipath.members']:
+            if path in q.get(disk, 'multipath.members'):
                 return disk
 
     return None
 
 
 def get_disk_by_lunid(lunid):
-    return wrap(first_or_default(lambda d: d['lunid'] == lunid, diskinfo_cache.validvalues()))
+    return first_or_default(lambda d: d['lunid'] == lunid, diskinfo_cache.validvalues())
 
 
 def clean_multipaths(dispatcher):
@@ -1055,21 +1057,21 @@ def attach_to_multipath(dispatcher, disk, ds_disk, path):
     elif disk:
         logger.info("Device node %s is another path to disk <%s> (%s)", path, disk['id'], disk['description'])
         if disk['is_multipath']:
-            if path in disk['multipath.members']:
+            if path in q.get(disk, 'multipath.members'):
                 # Already added
                 return
 
             # Attach new disk
             try:
-                system('/sbin/gmultipath', 'add', disk['multipath.node'], path)
+                system('/sbin/gmultipath', 'add', q.get(disk, 'multipath.node'), path)
             except SubprocessException as e:
                 logger.warning('Cannot attach {0} to multipath: {0}'.format(path, e.err))
                 return
 
-            nodename = disk['multipath.node']
+            nodename = q.get(disk, 'multipath.node')
             ret = {
                 'is_multipath': True,
-                'path': os.path.join('/dev/multipath', disk['multipath.node']),
+                'path': os.path.join('/dev/multipath', q.get(disk, 'multipath.node')),
             }
         else:
             # Create new multipath
@@ -1267,7 +1269,7 @@ def generate_disk_cache(dispatcher, path):
     except RuntimeError:
         camdev = None
 
-    disk = wrap({
+    disk = {
         'path': path,
         'is_multipath': False,
         'description': provider.config['descr'],
@@ -1278,7 +1280,7 @@ def generate_disk_cache(dispatcher, path):
         'is_ssd': disk_info['is_ssd'],
         'id': identifier,
         'controller': camdev.__getstate__() if camdev else None,
-    })
+    }
 
     if multipath_info:
         disk.update(multipath_info)
@@ -1303,10 +1305,10 @@ def purge_disk_cache(dispatcher, path):
     if disk['is_multipath']:
         # Looks like one path was removed
         logger.info('Path %s to disk <%s> (%s) was removed', path, disk['id'], disk['description'])
-        disk['multipath.members'].remove(path)
+        q.get(disk, 'multipath.members').remove(path)
 
         # Was this last path?
-        if len(disk['multipath.members']) == 0:
+        if len(q.get(disk, 'multipath.members')) == 0:
             logger.info('Disk %s <%s> (%s) was removed (last path is gone)', path, disk['id'], disk['description'])
             diskinfo_cache.remove(disk['id'])
             delete = True

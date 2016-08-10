@@ -31,8 +31,7 @@ import logging
 import os
 from freenas.dispatcher.rpc import RpcException, description, accepts, returns, generator
 from freenas.dispatcher.rpc import SchemaHelper as h
-from freenas.utils import normalize
-from freenas.utils.query import wrap
+from freenas.utils import normalize, query as q
 from datastore.config import ConfigNode
 from gevent import hub
 from task import Provider, Task, TaskException, TaskDescription, query, TaskWarning
@@ -89,9 +88,12 @@ class InterfaceProvider(Provider):
                 return None
             return i
 
-        return wrap(
-            self.datastore.query('network.interfaces', callback=extend)
-        ).query(*(filter or []), stream=True, **(params or {}))
+        return q.query(
+            self.datastore.query('network.interfaces', callback=extend),
+            *(filter or []),
+            stream=True,
+            **(params or {})
+        )
 
 
 @description("Provides information on system's network routes")
@@ -124,7 +126,6 @@ class NetworkConfigureTask(Task):
         return ['system']
 
     def run(self, settings):
-        settings = wrap(settings)
         node = ConfigNode('network', self.configstore)
         node.update(settings)
         dhcp_used = self.datastore.exists('network.interfaces', ('dhcp', '=', True))

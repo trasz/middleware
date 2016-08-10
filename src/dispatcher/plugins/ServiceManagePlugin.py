@@ -31,15 +31,14 @@ import gevent
 import gevent.pool
 import logging
 
-from task import Task, Provider, TaskException, TaskDescription, VerifyException, ValidationException, query
+from task import Task, Provider, TaskException, TaskDescription, ValidationException, query
 from debug import AttachFile, AttachCommandOutput
 from resources import Resource
 from freenas.dispatcher.rpc import RpcException, description, accepts, private, returns, generator
 from freenas.dispatcher.rpc import SchemaHelper as h
 from datastore.config import ConfigNode
 from lib.system import system, SubprocessException
-from freenas.utils import extend as extend_dict
-from freenas.utils.query import wrap
+from freenas.utils import extend as extend_dict, query as q
 
 
 logger = logging.getLogger('ServiceManagePlugin')
@@ -89,8 +88,8 @@ class ServiceInfoProvider(Provider):
                 return greenlet.value
 
         result = group.map(result, jobs)
-        result = list(map(lambda s: extend_dict(s, {'config': wrap(self.get_service_config(s['id']))}), result))
-        return wrap(result).query(*(filter or []), stream=True, **(params or {}))
+        result = list(map(lambda s: extend_dict(s, {'config': self.get_service_config(s['id'])}), result))
+        return q.query(result, *(filter or []), stream=True, **(params or {}))
 
     @accepts(str)
     @returns(h.object())

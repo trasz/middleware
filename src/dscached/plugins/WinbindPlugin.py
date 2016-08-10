@@ -40,7 +40,7 @@ from plugin import DirectoryServicePlugin, DirectoryState, params, status
 from utils import obtain_or_renew_ticket, have_ticket
 from freenas.dispatcher.rpc import SchemaHelper as h
 from freenas.utils import normalize
-from freenas.utils.query import wrap
+from freenas.utils.query import query
 
 
 AD_REALM_ID = uuid.UUID('01a35b82-0168-11e6-88d6-0cc47a3511b4')
@@ -258,7 +258,8 @@ class WinbindPlugin(DirectoryServicePlugin):
             logger.debug('getpwent: not joined')
             return []
 
-        return wrap([self.convert_user(i) for i in self.wbc.query_users(self.domain_name)]).query(
+        return query(
+            [self.convert_user(i) for i in self.wbc.query_users(self.domain_name)],
             *(filter or []),
             **(params or {})
         )
@@ -298,7 +299,8 @@ class WinbindPlugin(DirectoryServicePlugin):
             logger.debug('getgrent: not joined')
             return []
 
-        return wrap(self.convert_group(i) for i in self.wbc.query_groups(self.domain_name)).query(
+        return query(
+            [self.convert_group(i) for i in self.wbc.query_groups(self.domain_name)],
             *(filter or []),
             **(params or {})
         )

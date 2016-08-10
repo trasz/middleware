@@ -29,8 +29,7 @@ import dockerhub
 from task import Provider, Task, ProgressTask, TaskDescription
 from cache import EventCacheStore
 from datastore.config import ConfigNode
-from freenas.utils import normalize
-from freenas.utils.query import wrap
+from freenas.utils import normalize, query as q
 from freenas.dispatcher.rpc import generator, accepts, returns, SchemaHelper as h, RpcException
 
 
@@ -64,21 +63,21 @@ class DockerHostProvider(Provider):
             return ret
 
         results = self.datastore.query('vms', ('config.docker_host', '=', True), callback=extend)
-        return wrap(results).query(*(filter or []), stream=True, **(params or {}))
+        return q.query(results, *(filter or []), stream=True, **(params or {}))
 
 
 class DockerContainerProvider(Provider):
     @generator
     def query(self, filter=None, params=None):
-        containers = wrap(self.dispatcher.call_sync('containerd.docker.query_containers'))
-        return containers.query(*(filter or []), stream=True, **(params or {}))
+        containers = self.dispatcher.call_sync('containerd.docker.query_containers')
+        return q.query(containers, *(filter or []), stream=True, **(params or {}))
 
 
 class DockerImagesProvider(Provider):
     @generator
     def query(self, filter=None, params=None):
-        containers = wrap(self.dispatcher.call_sync('containerd.docker.query_images'))
-        return containers.query(*(filter or []), stream=True, **(params or {}))
+        containers = self.dispatcher.call_sync('containerd.docker.query_images')
+        return q.query(containers, *(filter or []), stream=True, **(params or {}))
 
     @generator
     def search(self, term):

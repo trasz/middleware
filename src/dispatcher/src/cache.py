@@ -27,7 +27,7 @@
 
 from gevent.event import Event
 from gevent.lock import RLock
-from freenas.utils.query import wrap
+from freenas.utils.query import query
 from sortedcontainers import SortedDict
 
 
@@ -138,7 +138,7 @@ class CacheStore(object):
         return result
 
     def query(self, *filter, **params):
-        return wrap(list(self.validvalues())).query(*filter, **params)
+        return query(list(self.validvalues()), *filter, **params)
 
 
 class EventCacheStore(CacheStore):

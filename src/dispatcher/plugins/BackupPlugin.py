@@ -36,8 +36,7 @@ from freenas.dispatcher.jsonenc import dumps, loads
 from freenas.dispatcher.fd import FileDescriptor
 from freenas.dispatcher.rpc import RpcException, accepts, returns, description, SchemaHelper as h, generator
 from task import Provider, Task, ProgressTask, TaskException, TaskDescription
-from freenas.utils import normalize, first_or_default
-from freenas.utils.query import wrap
+from freenas.utils import normalize, first_or_default, query as q
 
 
 logger = logging.getLogger(__name__)
@@ -229,18 +228,18 @@ class BackupSyncTask(ProgressTask):
         def make_snapshot_entry(action):
             snapname = '{0}@{1}'.format(action['localfs'], action['snapshot'])
             filename = hashlib.md5(snapname.encode('utf-8')).hexdigest()
-            snap = wrap(self.dispatcher.call_sync(
+            snap = self.dispatcher.call_sync(
                 'volume.snapshot.query',
                 [('id', '=', snapname)],
                 {'single': True}
-            ))
+            )
 
             return {
                 'name': snapname,
                 'anchor': action.get('anchor'),
                 'incremental': action['incremental'],
-                'created_at': datetime.fromtimestamp(int(snap['properties.creation.rawvalue'])),
-                'uuid': snap.get('properties.org\\.freenas:uuid.value'),
+                'created_at': datetime.fromtimestamp(int(q.get(snap, 'properties.creation.rawvalue'))),
+                'uuid': q.get(snap, 'properties.org\\.freenas:uuid.value'),
                 'filename': filename
             }
 

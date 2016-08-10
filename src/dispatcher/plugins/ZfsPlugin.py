@@ -45,8 +45,7 @@ from freenas.dispatcher.jsonenc import dumps
 from balancer import TaskState
 from resources import Resource
 from debug import AttachData, AttachCommandOutput
-from freenas.utils import first_or_default
-from freenas.utils.query import wrap
+from freenas.utils import first_or_default, query as q
 
 
 VOLATILE_ZFS_PROPERTIES = [
@@ -219,8 +218,8 @@ class ZfsDatasetProvider(Provider):
         try:
             zfs = get_zfs()
             ds = zfs.get_dataset(dataset_name)
-            snaps = threadpool.apply(lambda: [wrap(d.__getstate__(False)) for d in ds.snapshots])
-            snaps.sort(key=lambda s: int(s['properties.creation.rawvalue']))
+            snaps = threadpool.apply(lambda: [d.__getstate__(False) for d in ds.snapshots])
+            snaps.sort(key=lambda s: int(q.get(s, 'properties.creation.rawvalue')))
             return snaps
         except libzfs.ZFSException as err:
             if err.code == libzfs.Error.NOENT:
@@ -1209,7 +1208,7 @@ def get_disk_names(dispatcher, pool):
 def sync_zpool_cache(dispatcher, pool, guid=None):
     zfs = get_zfs()
     try:
-        zfspool = wrap(zfs.get(pool).__getstate__(False))
+        zfspool = zfs.get(pool).__getstate__(False)
         pools.put(pool, zfspool)
         zpool_sync_resources(dispatcher, pool)
     except libzfs.ZFSException as e:
@@ -1233,13 +1232,13 @@ def sync_dataset_cache(dispatcher, dataset, old_dataset=None, recursive=False):
         if old_dataset:
             datasets.rename(old_dataset, dataset)
 
-        if datasets.put(dataset, wrap(ds.__getstate__(recursive=False))):
+        if datasets.put(dataset, ds.__getstate__(recursive=False)):
             dispatcher.register_resource(
                 Resource('zfs:{0}'.format(dataset)),
                 parents=['zpool:{0}'.format(pool)])
 
         ds_snapshots = {}
-        for i in threadpool.apply(lambda: [wrap(d.__getstate__(False)) for d in ds.snapshots]):
+        for i in threadpool.apply(lambda: [d.__getstate__(False) for d in ds.snapshots]):
             name = i['name']
             try:
                 ds_snapshots[name] = i
@@ -1276,7 +1275,7 @@ def sync_snapshot_cache(dispatcher, snapshot, old_snapshot=None):
         if old_snapshot:
             snapshots.rename(old_snapshot, snapshot)
 
-        snapshots.put(snapshot, wrap(zfs.get_snapshot(snapshot).__getstate__()))
+        snapshots.put(snapshot, zfs.get_snapshot(snapshot).__getstate__())
     except libzfs.ZFSException as e:
         if e.code == libzfs.Error.NOENT:
             snapshots.remove(snapshot)
@@ -1471,7 +1470,7 @@ def _init(dispatcher, plugin):
             gevent.sleep(interval)
             with dispatcher.get_lock('zfs-cache'):
                 for key, i in pools.itervalid():
-                    zfspool = wrap(zfs.get(key).__getstate__(False))
+                    zfspool = zfs.get(key).__getstate__(False)
                     if zfspool != i:
                         pools.put(key, zfspool)
 
@@ -1482,7 +1481,7 @@ def _init(dispatcher, plugin):
 
                     for prop in VOLATILE_ZFS_PROPERTIES:
                         if props[prop]['rawvalue'] != ds.properties[prop].rawvalue:
-                            props[prop] = wrap(ds.properties[prop].__getstate__())
+                            props[prop] = ds.properties[prop].__getstate__()
                             changed = True
 
                     if changed:
@@ -1719,7 +1718,7 @@ def _init(dispatcher, plugin):
         snapshots = EventCacheStore(dispatcher, 'zfs.snapshot', snap_sort_func)
 
         pools_dict = {}
-        for i in threadpool.apply(lambda: [wrap(p.__getstate__(False)) for p in zfs.pools]):
+        for i in threadpool.apply(lambda: [p.__getstate__(False) for p in zfs.pools]):
             name = i['name']
             pools_dict[name] = i
             zpool_sync_resources(dispatcher, name)
@@ -1727,7 +1726,7 @@ def _init(dispatcher, plugin):
 
         logger.info("Syncing ZFS datasets...")
         datasets_dict = {}
-        for i in threadpool.apply(lambda: [wrap(d.__getstate__(False)) for d in zfs.datasets]):
+        for i in threadpool.apply(lambda: [d.__getstate__(False) for d in zfs.datasets]):
             name = i['id']
             datasets_dict[name] = i
             dispatcher.register_resource(
@@ -1737,7 +1736,7 @@ def _init(dispatcher, plugin):
 
         logger.info("Syncing ZFS snapshots...")
         snapshots_dict = {}
-        for i in threadpool.apply(lambda: [wrap(s.__getstate__(False)) for s in zfs.snapshots]):
+        for i in threadpool.apply(lambda: [s.__getstate__(False) for s in zfs.snapshots]):
             snapshots_dict[i['id']] = i
         snapshots.update(**snapshots_dict)
 

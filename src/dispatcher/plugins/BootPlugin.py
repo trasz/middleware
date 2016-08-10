@@ -35,8 +35,7 @@ from task import Provider, Task, ProgressTask, TaskException, query, TaskDescrip
 from cache import EventCacheStore
 from utils import split_dataset
 from freenas.dispatcher.rpc import accepts, returns, description, SchemaHelper as h, generator
-from freenas.utils import first_or_default
-from freenas.utils.query import wrap
+from freenas.utils import first_or_default, query as q
 
 sys.path.append('/usr/local/lib')
 from freenasOS.Update import (
@@ -169,8 +168,8 @@ class BootAttachDisk(ProgressTask):
         return ['zpool:{0}'.format(boot_pool_name), 'disk:{0}'.format(disk)]
 
     def run(self, disk):
-        pool = wrap(self.dispatcher.call_sync('boot.pool.get_config'))
-        guid = pool['groups.data.0.guid']
+        pool = self.dispatcher.call_sync('boot.pool.get_config')
+        guid = q.get(pool, 'groups.data.0.guid')
         disk_id = self.dispatcher.call_sync('disk.path_to_id', disk)
 
         # Format disk
@@ -210,8 +209,11 @@ class BootDetachDisk(Task):
         return ['zpool:{0}'.format(boot_pool_name)]
 
     def run(self, disk):
-        pool = wrap(self.dispatcher.call_sync('boot.pool.get_config'))
-        vdev = first_or_default(lambda v: os.path.join(disk, '/dev') == v['path'], pool['groups.data.0.children'])
+        pool = self.dispatcher.call_sync('boot.pool.get_config')
+        vdev = first_or_default(
+            lambda v: os.path.join(disk, '/dev') == v['path'],
+            q.get(pool, 'groups.data.0.children')
+        )
         if not vdev:
             raise TaskException(errno.ENOENT, 'Disk {0} not found in the boot pool'.format(disk))
 
@@ -254,12 +256,12 @@ def _init(dispatcher, plugin):
 
         return {
             'active': root_mount.source == ds['id'],
-            'on_reboot': boot_pool['properties.bootfs.value'] == ds['id'],
-            'id': ds.get('properties.beadm:nickname.value', path[-1]),
-            'space': int(ds['properties.used.rawvalue']),
+            'on_reboot': q.get(boot_pool, 'properties.bootfs.value') == ds['id'],
+            'id': q.get(ds, 'properties.beadm:nickname.value', path[-1]),
+            'space': int(q.get(ds, 'properties.used.rawvalue')),
             'realname': path[-1],
             'mountpoint': ds.get('mountpoint'),
-            'created': datetime.fromtimestamp(int(ds['properties.creation.rawvalue']))
+            'created': datetime.fromtimestamp(int(q.get(ds, 'properties.creation.rawvalue')))
         }
 
     def on_pool_change(args):
@@ -272,7 +274,7 @@ def _init(dispatcher, plugin):
                     continue
 
                 be = bootenvs.query(('on_reboot', '=', True), single=True)
-                be_realname = i['properties.bootfs.value'].split('/')[-1]
+                be_realname = q.get(i, 'properties.bootfs.value').split('/')[-1]
 
                 if be and be_realname == be['realname']:
                     return
@@ -312,7 +314,7 @@ def _init(dispatcher, plugin):
                     if not ds:
                         continue
 
-                    nickname = i.get('properties.beadm:nickname.value', realname)
+                    nickname = q.get(i, 'properties.beadm:nickname.value', realname)
                     if nickname and nickname != ds['id']:
                         bootenvs.rename(ds['id'], nickname)
 

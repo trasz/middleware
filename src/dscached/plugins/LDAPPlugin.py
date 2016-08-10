@@ -33,6 +33,7 @@ import threading
 from plugin import DirectoryServicePlugin
 from utils import obtain_or_renew_ticket, join_dn, dn_to_domain, domain_to_dn
 from freenas.utils import first_or_default
+from freenas.utils.query import get
 
 
 LDAP_USER_UUID = uuid.UUID('ACA6D9B8-AF83-49D9-9BD7-A5E771CE17EB')
@@ -65,28 +66,28 @@ class LDAPPlugin(DirectoryServicePlugin):
 
     def get_id(self, entry):
         if 'entryUUID' in entry:
-            return entry['entryUUID.0']
+            return get(entry, 'entryUUID.0')
 
         if 'uidNumber' in entry:
-            return uuid.uuid5(LDAP_USER_UUID, entry['uidNumber.0'])
+            return uuid.uuid5(LDAP_USER_UUID, get(entry, 'uidNumber.0'))
 
         if 'gidNumber' in entry:
-            return uuid.uuid5(LDAP_GROUP_UUID, entry['gidNumber.0'])
+            return uuid.uuid5(LDAP_GROUP_UUID, get(entry, 'gidNumber.0'))
 
         return uuid.uuid4()
 
     def convert_user(self, entry):
         return {
             'id': self.get_id(entry),
-            'sid': entry.get('sambaSID.0'),
-            'uid': int(entry['uidNumber.0']),
+            'sid': get(entry, 'sambaSID.0'),
+            'uid': int(get(entry, 'uidNumber.0')),
             'builtin': False,
-            'username': entry['uid.0'],
-            'full_name': entry.get('gecos.0', entry.get('displayName.0', '<unknown>')),
-            'shell': entry.get('loginShell.0', '/bin/sh'),
-            'home': entry.get('homeDirectory.0', '/nonexistent'),
-            'nthash': entry.get('sambaNTPassword.0'),
-            'lmhash': entry.get('sambaLMPassword.0'),
+            'username': get(entry, 'uid.0'),
+            'full_name': get(entry, 'gecos.0', get(entry, 'displayName.0', '<unknown>')),
+            'shell': get(entry, 'loginShell.0', '/bin/sh'),
+            'home': get(entry, 'homeDirectory.0', '/nonexistent'),
+            'nthash': get(entry, 'sambaNTPassword.0'),
+            'lmhash': get(entry, 'sambaLMPassword.0'),
             'groups': [],
             'sudo': False
         }
@@ -94,9 +95,9 @@ class LDAPPlugin(DirectoryServicePlugin):
     def convert_group(self, entry):
         return {
             'id': self.get_id(entry),
-            'gid': int(entry['gidNumber.0']),
-            'sid': entry.get('sambaSID.0'),
-            'name': entry['uid.0'],
+            'gid': int(get(entry, 'gidNumber.0')),
+            'sid': get(entry, 'sambaSID.0'),
+            'name': get(entry, 'uid.0'),
             'builtin': False,
             'sudo': False
         }

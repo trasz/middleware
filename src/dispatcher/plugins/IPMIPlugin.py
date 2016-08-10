@@ -35,7 +35,7 @@ from freenas.dispatcher.rpc import SchemaHelper as h
 from task import Provider, Task, TaskException, query, TaskDescription
 from lib.system import system, SubprocessException
 from bsd import kld
-from freenas.utils.query import wrap
+from freenas.utils import query as q
 
 
 RE_ATTRS = re.compile(r'^(?P<key>^.+?)\s+?:\s+?(?P<val>.+?)\r?$', re.M)
@@ -84,7 +84,7 @@ class IPMIProvider(Provider):
             ret['dhcp'] = True if ret['dhcp'] == 'DHCP Address' else False
             result.append(ret)
 
-        return wrap(result).query(*(filter or []), stream=True, **(params or {}))
+        return q.query(result, *(filter or []), stream=True, **(params or {}))
 
 
 @accepts(int, h.ref('ipmi-configuration'))

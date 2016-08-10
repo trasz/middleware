@@ -35,7 +35,7 @@ from datastore import DatastoreException
 from freenas.dispatcher.rpc import RpcException, description, accepts, generator
 from freenas.dispatcher.rpc import SchemaHelper as h
 from task import Provider, Task, TaskException, VerifyException, query, TaskDescription
-from freenas.utils.query import wrap
+from freenas.utils import query as q
 
 from OpenSSL import crypto
 
@@ -107,9 +107,12 @@ class CertificateProvider(Provider):
 
             return certificate
 
-        return wrap(
-            self.datastore.query('crypto.certificates', callback=extend)
-        ).query(*(filter or []), stream=True, **(params or {}))
+        return q.query(
+            self.datastore.query('crypto.certificates', callback=extend),
+            *(filter or []),
+            stream=True,
+            **(params or {})
+        )
 
 
 @accepts(h.all_of(
