@@ -38,12 +38,12 @@ class CRUDTestCase(RESTTestCase):
 
     def test_060_update(self):
         identifier, data = self.get_update_ident_data()
-        r = self.client.put(self.name + '/' + identifier, data)
+        r = self.client.put(self.name + '/id/' + identifier, data)
         self.assertEqual(r.status_code, 200, msg=r.text)
         return r
 
     def test_080_delete(self):
-        r = self.client.delete('{0}/{1}'.format(self.name, self.get_delete_identifier()))
+        r = self.client.delete('{0}/id/{1}'.format(self.name, self.get_delete_identifier()))
         self.assertEqual(r.status_code, 204, msg=r.text)
         return r
 

@@ -80,7 +80,7 @@ class ShareISCSITestCase(RESTTestCase):
         })
 
     def test_090_target_delete(self):
-        r = self.client.delete(self.name + '/target/tgt0')
+        r = self.client.delete(self.name + '/target/id/tgt0')
         self.assertEqual(r.status_code, 204)
 
     def test_091_auth_delete(self):
@@ -88,7 +88,7 @@ class ShareISCSITestCase(RESTTestCase):
             'description': 'test auth',
         })
         auth = r.json()[0]['id']
-        r = self.client.delete(self.name + '/auth/' + auth)
+        r = self.client.delete(self.name + '/auth/id/' + auth)
         self.assertEqual(r.status_code, 204)
 
     def test_092_portal_delete(self):
@@ -96,7 +96,7 @@ class ShareISCSITestCase(RESTTestCase):
             'description': 'test portal',
         })
         portal = r.json()[0]['id']
-        r = self.client.delete(self.name + '/portal/' + portal)
+        r = self.client.delete(self.name + '/portal/id/' + portal)
         self.assertEqual(r.status_code, 204)
 
     def test_093_share_delete(self):
@@ -104,5 +104,5 @@ class ShareISCSITestCase(RESTTestCase):
             'name': 'testiscsishare',
         })
         share = r.json()[0]['id']
-        r = self.client.delete('share/' + share)
+        r = self.client.delete('share/id/' + share)
         self.assertEqual(r.status_code, 204)

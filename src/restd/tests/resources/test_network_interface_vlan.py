@@ -16,15 +16,15 @@ class NetworkInterfaceVLANTestCase(CRUDTestCase):
         }
 
     def test_041_down(self):
-        r = self.client.post(self.name + '/vlan0/down')
+        r = self.client.post(self.name + '/id/vlan0/down')
         self.assertEqual(r.status_code, 201, msg=r.text)
 
     def test_042_up(self):
-        r = self.client.post(self.name + '/vlan0/up')
+        r = self.client.post(self.name + '/id/vlan0/up')
         self.assertEqual(r.status_code, 201, msg=r.text)
 
     def test_043_renew(self):
-        r = self.client.post(self.name + '/vlan0/renew')
+        r = self.client.post(self.name + '/id/vlan0/renew')
         self.assertEqual(r.status_code, 201, msg=r.text)
 
     def get_update_ident_data(self):

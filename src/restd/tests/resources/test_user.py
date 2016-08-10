@@ -69,6 +69,6 @@ class UserTestCase(CRUDTestCase):
 
     def test_080_delete(self):
         super(UserTestCase, self).test_080_delete()
-        r = self.client.delete('group/apitest')
+        r = self.client.delete('group/id/apitest')
         self.assertEqual(r.status_code, 204, msg=r.text)
         return r
