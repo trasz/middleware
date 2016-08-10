@@ -483,6 +483,7 @@ class DiskDeleteTask(Task):
         self.datastore.delete('disks', id)
 
 
+@private
 @accepts(str, h.ref('disk-attach-params'))
 @description('Initializes GELI encrypted partition')
 class DiskGELIInitTask(Task):
@@ -544,6 +545,7 @@ class DiskGELIInitTask(Task):
                     raise TaskException(errno.EFAULT, 'Cannot init encrypted partition: {0}'.format(err.err))
 
 
+@private
 @accepts(str, h.ref('disk-set-key-params'))
 @description('Sets new GELI user key in specified slot')
 class DiskGELISetUserKeyTask(Task):
@@ -601,6 +603,7 @@ class DiskGELISetUserKeyTask(Task):
                     raise TaskException(errno.EFAULT, 'Cannot set new key for encrypted partition: {0}'.format(err.err))
 
 
+@private
 @accepts(str, int)
 @description('Deletes GELI user key entry from a given slot')
 class DiskGELIDelUserKeyTask(Task):
@@ -636,6 +639,7 @@ class DiskGELIDelUserKeyTask(Task):
             raise TaskException(errno.EFAULT, 'Cannot delete key of encrypted partition: {0}'.format(err.err))
 
 
+@private
 @accepts(str)
 @returns(h.ref('disk-metadata'))
 @description('Creates a backup of GELI metadata')
@@ -676,6 +680,7 @@ class DiskGELIBackupMetadataTask(Task):
             return {'disk': disk_info['path'], 'metadata': base64.b64encode(metadata_file.read()).decode('utf-8')}
 
 
+@private
 @accepts(str, h.ref('disk-metadata'))
 @description('Restores GELI metadata from file')
 class DiskGELIRestoreMetadataTask(Task):
@@ -715,6 +720,7 @@ class DiskGELIRestoreMetadataTask(Task):
                 raise TaskException(errno.EFAULT, 'Cannot restore metadata of encrypted partition: {0}'.format(err.err))
 
 
+@private
 @accepts(str, h.ref('disk-attach-params'))
 @description('Attaches GELI encrypted partition')
 class DiskGELIAttachTask(Task):
@@ -768,6 +774,7 @@ class DiskGELIAttachTask(Task):
                     logger.warning('Cannot attach encrypted partition: {0}'.format(err.err))
 
 
+@private
 @accepts(str)
 @description('Detaches GELI encrypted partition')
 class DiskGELIDetachTask(Task):
@@ -802,6 +809,7 @@ class DiskGELIDetachTask(Task):
             logger.warning('Cannot detach encrypted partition: {0}'.format(err.err))
 
 
+@private
 @accepts(str)
 @description('Destroys GELI encrypted partition along with GELI metadata')
 class DiskGELIKillTask(Task):
