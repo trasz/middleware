@@ -677,7 +677,7 @@ class VolumeDestroyTask(Task):
             return []
 
     def run(self, id):
-        vol = self.datastore.get_by_id('volumes', id)
+        vol = self.dispatcher.call_sync('volume.query', [('id', '=', id)], {'single': True})
         if not vol:
             raise TaskException(errno.ENOENT, 'Volume {0} not found'.format(id))
 
@@ -710,7 +710,8 @@ class VolumeDestroyTask(Task):
                         raise
 
             try:
-                os.rmdir(vol['mountpoint'])
+                if vol.get('mountpoint'):
+                    os.rmdir(vol['mountpoint'])
             except FileNotFoundError:
                 pass
 
