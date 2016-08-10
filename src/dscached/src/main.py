@@ -110,13 +110,20 @@ def resolve_primary_group(context, obj):
             pass
 
 
-def annotate(user, directory, name_field, cache=None):
+def fix_passwords(user):
+    """
+    Warning: this function shall be called only within an RPC method context
+    """
     if not privileged():
-        user.update({
+        return extend(user, {
             'unixhash': '*',
             'smbhash': None
         })
 
+    return user
+
+
+def annotate(user, directory, name_field, cache=None):
     return extend(user, {
         'origin': {
             'directory': directory.name,
@@ -410,13 +417,13 @@ class AccountService(RpcService):
         for d in self.context.get_enabled_directories():
             for user in d.instance.getpwent(filter, params):
                 resolve_primary_group(self.context, user)
-                yield annotate(user, d, 'username')
+                yield fix_passwords(annotate(user, d, 'username'))
 
     def getpwuid(self, uid):
         # Try the cache first
         item = self.context.users_cache.get(id=uid)
         if item:
-            return item.annotated
+            return fix_passwords(item.annotated)
 
         d = self.context.get_directory_for_id(uid=uid)
         dirs = [d] if d else self.context.get_enabled_directories()
@@ -432,7 +439,7 @@ class AccountService(RpcService):
                 aliases = alias(d, user, 'username')
                 item = CacheItem(user['uid'], user['id'], aliases, copy.copy(user), d, 300)
                 self.context.users_cache.set(item)
-                return item.annotated
+                return fix_passwords(item.annotated)
 
         raise RpcException(errno.ENOENT, 'UID {0} not found'.format(uid))
 
@@ -440,7 +447,7 @@ class AccountService(RpcService):
         # Try the cache first
         item = self.context.users_cache.get(name=user_name)
         if item:
-            return item.annotated
+            return fix_passwords(item.annotated)
 
         if '@' in user_name:
             # Fully qualified user name
@@ -460,7 +467,7 @@ class AccountService(RpcService):
                 aliases = alias(d, user, 'username')
                 item = CacheItem(user['uid'], user['id'], aliases, copy.copy(user), d, 300)
                 self.context.users_cache.set(item)
-                return item.annotated
+                return fix_passwords(item.annotated)
 
         raise RpcException(errno.ENOENT, 'User {0} not found'.format(user_name))
 
@@ -468,7 +475,7 @@ class AccountService(RpcService):
         # Try the cache first
         item = self.context.users_cache.get(uuid=uuid)
         if item:
-            return item.annotated
+            return fix_passwords(item.annotated)
 
         for d in self.context.get_enabled_directories():
             try:
@@ -481,7 +488,7 @@ class AccountService(RpcService):
                 aliases = alias(d, user, 'username')
                 item = CacheItem(user['uid'], user['id'], aliases, copy.copy(user), d, 300)
                 self.context.users_cache.set(item)
-                return item.annotated
+                return fix_passwords(item.annotated)
 
         raise RpcException(errno.ENOENT, 'UUID {0} not found'.format(uuid))
 
@@ -515,6 +522,13 @@ class AccountService(RpcService):
         user, plugin = self.__get_user(user_name)
         if not user:
             raise RpcException(errno.ENOENT, 'User {0} not found'.format(user_name))
+
+        sender = get_sender()
+        if not sender.credentials:
+            raise RpcException(errno.EPERM, 'Permission denied')
+
+        if sender.credentials['uid'] not in (user['uid'], 0):
+            raise RpcException(errno.EPERM, 'Permission denied')
 
         plugin.change_password(user_name, password)
 
