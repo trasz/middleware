@@ -1,0 +1,95 @@
+#!/usr/local/bin/python3.4
+#
+# Copyright 2016 iXsystems, Inc.
+# All rights reserved
+#
+# Redistribution and use in source and binary forms, with or without
+# modification, are permitted providing that the following conditions
+# are met:
+# 1. Redistributions of source code must retain the above copyright
+#    notice, this list of conditions and the following disclaimer.
+# 2. Redistributions in binary form must reproduce the above copyright
+#    notice, this list of conditions and the following disclaimer in the
+#    documentation and/or other materials provided with the distribution.
+#
+# THIS SOFTWARE IS PROVIDED BY THE AUTHOR ``AS IS'' AND ANY EXPRESS OR
+# IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+# WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+# ARE DISCLAIMED.  IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY
+# DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+# DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS
+# OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
+# HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
+# STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING
+# IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+# POSSIBILITY OF SUCH DAMAGE.
+#
+#####################################################################
+
+import sys
+import argh
+from freenas.dispatcher.client import Client
+
+
+DEFAULT_SERVER = 'unix:///var/run/debugd.sock'
+
+
+def create_client(server):
+    c = Client()
+    c.connect(server)
+    return c
+
+
+@argh.arg('--server')
+@argh.arg('--restart')
+def connect(restart=False, server=DEFAULT_SERVER):
+    try:
+        c = create_client(server)
+        c.call_sync('control.connect', restart)
+    except BaseException as err:
+        print('Cannot initiate connection: {0}'.format(str(err)), file=sys.stderr)
+        sys.exit(1)
+
+    print('Connection initiated')
+
+
+@argh.arg('--server')
+def disconnect(server=DEFAULT_SERVER):
+    try:
+        c = create_client(server)
+        c.call_sync('control.disconnect')
+    except BaseException as err:
+        print('Cannot connect to debugd: {0}'.format(str(err)), file=sys.stderr)
+        sys.exit(1)
+
+
+def attach():
+    pass
+
+
+@argh.arg('--server')
+def status(server=DEFAULT_SERVER):
+    try:
+        c = create_client(server)
+        status = c.call_sync('control.status')
+    except BaseException as err:
+        print('Cannot connect to debugd: {0}'.format(str(err)), file=sys.stderr)
+        sys.exit(1)
+
+    print('Connection state: {0}'.format(status['state']))
+    print('Support server address: {0}'.format(status['server']))
+    print('Connected at: {0}'.format(status['connected_at']))
+    print()
+    print('Running jobs:')
+
+    for idx, job in enumerate(status['jobs']):
+        print('{0}. {1} (created {2})'.format(idx, job['description'], job['created_at']))
+
+
+def main():
+    parser = argh.ArghParser()
+    parser.add_commands([connect, disconnect, attach(), status])
+    parser.dispatch()
+
+if __name__ == '__main__':
+    main()
