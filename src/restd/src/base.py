@@ -289,7 +289,7 @@ class EntityResource(Resource, ResourceQueryMixin):
 
 class ItemResource(Resource):
 
-    name = '{id}'
+    name = 'id/{id}'
     params_type = {
         'id': 'integer',
     }
