@@ -399,6 +399,7 @@ class CRUDBase(object):
     entity_class = EntityResource
     item_class = ItemResource
 
+    entity_resources = None
     item_resources = None
 
     def __init__(self, rest, dispatcher):
@@ -422,6 +423,10 @@ class CRUDBase(object):
         if self.item_resources is not None:
             for ir in self.item_resources:
                 ir(rest, parent=self.item)
+
+        if self.entity_resources is not None:
+            for er in self.entity_resources:
+                er(rest, parent=self.item)
 
     def get_create_method_name(self):
         return '{0}.create'.format(self.namespace)

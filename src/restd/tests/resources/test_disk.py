@@ -25,3 +25,15 @@ class DiskTestCase(CRUDTestCase):
         if len(data) == 0:
             self.skipTest('No offline disk found to delete.')
         return data[0]['id']
+
+    def test_030_is_online(self):
+        r = self.client.get(self.name, params={
+            'online': True,
+        })
+        self.assertEqual(r.status_code, 200, msg=r.text)
+        path = r.json()[0]['path']
+        r = self.client.post(self.name + '/is_online', data=[
+            path,
+        ])
+        data = r.json()
+        self.assertEqual(data, True)
