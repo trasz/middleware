@@ -231,7 +231,7 @@ class ResourceQueryMixin:
             else:
                 field, op = key, '='
 
-            if key in ('sort', 'limit', 'offset', 'count'):
+            def convert(val):
                 if val.isdigit():
                     val = int(val)
                 elif val.lower() in ('true', 'false', '0', '1'):
@@ -239,7 +239,13 @@ class ResourceQueryMixin:
                         val = True
                     elif val.lower() in ('false', '0'):
                         val = False
-                urlparams[key] = val
+                return val
+
+            if key in ('limit', 'offset', 'count'):
+                urlparams[key] = convert(val)
+                continue
+            elif key == 'sort':
+                urlparams[key] = [convert(v) for v in val.split(',')]
                 continue
 
             op_map = {
