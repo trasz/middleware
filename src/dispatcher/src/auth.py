@@ -27,7 +27,6 @@
 
 import string
 import random
-import crypt
 import gevent
 from freenas.dispatcher.rpc import RpcException
 from lib.freebsd import sockstat
@@ -37,13 +36,12 @@ class User(object):
     def __init__(self):
         self.uid = None
         self.name = None
-        self.pwhash = None
+        self.pwcheck = None
         self.token = None
         self.groups = []
 
     def check_password(self, password):
-        hash = crypt.crypt(password, self.pwhash)
-        return hash == self.pwhash
+        return self.pwcheck(self.name, password)
 
     def check_local(self, client_addr, client_port, server_port):
         client = '{0}:{1}'.format(client_addr, client_port)
@@ -77,10 +75,13 @@ class PasswordAuthenticator(object):
             self.users.pop(name, None)
             return None
 
+        def pwcheck(name, password):
+            return self.dispatcher.call_sync('dscached.account.authenticate', name, password)
+
         user = User()
         user.uid = entity['uid']
         user.name = entity['username']
-        user.pwhash = entity['unixhash']
+        user.pwcheck = pwcheck
 
         for id in entity['groups'] + [entity['group']]:
             grp = self.dispatcher.call_sync('dscached.group.getgruuid', id)
