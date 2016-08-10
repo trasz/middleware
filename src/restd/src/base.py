@@ -266,6 +266,8 @@ class ResourceQueryMixin:
                 val = True
             elif val.lower() == 'false':
                 val = False
+            elif val.lower() == 'null':
+                val = None
             args.append((field, op, val))
 
         return [args, urlparams], {}
