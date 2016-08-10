@@ -224,7 +224,7 @@ class Context(object):
         self.server.rpc = RpcContext()
         self.server.rpc.register_service_instance('control', ControlService(self))
         self.server.start('unix:///var/run/debugd.sock')
-        threading.Thread(target=self.server.serve_forever).start()
+        threading.Thread(target=self.server.serve_forever, name='server thread', daemon=True).start()
 
     def connect(self, discard=False):
         if discard:
