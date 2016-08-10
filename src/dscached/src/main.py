@@ -46,7 +46,7 @@ from datetime import datetime, timedelta
 from datastore.config import ConfigStore
 from freenas.dispatcher.client import Client, ClientError
 from freenas.dispatcher.server import Server
-from freenas.dispatcher.rpc import RpcContext, RpcService, RpcException, generator
+from freenas.dispatcher.rpc import RpcContext, RpcService, RpcException, generator, get_sender
 from freenas.utils import first_or_default, configure_logging, extend
 from freenas.utils.debug import DebugService
 from freenas.utils.query import QueryDict
@@ -60,6 +60,19 @@ AF_MAP = {
     socket.AF_INET: ipaddress.IPv4Address,
     socket.AF_INET6: ipaddress.IPv6Address
 }
+
+
+def privileged():
+    """
+    Warning: that function shall be used only within RPC method context
+    """
+    sender = get_sender()
+    if not sender:
+        logging.warning('privileged(): sender unknown, assuming no')
+        return False
+
+    logging.info('creds = {0}'.format(sender.credentials))
+    return sender.credentials and sender.credentials['uid'] == 0
 
 
 def my_ips():
@@ -99,6 +112,12 @@ def resolve_primary_group(context, obj):
 
 
 def annotate(user, directory, name_field, cache=None):
+    if not privileged():
+        user.update({
+            'unixhash': '*',
+            'smbhash': None
+        })
+
     return extend(user, {
         'origin': {
             'directory': directory.name,
@@ -393,7 +412,7 @@ class AccountService(RpcService):
             for user in d.instance.getpwent(filter, params):
                 resolve_primary_group(self.context, user)
                 yield annotate(user, d, 'username')
-    
+
     def getpwuid(self, uid):
         # Try the cache first
         item = self.context.users_cache.get(id=uid)
