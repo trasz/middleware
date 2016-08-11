@@ -79,7 +79,7 @@ class NTPServerCreateTask(Task):
             pkey = self.datastore.insert('ntpservers', ntp)
             self.dispatcher.call_sync('etcd.generation.generate_group', 'ntpd')
             self.dispatcher.call_sync('service.restart', 'ntpd')
-            self.dispatcher.dispatch_event('ntpservers.changed', {
+            self.dispatcher.dispatch_event('ntp_server.changed', {
                 'operation': 'create',
                 'ids': [pkey]
             })
@@ -130,7 +130,7 @@ class NTPServerUpdateTask(Task):
             self.datastore.update('ntpservers', id, ntp)
             self.dispatcher.call_sync('etcd.generation.generate_group', 'ntpd')
             self.dispatcher.call_sync('service.restart', 'ntpd')
-            self.dispatcher.dispatch_event('ntpservers.changed', {
+            self.dispatcher.dispatch_event('ntp_server.changed', {
                 'operation': 'update',
                 'ids': [id]
             })
@@ -164,7 +164,7 @@ class NTPServerDeleteTask(Task):
             self.datastore.delete('ntpservers', id)
             self.dispatcher.call_sync('etcd.generation.generate_group', 'ntpd')
             self.dispatcher.call_sync('service.restart', 'ntpd')
-            self.dispatcher.dispatch_event('ntpservers.changed', {
+            self.dispatcher.dispatch_event('ntp_server.changed', {
                 'operation': 'delete',
                 'ids': [id]
             })
@@ -190,12 +190,12 @@ def _init(dispatcher, plugin):
     })
 
     # Register events
-    plugin.register_event_type('ntpservers.changed')
+    plugin.register_event_type('ntp_server.changed')
 
     # Register provider
-    plugin.register_provider("ntpservers", NTPServersProvider)
+    plugin.register_provider("ntp_server", NTPServersProvider)
 
     # Register tasks
-    plugin.register_task_handler("ntpservers.create", NTPServerCreateTask)
-    plugin.register_task_handler("ntpservers.update", NTPServerUpdateTask)
-    plugin.register_task_handler("ntpservers.delete", NTPServerDeleteTask)
+    plugin.register_task_handler("ntp_server.create", NTPServerCreateTask)
+    plugin.register_task_handler("ntp_server.update", NTPServerUpdateTask)
+    plugin.register_task_handler("ntp_server.delete", NTPServerDeleteTask)
