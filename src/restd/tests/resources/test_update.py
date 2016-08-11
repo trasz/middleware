@@ -9,6 +9,12 @@ class UpdateTestCase(SingleItemTestCase):
             'check_auto': False,
         }
 
+    def test_060_check(self):
+        r = self.client.post(self.name + '/check')
+        self.assertEqual(r.status_code, 201, msg=r.text)
+        data = r.json()
+        self.assertEqual(data, None)
+
     def test_071_is_update_available(self):
         r = self.client.get(self.name + '/is_update_available')
         self.assertEqual(r.status_code, 200, msg=r.text)
@@ -21,7 +27,7 @@ class UpdateTestCase(SingleItemTestCase):
         data = r.json()
         if data is None:
             return
-        self.assertIsInstance(data, list)
+        self.assertIsInstance(data, (list, str))
 
     def test_073_get_update_ops(self):
         r = self.client.get(self.name + '/get_update_ops')
