@@ -207,7 +207,9 @@ class Resource(object):
             if i in ('post', 'put'):
 
                 if type_ == 'task':
-                    schema = op.get('schema', [None])[0 if i == 'post' else -1]
+                    schema = op.get('schema', [None])
+                    if schema:
+                        schema = schema[0 if i == 'post' else -1]
                 else:
                     schema = op.get('result-schema')
                 rv[i]['parameters'].append(
