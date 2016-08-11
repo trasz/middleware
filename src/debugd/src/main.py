@@ -26,11 +26,13 @@
 #####################################################################
 
 import os
+import sys
 import io
 import pty
 import signal
 import enum
 import uuid
+import json
 import setproctitle
 import time
 import subprocess
@@ -125,7 +127,7 @@ class DebugService(RpcService):
                 yield {
                     'pid': proc.pid,
                     'command': proc.command,
-                    'argv': proc.argv,
+                    'argv': list(proc.argv),
                     'created_at': datetime.utcfromtimestamp(stat.st_ctime),
                     'size': stat.st_size
                 }
@@ -165,6 +167,7 @@ class ControlService(RpcService):
 class Job(object):
     def __init__(self):
         self.context = None
+        self.thread = None
         self.created_at = datetime.now()
 
     def describe(self):
@@ -173,6 +176,11 @@ class Job(object):
     def close(self):
         if self.context:
             self.context.jobs.remove(self)
+
+    def start(self):
+        if hasattr(self, 'worker'):
+            self.thread = threading.Thread(target=self.worker, daemon=True, name='worker thread')
+            self.thread.start()
 
     def __getstate__(self):
         return {
@@ -196,8 +204,6 @@ class ShellConnection(Job):
                 os.execv(args[0], args)
 
             self.logger.info('Spawned {0} as pid {1}'.format(args, self.pid))
-            self.reader_thread = threading.Thread(target=self.worker, daemon=True, name='shell reader thread')
-            self.reader_thread.start()
         except OSError as err:
             self.logger.error('Cannot start shell connection: {0}'.format(str(err)))
             self.close()
@@ -227,8 +233,6 @@ class FileConnection(Job):
         self.path = path
         self.fd = fd.fd
         self.file = open(path, 'rb' if upload else 'wb')
-        self.reader_thread = threading.Thread(target=self.worker, daemon=True, name='file reader thread')
-        self.reader_thread.start()
 
     @property
     def filesize(self):
@@ -248,8 +252,6 @@ class FileConnection(Job):
                 return
 
             os.write(self.fd if self.upload else self.file.fileno(), data)
-
-        os.close(fd)
 
 
 class TailConnection(Job):
@@ -272,23 +274,32 @@ class DashboardConnection(Job):
         self.fd = fd.fd
 
     def describe(self):
-        return "Dashboard upload"
+        return "Dashboard snapshot upload"
 
     def worker(self):
-        fd = os.fdopen(self.fd)
-        tar = tarfile.open(fobj=fd, mode='w|')
+        fd = os.fdopen(self.fd, 'wb')
+        tar = tarfile.open(fileobj=fd, mode='w|')
 
-        for name, cmd in self.context.config.get('dashboard', {}).items():
-            try:
-                buf = io.StringIO(subprocess.check_output(cmd))
-                tar.addfile(tarfile.TarInfo(name), buf)
-            except subprocess.CalledProcessError as err:
-                self.logger.error('Command failed: {0}'.format(str(err)))
-                continue
+        self.logger.debug('Opened dashboard stream')
 
-        tar.close()
-        fd.close()
+        try:
+            for name, cmd in self.context.config.get('dashboard', {}).items():
+                try:
+                    out = subprocess.check_output(cmd)
+                    buf = io.BytesIO(out)
+                    info = tarfile.TarInfo(name)
+                    info.size = len(out)
+                    tar.addfile(info, buf)
+                    self.logger.debug('Added output of {0}'.format(cmd))
+                except subprocess.CalledProcessError as err:
+                    self.logger.error('Command failed: {0}'.format(str(err)))
+                    continue
 
+            tar.close()
+            fd.close()
+            self.logger.debug('Stream closed')
+        except BaseException as err:
+            self.logger.exception('sad')
 
 
 class Context(object):
@@ -299,17 +310,28 @@ class Context(object):
         self.connection_id = None
         self.jobs = []
         self.state = ConnectionState.OFFLINE
+        self.config = None
         self.cv = Condition()
         self.rpc = RpcContext()
         self.client = Client()
         self.server = Server()
 
-    def start(self, sockpath):
+    def start(self, configpath, sockpath):
         signal.signal(signal.SIGUSR2, lambda signo, frame: self.connect())
+        self.read_config(configpath)
         self.server.rpc = RpcContext()
         self.server.rpc.register_service_instance('control', ControlService(self))
         self.server.start(sockpath)
         threading.Thread(target=self.server.serve_forever, name='server thread', daemon=True).start()
+
+    def read_config(self, path):
+        try:
+            with open(path) as f:
+                self.config = json.load(f)
+        except (IOError, OSError, ValueError) as err:
+            self.logger.fatal('Cannot open config file: {0}'.format(str(err)))
+            self.logger.fatal('Exiting.')
+            sys.exit(1)
 
     def connect(self, discard=False):
         if discard:
@@ -343,10 +365,11 @@ class Context(object):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('-s', metavar='SOCKET', default=DEFAULT_SOCKET_ADDRESS, help='Socket address to listen on')
+    parser.add_argument('-c', metavar='CONFIG', default=DEFAULT_CONFIGFILE, help='Configuration file path')
     args = parser.parse_args()
     logging.basicConfig(level=logging.DEBUG)
     context = Context()
-    context.start(args.s)
+    context.start(args.c, args.s)
     context.connect()
     setproctitle.setproctitle('debugd')
 
