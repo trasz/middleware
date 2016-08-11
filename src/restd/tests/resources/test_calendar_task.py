@@ -6,6 +6,7 @@ class CalendarTaskTestCase(CRUDTestCase):
 
     def get_create_data(self):
         return {
+            'id': 'tasktest',
             'name': 'volume.scrub',
             'args': ['tank'],
             'schedule': {
@@ -23,37 +24,15 @@ class CalendarTaskTestCase(CRUDTestCase):
         }
 
     def get_update_ident_data(self):
-        r = self.client.get(self.name, params={
-            'name': 'volume.scrub',
-        })
-        self.assertEqual(r.status_code, 200, msg=r.text)
-        data = r.json()
-        if data:
-            return data[0]['id'], {
-                'args': ['tank'],
-            }
-        else:
-            self.skipTest('Calendar task not found.')
+        return 'tasktest', {
+            'args': ['tank'],
+        }
 
     def get_delete_identifier(self):
-        r = self.client.get(self.name, params={
-            'name': 'volume.scrub',
-        })
-        self.assertEqual(r.status_code, 200, msg=r.text)
-        data = r.json()
-        if data:
-            return data[0]['id']
-        else:
-            self.skipTest('Calendar task not found.')
+        return 'tasktest'
 
     def test_050_run(self):
-        r = self.client.get(self.name, params={
-            'name': 'volume.scrub',
-        })
-        self.assertEqual(r.status_code, 200, msg=r.text)
-        data = r.json()
-        taskid = data[0]['id']
-        r = self.client.post(self.name + '/id/' + taskid + '/run')
+        r = self.client.post(self.name + '/id/tasktest/run')
         self.assertEqual(r.status_code, 201, msg=r.text)
 
     def test_051_command(self):
