@@ -93,8 +93,9 @@ class AuthMiddleware(object):
                 raise falcon.HTTPUnauthorized(
                     'Invalid credentials',
                     'Verify your credentials and try again.',
+                    ['Basic realm="FreeNAS"'],
                 )
-            raise falcon.HTTPUnauthorized('Unknown authentication error', str(e))
+            raise falcon.HTTPUnauthorized('Unknown authentication error', str(e), ['Basic realm="FreeNAS"'])
 
     def process_response(self, req, resp, resource):
         if 'client' in req.context:
