@@ -36,7 +36,7 @@ class UpdateSingleItem(SingleItemBase):
     subresources = (
         ApplyResource,
         CheckResource,
-        CheckFetchResource
+        CheckFetchResource,
         DownloadResource,
         UpdateNowResource,
         VerifyResource,
