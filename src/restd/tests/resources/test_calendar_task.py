@@ -55,3 +55,9 @@ class CalendarTaskTestCase(CRUDTestCase):
         taskid = data[0]['id']
         r = self.client.post(self.name + '/id/' + taskid + '/run')
         self.assertEqual(r.status_code, 201, msg=r.text)
+
+    def test_051_command(self):
+        r = self.client.post(self.name + '/command', data=[
+            'nobody', 'touch /tmp/nobody',
+        ])
+        self.assertEqual(r.status_code, 201, msg=r.text)
