@@ -26,12 +26,14 @@
 #####################################################################
 
 import os
+import io
 import pty
 import signal
 import enum
 import uuid
 import setproctitle
 import time
+import subprocess
 import threading
 import logging
 import argparse
@@ -81,7 +83,7 @@ class DebugService(RpcService):
         self.context.run_job(job)
 
     def tail(self, path, scrollback_size, fd):
-        self.context.run_job(TailConnection(path, fd))
+        self.context.run_job(TailConnection(path, scrollback_size, fd))
 
     def dashboard(self, fd):
         self.context.run_job(DashboardConnection(fd))
@@ -247,6 +249,8 @@ class FileConnection(Job):
 
             os.write(self.fd if self.upload else self.file.fileno(), data)
 
+        os.close(fd)
+
 
 class TailConnection(Job):
     def __init__(self, path, fd):
@@ -264,7 +268,27 @@ class TailConnection(Job):
 class DashboardConnection(Job):
     def __init__(self, fd):
         super(DashboardConnection, self).__init__()
+        self.logger = logging.getLogger(self.__class__.__name__)
         self.fd = fd.fd
+
+    def describe(self):
+        return "Dashboard upload"
+
+    def worker(self):
+        fd = os.fdopen(self.fd)
+        tar = tarfile.open(fobj=fd, mode='w|')
+
+        for name, cmd in self.context.config.get('dashboard', {}).items():
+            try:
+                buf = io.StringIO(subprocess.check_output(cmd))
+                tar.addfile(tarfile.TarInfo(name), buf)
+            except subprocess.CalledProcessError as err:
+                self.logger.error('Command failed: {0}'.format(str(err)))
+                continue
+
+        tar.close()
+        fd.close()
+
 
 
 class Context(object):
