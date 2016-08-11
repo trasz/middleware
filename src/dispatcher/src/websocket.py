@@ -27,7 +27,6 @@
 
 from geventwebsocket import WebSocketApplication, WebSocketServer, WebSocketError, Resource
 from freenas.dispatcher.transport import ServerTransport, server_transport
-from freenas.utils.query import get
 
 
 class ServerResource(Resource):
@@ -43,7 +42,7 @@ class ServerResource(Resource):
             raise Exception("No apps defined")
 
         if 'wsgi.websocket' in environ:
-            ws = get(environ, 'wsgi.websocket')
+            ws = environ['wsgi.websocket']
             current_app = current_app(ws, self.parent)
             current_app.ws = ws  # TODO: needed?
             current_app.handle()
