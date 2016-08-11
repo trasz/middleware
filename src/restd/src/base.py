@@ -428,7 +428,7 @@ class CRUDBase(object):
 
         if self.entity_resources is not None:
             for er in self.entity_resources:
-                er(rest, parent=self.item)
+                er(rest, parent=self.entity)
 
     def get_create_method_name(self):
         return '{0}.create'.format(self.namespace)
