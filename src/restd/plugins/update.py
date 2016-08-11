@@ -1,10 +1,9 @@
-from base import Resource, ProviderMixin
+from base import ProviderMixin, Resource, SingleItemBase
 
 
-class UpdateResource(ProviderMixin, Resource):
-    name = 'update'
-    provider = 'update'
+class UpdateSingleItem(SingleItemBase):
+    namespace = 'update'
 
 
 def _init(rest):
-    rest.register_resource(UpdateResource)
+    rest.register_singleitem(UpdateSingleItem)
