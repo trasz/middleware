@@ -42,6 +42,7 @@ class ConfigProvider(Provider):
         return self.dispatcher.configstore.list_children(root)
 
 
+@private
 @description("Updates configuration settings")
 @accepts(h.object())
 class UpdateConfigTask(Task):
