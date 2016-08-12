@@ -54,8 +54,8 @@ class BackupProvider(Provider):
 
     @description("Returns list of supported backup providers")
     @accepts()
-    @returns(h.ref('backup-types'))
-    def supported_types(self):
+    @returns(h.ref('backup-providers'))
+    def supported_providers(self):
         result = {}
         for p in list(self.dispatcher.plugins.values()):
             if p.metadata and p.metadata.get('type') == 'backup':
@@ -434,7 +434,7 @@ def _init(dispatcher, plugin):
         }
     })
 
-    plugin.register_schema_definition('backup-types', {
+    plugin.register_schema_definition('backup-providers', {
         'type': 'object',
         'additionalProperties': {
             'type': 'object',
@@ -458,7 +458,7 @@ def _init(dispatcher, plugin):
         plugin.register_schema_definition('backup-properties', {
             'discriminator': 'type',
             'oneOf': [
-                {'$ref': 'backup-{0}'.format(name)} for name in dispatcher.call_sync('backup.supported_types')
+                {'$ref': 'backup-{0}'.format(name)} for name in dispatcher.call_sync('backup.supported_providers')
             ]
         })
 
