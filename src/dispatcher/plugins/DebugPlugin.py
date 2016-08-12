@@ -74,8 +74,7 @@ class CollectDebugTask(ProgressTask):
             info.size = len(content)
             tar.addfile(
                 info,
-                io.BytesIO(
-                    content if isinstance(content, bytes) else content.encode('utf-8'))
+                io.BytesIO(content if isinstance(content, bytes) else content.encode('utf-8'))
             )
 
         if cmd['type'] in ('AttachDirectory', 'AttachFile'):
