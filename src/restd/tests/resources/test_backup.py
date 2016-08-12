@@ -27,3 +27,9 @@ class BackupTestCase(CRUDTestCase):
 
     def get_delete_identifier(self):
         return 'backuptest'
+
+    def test_030_supported_providers(self):
+        r = self.client.get(self.name + '/supported_providers')
+        self.assertEqual(r.status_code, 200)
+        data = r.json()
+        self.assertIsInstance(data, dict)
