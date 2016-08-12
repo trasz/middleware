@@ -100,7 +100,8 @@ class DebugService(RpcService):
                 'size': stat.st_size,
                 'created_at': datetime.utcfromtimestamp(stat.st_ctime),
                 'modified_at': datetime.utcfromtimestamp(stat.st_mtime),
-                'name': i
+                'name': i,
+                'path': path
             }
 
     @generator
