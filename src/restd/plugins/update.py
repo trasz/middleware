@@ -1,4 +1,4 @@
-from base import ProviderMixin, Resource, SingleItemBase
+from base import Resource, SingleItemBase
 
 
 class ApplyResource(Resource):
