@@ -161,6 +161,13 @@ class DockerContainerDeleteTask(ProgressTask):
 
 
 class DockerContainerStartTask(Task):
+    @classmethod
+    def early_describe(cls):
+        return "Starting container"
+
+    def describe(self, name, id):
+        return TaskDescription("Starting container {name}".format(name=id))
+
     def verify(self, id):
         return []
 
@@ -169,6 +176,13 @@ class DockerContainerStartTask(Task):
 
 
 class DockerContainerStopTask(Task):
+    @classmethod
+    def early_describe(cls):
+        return "Stopping container"
+
+    def describe(self, name, id):
+        return TaskDescription("Stopping container {name}".format(name=id))
+
     def verify(self, id):
         return []
 
