@@ -239,6 +239,7 @@ def _init(dispatcher, plugin):
     def on_container_event(args):
         sync_container_cache()
 
+    plugin.register_provider('docker', DockerProvider)
     plugin.register_provider('docker.host', DockerHostProvider)
     plugin.register_provider('docker.container', DockerContainerProvider)
     plugin.register_provider('docker.image', DockerImagesProvider)
