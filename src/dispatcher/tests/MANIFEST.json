@@ -1,0 +1,5 @@
+{
+    "name": "dispatcher",
+    "timeout": 3600,
+    "pass_target": true
+}
