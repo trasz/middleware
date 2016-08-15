@@ -310,9 +310,9 @@ def generate_update_cache(dispatcher, cache_dir=None):
     update_cache.put('cache_dir', cache_dir)
     try:
         check_updates(dispatcher, dispatcher.configstore, cache_dir=cache_dir)
-    except Exception as e:
+    except:
         # What to do now?
-        logger.debug('generate_update_cache (UpdatePlugin) falied: %s', e)
+        logger.debug('generate_update_cache (UpdatePlugin) falied, traceback: ', exc_info=True)
 
 
 @description("Provides System Updater Configuration")
