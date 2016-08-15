@@ -208,7 +208,7 @@ def check_updates(dispatcher, configstore, cache_dir=None, check_now=False):
                     'update.update_alert_set',
                     'UpdateInstalled',
                     version,
-                    update_installed_bootenv=list(update_installed_bootenv)
+                    {'update_installed_bootenv': list(update_installed_bootenv)}
                 )
                 return
             logger.debug("An update is available")
@@ -470,8 +470,8 @@ class UpdateProvider(Provider):
         return update_cache.get(key, timeout=1)
 
     @private
-    @accepts(str, str, h.any_of(None, str))
-    def update_alert_set(self, update_class, update_version, **kwargs):
+    @accepts(str, str, h.any_of(None, h.object(additionalProperties=True)))
+    def update_alert_set(self, update_class, update_version, kwargs=None):
         # Formulating a query to find any alerts in the current `update_class`
         # which could be either of ('UpdateAvailable', 'UpdateDownloaded', 'UpdateInstalled')
         # as well as any alerts for the specified update version string.
@@ -480,6 +480,8 @@ class UpdateProvider(Provider):
         # previous alert for the same version itself but for it being available instead of being
         # downloaded already, both of these previous alerts would need to be cancelled and
         # replaced by 'UpdateDownloaded' for FreeNAS-10-2016051047.
+        if kwargs is None:
+            kwargs = {}
         existing_update_alerts = self.dispatcher.call_sync(
             'alert.query',
             [
@@ -496,10 +498,11 @@ class UpdateProvider(Provider):
                 desc = 'Update containing {0} is downloaded and ready for install'.format(update_version)
             elif update_class == 'UpdateInstalled':
                 update_installed_bootenv = kwargs.get('update_installed_bootenv')
-                if update_installed_bootenv and not update_installed_bootenv[0]['onreboot']:
+                if update_installed_bootenv and not update_installed_bootenv[0]['on_reboot']:
                     desc = 'Update containing {0} is installed.'.format(update_version)
-                    desc += ' Please activate {0} and Reboot to use this updated version'.format(update_installed_bootenv['realname'])
-                desc = 'Update containing {0} is installed and activated for next boot'.format(update_version)
+                    desc += ' Please activate {0} and Reboot to use this updated version'.format(update_installed_bootenv[0]['realname'])
+                else:
+                    desc = 'Update containing {0} is installed and activated for next boot'.format(update_version)
                 update_cache.put('installed', True)
                 update_cache.put('installed_version', update_version)
             else:
@@ -518,7 +521,11 @@ class UpdateProvider(Provider):
         # Purposely deleting stale alerts later on since if anything (in constructing the payload)
         # above this fails the exception prevents alert.cancel from being called.
         for update_alert in existing_update_alerts:
-            if update_alert['class'] == update_class and update_alert["target"] == update_version:
+            if (
+                update_alert['class'] == update_class and
+                update_alert["target"] == update_version and
+                update_alert["description"] == desc
+            ):
                 alert_exists = True
                 continue
             self.dispatcher.call_sync('alert.cancel', update_alert['id'])
