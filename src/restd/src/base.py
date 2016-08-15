@@ -88,6 +88,8 @@ class Resource(object):
     put = None
     delete = None
 
+    subresources = None
+
     def __init__(self, rest, parent=None):
         self.rest = rest
         self.children = []
@@ -96,6 +98,10 @@ class Resource(object):
             parent.add_child(self)
 
         self.rest.api.add_route(self.get_uri(), self)
+
+        if self.subresources is not None:
+            for sr in self.subresources:
+                sr(rest, parent=self)
 
     def __getattr__(self, attr):
         if attr in ('on_get', 'on_post', 'on_delete', 'on_put'):
