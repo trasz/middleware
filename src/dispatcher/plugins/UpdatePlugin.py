@@ -1047,6 +1047,7 @@ def _init(dispatcher, plugin):
     plugin.register_schema_definition('update-info', {
         'type': 'object',
         'properties': {
+            'available': {'type': 'boolean'},
             'notes': {'type': 'object'},
             'notice': {'type': 'string'},
             'changelog': {
