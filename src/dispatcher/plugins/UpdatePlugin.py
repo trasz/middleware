@@ -54,7 +54,7 @@ from freenasOS.Exceptions import (
     UpdatePackageException, UpdateIncompleteCacheException, UpdateBusyCacheException,
     ChecksumFailException, UpdatePackageNotFound
 )
-from freenasOS.Update import CheckForUpdates, DownloadUpdate, ApplyUpdate
+from freenasOS.Update import CheckForUpdates, DownloadUpdate, ApplyUpdate, Avatar
 
 # The function calls below help reduce the debug logs
 # removing unnecessary 'TryGetNetworkFile' and such logs
@@ -138,6 +138,19 @@ class CheckUpdateHandler(object):
         return output
 
 
+def is_update_applied(dispatcher, update_version):
+    # TODO: The below boot env name should really be obtained from the update code
+    # for now we just duplicate that code here
+    if update_version.startswith(Avatar() + "-"):
+        update_boot_env = update_version[len(Avatar() + "-"):]
+    else:
+        update_boot_env = "%s-%s" % (Avatar(), update_version)
+
+    return dispatcher.call_sync(
+        'boot.environment.query', [('realname', '=', update_boot_env)], single=True
+    )
+
+
 def check_updates(dispatcher, configstore, cache_dir=None, check_now=False):
     """
     Utility function to just check for Updates
@@ -149,21 +162,27 @@ def check_updates(dispatcher, configstore, cache_dir=None, check_now=False):
         'notice': None,
         'downloaded': False,
         'changelog': '',
-        'version': ''
+        'version': '',
+        'installed': False,
+        'installed_version': ''
     }
 
     # If the current check is an online one (and not in the cache_dir)
     # then store the current update info and use them to restore the update cache
     # if the update check fails, this way a downloaded update is not lost from
     # the cache if a live online one fails!
-    if check_now:
-        try:
-            current_update_info = dispatcher.call_sync('update.update_info')
-            if current_update_info is not None and current_update_info['downloaded']:
-                update_cache_value_dict.update(current_update_info.copy())
-                update_cache_value_dict['available'] = True
-        except RpcException:
-            pass
+    current_update_info = None
+    try:
+        current_update_info = dispatcher.call_sync('update.update_info')
+    except RpcException:
+        pass
+
+    if current_update_info:
+        update_cache_value_dict['installed'] = current_update_info.get('installed')
+        update_cache_value_dict['installed_version'] = current_update_info.get('installed_version')
+        if check_now and current_update_info['downloaded']:
+            update_cache_value_dict.update(current_update_info.copy())
+            update_cache_value_dict['available'] = True
 
     dispatcher.call_sync('update.update_cache_invalidate', list(update_cache_value_dict.keys()))
 
@@ -179,6 +198,19 @@ def check_updates(dispatcher, configstore, cache_dir=None, check_now=False):
         )
 
         if update:
+            version = update.Version()
+            update_installed_bootenv = is_update_applied(dispatcher, version)
+            if version == update_cache_value_dict['installed_version'] or update_installed_bootenv:
+                logger.debug('Update is already installed')
+                update_cache_value_dict['installed'] = True
+                update_cache_value_dict['installed_version'] = version
+                dispatcher.call_sync(
+                    'update.update_alert_set',
+                    'UpdateInstalled',
+                    version,
+                    update_installed_bootenv=list(update_installed_bootenv)
+                )
+                return
             logger.debug("An update is available")
             sys_mani = conf.SystemManifest()
             if sys_mani:
@@ -202,7 +234,7 @@ def check_updates(dispatcher, configstore, cache_dir=None, check_now=False):
                 'notes': update.Notes(),
                 'notice': update.Notice(),
                 'operations': handler.output(),
-                'version': update.Version(),
+                'version': version,
                 'changelog': changelog,
                 'downloaded': False if check_now else True
             })
@@ -214,7 +246,7 @@ def check_updates(dispatcher, configstore, cache_dir=None, check_now=False):
             )
 
         else:
-            logger.debug("No update available")
+            logger.debug('No update available')
     finally:
         dispatcher.call_sync('update.update_cache_putter', update_cache_value_dict)
 
@@ -362,21 +394,16 @@ class UpdateProvider(Provider):
             ))
 
     @accepts()
-    @returns(h.any_of(
-        h.ref('update-info'),
-        None,
-    ))
+    @returns(h.ref('update-info'))
     def update_info(self):
         if not update_cache.is_valid('available'):
             raise RpcException(errno.EBUSY, (
                 'Update Availability flag is invalidated, an Update Check'
                 ' might be underway. Try again in some time.'
             ))
-        available = update_cache.get('available', timeout=1)
-        if not available:
-            return None
         info_item_list = [
-            'changelog', 'notes', 'notice', 'operations', 'downloaded', 'version','installed', 'installed_version'
+            'available', 'changelog', 'notes', 'notice', 'operations', 'downloaded',
+            'version', 'installed', 'installed_version'
         ]
         return {key: update_cache.get(key, timeout=1) for key in info_item_list}
 
@@ -444,7 +471,7 @@ class UpdateProvider(Provider):
 
     @private
     @accepts(str, str, h.any_of(None, str))
-    def update_alert_set(self, update_class, update_version, desc=None):
+    def update_alert_set(self, update_class, update_version, **kwargs):
         # Formulating a query to find any alerts in the current `update_class`
         # which could be either of ('UpdateAvailable', 'UpdateDownloaded', 'UpdateInstalled')
         # as well as any alerts for the specified update version string.
@@ -461,12 +488,17 @@ class UpdateProvider(Provider):
             ]
         )
         title = UPDATE_ALERT_TITLE_MAP.get(update_class, 'Update Alert')
+        desc = kwargs.get('desc')
         if desc is None:
             if update_class == 'UpdateAvailable':
                 desc = 'Latest Update: {0} is available for download'.format(update_version)
             elif update_class == 'UpdateDownloaded':
                 desc = 'Update containing {0} is downloaded and ready for install'.format(update_version)
             elif update_class == 'UpdateInstalled':
+                update_installed_bootenv = kwargs.get('update_installed_bootenv')
+                if update_installed_bootenv and not update_installed_bootenv[0]['onreboot']:
+                    desc = 'Update containing {0} is installed.'.format(update_version)
+                    desc += ' Please activate {0} and Reboot to use this updated version'.format(update_installed_bootenv['realname'])
                 desc = 'Update containing {0} is installed and activated for next boot'.format(update_version)
                 update_cache.put('installed', True)
                 update_cache.put('installed_version', update_version)
