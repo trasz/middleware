@@ -148,7 +148,8 @@ def check_updates(dispatcher, configstore, cache_dir=None, check_now=False):
         'notes': None,
         'notice': None,
         'downloaded': False,
-        'changelog': ''
+        'changelog': '',
+        'version': ''
     }
 
     # If the current check is an online one (and not in the cache_dir)
@@ -374,13 +375,10 @@ class UpdateProvider(Provider):
         available = update_cache.get('available', timeout=1)
         if not available:
             return None
-        return {
-            'changelog': update_cache.get('changelog', timeout=1),
-            'notes': update_cache.get('notes', timeout=1),
-            'notice': update_cache.get('notice', timeout=1),
-            'operations': update_cache.get('operations', timeout=1),
-            'downloaded': update_cache.get('downloaded', timeout=1)
-        }
+        info_item_list = [
+            'changelog', 'notes', 'notice', 'operations', 'downloaded', 'version','installed', 'installed_version'
+        ]
+        return {key: update_cache.get(key, timeout=1) for key in info_item_list}
 
     @returns(h.any_of(
         h.array(h.ref('update-train')),
@@ -470,6 +468,8 @@ class UpdateProvider(Provider):
                 desc = 'Update containing {0} is downloaded and ready for install'.format(update_version)
             elif update_class == 'UpdateInstalled':
                 desc = 'Update containing {0} is installed and activated for next boot'.format(update_version)
+                update_cache.put('installed', True)
+                update_cache.put('installed_version', update_version)
             else:
                 # what state is this?
                 raise RpcException(
@@ -870,16 +870,16 @@ class CheckFetchUpdateTask(ProgressTask):
 
     def run(self):
         result = False
-        self.set_progress(0, 'Checking for new updates from update server...')
+        self.set_progress(0, 'Checking for new updates from update server')
         self.join_subtasks(self.run_subtask(
             'update.check',
-            progress_callback=lambda p, m, e=None: self.chunk_progress(0, 10, '', p, m, e)
+            progress_callback=lambda p, m='Checking for updates from update server', e=None: self.chunk_progress(0, 10, '', p, m, e)
         ))
         if self.dispatcher.call_sync('update.is_update_available'):
-            self.set_progress(10, 'New updates found. Downloading them now...')
+            self.set_progress(10, 'New updates found. Downloading them now')
             self.join_subtasks(self.run_subtask(
                 'update.download',
-                progress_callback=lambda p, m, e=None: self.chunk_progress(10, 100, '', p, m, e)
+                progress_callback=lambda p, m='New updates found. Downloading them now', e=None: self.chunk_progress(10, 100, '', p, m, e)
             ))
             self.set_progress(100, 'Updates successfully Downloaded')
             result = True
@@ -902,17 +902,17 @@ class UpdateNowTask(ProgressTask):
         return ['root']
 
     def run(self, reboot_post_install=False):
-        self.set_progress(0, 'Checking for new updates...')
+        self.set_progress(0, 'Checking for new updates')
         self.join_subtasks(self.run_subtask(
             'update.checkfetch',
-            progress_callback=lambda p, m, e=None: self.chunk_progress(0, 50, '', p, m, e)
+            progress_callback=lambda p, m='Checking for new updates', e=None: self.chunk_progress(0, 50, '', p, m, e)
         ))
         if self.dispatcher.call_sync('update.is_update_available'):
-            self.set_progress(50, "Installing downloaded updates now...")
+            self.set_progress(50, 'Installing downloaded updates now')
             self.join_subtasks(self.run_subtask(
                 'update.apply',
                 reboot_post_install,
-                progress_callback=lambda p, m, e=None: self.chunk_progress(50, 100, '', p, m, e)
+                progress_callback=lambda p, m='Installing downloaded updates now', e=None: self.chunk_progress(50, 100, '', p, m, e)
             ))
             self.set_progress(100, 'Updates Installed successfully')
             result = True
@@ -1016,6 +1016,9 @@ def _init(dispatcher, plugin):
             },
             'operations': {'$ref': 'update-ops'},
             'downloaded': {'type': 'boolean'},
+            'version': {'type': 'string'},
+            'installed': {'type': 'boolean'},
+            'installed_version': {'type': 'string'}
         }
     })
 
