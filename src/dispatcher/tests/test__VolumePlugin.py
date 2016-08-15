@@ -32,3 +32,31 @@ class TestVolumeQuery(BaseTestCase):
     def test_basic(self):
         result = self.client.call_sync('volume.query')
         self.assertEqual(result, [])
+
+
+class TestVolumeCreateAuto(BaseTestCase):
+    def test_basic(self):
+        empty_disks = self.client.call_sync('disk.query', [('status.empty', '=', True)])
+        self.assertGreater(len(empty_disks), 0, msg='No empty disks left on target machine')
+        task = self.client.call_task_sync(
+            'volume.create_auto',
+            'test_volume',
+            'zfs',
+            'disk',
+            empty_disks
+        )
+
+        self.assertEqual(task['name'], 'volume.create_auto')
+        self.assertEqual(task['state'], 'FINISHED')
+        self.assertEqual(self.ssh_exec('zfs list test_volume'), 0)
+
+    def tearDown(self):
+        test_volumes = self.client.call_sync(
+            'volume.query',
+            [('id', '~', 'test_volume')],
+        )
+
+        for v in test_volumes:
+            self.client.call_task_sync('volume.delete', v['id'])
+
+        super(TestVolumeCreateAuto, self).tearDown()
