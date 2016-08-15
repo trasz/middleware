@@ -29,11 +29,8 @@ import sys
 import argparse
 import nose2
 import nose2.events
-import inspect
-import glob
 from paramiko import AutoAddPolicy
 from paramiko.client import SSHClient
-from freenas.utils import load_module_from_file
 
 
 class Context(object):
