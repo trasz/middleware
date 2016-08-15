@@ -16,6 +16,13 @@ class AlertTestCase(RESTTestCase):
         data = r.json()
         self.assertIsInstance(data, list)
 
+    def test_022_send(self):
+        r = self.client.post(self.name + '/send', data=[
+            'test!',
+            'INFO',
+        ])
+        self.assertEqual(r.status_code, 200, msg=r.text)
+
 
 class AlertFilterTestCase(CRUDTestCase):
     name = 'alert/filter'
