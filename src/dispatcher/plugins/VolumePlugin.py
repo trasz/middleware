@@ -2548,7 +2548,7 @@ def register_property_schemas(plugin):
             'readOnly': True
         },
         'readonly': {
-            'type': 'string',
+            'type': 'boolean',
             'readOnly': True
         },
         'usedbyrefreservation': {
