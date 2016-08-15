@@ -1,4 +1,4 @@
-from base import RESTTestCase
+from base import CRUDTestCase, RESTTestCase
 
 
 class AlertTestCase(RESTTestCase):
@@ -15,3 +15,30 @@ class AlertTestCase(RESTTestCase):
         self.assertEqual(r.status_code, 200, msg=r.text)
         data = r.json()
         self.assertIsInstance(data, list)
+
+
+class AlertFilterTestCase(CRUDTestCase):
+    name = 'alert/filter'
+
+    def get_create_data(self):
+        return {
+            'id': 'alertfiltertest',
+            'emitter': 'EMAIL',
+            'parameters': {
+                'addresses': ['freenas@ixsystems.com']
+            }
+        }
+
+    def get_update_ident_data(self):
+        return 'alertfiltertest', {
+            'predicates': [
+                {
+                    'property': 'class',
+                    'operator': '==',
+                    'value': 'VolumeUpgradePossible',
+                }
+            ]
+        }
+
+    def get_delete_identifier(self):
+        return 'alertfiltertest'
