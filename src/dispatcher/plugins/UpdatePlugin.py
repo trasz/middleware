@@ -139,17 +139,17 @@ class CheckUpdateHandler(object):
 
 
 def check_updates(dispatcher, configstore, cache_dir=None, check_now=False):
-    "Utility function to just check for Updates"
-    update_cache_invalidate_list = [
-        'updateAvailable', 'updateNotes', 'updateNotice',
-        'updateOperations', 'changelog', 'downloaded'
-    ]
-    updateAvailable = False
-    update_ops = None
-    notes = None
-    notice = None
-    downloaded = False
-    changelog = ''
+    """
+    Utility function to just check for Updates
+    """
+    update_cache_value_dict = {
+        'available': False,
+        'operations': None,
+        'notes': None,
+        'notice': None,
+        'downloaded': False,
+        'changelog': ''
+    }
 
     # If the current check is an online one (and not in the cache_dir)
     # then store the current update info and use them to restore the update cache
@@ -159,16 +159,12 @@ def check_updates(dispatcher, configstore, cache_dir=None, check_now=False):
         try:
             current_update_info = dispatcher.call_sync('update.update_info')
             if current_update_info is not None and current_update_info['downloaded']:
-                updateAvailable = True
-                downloaded = current_update_info['downloaded']
-                notes = current_update_info['notes']
-                notice = current_update_info['notice']
-                update_ops = current_update_info['operations']
-                changelog = current_update_info['changelog']
+                update_cache_value_dict.update(current_update_info.copy())
+                update_cache_value_dict['available'] = True
         except RpcException:
             pass
 
-    dispatcher.call_sync('update.update_cache_invalidate', update_cache_invalidate_list)
+    dispatcher.call_sync('update.update_cache_invalidate', list(update_cache_value_dict.keys()))
 
     conf = Configuration.Configuration()
     handler = CheckUpdateHandler()
@@ -180,62 +176,46 @@ def check_updates(dispatcher, configstore, cache_dir=None, check_now=False):
             train=train,
             cache_dir=None if check_now else cache_dir,
         )
-    except Exception:
-        update_cache_put_value_dict = {
-            'updateAvailable': updateAvailable,
-            'updateNotes': notes,
-            'updateNotice': notice,
-            'updateOperations': update_ops,
-            'changelog': changelog,
-            'downloaded': downloaded,
-        }
-        dispatcher.call_sync('update.update_cache_putter', update_cache_put_value_dict)
-        raise
 
-    if update:
-        logger.debug("An update is available")
-        update_ops = handler.output()
-        sys_mani = conf.SystemManifest()
-        if sys_mani:
-            sequence = sys_mani.Sequence()
-        else:
-            sequence = ''
-        try:
-            if check_now:
-                changelog = get_changelog(
-                    train, cache_dir=cache_dir, start=sequence, end=update.Sequence()
-                )
+        if update:
+            logger.debug("An update is available")
+            sys_mani = conf.SystemManifest()
+            if sys_mani:
+                sequence = sys_mani.Sequence()
             else:
-                changelog_file = "{0}/ChangeLog.txt".format(cache_dir)
-                changelog = parse_changelog(
-                    changelog_file.read(), start=sequence, end=update.Sequence()
-                )
-        except Exception:
-            changelog = ''
-        notes = update.Notes()
-        notice = update.Notice()
-        version = update.Version()
+                sequence = ''
+            try:
+                if check_now:
+                    changelog = get_changelog(
+                        train, cache_dir=cache_dir, start=sequence, end=update.Sequence()
+                    )
+                else:
+                    changelog_file = "{0}/ChangeLog.txt".format(cache_dir)
+                    changelog = parse_changelog(
+                        changelog_file.read(), start=sequence, end=update.Sequence()
+                    )
+            except Exception:
+                changelog = ''
+            update_cache_value_dict.update({
+                'available': True,
+                'notes': update.Notes(),
+                'notice': update.Notice(),
+                'operations': handler.output(),
+                'version': update.Version(),
+                'changelog': changelog,
+                'downloaded': False if check_now else True
+            })
 
-        downloaded = False if check_now else True
-        dispatcher.call_sync(
-            'update.update_alert_set',
-            'UpdateDownloaded' if downloaded else 'UpdateAvailable',
-            version
-        )
+            dispatcher.call_sync(
+                'update.update_alert_set',
+                'UpdateDownloaded' if update_cache_value_dict['downloaded'] else 'UpdateAvailable',
+                update_cache_value_dict['version']
+            )
 
-    else:
-        logger.debug("No update available")
-        changelog = None
-
-    update_cache_put_value_dict = {
-        'updateAvailable': True if update else False,
-        'updateNotes': notes,
-        'updateNotice': notice,
-        'updateOperations': update_ops,
-        'changelog': changelog,
-        'downloaded': downloaded,
-    }
-    dispatcher.call_sync('update.update_cache_putter', update_cache_put_value_dict)
+        else:
+            logger.debug("No update available")
+    finally:
+        dispatcher.call_sync('update.update_cache_putter', update_cache_value_dict)
 
 
 class UpdateHandler(object):
@@ -332,7 +312,7 @@ def generate_update_cache(dispatcher, cache_dir=None):
         check_updates(dispatcher, dispatcher.configstore, cache_dir=cache_dir)
     except Exception as e:
         # What to do now?
-        logger.debug('generate_update_cache (UpdatePlugin) falied because of: %s', e)
+        logger.debug('generate_update_cache (UpdatePlugin) falied: %s', e)
 
 
 @description("Provides System Updater Configuration")
@@ -341,11 +321,11 @@ class UpdateProvider(Provider):
     @accepts()
     @returns(str)
     def is_update_available(self):
-        temp_updateAvailable = update_cache.get('updateAvailable', timeout=1)
-        if temp_updateAvailable is not None:
-            return temp_updateAvailable
-        elif update_cache.is_valid('updateAvailable'):
-            return temp_updateAvailable
+        temp_available = update_cache.get('available', timeout=1)
+        if temp_available is not None:
+            return temp_available
+        elif update_cache.is_valid('available'):
+            return temp_available
         else:
             raise RpcException(errno.EBUSY, (
                 'Update Availability flag is invalidated, an Update Check'
@@ -369,11 +349,11 @@ class UpdateProvider(Provider):
     @accepts()
     @returns(h.array(h.ref('update-ops')))
     def get_update_ops(self):
-        temp_updateOperations = update_cache.get('updateOperations', timeout=1)
-        if temp_updateOperations is not None:
-            return temp_updateOperations
-        elif update_cache.is_valid('updateOperations'):
-            return temp_updateOperations
+        temp_operations = update_cache.get('operations', timeout=1)
+        if temp_operations is not None:
+            return temp_operations
+        elif update_cache.is_valid('operations'):
+            return temp_operations
         else:
             raise RpcException(errno.EBUSY, (
                 'Update Operations Dict is invalidated, an Update Check '
@@ -386,25 +366,20 @@ class UpdateProvider(Provider):
         None,
     ))
     def update_info(self):
-        if not update_cache.is_valid('updateAvailable'):
+        if not update_cache.is_valid('available'):
             raise RpcException(errno.EBUSY, (
                 'Update Availability flag is invalidated, an Update Check'
                 ' might be underway. Try again in some time.'
             ))
-        updateAvailable = update_cache.get('updateAvailable', timeout=1)
-        if not updateAvailable:
+        available = update_cache.get('available', timeout=1)
+        if not available:
             return None
-        updateOperations = update_cache.get('updateOperations', timeout=1)
-        updateNotes = update_cache.get('updateNotes', timeout=1)
-        updateNotice = update_cache.get('updateNotice', timeout=1)
-        changelog = update_cache.get('changelog', timeout=1)
-        downloaded = update_cache.get('downloaded', timeout=1)
         return {
-            'changelog': changelog,
-            'notes': updateNotes,
-            'notice': updateNotice,
-            'operations': updateOperations,
-            'downloaded': downloaded,
+            'changelog': update_cache.get('changelog', timeout=1),
+            'notes': update_cache.get('notes', timeout=1),
+            'notice': update_cache.get('notice', timeout=1),
+            'operations': update_cache.get('operations', timeout=1),
+            'downloaded': update_cache.get('downloaded', timeout=1)
         }
 
     @returns(h.any_of(
@@ -490,7 +465,6 @@ class UpdateProvider(Provider):
         title = UPDATE_ALERT_TITLE_MAP.get(update_class, 'Update Alert')
         if desc is None:
             if update_class == 'UpdateAvailable':
-
                 desc = 'Latest Update: {0} is available for download'.format(update_version)
             elif update_class == 'UpdateDownloaded':
                 desc = 'Update containing {0} is downloaded and ready for install'.format(update_version)
@@ -612,7 +586,7 @@ class DownloadUpdateTask(ProgressTask):
         return TaskDescription("Downloading updates")
 
     def verify(self):
-        if not update_cache.get('updateAvailable', timeout=1):
+        if not update_cache.get('available', timeout=1):
             raise VerifyException(errno.ENOENT, (
                 'No updates currently available for download, try running '
                 'the `update.check` task'
