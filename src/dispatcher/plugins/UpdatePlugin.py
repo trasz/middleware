@@ -48,13 +48,18 @@ from task import (
 
 if '/usr/local/lib' not in sys.path:
     sys.path.append('/usr/local/lib')
-from freenasOS import Configuration, Train, Manifest
+from freenasOS import Configuration, Train, Manifest, disable_trygetfilelogs
 from freenasOS.Exceptions import (
     UpdateManifestNotFound, ManifestInvalidSignature, UpdateBootEnvironmentException,
     UpdatePackageException, UpdateIncompleteCacheException, UpdateBusyCacheException,
     ChecksumFailException, UpdatePackageNotFound
 )
 from freenasOS.Update import CheckForUpdates, DownloadUpdate, ApplyUpdate
+
+# The function calls below help reduce the debug logs
+# removing unnecessary 'TryGetNetworkFile' and such logs
+# thereby not inundating /var/log/dispatcher.log
+disable_trygetfilelogs()
 
 logger = logging.getLogger('UpdatePlugin')
 update_cache = CacheStore()
@@ -538,7 +543,6 @@ class UpdateConfigureTask(Task):
         return [update_resource_string]
 
     def run(self, props):
-
         if 'train' in props:
             train_to_set = props.get('train')
             conf = Configuration.Configuration()
