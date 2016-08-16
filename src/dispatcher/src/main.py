@@ -540,6 +540,7 @@ class Dispatcher(object):
         logging.root.setLevel(log_level)
 
     def dispatch_event(self, name, args):
+        self.logger.log(TRACE, 'Dispatching event: name={0} args={1}'.format(name, args))
         with self.event_delivery_lock:
             if 'timestamp' not in args:
                 # If there's no timestamp, assume event fired right now
