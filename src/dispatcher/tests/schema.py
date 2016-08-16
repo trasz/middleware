@@ -36,18 +36,14 @@ def __get_schema_resolver(schema):
     return RefResolver('', schema, SCHEMA_DEFINITIONS)
 
 
-def verify_schema(clazz, args, strict=False):
-    if not hasattr(clazz, 'params_schema'):
-        return []
-
-    schema = __schema_to_list(clazz.params_schema)
+def verify_schema(schema, obj, strict=False):
     val = validator.DefaultDraft4Validator(schema, resolver=__get_schema_resolver(schema))
     if strict:
         val.fail_read_only = True
     else:
         val.remove_read_only = True
 
-    return list(val.iter_errors(args))
+    return list(val.iter_errors(obj))
 
 
 def load_schema_definitions(client):
