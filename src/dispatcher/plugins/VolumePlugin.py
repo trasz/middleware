@@ -2672,7 +2672,7 @@ def _init(dispatcher, plugin):
                 pass
 
         temp_mountpoint = None
-        if q.get(ds, 'properties.readonly.parsed') and q.get(ds, 'properties.mounted.value') == 'yes':
+        if q.get(ds, 'properties.readonly.parsed') and ds['mounted']:
             for mnt in bsd.getmntinfo():
                 if mnt.source == ds['name'] and mnt.dest != q.get(ds, 'properties.mountpoint.parsed'):
                     temp_mountpoint = mnt.dest
@@ -2686,7 +2686,7 @@ def _init(dispatcher, plugin):
             'type': ds['type'],
             'mountpoint': q.get(ds, 'properties.mountpoint.value'),
             'temp_mountpoint': temp_mountpoint,
-            'mounted': yesno_to_bool(q.get(ds, 'properties.mounted.value')),
+            'mounted': ds['mounted'],
             'volsize': q.get(ds, 'properties.volsize.parsed'),
             'properties': include(
                 ds['properties'],

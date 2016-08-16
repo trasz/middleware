@@ -1447,7 +1447,7 @@ def _init(dispatcher, plugin):
                     datasets.update_one(ds['id'], mounted=True)
 
                 if type == 'unmount':
-                    datasets.update_many(ds['id'], lambda i: is_child(i['id'], ds['id']), mounted=False)
+                    datasets.update_one(ds['id'], mounted=False)
 
                 datasets.put(ds['id'], ds)
 

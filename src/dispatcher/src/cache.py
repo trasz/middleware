@@ -81,12 +81,17 @@ class CacheStore(object):
 
             item.update(kwargs)
             self.put(key, item)
+            return True
 
     def update_many(self, key, predicate, **kwargs):
         with self.lock:
+            updated = []
             for k, v in self.itervalid():
                 if predicate(v):
-                    self.update_one(k, **kwargs)
+                    if self.update_one(k, **kwargs):
+                        updated.append(key)
+
+            return updated
 
     def get(self, key, default=None, timeout=None):
         item = self.store.get(key)
@@ -188,6 +193,20 @@ class EventCacheStore(CacheStore):
                 })
 
         return created, updated
+
+    def update_one(self, key, **kwargs):
+        if super(EventCacheStore, self).update_one(key, **kwargs):
+            self.dispatcher.emit_event('{0}.changed'.format(self.name), {
+                'operation': 'update',
+                'ids': [key]
+            })
+
+    def update_many(self, key, predicate, **kwargs):
+        updated = super(EventCacheStore, self).update_many(key, predicate, **kwargs)
+        self.dispatcher.emit_event('{0}.changed'.format(self.name), {
+            'operation': 'update',
+            'ids': updated
+        })
 
     def remove(self, key):
         ret = super(EventCacheStore, self).remove(key)
