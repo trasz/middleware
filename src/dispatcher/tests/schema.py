@@ -36,15 +36,6 @@ def __get_schema_resolver(schema):
     return RefResolver('', schema, SCHEMA_DEFINITIONS)
 
 
-def __schema_to_list(schema):
-    return {
-        'type': 'array',
-        'items': schema,
-        'minItems': sum([1 for x in schema if 'mandatory' in x and x['mandatory']]),
-        'maxItems': len(schema)
-    }
-
-
 def verify_schema(clazz, args, strict=False):
     if not hasattr(clazz, 'params_schema'):
         return []
