@@ -1232,8 +1232,9 @@ def sync_dataset_cache(dispatcher, dataset, old_dataset=None, recursive=False):
 
         if old_dataset:
             datasets.rename(old_dataset, dataset)
+            dispatcher.unregister_resource('zfs:{0}'.format(old_dataset))
 
-        if datasets.put(dataset, ds.__getstate__(recursive=False)):
+        if datasets.put(dataset, ds.__getstate__(recursive=False)) or old_dataset:
             dispatcher.register_resource(
                 Resource('zfs:{0}'.format(dataset)),
                 parents=['zpool:{0}'.format(pool)])
@@ -1253,7 +1254,8 @@ def sync_dataset_cache(dispatcher, dataset, old_dataset=None, recursive=False):
 
         if recursive:
             for i in ds.children:
-                sync_dataset_cache(dispatcher, i.name, recursive=True)
+                oldpath = os.path.join(old_dataset, os.path.relpath(i.name, dataset))
+                sync_dataset_cache(dispatcher, i.name, old_dataset=oldpath, recursive=True)
 
     except libzfs.ZFSException as e:
         if e.code == libzfs.Error.NOENT:
@@ -1398,7 +1400,7 @@ def _init(dispatcher, plugin):
                 sync_snapshot_cache(dispatcher, args['new_ds'], args['ds'])
             else:
                 logger.info('Dataset {0} renamed to: {1}'.format(args['ds'], args['new_ds']))
-                sync_dataset_cache(dispatcher, args['new_ds'], args['ds'])
+                sync_dataset_cache(dispatcher, args['new_ds'], args['ds'], True)
 
     def on_dataset_setprop(args):
         with dispatcher.get_lock('zfs-cache'):
