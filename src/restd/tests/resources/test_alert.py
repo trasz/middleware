@@ -21,7 +21,7 @@ class AlertTestCase(RESTTestCase):
             'test!',
             'INFO',
         ])
-        self.assertEqual(r.status_code, 200, msg=r.text)
+        self.assertEqual(r.status_code, 201, msg=r.text)
 
 
 class AlertFilterTestCase(CRUDTestCase):
