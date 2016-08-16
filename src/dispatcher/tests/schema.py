@@ -28,7 +28,8 @@
 from freenas.dispatcher import validator
 from jsonschema import RefResolver
 
-SCHEMA_DEFINITIONS = None
+
+SCHEMA_DEFINITIONS = {}
 
 
 def __get_schema_resolver(schema):
@@ -60,4 +61,4 @@ def verify_schema(clazz, args, strict=False):
 
 def load_schema_definitions(client):
     global SCHEMA_DEFINITIONS
-    SCHEMA_DEFINITIONS = client.call_sync('discovery.get_schema')
+    SCHEMA_DEFINITIONS = client.call_sync('discovery.get_schema')['definitions']
