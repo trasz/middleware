@@ -27,7 +27,7 @@
 
 import unittest
 from freenas.dispatcher.client import Client
-from schema import load_schema_definitions, verify_schema
+from schema import load_schema_definitions, verify_schema, get_schema, get_methods
 
 
 class BaseTestCase(unittest.TestCase):
@@ -56,7 +56,19 @@ class BaseTestCase(unittest.TestCase):
 
         return exitcode
 
-    def assertSchemaValid(self, clazz, args, strict=False):
-        errors = verify_schema(clazz, args, strict)
+    def get_params_schema(self, method):
+        return get_methods(self.client, method).get('params-schema')
+
+    def get_result_schema(self, method):
+        return get_methods(self.client, method).get('results-schema')
+
+    def assertConformsToSchema(self, obj, schema, strict=False):
+        errors = verify_schema(schema, obj, strict)
         if errors:
-            raise AssertionError('Schema validation failed {}'.format(errors))
+            raise AssertionError('Object {0} does not match {1} schema. Errors: {2}'.format(obj, schema, errors))
+
+    def assertConformsToNamedSchema(self, obj, schema_name, strict=False):
+        schema = get_schema(schema_name)
+        if not schema:
+            raise AssertionError('Schema {0} is unknown'.format(schema_name))
+        self.assertConformsToSchema(obj, schema, strict)
