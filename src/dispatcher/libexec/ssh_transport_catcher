@@ -1,4 +1,4 @@
 #!/bin/sh
-LIBDIR=/usr/local/lib/dispatcher/src
+LIBDIR=/usr/local/lib/dispatcher/ssh
 export PYTHONPATH=$LIBDIR
 exec /usr/local/bin/python3 -u $LIBDIR/ssh_transport_catcher.py $*
