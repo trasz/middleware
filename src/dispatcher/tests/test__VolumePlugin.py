@@ -31,13 +31,15 @@ from base import BaseTestCase
 class TestVolumeQuery(BaseTestCase):
     def test_basic(self):
         result = self.client.call_sync('volume.query')
-        self.assertEqual(result, [])
+        self.assertIsInstance(result, list)
+        self.assertConformsToSchema(result, self.get_result_schema('volume.query'))
 
 
 class TestVolumeCreateAuto(BaseTestCase):
     def test_basic(self):
         empty_disks = self.client.call_sync('disk.query', [('status.empty', '=', True)])
         self.assertGreater(len(empty_disks), 0, msg='No empty disks left on target machine')
+        self.assertConformsToSchema(empty_disks, self.get_result_schema('disk.query'))
         task = self.client.call_task_sync(
             'volume.create_auto',
             'test_volume',

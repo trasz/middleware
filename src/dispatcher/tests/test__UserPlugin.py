@@ -32,6 +32,7 @@ class TestUserQuery(BaseTestCase):
     def test_basic(self):
         result = self.client.call_sync('user.query')
         self.assertIsInstance(result, list)
+        self.assertConformsToSchema(result, self.get_result_schema('user.query'))
 
     def test_filter_single(self):
         result = self.client.call_sync(
@@ -45,6 +46,7 @@ class TestUserQuery(BaseTestCase):
         self.assertEqual(result['username'], 'root')
         self.assertIn('uid', result)
         self.assertEqual(result['uid'], 0)
+        self.assertConformsToSchema(result, self.get_result_schema('user.query'))
 
 
 class TestUserCreate(BaseTestCase):
