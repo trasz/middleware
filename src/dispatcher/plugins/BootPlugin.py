@@ -234,7 +234,7 @@ def _init(dispatcher, plugin):
         'type': 'object',
         'properties': {
             'id': {'type': 'string'},
-            'name': {'type': 'string', 'readOnly': True},
+            'realname': {'type': 'string', 'readOnly': True},
             'active': {'type': 'boolean'},
             'on_reboot': {'type': 'boolean', 'readOnly': True},
             'mountpoint': {'type': ['string', 'null'], 'readOnly': True},
