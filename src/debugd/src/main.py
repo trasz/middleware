@@ -273,7 +273,7 @@ class TailConnection(Job):
     def __init__(self, path, backlog, fd):
         super(TailConnection, self).__init__()
         self.path = path
-        self.fd = fd
+        self.fd = fd.fd
         self.backlog = backlog
 
     def describe(self):
@@ -287,12 +287,12 @@ class TailConnection(Job):
                     n -= 1
                     if n == -1:
                         break
-            return fm[i + 1 if i else 0:].splitlines()
+            return fm[i + 1 if i else 0:].decode('utf-8')
         finally:
             fm.close()
 
     def worker(self):
-        with io.open(self.fd) as fd:
+        with io.open(self.fd, 'w') as fd:
             with open(self.path, 'r') as f:
                 fd.write(self.tail(f, self.backlog))
                 kq = select.kqueue()
