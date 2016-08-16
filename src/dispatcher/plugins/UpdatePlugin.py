@@ -199,7 +199,7 @@ def check_updates(dispatcher, configstore, cache_dir=None, check_now=False):
 
         if update:
             version = update.Version()
-            update_installed_bootenv = is_update_applied(dispatcher, version)
+            update_installed_bootenv = list(is_update_applied(dispatcher, version))
             if version == update_cache_value_dict['installed_version'] or update_installed_bootenv:
                 logger.debug('Update is already installed')
                 update_cache_value_dict['installed'] = True
@@ -208,7 +208,7 @@ def check_updates(dispatcher, configstore, cache_dir=None, check_now=False):
                     'update.update_alert_set',
                     'UpdateInstalled',
                     version,
-                    {'update_installed_bootenv': list(update_installed_bootenv)}
+                    {'update_installed_bootenv': update_installed_bootenv}
                 )
                 return
             logger.debug("An update is available")
