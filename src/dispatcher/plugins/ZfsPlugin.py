@@ -1446,7 +1446,6 @@ def _init(dispatcher, plugin):
                     ds['mounted'] = False
 
                 datasets.put(ds['id'], ds)
-                sync_dataset_cache(dispatcher, ds['name'], recursive=True)
 
     def on_device_attached(args):
         for p in pools.validvalues():
