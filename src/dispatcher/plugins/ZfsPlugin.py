@@ -1444,10 +1444,20 @@ def _init(dispatcher, plugin):
 
                 logger.info('Dataset {0} {1}ed'.format(ds['name'], type))
                 if type == 'mount':
-                    datasets.update_one(ds['id'], mounted=True)
+                    datasets.update_one(ds['id'], **{
+                        'mounted': True,
+                        'properties.mounted.rawvalue': 'yes',
+                        'properties.mounted.value': 'yes',
+                        'properties.mounted.parsed': True
+                    })
 
                 if type == 'unmount':
-                    datasets.update_one(ds['id'], mounted=False)
+                    datasets.update_one(ds['id'], **{
+                        'mounted': True,
+                        'properties.mounted.rawvalue': 'no',
+                        'properties.mounted.value': 'no',
+                        'properties.mounted.parsed': False
+                    })
 
                 datasets.put(ds['id'], ds)
 

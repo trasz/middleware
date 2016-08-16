@@ -27,7 +27,7 @@
 
 from gevent.event import Event
 from gevent.lock import RLock
-from freenas.utils.query import query
+from freenas.utils.query import query, set
 from sortedcontainers import SortedDict
 
 
@@ -79,7 +79,9 @@ class CacheStore(object):
             if not item:
                 return False
 
-            item.update(kwargs)
+            for k, v in kwargs:
+                set(item, k, v)
+
             self.put(key, item)
             return True
 
