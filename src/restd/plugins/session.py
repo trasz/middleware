@@ -1,7 +1,7 @@
-from base import CRUDBase, ProviderMixin, Resource
+from base import ProviderMixin, Resource, ResourceQueryMixin
 
 
-class SessionResource(ProviderMixin, Resource):
+class SessionResource(ProviderMixin, ResourceQueryMixin, Resource):
     name = 'session'
     provider = 'session'
     get = 'rpc:session.query'
