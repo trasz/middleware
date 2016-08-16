@@ -9,7 +9,7 @@ class ShareISCSITestCase(RESTTestCase):
             'description': 'test auth',
             'type': 'NONE',
         })
-        self.assertEqual(r.status_code, 201)
+        self.assertEqual(r.status_code, 201, msg=r.text)
 
     def test_006_portal_create(self):
         r = self.client.get(self.name + '/auth', params={
@@ -23,7 +23,7 @@ class ShareISCSITestCase(RESTTestCase):
             'discovery_auth_group': '1',
             'listen': [{'address': '0.0.0.0', 'port': 3260}],
         })
-        self.assertEqual(r.status_code, 201)
+        self.assertEqual(r.status_code, 201, msg=r.text)
 
     def test_007_target_create(self):
         r = self.client.get(self.name + '/auth', params={
@@ -42,7 +42,7 @@ class ShareISCSITestCase(RESTTestCase):
             'portal_group': portal,
             'extents': []
         })
-        self.assertEqual(r.status_code, 201)
+        self.assertEqual(r.status_code, 201, msg=r.text)
 
     def test_008_share_create(self):
         r = self.client.post('share', data={
@@ -55,22 +55,22 @@ class ShareISCSITestCase(RESTTestCase):
                 'size': 1024 * 1024 * 10,
             }
         })
-        self.assertEqual(r.status_code, 201)
+        self.assertEqual(r.status_code, 201, msg=r.text)
 
     def test_020_target_retrieve(self):
         r = self.client.get(self.name + '/target', params={
             'id': 'tgt0',
         })
-        self.assertEqual(r.status_code, 200)
+        self.assertEqual(r.status_code, 200, msg=r.text)
         self.assertEqual(len(r.json()), 1)
 
     def test_021_auth_retrieve(self):
         r = self.client.get(self.name + '/auth')
-        self.assertEqual(r.status_code, 200)
+        self.assertEqual(r.status_code, 200, msg=r.text)
 
     def test_022_portal_retrieve(self):
         r = self.client.get(self.name + '/portal')
-        self.assertEqual(r.status_code, 200)
+        self.assertEqual(r.status_code, 200, msg=r.text)
 
     def test_030_target_update(self):
         r = self.client.put(self.name + '/target/tgt0', data={
@@ -81,7 +81,7 @@ class ShareISCSITestCase(RESTTestCase):
 
     def test_090_target_delete(self):
         r = self.client.delete(self.name + '/target/id/tgt0')
-        self.assertEqual(r.status_code, 204)
+        self.assertEqual(r.status_code, 204, msg=r.text)
 
     def test_091_auth_delete(self):
         r = self.client.get(self.name + '/auth', params={
@@ -89,7 +89,7 @@ class ShareISCSITestCase(RESTTestCase):
         })
         auth = r.json()[0]['id']
         r = self.client.delete(self.name + '/auth/id/' + auth)
-        self.assertEqual(r.status_code, 204)
+        self.assertEqual(r.status_code, 204, msg=r.text)
 
     def test_092_portal_delete(self):
         r = self.client.get(self.name + '/portal', params={
@@ -97,7 +97,7 @@ class ShareISCSITestCase(RESTTestCase):
         })
         portal = r.json()[0]['id']
         r = self.client.delete(self.name + '/portal/id/' + portal)
-        self.assertEqual(r.status_code, 204)
+        self.assertEqual(r.status_code, 204, msg=r.text)
 
     def test_093_share_delete(self):
         r = self.client.get('share', params={
@@ -105,4 +105,4 @@ class ShareISCSITestCase(RESTTestCase):
         })
         share = r.json()[0]['id']
         r = self.client.delete('share/id/' + share)
-        self.assertEqual(r.status_code, 204)
+        self.assertEqual(r.status_code, 204, msg=r.text)
