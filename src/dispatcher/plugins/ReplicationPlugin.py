@@ -114,6 +114,8 @@ class ReplicationLinkProvider(Provider):
         else:
             return None
 
+    @accepts(h.ref('replication-link'))
+    @returns(bool, str)
     def get_replication_state(self, link):
         is_master = False
         remote = ''
