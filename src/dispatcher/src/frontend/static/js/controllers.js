@@ -16,28 +16,22 @@ function LoginController($scope, $location, $routeParams, $route, $rootScope) {
             );
         };
         sock.onLogin = function(){
-            sock.call("discovery.get_services", null, function (services) {
-                console.log("this is login controller");
-                console.log("=============================");
-                console.log(services);
-                console.log("=============================");
-                if (services.hasOwnProperty('code') && services['code'] == 13) {
-                    $scope.login_status = false;
-                    console.log("login failed");
-                    $("#err_msg").html("Username or password is incorrect");
+            if (!sock.token) {
+                $scope.login_status = false;
+                console.log("login failed");
+                $("#err_msg").html("Username or password is incorrect");
+            }else {
+                $rootScope.username = username;
+                sessionStorage.setItem("freenas:username", username);
+                sessionStorage.setItem("freenas:password", password);
+                if ($routeParams.nextRoute) {
+                    $location.path('/'+$routeParams.nextRoute);
+                    $route.reload();
                 }else {
-                    $rootScope.username = username;
-                    sessionStorage.setItem("freenas:username", username);
-                    sessionStorage.setItem("freenas:password", password);
-                    if ($routeParams.nextRoute) {
-                        $location.path('/'+$routeParams.nextRoute);
-                        $route.reload();
-                    }else {
-                        $location.path('/rpc');
-                        $route.reload();
-                    }
+                    $location.path('/rpc');
+                    $route.reload();
                 }
-            });
+            }
         }
         sock.onError = function(err){
             console.log(err);
@@ -46,7 +40,7 @@ function LoginController($scope, $location, $routeParams, $route, $rootScope) {
     }
 }
 
-function RpcController($scope, $location, $routeParams, $route,$rootScope, ModalService) {
+function RpcController($scope, $location, $routeParams, $route, $rootScope, ModalService) {
     document.title = "RPC Page";
     if (!sessionStorage.getItem("freenas:username")){
         $location.path('/login'+$route.current.$$route.originalPath);
@@ -114,7 +108,20 @@ function RpcController($scope, $location, $routeParams, $route,$rootScope, Modal
       //get params from middleware then set it to #args
       $("#args").val('[]');
     }
-    $("#call").click(function () {
+    // $("#call").click(function () {
+    //     console.log('button clicked, loading data, please wait for a sec');
+    //     sock.call(
+    //         $("#method").val(),
+    //         JSON.parse($("#args").val()),
+    //         function(result) {
+    //             $("#result").html(JSON.stringify(result, null, 4));
+    //             $("#result").show("slow");
+    //         }
+    //     );
+    // });
+
+    $scope.submitForm = function() {
+        console.log('button clicked, loading data, please wait for a sec');
         sock.call(
             $("#method").val(),
             JSON.parse($("#args").val()),
@@ -123,7 +130,7 @@ function RpcController($scope, $location, $routeParams, $route,$rootScope, Modal
                 $("#result").show("slow");
             }
         );
-    });
+    }
     function clearInputText() {
       //extra tweak for everytime you click on a new method
       //then it should clear all previous text left inside textarea
