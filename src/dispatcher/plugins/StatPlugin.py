@@ -100,9 +100,7 @@ class CpuStatProvider(Provider):
     @query('statistic')
     @generator
     def query(self, filter=None, params=None):
-        stats = self.dispatcher.call_sync('stat.query', [('name', '~', 'cpu')])
-
-        for stat in stats:
+        def extend(stat):
             type = stat['name'].split('.', 3)[2]
             if 'aggregation' in stat['name']:
                 stat['short_name'] = dash_to_underscore('aggregated-' + type)
@@ -110,6 +108,10 @@ class CpuStatProvider(Provider):
                 stat['short_name'] = dash_to_underscore('cpu-' + re.search(r'\d+', stat['name']).group() + '-' + type)
 
             normalize_values(stat)
+            return stat
+
+        raw_stats = self.dispatcher.call_sync('stat.query', [('name', '~', 'cpu')])
+        stats = map(extend, raw_stats)
 
         return q.query(stats, *(filter or []), stream=True, **(params or {}))
 
@@ -119,15 +121,17 @@ class DiskStatProvider(Provider):
     @query('statistic')
     @generator
     def query(self, filter=None, params=None):
-        stats = self.dispatcher.call_sync('stat.query', [('name', '~', 'disk')])
-
-        for stat in stats:
+        def extend(stat):
             split_name = stat['name'].split('.', 3)
             stat['short_name'] = dash_to_underscore(
                 split_name[1] + '-' + split_name[3] + '-' + split_name[2].split('_', 2)[1]
             )
 
             normalize_values(stat)
+            return stat
+
+        raw_stats = self.dispatcher.call_sync('stat.query', [('name', '~', 'disk')])
+        stats = map(extend, raw_stats)
 
         return q.query(stats, *(filter or []), stream=True, **(params or {}))
 
@@ -137,15 +141,17 @@ class NetworkStatProvider(Provider):
     @query('statistic')
     @generator
     def query(self, filter=None, params=None):
-        stats = self.dispatcher.call_sync('stat.query', [('name', '~', 'interface')])
-
-        for stat in stats:
+        def extend(stat):
             split_name = stat['name'].split('.', 3)
             stat['short_name'] = dash_to_underscore(
                 split_name[1] + '-' + split_name[3] + '-' + split_name[2].split('_', 2)[1]
             )
 
             normalize_values(stat)
+            return stat
+
+        raw_stats = self.dispatcher.call_sync('stat.query', [('name', '~', 'interface')])
+        stats = map(extend, raw_stats)
 
         return q.query(stats, *(filter or []), stream=True, **(params or {}))
 
@@ -155,15 +161,7 @@ class SystemStatProvider(Provider):
     @query('statistic')
     @generator
     def query(self, filter=None, params=None):
-        stats = self.dispatcher.call_sync(
-            'stat.query',
-            [
-                ['or', [('name', '~', 'load'), ('name', '~', 'processes'), ('name', '~', 'memory'), ('name', '~', 'df')]],
-                ['nor', [('name', '~', 'zfs')]]
-            ]
-        )
-
-        for stat in stats:
+        def extend(stat):
             split_name = stat['name'].split('.', 3)
             if 'df' in stat['name']:
                 stat['short_name'] = dash_to_underscore(
@@ -175,6 +173,16 @@ class SystemStatProvider(Provider):
                 stat['short_name'] = dash_to_underscore(split_name[2])
 
             normalize_values(stat)
+            return stat
+
+        raw_stats = self.dispatcher.call_sync(
+            'stat.query',
+            [
+                ['or', [('name', '~', 'load'), ('name', '~', 'processes'), ('name', '~', 'memory'), ('name', '~', 'df')]],
+                ['nor', [('name', '~', 'zfs')]]
+            ]
+        )
+        stats = map(extend, raw_stats)
 
         return q.query(stats, *(filter or []), stream=True, **(params or {}))
 
