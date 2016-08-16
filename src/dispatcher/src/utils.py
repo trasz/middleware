@@ -42,6 +42,10 @@ def first_or_default(f, iterable, default=None):
     return default
 
 
+def is_child(path, path2):
+    return path.startswith(path2 + '/')
+
+
 def split_dataset(dataset_path):
     pool = dataset_path.split('/')[0]
     return pool, dataset_path

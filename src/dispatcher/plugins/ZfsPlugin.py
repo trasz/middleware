@@ -46,6 +46,7 @@ from balancer import TaskState
 from resources import Resource
 from debug import AttachData, AttachCommandOutput
 from freenas.utils import first_or_default, query as q
+from utils import is_child
 
 
 VOLATILE_ZFS_PROPERTIES = [
@@ -1258,7 +1259,7 @@ def sync_dataset_cache(dispatcher, dataset, old_dataset=None, recursive=False):
         if e.code == libzfs.Error.NOENT:
             if datasets.remove(dataset):
                 snapshots.remove_predicate(lambda i: i['dataset'] == dataset)
-                names = datasets.remove_predicate(lambda i: i['name'].startswith(dataset + '/'))
+                names = datasets.remove_predicate(lambda i: is_child(i['name'], dataset))
                 dispatcher.unregister_resources(
                     ['zfs:{0}'.format(i) for i in names] +
                     ['zfs:{0}'.format(dataset)]
@@ -1428,6 +1429,7 @@ def _init(dispatcher, plugin):
                     ds = datasets.query(('id', '=', args['source']), single=True)
                 else:
                     ds = datasets.query(('properties.mountpoint.value', '=', args['path']), single=True)
+
                 if not ds:
                     for mnt in bsd.getmntinfo():
                         if mnt.dest == args['path']:
@@ -1440,10 +1442,10 @@ def _init(dispatcher, plugin):
 
                 logger.info('Dataset {0} {1}ed'.format(ds['name'], type))
                 if type == 'mount':
-                    ds['mounted'] = True
+                    datasets.update_one(ds['id'], mounted=True)
 
                 if type == 'unmount':
-                    ds['mounted'] = False
+                    datasets.update_many(ds['id'], lambda i: is_child(i['id'], ds['id']), mounted=False)
 
                 datasets.put(ds['id'], ds)
 
