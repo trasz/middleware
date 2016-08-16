@@ -27,6 +27,7 @@
 
 from freenas.dispatcher import validator
 from jsonschema import RefResolver
+from freenas.utils import first_or_default
 
 
 SCHEMA_DEFINITIONS = {}
@@ -44,6 +45,22 @@ def verify_schema(schema, obj, strict=False):
         val.remove_read_only = True
 
     return list(val.iter_errors(obj))
+
+
+def get_schema(schema_name):
+    return SCHEMA_DEFINITIONS.get(schema_name)
+
+
+def get_methods(client, method):
+    service, method_name = method.rsplit('.', 1)
+    methods = first_or_default(
+        lambda m: m['name'] == method_name,
+        client.call_sync('discovery.get_methods', service)
+    )
+    if not methods:
+        raise ValueError('Method {0} does not exist'.format(method))
+
+    return methods
 
 
 def load_schema_definitions(client):
