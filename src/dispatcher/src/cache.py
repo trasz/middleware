@@ -79,7 +79,7 @@ class CacheStore(object):
             if not item:
                 return False
 
-            for k, v in kwargs:
+            for k, v in kwargs.items():
                 set(item, k, v)
 
             self.put(key, item)
