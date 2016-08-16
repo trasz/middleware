@@ -33,6 +33,7 @@ import signal
 import enum
 import uuid
 import json
+import glob
 import setproctitle
 import time
 import subprocess
@@ -43,6 +44,7 @@ import select
 import socket
 import tarfile
 import bsd
+import mmap
 import msock.channel
 import msock.client
 from datetime import datetime
@@ -135,6 +137,12 @@ class DebugService(RpcService):
             except OSError:
                 continue
 
+    @generator
+    def get_log_files(self):
+        for pattern in self.context.config.get('log_paths', []):
+            for i in glob.glob(pattern):
+                yield i
+
     def trace_process(self, pid, fd):
         self.context.jobs.append(ShellConnection(['/usr/bin/truss', '-p', str(pid)], fd))
 
@@ -170,6 +178,7 @@ class Job(object):
         self.context = None
         self.thread = None
         self.created_at = datetime.now()
+        self.ended_at = None
 
     def describe(self):
         raise NotImplementedError()
@@ -186,6 +195,7 @@ class Job(object):
     def __getstate__(self):
         return {
             'created_at': self.created_at,
+            'ended_at': self.ended_at,
             'description': self.describe()
         }
 
@@ -244,28 +254,63 @@ class FileConnection(Job):
         return "File {0}: {1}".format('upload' if self.upload else 'download', self.path)
 
     def worker(self):
-        while True:
-            data = os.read(self.file.fileno() if self.upload else self.fd, 1024)
-            if data == b'':
-                os.close(self.fd)
-                self.file.close()
-                self.close()
-                return
+        with io.open(self.fd, 'rb') as fd:
+            while True:
+                data = self.file.read(1024) if self.upload else fd.read1(1024)
+                if data == b'':
+                    os.close(self.fd)
+                    self.file.close()
+                    self.close()
+                    return
 
-            os.write(self.fd if self.upload else self.file.fileno(), data)
+                if self.upload:
+                    fd.write(data)
+                else:
+                    self.file.write(data)
 
 
 class TailConnection(Job):
-    def __init__(self, path, fd):
+    def __init__(self, path, backlog, fd):
         super(TailConnection, self).__init__()
         self.path = path
         self.fd = fd
+        self.backlog = backlog
 
     def describe(self):
         return "File watch: {0}".format(self.path)
 
+    def tail(self, f, n):
+        fm = mmap.mmap(f.fileno(), 0, mmap.MAP_SHARED, mmap.PROT_READ)
+        try:
+            for i in range(fm.size() - 1, -1, -1):
+                if fm[i] == '\n':
+                    n -= 1
+                    if n == -1:
+                        break
+            return fm[i + 1 if i else 0:].splitlines()
+        finally:
+            fm.close()
+
     def worker(self):
-        pass
+        with io.open(self.fd) as fd:
+            with open(self.path, 'r') as f:
+                fd.write(self.tail(f, self.backlog))
+                kq = select.kqueue()
+                ev = [
+                    select.kevent(fd.fileno(), filter=select.KQ_FILTER_READ, flags=select.KQ_EV_ADD | select.KQ_EV_ENABLE),
+                    select.kevent(f.fileno(), filter=select.KQ_FILTER_READ, flags=select.KQ_EV_ADD | select.KQ_EV_ENABLE)
+                ]
+
+                kq.control(ev, 0)
+
+                while True:
+                    event, = kq.control(None, 1)
+                    if event.ident == fd.fileno():
+                        if event.flags & select.KQ_EV_EOF or event.flags & select.KQ_EV_ERROR:
+                            break
+
+                    if event.ident == f.fileno():
+                        fd.write(f.read())
 
 
 class DashboardConnection(Job):
