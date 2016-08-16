@@ -70,8 +70,7 @@ class EntitySubscriberEventSource(EventSource):
                 'ids': ids
             })
         else:
-            g = gevent.spawn(self.fetch if ids is not None else self.fetch_one, service, operation, ids)
-            g.join()
+            gevent.spawn(self.fetch if ids is not None else self.fetch_one, service, operation, ids)
 
     def fetch(self, service, operation, ids):
         try:
