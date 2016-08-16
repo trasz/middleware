@@ -1,27 +1,27 @@
 from base import CRUDBase
 
 
-class ShareResource(CRUDBase):
+class ShareCRUD(CRUDBase):
     namespace = 'share'
 
 
-class ShareISCSIAuthResource(CRUDBase):
-    name = 'share_iscsi/auth'  # FIXME: custom name until we figure out conflicts
+class ShareISCSIAuthCRUD(CRUDBase):
+    name = 'share/iscsi/auth'
     namespace = 'share.iscsi.auth'
 
 
-class ShareISCSIPortalResource(CRUDBase):
-    name = 'share_iscsi/portal'  # FIXME: custom name until we figure out conflicts
+class ShareISCSIPortalCRUD(CRUDBase):
+    name = 'share/iscsi/portal'
     namespace = 'share.iscsi.portal'
 
 
-class ShareISCSITargetResource(CRUDBase):
-    name = 'share_iscsi/target'  # FIXME: custom name until we figure out conflicts
+class ShareISCSITargetCRUD(CRUDBase):
+    name = 'share/iscsi/target'
     namespace = 'share.iscsi.target'
 
 
 def _init(rest):
-    rest.register_crud(ShareResource)
-    rest.register_crud(ShareISCSIAuthResource)
-    rest.register_crud(ShareISCSIPortalResource)
-    rest.register_crud(ShareISCSITargetResource)
+    rest.register_crud(ShareCRUD)
+    rest.register_crud(ShareISCSIAuthCRUD)
+    rest.register_crud(ShareISCSIPortalCRUD)
+    rest.register_crud(ShareISCSITargetCRUD)

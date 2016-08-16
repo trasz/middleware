@@ -2,7 +2,7 @@ from base import RESTTestCase
 
 
 class ShareISCSITestCase(RESTTestCase):
-    name = 'share_iscsi'
+    name = 'share/iscsi'
 
     def test_005_auth_create(self):
         r = self.client.post(self.name + '/auth', data={
