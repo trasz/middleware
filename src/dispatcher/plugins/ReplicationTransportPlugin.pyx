@@ -206,11 +206,13 @@ class TransportProvider(Provider):
     def plugin_types(self):
         return ['compress', 'decompress', 'encrypt', 'decrypt', 'throttle']
 
+    @private
     def set_encryption_data(self, key, data):
         with self.cv:
             encryption_data[key] = data
             self.cv.notify_all()
 
+    @private
     def get_encryption_data(self, key):
         with self.cv:
             self.cv.wait_for(lambda: key in encryption_data)

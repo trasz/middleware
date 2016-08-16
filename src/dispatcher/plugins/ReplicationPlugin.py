@@ -89,6 +89,7 @@ class ReplicationLinkProvider(Provider):
         links = list(map(extend, links))
         return q.query(links, *(filter or []), stream=True, **(params or {}))
 
+    @private
     def sync_query(self, filter=None, params=None):
         def extend(obj):
             if status_cache.is_valid(obj['name']):
@@ -103,17 +104,20 @@ class ReplicationLinkProvider(Provider):
         latest_links = list(map(extend, latest_links))
         return q.query(latest_links, *(filter or []), **(params or {}))
 
+    @private
     def local_query(self, filter=None, params=None):
         return self.datastore.query(
             'replication.links', *(filter or []), **(params or {})
         )
 
+    @private
     def get_one_local(self, name):
         if self.datastore.exists('replication.links', ('name', '=', name)):
             return self.datastore.get_one('replication.links', ('name', '=', name))
         else:
             return None
 
+    @private
     @accepts(h.ref('replication-link'))
     @returns(bool, str)
     def get_replication_state(self, link):
@@ -438,6 +442,7 @@ class ReplicationCreateTask(ReplicationBaseTask):
             self.datastore.delete('replication.links', link['name'])
 
 
+@private
 @description("Ensures slave datasets have been created. Checks if services names are available on slave.")
 @accepts(h.ref('replication-link'))
 class ReplicationPrepareSlaveTask(ReplicationBaseTask):
@@ -947,6 +952,7 @@ class ReplicationSyncTask(ReplicationBaseTask):
                 remote_client.disconnect()
 
 
+@private
 @description("Creates name reservation for services subject to replication")
 @accepts(str)
 class ReplicationReserveServicesTask(ReplicationBaseTask):
@@ -1014,6 +1020,7 @@ class ReplicationReserveServicesTask(ReplicationBaseTask):
         remote_client.disconnect()
 
 
+@private
 @description('Creates a snapshot of selected dataset')
 @accepts(str, bool, h.one_of(int, None), str, bool)
 @returns(str)
@@ -1069,6 +1076,7 @@ class SnapshotDatasetTask(Task):
         ))
 
 
+@private
 @description('Calculates replication delta between datasets')
 class CalculateReplicationDeltaTask(Task):
     @classmethod
@@ -1400,6 +1408,7 @@ class ReplicateDatasetTask(ProgressTask):
         self.wr_fd.close()
 
 
+@private
 @description("Returns latest replication link of given name")
 @accepts(str)
 @returns(h.ref('replication-link'))
@@ -1465,6 +1474,7 @@ class ReplicationGetLatestLinkTask(ReplicationBaseTask):
         return latest_link
 
 
+@private
 @description("Updates local replication link entry if provided entry is newer")
 @accepts(h.ref('replication-link'))
 class ReplicationUpdateLinkTask(Task):
@@ -1501,6 +1511,7 @@ class ReplicationUpdateLinkTask(Task):
             self.dispatcher.call_sync('replication.link.link_cache_put', link)
 
 
+@private
 @description("Performs synchronization of actual role (master/slave) with replication link state")
 @accepts(str)
 class ReplicationRoleUpdateTask(ReplicationBaseTask):
@@ -1557,6 +1568,7 @@ class ReplicationRoleUpdateTask(ReplicationBaseTask):
                     ))
 
 
+@private
 @description("Checks if provided replication link would not conflict with other links")
 @accepts(h.ref('replication-link'))
 class ReplicationCheckDatasetsTask(ReplicationBaseTask):
