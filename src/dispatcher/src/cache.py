@@ -82,6 +82,12 @@ class CacheStore(object):
             item.update(kwargs)
             self.put(key, item)
 
+    def update_many(self, key, predicate, **kwargs):
+        with self.lock:
+            for k, v in self.itervalid():
+                if predicate(v):
+                    self.update_one(k, **kwargs)
+
     def get(self, key, default=None, timeout=None):
         item = self.store.get(key)
         if item:
