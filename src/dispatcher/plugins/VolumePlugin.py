@@ -2686,7 +2686,7 @@ def _init(dispatcher, plugin):
             'type': ds['type'],
             'mountpoint': q.get(ds, 'properties.mountpoint.value'),
             'temp_mountpoint': temp_mountpoint,
-            'mounted': ds['mounted'],
+            'mounted': q.get(ds, 'properties.mounted.parsed'),
             'volsize': q.get(ds, 'properties.volsize.parsed'),
             'properties': include(
                 ds['properties'],
