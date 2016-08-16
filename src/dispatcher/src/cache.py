@@ -73,6 +73,15 @@ class CacheStore(object):
             self.store.update(**items)
             return created, updated
 
+    def update_one(self, key, **kwargs):
+        with self.lock:
+            item = self.get(key)
+            if not item:
+                return False
+
+            item.update(kwargs)
+            self.put(key, item)
+
     def get(self, key, default=None, timeout=None):
         item = self.store.get(key)
         if item:
@@ -197,6 +206,9 @@ class EventCacheStore(CacheStore):
     def rename(self, oldkey, newkey):
         with self.lock:
             obj = super(EventCacheStore, self).get(oldkey)
+            if not obj:
+                return False
+
             obj['id'] = newkey
             super(EventCacheStore, self).put(newkey, obj)
             super(EventCacheStore, self).remove(oldkey)
@@ -206,6 +218,8 @@ class EventCacheStore(CacheStore):
                 'operation': 'rename',
                 'ids': [[oldkey, newkey]]
             })
+
+        return True
 
     def propagate(self, event, callback=None):
         if event['operation'] == 'delete':
@@ -225,6 +239,7 @@ class EventCacheStore(CacheStore):
                 obj = callback(i) if callback else i
                 if not obj:
                     continue
+
                 self.put(obj['id'], obj)
 
     def populate(self, collection, callback=None):
