@@ -275,6 +275,7 @@ class FileConnection(Job):
 class TailConnection(Job):
     def __init__(self, path, backlog, fd):
         super(TailConnection, self).__init__()
+        self.logger = logging.getLogger(self.__class__.__name__)
         self.path = path
         self.fd = fd.fd
         self.backlog = backlog
@@ -286,34 +287,43 @@ class TailConnection(Job):
         fm = mmap.mmap(f.fileno(), 0, mmap.MAP_SHARED, mmap.PROT_READ)
         try:
             for i in range(fm.size() - 1, -1, -1):
-                if fm[i] == '\n':
+                if fm[i] == ord(b'\n'):
                     n -= 1
                     if n == -1:
                         break
-            return fm[i + 1 if i else 0:].decode('utf-8')
+            return fm[i + 1 if i else 0:]
         finally:
             fm.close()
 
     def worker(self):
-        with io.open(self.fd, 'w') as fd:
-            with open(self.path, 'r') as f:
-                fd.write(self.tail(f, self.backlog))
+        self.logger.debug('Opened tail stream on file {0} ({1} lines)'.format(self.path, self.backlog))
+        with io.open(self.fd, 'wb') as fd:
+            with open(self.path, 'rb') as f:
                 kq = select.kqueue()
-                ev = [
-                    select.kevent(fd.fileno(), filter=select.KQ_FILTER_READ, flags=select.KQ_EV_ADD | select.KQ_EV_ENABLE),
-                    select.kevent(f.fileno(), filter=select.KQ_FILTER_READ, flags=select.KQ_EV_ADD | select.KQ_EV_ENABLE)
-                ]
+                try:
+                    ev = [
+                        select.kevent(fd.fileno(), filter=select.KQ_FILTER_READ, flags=select.KQ_EV_ADD | select.KQ_EV_ENABLE),
+                        select.kevent(f.fileno(), filter=select.KQ_FILTER_READ, flags=select.KQ_EV_ADD | select.KQ_EV_ENABLE)
+                    ]
 
-                kq.control(ev, 0)
+                    fd.write(self.tail(f, self.backlog))
+                    fd.flush()
 
-                while True:
-                    event, = kq.control(None, 1)
-                    if event.ident == fd.fileno():
-                        if event.flags & select.KQ_EV_EOF or event.flags & select.KQ_EV_ERROR:
-                            break
+                    kq.control(ev, 0)
+                    f.seek(0, os.SEEK_END)
 
-                    if event.ident == f.fileno():
-                        fd.write(f.read())
+                    while True:
+                        event, = kq.control(None, 1)
+                        self.logger.debug('kqueue event {0}'.format(event))
+                        if event.ident == fd.fileno():
+                            if event.flags & select.KQ_EV_EOF or event.flags & select.KQ_EV_ERROR:
+                                break
+
+                        if event.ident == f.fileno():
+                            fd.write(f.read())
+                            fd.flush()
+                finally:
+                    kq.close()
 
 
 class DashboardConnection(Job):
@@ -424,6 +434,7 @@ class Context(object):
         self.connected_at = None
         self.set_state(ConnectionState.OFFLINE)
         self.msock.disconnect()
+        self.jobs.clear()
 
     def on_msock_close(self):
         self.connected_at = None
