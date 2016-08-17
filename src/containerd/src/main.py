@@ -560,7 +560,7 @@ class DockerHost(object):
                     self.logger.debug('Received docker event: {0}'.format(ev))
                     if ev['Type'] == 'container':
                         details = self.connection.inspect_container(ev['id'])
-                        self.context.client.emit_event('docker.container.changed', {
+                        self.context.client.emit_event('containerd.docker.container.changed', {
                             'operation': actions.get(ev['Action'], 'update'),
                             'ids': [ev['id']]
                         })
@@ -576,7 +576,6 @@ class DockerHost(object):
                         # Setup or destroy port redirection now, if needed
                         if ev['Action'] == 'start':
                             for i in get_docker_ports(details):
-
 
                                 if first_or_default(
                                     lambda r: r.proxy_ports[0] == i['host_port'],
@@ -613,7 +612,7 @@ class DockerHost(object):
                                     p.delete_rule('rdr', rule.index)
 
                     if ev['Type'] == 'image':
-                        self.context.client.emit_event('docker.image.changed', {
+                        self.context.client.emit_event('containerd.docker.image.changed', {
                             'operation': actions.get(ev['Action'], 'update'),
                             'ids': [ev['id']]
                         })
