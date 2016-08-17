@@ -243,7 +243,8 @@ class FileConnection(Job):
         self.upload = upload
         self.path = path
         self.fd = fd.fd
-        self.file = open(path, 'rb' if upload else 'wb')
+        self.file = open(path, 'wb' if upload else 'rb')
+        self.logger.info('Initiating {0} of file {1}'.format('upload' if self.upload else 'download', self.path))
 
     @property
     def filesize(self):
@@ -254,19 +255,19 @@ class FileConnection(Job):
         return "File {0}: {1}".format('upload' if self.upload else 'download', self.path)
 
     def worker(self):
-        with io.open(self.fd, 'rb') as fd:
+        with io.open(self.fd, 'rb' if self.upload else 'wb') as fd:
             while True:
-                data = self.file.read(1024) if self.upload else fd.read1(1024)
+                data = fd.read1(1024) if self.upload else self.file.read(1024)
                 if data == b'':
-                    os.close(self.fd)
+                    fd.close()
                     self.file.close()
                     self.close()
                     return
 
                 if self.upload:
-                    fd.write(data)
-                else:
                     self.file.write(data)
+                else:
+                    fd.write(data)
 
 
 class TailConnection(Job):
