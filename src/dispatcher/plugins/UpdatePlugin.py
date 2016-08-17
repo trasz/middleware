@@ -462,6 +462,7 @@ class UpdateProvider(Provider):
     def update_cache_putter(self, value_dict):
         for key, value in value_dict.items():
             update_cache.put(key, value)
+        self.dispatcher.dispatch_event('update.update_info.updated')
 
     @private
     @accepts(str)
@@ -505,6 +506,7 @@ class UpdateProvider(Provider):
                     desc = 'Update containing {0} is installed and activated for next boot'.format(update_version)
                 update_cache.put('installed', True)
                 update_cache.put('installed_version', update_version)
+                self.dispatcher.dispatch_event('update.update_info.updated')
             else:
                 # what state is this?
                 raise RpcException(
@@ -1087,6 +1089,7 @@ def _init(dispatcher, plugin):
 
     # Register Event Types
     plugin.register_event_type('update.in_progress', schema=h.ref('update-progress'))
+    plugin.register_event_type('update.update_info.updated')
     plugin.register_event_type('update.changed')
 
     # Register reources
