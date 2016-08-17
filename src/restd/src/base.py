@@ -187,7 +187,7 @@ class Resource(object):
             response = {
                 'description': 'entries to be returned',
             }
-            schema = normalize_schema(op.get('result-schema'))
+            schema = normalize_schema(op.get('result-schema'), self.rest)
             if schema is not None:
                 response['schema'] = schema
 
@@ -223,7 +223,7 @@ class Resource(object):
                         'name': 'data',
                         'in': 'body',
                         'required': True,
-                        'schema': normalize_schema(schema) or {'type': 'null'},
+                        'schema': normalize_schema(schema, self.rest) or {'type': 'null'},
                     },
                 )
         return rv

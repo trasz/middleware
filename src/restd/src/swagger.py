@@ -1,6 +1,6 @@
 
 
-def normalize_schema(obj):
+def normalize_schema(obj, rest=None):
     if isinstance(obj, dict):
         if 'anyOf' in obj:
             # FIXME: Wrong, OpenAPI does not support it, need workaround
@@ -20,6 +20,8 @@ def normalize_schema(obj):
         if '$ref' in obj:
             ref = obj['$ref']
             if not ref.startswith('#/definitions/'):
+                if rest:
+                    rest._used_schemas.add(ref)
                 obj['$ref'] = '#/definitions/{0}'.format(ref)
         if 'type' in obj:
             typ = obj['type']
@@ -29,10 +31,10 @@ def normalize_schema(obj):
                 obj['type'] = 'string'
                 obj['format'] = 'date-time'
         for key in obj:
-            normalize_schema(obj[key])
+            normalize_schema(obj[key], rest)
     elif isinstance(obj, (list, tuple)):
         for i in obj:
-            normalize_schema(i)
+            normalize_schema(i, rest)
     return obj
 
 
@@ -58,7 +60,6 @@ class SwaggerResource(object):
                 'application/json',
             ],
             'paths': {},
-            'definitions': normalize_schema(self.rest._schemas['definitions']),
         }
 
         look = []
@@ -74,5 +75,23 @@ class SwaggerResource(object):
             if doc is None:
                 continue
             result['paths'][path] = doc()
+
+        """
+        Get the schema definitions which are referenced somewhere
+        in the public API.
+        To do that we go through all used schemas and resolve it until no
+        more schemas are found.
+        """
+        definitions = {}
+        schemas_done = set()
+        while len(schemas_done) != len(self.rest._used_schemas):
+            for name in (self.rest._used_schemas - schemas_done):
+                schema = self.rest._schemas['definitions'].get(name)
+                if schema:
+                    definitions[name] = normalize_schema(schema, self.rest)
+                else:
+                    print("not found", name)
+                schemas_done.add(name)
+        result['definitions'] = definitions
 
         req.context['result'] = result

@@ -110,6 +110,7 @@ class RESTApi(object):
         self._threads = []
         self._rpcs = {}
         self._schemas = {}
+        self._used_schemas = set()
         self._services = {}
         self._tasks = {}
         self.api = falcon.API(middleware=[
