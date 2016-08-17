@@ -674,6 +674,10 @@ class ManagementService(RpcService):
             host.vm = vm
             vm.docker_host = host
             self.context.docker_hosts[id] = host
+            self.context.client.emit_event('containerd.docker.host.changed', {
+                'operation': 'create',
+                'ids': [id]
+            })
 
         with self.context.cv:
             self.context.containers[id] = vm
@@ -693,6 +697,13 @@ class ManagementService(RpcService):
 
         if vm.state == VirtualMachineState.STOPPED:
             raise RpcException(errno.EACCES, 'Container {0} is already stopped'.format(container['name']))
+
+        if vm.config.get('docker_host', False):
+            self.context.docker_hosts.pop(id, None)
+            self.context.client.emit_event('containerd.docker.host.changed', {
+                'operation': 'delete',
+                'ids': [id]
+            })
 
         vm.stop(force)
         with self.context.cv:
