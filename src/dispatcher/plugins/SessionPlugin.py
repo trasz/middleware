@@ -41,7 +41,7 @@ class SessionProvider(Provider):
         return self.datastore.query_stream('sessions', *(filter or []), **(params or {}))
 
     @accepts()
-    @returns(h.array(h.ref('sessions')))
+    @returns(h.array(h.ref('session')))
     @description("Returns the logged in and active user sessions" +
                  "Does not include the service sessions in this.")
     def get_live_user_sessions(self):
