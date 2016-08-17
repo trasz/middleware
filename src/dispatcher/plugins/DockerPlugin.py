@@ -165,7 +165,7 @@ class DockerContainerStartTask(Task):
     def early_describe(cls):
         return "Starting container"
 
-    def describe(self, name, id):
+    def describe(self, id):
         return TaskDescription("Starting container {name}".format(name=id))
 
     def verify(self, id):
@@ -180,7 +180,7 @@ class DockerContainerStopTask(Task):
     def early_describe(cls):
         return "Stopping container"
 
-    def describe(self, name, id):
+    def describe(self, id):
         return TaskDescription("Stopping container {name}".format(name=id))
 
     def verify(self, id):
