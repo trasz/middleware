@@ -67,6 +67,7 @@ class ConnectionState(enum.Enum):
     OFFLINE = 'offline'
     CONNECTING = 'connecting'
     CONNECTED = 'connected'
+    LOST = 'lost'
 
 
 class DebugService(RpcService):
@@ -156,10 +157,10 @@ class ControlService(RpcService):
         self.context = context
 
     def connect(self, discard=False):
-        pass
+        self.context.connect(discard)
 
     def disconnect(self):
-        pass
+        self.context.disconnect()
 
     def status(self):
         return {
@@ -353,11 +354,13 @@ class Context(object):
     def __init__(self):
         self.logger = logging.getLogger(self.__class__.__name__)
         self.msock = msock.client.Client()
+        self.msock.on_closed = self.on_msock_close
         self.rpc_fd = -1
         self.connection_id = None
         self.jobs = []
         self.state = ConnectionState.OFFLINE
         self.config = None
+        self.keepalive = None
         self.cv = Condition()
         self.rpc = RpcContext()
         self.client = Client()
@@ -384,19 +387,40 @@ class Context(object):
         if discard:
             self.connection_id = None
 
-        self.set_state(ConnectionState.CONNECTING)
-        self.msock.connect(SUPPORT_PROXY_ADDRESS)
-        self.logger.info('Connecting to {0}'.format(SUPPORT_PROXY_ADDRESS))
-        self.connection_id = uuid.uuid4()
-        self.rpc_fd = self.msock.create_channel(0).fileno()
-        time.sleep(1)  # FIXME
-        self.client.connect('fd://{0}'.format(self.rpc_fd))
-        self.client.channel_serializer = MSockChannelSerializer(self.msock)
-        self.client.standalone_server = True
-        self.client.enable_server()
-        self.client.register_service('debug', DebugService(self))
-        self.client.call_sync('server.login', str(self.connection_id), socket.gethostname(), 'none')
-        self.set_state(ConnectionState.CONNECTED)
+        self.keepalive = threading.Thread(target=self.connect_keepalive, daemon=True)
+        self.keepalive.start()
+
+    def connect_keepalive(self):
+        while True:
+            try:
+                self.msock.connect(SUPPORT_PROXY_ADDRESS)
+                self.logger.info('Connecting to {0}'.format(SUPPORT_PROXY_ADDRESS))
+                self.connection_id = uuid.uuid4()
+                self.rpc_fd = self.msock.create_channel(0).fileno()
+                time.sleep(1)  # FIXME
+                self.client.connect('fd://{0}'.format(self.rpc_fd))
+                self.client.channel_serializer = MSockChannelSerializer(self.msock)
+                self.client.standalone_server = True
+                self.client.enable_server()
+                self.client.register_service('debug', DebugService(self))
+                self.client.call_sync('server.login', str(self.connection_id), socket.gethostname(), 'none')
+                self.set_state(ConnectionState.CONNECTED)
+            except BaseException as err:
+                self.logger.warning('Failed to initiate support connection: {0}'.format(err))
+            else:
+                with self.cv:
+                    self.cv.wait_for(lambda: self.state in (ConnectionState.LOST, ConnectionState.OFFLINE))
+                    if self.state == ConnectionState.OFFLINE:
+                        return
+
+            self.logger.warning('Support connection lost, retrying in 10 seconds')
+            time.sleep(10)
+
+    def disconnect(self):
+        pass
+
+    def on_msock_close(self):
+        self.set_state(ConnectionState.LOST)
 
     def run_job(self, job):
         self.jobs.append(job)
@@ -417,7 +441,6 @@ def main():
     logging.basicConfig(level=logging.DEBUG)
     context = Context()
     context.start(args.c, args.s)
-    context.connect()
     setproctitle.setproctitle('debugd')
 
     if not os.path.isdir(CORES_DIR):
