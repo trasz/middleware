@@ -1584,7 +1584,7 @@ def _init(dispatcher, plugin):
             'type': {'$ref': 'dataset-type'},
             'properties': {
                 'type': 'object',
-                'additionalProperties': 'zfs-property'
+                'additionalProperties': {'$ref': 'zfs-property'}
             },
             'children': {
                 'type': 'array',
