@@ -119,7 +119,7 @@ class ReplicationLinkProvider(Provider):
 
     @private
     @accepts(h.ref('replication-link'))
-    @returns(bool, str)
+    @returns(h.tuple(bool, str))
     def get_replication_state(self, link):
         is_master = False
         remote = ''
