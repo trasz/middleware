@@ -526,7 +526,7 @@ def _init(dispatcher, plugin):
         'properties': {
             'type': {'enum': ['amazon-s3']},
             'access_key': {'type': 'string'},
-            'secret_key': {'type ': 'string'},
+            'secret_key': {'type': 'string'},
             'region': {'type': ['string', 'null']},
             'bucket': {'type': 'string'},
             'folder': {'type': ['string', 'null']}
