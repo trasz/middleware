@@ -62,7 +62,7 @@ from datastore.config import ConfigStore
 from freenas.dispatcher.client import Client, ClientError
 from freenas.dispatcher.rpc import RpcService, RpcException, private, generator
 from freenas.utils.debug import DebugService
-from freenas.utils import first_or_default, configure_logging
+from freenas.utils import first_or_default, configure_logging, query as q
 from vnc import app
 from mgmt import ManagementNetwork
 from ec2 import EC2MetadataServer
@@ -751,7 +751,7 @@ class DockerService(RpcService):
         except:
             raise RpcException(errno.ENXIO, 'Cannot connect to host {0}'.format(id))
 
-    def query_containers(self):
+    def query_containers(self, filter=None, params=None):
         result = []
 
         def normalize_names(names):
@@ -776,9 +776,9 @@ class DockerService(RpcService):
                     'expose_ports': 'org.freenas.expose_ports_at_host' in details['Config']['Labels']
                 })
 
-        return result
+        return q.query(result, *(filter or []), stream=True, **(params or {}))
 
-    def query_images(self):
+    def query_images(self, filter=None, params=None):
         result = []
         for host in self.context.docker_hosts.values():
             for image in host.connection.images():
@@ -789,7 +789,7 @@ class DockerService(RpcService):
                     'host': host.vm.id
                 })
 
-        return result
+        return q.query(result, *(filter or []), stream=True, **(params or {}))
 
     @generator
     def pull(self, name, host):
