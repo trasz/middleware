@@ -1,4 +1,4 @@
-/usr/local/etc/rc.d/debugctl.conf
+/usr/local/etc/debugd.conf
 /usr/local/etc/rc.d/debugd
 /usr/local/sbin/debugd
 /usr/local/sbin/debugctl
