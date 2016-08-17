@@ -786,7 +786,7 @@ class DockerService(RpcService):
                     'id': image['Id'],
                     'names': image['RepoTags'],
                     'size': image['VirtualSize'],
-                    'host': host.vm.name
+                    'host': host.vm.id
                 })
 
         return result
