@@ -87,7 +87,7 @@ class IPMIProvider(Provider):
         return q.query(result, *(filter or []), stream=True, **(params or {}))
 
 
-@accepts(int, h.ref('ipmi-configuration'))
+@accepts(int, h.ref('ipmi'))
 @description("Configures IPMI module")
 class ConfigureIPMITask(Task):
     @classmethod
