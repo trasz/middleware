@@ -66,8 +66,11 @@ class JSONTranslator(object):
 class AuthMiddleware(object):
 
     def process_request(self, req, resp):
-        auth = req.get_header("Authorization")
+        # Do not require auth to access index
+        if req.relative_uri == '/':
+            return
 
+        auth = req.get_header("Authorization")
         if auth is None or not auth.startswith('Basic '):
             raise falcon.HTTPUnauthorized(
                 'Authorization token required',
