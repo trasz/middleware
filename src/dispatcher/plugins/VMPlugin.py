@@ -1647,7 +1647,7 @@ def _init(dispatcher, plugin):
     plugin.register_schema_definition('vm-status-lease', {
         'type': 'object',
         'properties': {
-            'client_ip': 'string'
+            'client_ip': {'type': 'string'},
         }
     })
 
