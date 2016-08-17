@@ -736,7 +736,10 @@ def _init(dispatcher, plugin):
                 }
             },
             'origin': {
-                'directory': {'type': 'string'},
+                'type': 'object',
+                'properties': {
+                    'directory': {'type': 'string'},
+                }
             }
         },
         'additionalProperties': False,
