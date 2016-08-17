@@ -462,7 +462,7 @@ class UpdateProvider(Provider):
     def update_cache_putter(self, value_dict):
         for key, value in value_dict.items():
             update_cache.put(key, value)
-        self.dispatcher.dispatch_event('update.update_info.updated')
+        self.dispatcher.dispatch_event('update.update_info.updated', {'operation': 'update'})
 
     @private
     @accepts(str)
@@ -506,7 +506,9 @@ class UpdateProvider(Provider):
                     desc = 'Update containing {0} is installed and activated for next boot'.format(update_version)
                 update_cache.put('installed', True)
                 update_cache.put('installed_version', update_version)
-                self.dispatcher.dispatch_event('update.update_info.updated')
+                self.dispatcher.dispatch_event(
+                    'update.update_info.updated', {'operation': 'update'}
+                )
             else:
                 # what state is this?
                 raise RpcException(
@@ -570,9 +572,7 @@ class UpdateConfigureTask(Task):
             self.configstore.set('update.train', train_to_set)
         if 'check_auto' in props:
             self.configstore.set('update.check_auto', props.get('check_auto'))
-        self.dispatcher.dispatch_event('update.changed', {
-            'operation': 'update',
-        })
+        self.dispatcher.dispatch_event('update.changed', {'operation': 'update'})
 
 
 @description(
