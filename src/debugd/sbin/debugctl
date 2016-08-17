@@ -79,16 +79,18 @@ def status(server=DEFAULT_SERVER):
     print('Connection state: {0}'.format(status['state']))
     print('Support server address: {0}'.format(status['server']))
     print('Connected at: {0}'.format(status['connected_at']))
-    print()
-    print('Running jobs:')
 
-    for idx, job in enumerate(status['jobs']):
-        print('{0}. {1} (created {2})'.format(idx, job['description'], job['created_at']))
+    if status['jobs']:
+        print('Running jobs:')
+        for idx, job in enumerate(status['jobs']):
+            print('{0}. {1} (created {2})'.format(idx, job['description'], job['created_at']))
+    else:
+        print('No jobs')
 
 
 def main():
     parser = argh.ArghParser()
-    parser.add_commands([connect, disconnect, attach(), status])
+    parser.add_commands([connect, disconnect, attach, status])
     parser.dispatch()
 
 if __name__ == '__main__':

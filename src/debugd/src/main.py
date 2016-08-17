@@ -164,9 +164,10 @@ class ControlService(RpcService):
 
     def status(self):
         return {
-            'state': self.context.state,
-            'server': None,
-            'connected_at': None,
+            'state': self.context.state.name,
+            'server': DEFAULT_SOCKET_ADDRESS,
+            'connection_id': str(self.context.connection_id),
+            'connected_at': self.context.connected_at,
             'jobs': [j.__getstate__() for j in self.context.jobs]
         }
 
@@ -361,6 +362,7 @@ class Context(object):
         self.state = ConnectionState.OFFLINE
         self.config = None
         self.keepalive = None
+        self.connected_at = None
         self.cv = Condition()
         self.rpc = RpcContext()
         self.client = Client()
@@ -393,9 +395,10 @@ class Context(object):
     def connect_keepalive(self):
         while True:
             try:
+                if not self.connection_id:
+                    self.connection_id = uuid.uuid4()
                 self.msock.connect(SUPPORT_PROXY_ADDRESS)
                 self.logger.info('Connecting to {0}'.format(SUPPORT_PROXY_ADDRESS))
-                self.connection_id = uuid.uuid4()
                 self.rpc_fd = self.msock.create_channel(0).fileno()
                 time.sleep(1)  # FIXME
                 self.client.connect('fd://{0}'.format(self.rpc_fd))
@@ -408,6 +411,7 @@ class Context(object):
             except BaseException as err:
                 self.logger.warning('Failed to initiate support connection: {0}'.format(err))
             else:
+                self.connected_at = datetime.now()
                 with self.cv:
                     self.cv.wait_for(lambda: self.state in (ConnectionState.LOST, ConnectionState.OFFLINE))
                     if self.state == ConnectionState.OFFLINE:
@@ -417,9 +421,12 @@ class Context(object):
             time.sleep(10)
 
     def disconnect(self):
-        pass
+        self.connected_at = None
+        self.set_state(ConnectionState.OFFLINE)
+        self.msock.disconnect()
 
     def on_msock_close(self):
+        self.connected_at = None
         self.set_state(ConnectionState.LOST)
 
     def run_job(self, job):
