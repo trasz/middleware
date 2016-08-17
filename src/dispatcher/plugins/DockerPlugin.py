@@ -25,6 +25,7 @@
 #
 #####################################################################
 
+import gevent
 import dockerhub
 from task import Provider, Task, ProgressTask, TaskDescription
 from cache import EventCacheStore
@@ -34,7 +35,9 @@ from freenas.dispatcher.rpc import generator, accepts, returns, SchemaHelper as 
 
 
 containers = None
+containers_query = 'containerd.docker.query_containers'
 images = None
+images_query = 'containerd.docker.query_images'
 
 
 class DockerProvider(Provider):
@@ -69,15 +72,13 @@ class DockerHostProvider(Provider):
 class DockerContainerProvider(Provider):
     @generator
     def query(self, filter=None, params=None):
-        containers = self.dispatcher.call_sync('containerd.docker.query_containers')
-        return q.query(containers, *(filter or []), stream=True, **(params or {}))
+        return containers.query(*(filter or []), stream=True, **(params or {}))
 
 
 class DockerImagesProvider(Provider):
     @generator
     def query(self, filter=None, params=None):
-        containers = self.dispatcher.call_sync('containerd.docker.query_images')
-        return q.query(containers, *(filter or []), stream=True, **(params or {}))
+        return images.query(*(filter or []), stream=True, **(params or {}))
 
     @generator
     def search(self, term):
@@ -219,25 +220,50 @@ def _init(dispatcher, plugin):
     containers = EventCacheStore(dispatcher, 'docker.container')
     images = EventCacheStore(dispatcher, 'docker.image')
 
-    def sync_image_cache():
-        with images.lock:
-            images.clear()
-            images.populate(dispatcher.call_sync('containerd.docker.query_images'))
-
-    def sync_container_cache():
-        with images.lock:
-            images.clear()
-            images.populate(dispatcher.call_sync('containerd.docker.query_images'))
-
     def on_host_event(args):
-        sync_container_cache()
-        sync_image_cache()
+        if images.ready and containers.ready:
+            if args['operation'] == 'create':
+                for host_id in args['ids']:
+                    new_images = list(dispatcher.call_sync(
+                        images_query,
+                        [('host', '=', host_id)], {'select': 'id'}
+                    ))
+                    new_containers = list(dispatcher.call_sync(
+                        containers_query,
+                        [('host', '=', host_id)], {'select': 'id'}
+                    ))
+
+                    if new_images:
+                        sync_cache(images, images_query, new_images)
+                    if new_containers:
+                        sync_cache(containers, containers_query, new_containers)
+            elif args['operation'] == 'delete':
+                for host_id in args['ids']:
+                    images.remove_many(images.query(('host', '=', host_id), select='id'))
+                    containers.remove_many(containers.query(('host', '=', host_id), select='id'))
 
     def on_image_event(args):
-        sync_image_cache()
+        if args['ids']:
+            sync_cache(images, images_query, args['ids'])
 
     def on_container_event(args):
-        sync_container_cache()
+        if args['ids']:
+            sync_cache(containers, containers_query, args['ids'])
+
+    def sync_caches():
+        interval = dispatcher.configstore.get('container.cache_refresh_interval')
+        while True:
+            gevent.sleep(interval)
+            sync_cache(images, images_query)
+            sync_cache(containers, containers_query)
+
+    def sync_cache(cache, query, ids=None):
+        if ids:
+            objects = dispatcher.call_sync(query, [('id', 'in', ids)])
+        else:
+            objects = dispatcher.call_sync(query)
+
+        cache.update(**{i['id']: i for i in objects})
 
     plugin.register_provider('docker', DockerProvider)
     plugin.register_provider('docker.host', DockerHostProvider)
@@ -253,6 +279,11 @@ def _init(dispatcher, plugin):
 
     plugin.register_event_type('docker.host.changed')
     plugin.register_event_type('docker.container.changed')
+    plugin.register_event_type('docker.image.changed')
+
+    plugin.register_event_handler('containerd.docker.host.changed', on_host_event)
+    plugin.register_event_handler('containerd.docker.container.changed', on_container_event)
+    plugin.register_event_handler('containerd.docker.image.changed', on_image_event)
 
     plugin.register_schema_definition('docker-config', {
         'type': 'object',
@@ -347,3 +378,10 @@ def _init(dispatcher, plugin):
         'type': 'string',
         'enum': ['TCP', 'UDP']
     })
+
+    sync_cache(images, images_query)
+    images.ready = True
+    sync_cache(containers, containers_query)
+    containers.ready = True
+
+    gevent.spawn(sync_caches)
