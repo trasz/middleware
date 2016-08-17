@@ -36,7 +36,6 @@ import errno
 import datastore
 import time
 import json
-import imp
 import ipaddress
 import socket
 import setproctitle
@@ -47,7 +46,7 @@ from datastore.config import ConfigStore
 from freenas.dispatcher.client import Client, ClientError
 from freenas.dispatcher.server import Server
 from freenas.dispatcher.rpc import RpcContext, RpcService, RpcException, generator, get_sender
-from freenas.utils import first_or_default, configure_logging, extend
+from freenas.utils import first_or_default, configure_logging, extend, load_module_from_file
 from freenas.utils.debug import DebugService
 from freenas.utils.query import query, get, set, delete
 from plugin import DirectoryState
@@ -801,7 +800,7 @@ class Main(object):
                 continue
 
             try:
-                plugin = imp.load_source(name, os.path.join(dir, f))
+                plugin = load_module_from_file(name, os.path.join(dir, f))
                 plugin._init(self)
             except:
                 self.logger.error('Cannot initialize plugin {0}'.format(f), exc_info=True)
