@@ -37,7 +37,10 @@ def normalize_schema(obj, rest=None):
             # ideally we should replace it with anyOf
             elif isinstance(typ, list) and 'datetime' in typ:
                 idx = typ.index('datetime')
-                typ[idx] = 'string'
+                if 'string' in typ:
+                    del typ[idx]
+                else:
+                    typ[idx] = 'string'
         for key in obj:
             normalize_schema(obj[key], rest)
     elif isinstance(obj, (list, tuple)):
