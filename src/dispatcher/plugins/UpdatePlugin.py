@@ -63,6 +63,18 @@ disable_trygetfilelogs()
 
 logger = logging.getLogger('UpdatePlugin')
 update_cache = CacheStore()
+default_update_dict = {
+    'available': False,
+    'operations': None,
+    'notes': None,
+    'notice': None,
+    'downloaded': False,
+    'changelog': '',
+    'version': '',
+    'installed': False,
+    'installed_version': ''
+}
+
 update_resource_string = 'update:operations'
 
 
@@ -155,17 +167,7 @@ def check_updates(dispatcher, configstore, cache_dir=None, check_now=False):
     """
     Utility function to just check for Updates
     """
-    update_cache_value_dict = {
-        'available': False,
-        'operations': None,
-        'notes': None,
-        'notice': None,
-        'downloaded': False,
-        'changelog': '',
-        'version': '',
-        'installed': False,
-        'installed_version': ''
-    }
+    update_cache_value_dict = default_update_dict.copy()
 
     # If the current check is an online one (and not in the cache_dir)
     # then store the current update info and use them to restore the update cache
@@ -202,8 +204,11 @@ def check_updates(dispatcher, configstore, cache_dir=None, check_now=False):
             update_installed_bootenv = list(is_update_applied(dispatcher, version))
             if version == update_cache_value_dict['installed_version'] or update_installed_bootenv:
                 logger.debug('Update is already installed')
-                update_cache_value_dict['installed'] = True
-                update_cache_value_dict['installed_version'] = version
+                update_cache_value_dict = default_update_dict.copy()
+                update_cache_value_dict.update({
+                    'installed': True,
+                    'installed_version': version
+                })
                 dispatcher.call_sync(
                     'update.update_alert_set',
                     'UpdateInstalled',
@@ -504,11 +509,6 @@ class UpdateProvider(Provider):
                     desc += ' Please activate {0} and Reboot to use this updated version'.format(update_installed_bootenv[0]['realname'])
                 else:
                     desc = 'Update containing {0} is installed and activated for next boot'.format(update_version)
-                update_cache.put('installed', True)
-                update_cache.put('installed_version', update_version)
-                self.dispatcher.dispatch_event(
-                    'update.update_info.updated', {'operation': 'update'}
-                )
             else:
                 # what state is this?
                 raise RpcException(
@@ -846,6 +846,12 @@ class UpdateApplyTask(ProgressTask):
         handler.finished = True
         handler.emit_update_details()
         self.dispatcher.call_sync('update.update_alert_set', 'UpdateInstalled', version)
+        update_cache_value_dict = default_update_dict.copy()
+        update_cache_value_dict.update({
+            'installed': True,
+            'installed_version': version
+        })
+        self.dispatcher.call_sync('update.update_cache_putter', update_cache_value_dict)
         self.message = "Updates Finished Installing Successfully"
         if reboot_post_install:
             self.message = "Scheduling user specified reboot post succesfull update"
