@@ -30,6 +30,9 @@ def normalize_schema(obj, rest=None):
             if isinstance(typ, str) and typ == 'datetime':
                 obj['type'] = 'string'
                 obj['format'] = 'date-time'
+            elif isinstance(typ, str) and typ == 'binary':
+                del obj['type']
+                obj['$ref'] = '#/definitions/binary-type'
             # if datetime type is within a list, replace it with string
             # ideally we should replace it with anyOf
             elif isinstance(typ, list) and 'datetime' in typ:
@@ -87,7 +90,15 @@ class SwaggerResource(object):
         To do that we go through all used schemas and resolve it until no
         more schemas are found.
         """
-        definitions = {}
+        # binary type is not json schema compliant so we emulate it
+        definitions = {
+            'binary-type': {
+                'type': 'object',
+                'properties': {
+                    '$binary': {'type': 'string'},
+                }
+            }
+        }
         schemas_done = set()
         while len(schemas_done) != len(self.rest._used_schemas):
             for name in (self.rest._used_schemas - schemas_done):
