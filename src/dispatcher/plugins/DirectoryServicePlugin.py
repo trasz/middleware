@@ -49,7 +49,7 @@ logger = logging.getLogger('DirectoryServicePlugin')
 
 
 class DirectoryServicesProvider(Provider):
-    @query('directoryservice')
+    @query('directory')
     @generator
     def query(self, filter=None, params=None):
         def extend(directory):
