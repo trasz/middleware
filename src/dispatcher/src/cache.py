@@ -111,6 +111,16 @@ class CacheStore(object):
 
             return False
 
+    def remove_many(self, keys):
+        with self.lock:
+            removed = []
+            for key in keys:
+                if key in self.store:
+                    del self.store[key]
+                    removed.append(key)
+
+            return removed
+
     def clear(self):
         with self.lock:
             items = list(self.store.keys())
@@ -216,6 +226,16 @@ class EventCacheStore(CacheStore):
             self.dispatcher.emit_event('{0}.changed'.format(self.name), {
                 'operation': 'delete',
                 'ids': [key]
+            })
+
+        return ret
+
+    def remove_many(self, keys):
+        ret = super(EventCacheStore, self).remove_many(keys)
+        if ret and self.ready:
+            self.dispatcher.emit_event('{0}.changed'.format(self.name), {
+                'operation': 'delete',
+                'ids': ret
             })
 
         return ret
