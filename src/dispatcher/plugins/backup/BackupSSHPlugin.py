@@ -235,7 +235,7 @@ def _init(dispatcher, plugin):
         'properties': {
             'type': {'enum': ['backup-ssh']},
             'hostport': {'type': 'string'},
-            'username': {'type ': 'string'},
+            'username': {'type': 'string'},
             'password': {'type': ['string', 'null']},
             'privkey': {'type': ['string', 'null']},
             'hostkey': {'type': ['string', 'null']},
