@@ -239,19 +239,15 @@ def _init(dispatcher, plugin):
                     if new_containers:
                         sync_cache(containers, containers_query, new_containers)
 
-                dispatcher.dispatch_event('docker.host.changed', {
-                    'operation': 'create',
-                    'ids': args['ids']
-                })
             elif args['operation'] == 'delete':
                 for host_id in args['ids']:
                     images.remove_many(images.query(('host', '=', host_id), select='id'))
                     containers.remove_many(containers.query(('host', '=', host_id), select='id'))
 
-                dispatcher.dispatch_event('docker.host.changed', {
-                    'operation': 'update',
-                    'ids': args['ids']
-                })
+            dispatcher.dispatch_event('docker.host.changed', {
+                'operation': 'update',
+                'ids': args['ids']
+            })
 
     def vm_pre_destroy(args):
         host = dispatcher.datastore.query(
@@ -265,6 +261,21 @@ def _init(dispatcher, plugin):
                 'operation': 'delete',
                 'ids': [args['name']]
             })
+
+    def on_vm_change(args):
+        if args['operation'] == 'create':
+            for id in args['ids']:
+                host = dispatcher.datastore.query(
+                    'vms',
+                    ('config.docker_host', '=', True),
+                    ('id', '=', id),
+                    single=True
+                )
+                if host:
+                    dispatcher.dispatch_event('docker.host.changed', {
+                        'operation': 'create',
+                        'ids': [id]
+                    })
 
     def on_image_event(args):
         if args['ids']:
@@ -315,6 +326,7 @@ def _init(dispatcher, plugin):
     plugin.register_event_handler('containerd.docker.host.changed', on_host_event)
     plugin.register_event_handler('containerd.docker.container.changed', on_container_event)
     plugin.register_event_handler('containerd.docker.image.changed', on_image_event)
+    plugin.register_event_handler('vm.changed', on_vm_change)
     plugin.register_event_handler('plugin.service_registered',
                                   lambda a: init_cache() if a['service-name'] == 'containerd.docker' else None)
 
