@@ -638,7 +638,7 @@ class DockerHost(object):
                         )
                         self.context.client.emit_event('containerd.docker.image.changed', {
                             'operation': actions.get(ev['Action'], 'update'),
-                            'ids': [image['id']]
+                            'ids': [image.get('id') or image.get('Id')]
                         })
 
             except BaseException as err:
