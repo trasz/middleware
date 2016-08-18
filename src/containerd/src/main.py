@@ -51,6 +51,7 @@ import docker
 import ipaddress
 import pf
 import urllib.parse
+import requests
 from bsd import kld, sysctl
 from gevent.queue import Queue
 from gevent.event import Event
@@ -535,6 +536,7 @@ class DockerHost(object):
         self.state = DockerHostState.DOWN
         self.connection = None
         self.listener = None
+        self.start_notifier = None
         self.mapped_ports = {}
         self.logger = logging.getLogger(self.__class__.__name__)
         gevent.spawn(self.wait_ready)
@@ -545,6 +547,20 @@ class DockerHost(object):
         self.logger.info('Docker instance at {0} ({1}) is ready'.format(self.vm.name, ip))
         self.connection = docker.Client(base_url='http://{0}:2375'.format(ip))
         self.listener = gevent.spawn(self.listen)
+        self.start_notifier = gevent.spawn(self.notify)
+
+    def notify(self):
+        ready = False
+        while not ready:
+            try:
+                ready = self.connection.ping()
+            except requests.exceptions.ConnectionError:
+                gevent.sleep(1)
+
+        self.context.client.emit_event('containerd.docker.host.changed', {
+            'operation': 'create',
+            'ids': [self.vm.id]
+        })
 
     def listen(self):
         self.logger.debug('Listening for docker events on {0}'.format(self.vm.name))
@@ -673,10 +689,6 @@ class ManagementService(RpcService):
             host.vm = vm
             vm.docker_host = host
             self.context.docker_hosts[id] = host
-            self.context.client.emit_event('containerd.docker.host.changed', {
-                'operation': 'create',
-                'ids': [id]
-            })
 
         with self.context.cv:
             self.context.containers[id] = vm
