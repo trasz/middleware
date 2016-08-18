@@ -142,7 +142,8 @@ class DockerBaseTask(ProgressTask):
         host = self.dispatcher.call_sync(
             'docker.host.query',
             [('id', '=', hostid)],
-            {'single': True}
+            {'single': True},
+            timeout=300
         )
 
         if host['state'] == 'DOWN':
