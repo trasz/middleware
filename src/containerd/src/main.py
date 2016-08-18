@@ -538,6 +538,7 @@ class DockerHost(object):
         self.listener = None
         self.start_notifier = None
         self.mapped_ports = {}
+        self.ready = threading.Event()
         self.logger = logging.getLogger(self.__class__.__name__)
         gevent.spawn(self.wait_ready)
 
@@ -557,6 +558,7 @@ class DockerHost(object):
             except requests.exceptions.ConnectionError:
                 gevent.sleep(1)
 
+        self.ready.set()
         self.context.client.emit_event('containerd.docker.host.changed', {
             'operation': 'create',
             'ids': [self.vm.id]
@@ -747,9 +749,7 @@ class DockerService(RpcService):
         self.context = context
 
     def get_host_status(self, id):
-        host = self.context.docker_hosts.get(id)
-        if not host:
-            raise RpcException(errno.ENOENT, 'Docker host {0} not found'.format(id))
+        host = self.context.get_docker_host(id)
 
         try:
             info = host.connection.info()
@@ -773,7 +773,7 @@ class DockerService(RpcService):
 
                 yield i
 
-        for host in self.context.docker_hosts.values():
+        for host in self.context.iterate_docker_hosts():
             for container in host.connection.containers(all=True):
                 details = host.connection.inspect_container(container['Id'])
                 result.append({
@@ -793,7 +793,7 @@ class DockerService(RpcService):
     @generator
     def query_images(self, filter=None, params=None):
         result = []
-        for host in self.context.docker_hosts.values():
+        for host in self.context.iterate_docker_hosts():
             for image in host.connection.images():
                 result.append({
                     'id': image['Id'],
@@ -806,7 +806,7 @@ class DockerService(RpcService):
 
     @generator
     def pull(self, name, host):
-        host = self.context.docker_hosts.get(host)
+        host = self.context.get_docker_host(host)
         if not host:
             raise RpcException(errno.ENOENT, 'Docker host {0} not found'.format(host))
 
@@ -814,7 +814,7 @@ class DockerService(RpcService):
             yield json.loads(line.decode('utf-8'))
 
     def delete_image(self, name, host):
-        host = self.context.docker_hosts.get(host)
+        host = self.context.get_docker_host(host)
         try:
             host.connection.remove_image(image=name, force=True)
         except BaseException as err:
@@ -836,7 +836,7 @@ class DockerService(RpcService):
 
     def create(self, container):
         labels = []
-        host = self.context.docker_hosts.get(container['host'])
+        host = self.context.get_docker_host(container['host'])
         if not host:
             raise RpcException(errno.ENOENT, 'Docker host {0} not found'.format(container['host']))
 
@@ -1176,6 +1176,7 @@ class Main(object):
         for host in self.docker_hosts.values():
             try:
                 if host.connection.containers(all=True, quiet=True, filters={'id': id}):
+                    host.ready.wait()
                     return host
             except:
                 pass
@@ -1183,6 +1184,19 @@ class Main(object):
             continue
 
         raise RpcException(errno.ENOENT, 'Container {0} not found'.format(id))
+
+    def get_docker_host(self, id):
+        host = self.docker_hosts.get(id)
+        if not host:
+            raise RpcException(errno.ENOENT, 'Docker host {0} not found'.format(id))
+
+        host.ready.wait()
+        return host
+
+    def iterate_docker_hosts(self):
+        for host in self.docker_hosts.values():
+            host.ready.wait()
+            yield host
 
     def die(self):
         self.logger.warning('Exiting')
