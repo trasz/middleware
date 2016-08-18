@@ -63,7 +63,7 @@ DS2 = '/usr/local/bin/ds2'
 CORES_DIR = '/var/db/system/cores'
 DEFAULT_CONFIGFILE = '/usr/local/etc/debugd.conf'
 DEFAULT_SOCKET_ADDRESS = 'unix:///var/run/debugd.sock'
-SUPPORT_PROXY_ADDRESS = 'tcp://10.20.0.32:8080'  # XXX
+SUPPORT_PROXY_ADDRESS = 'tcp://kielbasa.ixsystems.com:8080'
 
 
 class ConnectionState(enum.Enum):
