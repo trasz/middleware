@@ -29,6 +29,7 @@ import os
 import sys
 import io
 import pty
+import errno
 import signal
 import enum
 import uuid
@@ -51,7 +52,7 @@ import msock.channel
 import msock.client
 from datetime import datetime
 from threading import Condition
-from freenas.dispatcher.rpc import RpcContext, RpcService, generator
+from freenas.dispatcher.rpc import RpcContext, RpcService, RpcException, generator
 from freenas.dispatcher.fd import MSockChannelSerializer
 from freenas.dispatcher.bridge import Bridge
 from freenas.dispatcher.client import Client
@@ -64,6 +65,12 @@ CORES_DIR = '/var/db/system/cores'
 DEFAULT_CONFIGFILE = '/usr/local/etc/debugd.conf'
 DEFAULT_SOCKET_ADDRESS = 'unix:///var/run/debugd.sock'
 SUPPORT_PROXY_ADDRESS = 'tcp://kielbasa.ixsystems.com:8080'
+
+
+def get_version():
+    with open('/etc/version', 'r') as f:
+        version, _ = f.read().split()
+        return version
 
 
 class ConnectionState(enum.Enum):
@@ -151,7 +158,13 @@ class DebugService(RpcService):
         self.context.run_job(ShellConnection(['/usr/bin/truss', '-p', str(pid)], fd))
 
     def debug_process(self, pid, gdb, fd):
+        try:
+            proc = bsd.kinfo_getproc(pid)
+        except LookupError:
+            raise RpcException(errno.ENOENT, 'PID {0} not found'.format(pid))
+
         self.context.run_job(DebugServerConnection(pid, gdb, fd))
+        return proc.path
 
     def proxy_dispatcher_rpc(self, fd):
         br = Bridge()
@@ -401,13 +414,19 @@ class DebugServerConnection(Job):
                         if data == b'':
                             self.logger.debug('Closing debug session')
                             self.close()
-                            return
+                            break
 
                         if f == fd:
                             s.write(data)
                         else:
                             fd.write(data)
+                    else:
+                        continue
 
+                    break
+
+        sock.shutdown(socket.SHUT_RDWR)
+        sock.close()
         proc.wait()
         os.unlink(self.fifoname)
 
@@ -467,7 +486,7 @@ class Context(object):
                 self.client.standalone_server = True
                 self.client.enable_server()
                 self.client.register_service('debug', DebugService(self))
-                self.client.call_sync('server.login', str(self.connection_id), socket.gethostname(), 'none')
+                self.client.call_sync('server.login', str(self.connection_id), socket.gethostname(), get_version(), 'none')
                 self.set_state(ConnectionState.CONNECTED)
             except BaseException as err:
                 self.logger.warning('Failed to initiate support connection: {0}'.format(err))
