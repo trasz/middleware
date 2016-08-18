@@ -117,7 +117,7 @@ class DockerBaseTask(ProgressTask):
             biggest_volume = self.dispatcher.call_sync(
                 'volume.query',
                 [],
-                {'sort': 'properties.size.parsed', 'single': True, 'select': 'name'}
+                {'sort': ['properties.size.parsed'], 'single': True, 'select': 'name'}
             )
 
             self.join_subtasks(self.run_subtask('vm.create', {
