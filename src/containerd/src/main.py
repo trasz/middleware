@@ -569,7 +569,8 @@ class DockerHost(object):
         actions = {
             'create': 'create',
             'pull': 'create',
-            'destroy': 'delete'
+            'destroy': 'delete',
+            'delete': 'delete'
         }
 
         while True:
