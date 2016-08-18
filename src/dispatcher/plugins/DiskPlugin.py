@@ -898,7 +898,7 @@ class DiskParallelTestTask(ProgressTask):
             if not disk:
                 raise VerifyException(errno.ENOENT, 'Disk {0} not found'.format(id))
 
-            res.append('disk:{0}'.format(id['path']))
+            res.append('disk:{0}'.format(disk['path']))
 
         return res
 
