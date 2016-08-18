@@ -35,8 +35,10 @@ import uuid
 import json
 import glob
 import setproctitle
+import tempfile
 import time
 import subprocess
+import socket
 import threading
 import logging
 import argparse
@@ -57,6 +59,7 @@ from freenas.dispatcher.server import Server
 from freenas.utils.permissions import get_type
 
 
+DS2 = '/usr/local/bin/ds2'
 CORES_DIR = '/var/db/system/cores'
 DEFAULT_CONFIGFILE = '/usr/local/etc/debugd.conf'
 DEFAULT_SOCKET_ADDRESS = 'unix:///var/run/debugd.sock'
@@ -145,7 +148,10 @@ class DebugService(RpcService):
                 yield i
 
     def trace_process(self, pid, fd):
-        self.context.jobs.append(ShellConnection(['/usr/bin/truss', '-p', str(pid)], fd))
+        self.context.run_job(ShellConnection(['/usr/bin/truss', '-p', str(pid)], fd))
+
+    def debug_proces(self, pid, gdb, fd):
+        self.context.run_job(DebugServerConnection(pid, gdb, fd))
 
     def proxy_dispatcher_rpc(self, fd):
         br = Bridge()
@@ -359,6 +365,51 @@ class DashboardConnection(Job):
             self.logger.debug('Stream closed')
         except BaseException as err:
             self.logger.exception('sad')
+
+
+class DebugServerConnection(Job):
+    def __init__(self, pid, gdb, fd):
+        super(DebugServerConnection, self).__init__()
+        self.logger = logging.getLogger(self.__class__.__name__)
+        self.pid = pid
+        self.fd = fd.fd
+        self.fifoname = '/tmp/ds2.{0}.fifo'.format(self.pid)
+        self.args = [DS2, 'g', '-N', self.fifoname, '-a', pid]
+        if gdb:
+            self.args.insert(2, '-g')
+
+    def describe(self):
+        return "Debug server connection (pid {0})".format(self.pid)
+
+    def worker(self):
+        self.logger.debug('Opening debug session for PID {0}'.format(self.pid))
+
+        os.mkfifo(self.fifoname)
+        proc = subprocess.Popen(self.args)
+
+        with open(self.fifoname) as fifo:
+            port = int(fifo.read().strip())
+
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM, socket.IPPROTO_TCP)
+        sock.connect(('localhost', port))
+        with io.open(self.fd, 'r+b', buffering=0) as fd:
+            with sock.makefile('r+b', buffering=0) as s:
+                while True:
+                    r, _, _ = select.select([fd, s], [], [])
+                    for f in r:
+                        data = f.read(1024)
+                        if data == b'':
+                            self.logger.debug('Closing debug session')
+                            self.close()
+                            return
+
+                        if f == fd:
+                            s.write(data)
+                        else:
+                            fd.write(data)
+
+        proc.wait()
+        os.unlink(self.fifoname)
 
 
 class Context(object):
