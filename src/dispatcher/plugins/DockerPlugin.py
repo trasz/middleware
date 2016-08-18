@@ -117,25 +117,36 @@ class DockerBaseTask(ProgressTask):
             biggest_volume = self.dispatcher.call_sync(
                 'volume.query',
                 [],
-                {'sort': ['properties.size.parsed'], 'single': True, 'select': 'name'}
+                {'sort': ['properties.size.parsed'], 'single': True, 'select': 'id'}
             )
             if not biggest_volume:
                 raise TaskException(errno.ENOENT, 'No pools available. Docker host could not be created.')
 
             self.join_subtasks(self.run_subtask('vm.create', {
                 'name': host_name,
-                'template': 'boot2docker',
+                'template': {'name': 'boot2docker'},
                 'target': biggest_volume
             }))
 
-            return self.dispatcher.call_sync(
+            hostid = self.dispatcher.call_sync(
                 'vm.query',
                 [('name', '=', host_name)],
                 {'single': True, 'select': 'id'}
             )
 
-        else:
-            return hostid
+            self.join_subtasks(self.run_subtask('vm.start', hostid))
+
+        return hostid
+
+    def check_host_state(self, hostid):
+        host = self.dispatcher.call_sync(
+            'docker.host.query',
+            [('id', '=', hostid)],
+            {'single': True}
+        )
+
+        if host['state'] == 'DOWN':
+            raise TaskException(errno.EHOSTDOWN, 'Docker host {0} is down'.format(host['name']))
 
 
 @accepts(h.ref('docker-config'))
@@ -180,6 +191,8 @@ class DockerContainerCreateTask(DockerBaseTask):
 
         if not container.get('host'):
             container['host'] = self.get_default_host()
+
+        self.check_host_state(container['host'])
 
         container['name'] = container['names'][0]
         self.dispatcher.call_sync('containerd.docker.create', container)
@@ -245,13 +258,15 @@ class DockerImagePullTask(DockerBaseTask):
         if not hostid:
             hostid = self.get_default_host()
 
+        self.check_host_state(hostid)
+
         for i in self.dispatcher.call_sync('containerd.docker.pull', name, hostid, timeout=3600):
             if 'progressDetail' in i and 'current' in i['progressDetail']:
                 percentage = i['progressDetail']['current'] / i['progressDetail']['total'] * 100
                 self.set_progress(percentage, '{0} layer {1}'.format(i['status'], i['id']))
 
 
-class DockerImageDeleteTask(ProgressTask):
+class DockerImageDeleteTask(DockerBaseTask):
     @classmethod
     def early_describe(cls):
         return "Deleting docker image"
@@ -263,6 +278,7 @@ class DockerImageDeleteTask(ProgressTask):
         return []
 
     def run(self, name, hostid):
+        self.check_host_state(hostid)
         try:
             self.dispatcher.call_sync('containerd.docker.delete_image', name, hostid)
         except RpcException as err:
