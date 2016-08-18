@@ -413,10 +413,14 @@ class AccountService(RpcService):
 
     @generator
     def query(self, filter=None, params=None):
+        retrun_raw = 'select' in params or 'count' in params
         for d in self.context.get_enabled_directories():
             for user in d.instance.getpwent(filter, params):
-                resolve_primary_group(self.context, user)
-                yield fix_passwords(annotate(user, d, 'username'))
+                if retrun_raw:
+                    yield user
+                else:
+                    resolve_primary_group(self.context, user)
+                    yield fix_passwords(annotate(user, d, 'username'))
 
     def getpwuid(self, uid):
         # Try the cache first
