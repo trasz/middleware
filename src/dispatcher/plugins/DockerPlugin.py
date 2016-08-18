@@ -27,12 +27,14 @@
 
 import gevent
 import dockerhub
+import logging
 from task import Provider, Task, ProgressTask, TaskDescription
 from cache import EventCacheStore
 from datastore.config import ConfigNode
 from freenas.utils import normalize, query as q
 from freenas.dispatcher.rpc import generator, accepts, returns, SchemaHelper as h, RpcException
 
+logger = logging.getLogger(__name__)
 
 containers = None
 containers_query = 'containerd.docker.query_containers'
@@ -239,10 +241,14 @@ def _init(dispatcher, plugin):
                     if new_containers:
                         sync_cache(containers, containers_query, new_containers)
 
+                    logger.debug('Docker host {0} started'.format(host_id))
+
             elif args['operation'] == 'delete':
                 for host_id in args['ids']:
                     images.remove_many(images.query(('host', '=', host_id), select='id'))
                     containers.remove_many(containers.query(('host', '=', host_id), select='id'))
+
+                    logger.debug('Docker host {0} stopped'.format(host_id))
 
             dispatcher.dispatch_event('docker.host.changed', {
                 'operation': 'update',
@@ -257,6 +263,7 @@ def _init(dispatcher, plugin):
             single=True
         )
         if host:
+            logger.debug('Docker host {0} deleted'.format(host['name']))
             dispatcher.dispatch_event('docker.host.changed', {
                 'operation': 'delete',
                 'ids': [args['name']]
@@ -272,16 +279,19 @@ def _init(dispatcher, plugin):
                     single=True
                 )
                 if host:
+                    logger.debug('Docker host {0} created'.format(host['name']))
                     dispatcher.dispatch_event('docker.host.changed', {
                         'operation': 'create',
                         'ids': [id]
                     })
 
     def on_image_event(args):
+        logger.trace('Received Docker image event: {0}'.format(args))
         if args['ids']:
             sync_cache(images, images_query, args['ids'])
 
     def on_container_event(args):
+        logger.trace('Received Docker container event: {0}'.format(args))
         if args['ids']:
             sync_cache(containers, containers_query, args['ids'])
 
@@ -290,6 +300,7 @@ def _init(dispatcher, plugin):
         while True:
             gevent.sleep(interval)
             if images.ready and containers.ready:
+                logger.trace('Syncing Docker caches')
                 sync_cache(images, images_query)
                 sync_cache(containers, containers_query)
 
@@ -302,6 +313,7 @@ def _init(dispatcher, plugin):
         cache.update(**{i['id']: i for i in objects})
 
     def init_cache():
+        logger.trace('Initializing Docker caches')
         sync_cache(images, images_query)
         images.ready = True
         sync_cache(containers, containers_query)
