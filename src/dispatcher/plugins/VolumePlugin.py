@@ -2672,7 +2672,7 @@ def _init(dispatcher, plugin):
                 pass
 
         temp_mountpoint = None
-        if q.get(ds, 'properties.readonly.parsed') and ds['mounted']:
+        if q.get(ds, 'properties.readonly.parsed') and q.get(ds, 'properties.mounted.parsed'):
             for mnt in bsd.getmntinfo():
                 if mnt.source == ds['name'] and mnt.dest != q.get(ds, 'properties.mountpoint.parsed'):
                     temp_mountpoint = mnt.dest
