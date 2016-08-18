@@ -578,22 +578,31 @@ class DockerHost(object):
                 for ev in self.connection.events(decode=True):
                     self.logger.debug('Received docker event: {0}'.format(ev))
                     if ev['Type'] == 'container':
-                        details = self.connection.inspect_container(ev['id'])
                         self.context.client.emit_event('containerd.docker.container.changed', {
                             'operation': actions.get(ev['Action'], 'update'),
                             'ids': [ev['id']]
                         })
 
-                        if 'org.freenas.expose_ports_at_host' not in details['Config']['Labels']:
-                            continue
-
-                        self.logger.debug('Redirecting container {0} ports on host firewall'.format(ev['id']))
-
                         p = pf.PF()
-                        mapped_ports = []
 
-                        # Setup or destroy port redirection now, if needed
-                        if ev['Action'] == 'start':
+                        if ev['Action'] == 'destroy':
+                            for i in self.mapped_ports.get(ev['id'], {}):
+                                rule = first_or_default(lambda r: r.proxy_ports[0] == i, p.get_rules('rdr'))
+                                if rule:
+                                    p.delete_rule('rdr', rule.index)
+
+                        elif ev['Action'] == 'start':
+                            details = self.connection.inspect_container(ev['id'])
+
+                            if 'org.freenas.expose_ports_at_host' not in details['Config']['Labels']:
+                                continue
+
+                            self.logger.debug('Redirecting container {0} ports on host firewall'.format(ev['id']))
+
+                            mapped_ports = []
+
+                            # Setup or destroy port redirection now, if needed
+
                             for i in get_docker_ports(details):
 
                                 if first_or_default(
@@ -622,13 +631,6 @@ class DockerHost(object):
                                 mapped_ports.append(i['host_port'])
 
                             self.mapped_ports[ev['id']] = mapped_ports
-
-                        if ev['Action'] == 'destroy':
-                            self.logger.debug(json.dumps(details, indent=4))
-                            for i in self.mapped_ports.get(ev['id'], {}):
-                                rule = first_or_default(lambda r: r.proxy_ports[0] == i, p.get_rules('rdr'))
-                                if rule:
-                                    p.delete_rule('rdr', rule.index)
 
                     if ev['Type'] == 'image':
                         image = first_or_default(
