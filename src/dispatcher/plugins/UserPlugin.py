@@ -92,7 +92,10 @@ class UserProvider(Provider):
                 if key == 'username':
                     return self.dispatcher.call_sync('dscached.account.getpwnam', value)
 
-        return q.query(self.dispatcher.call_sync('dscached.account.query', filter, params), stream=True)
+        return q.query(
+            self.dispatcher.call_sync('dscached.account.query'),
+            *(filter or []), stream=True, **(params or {})
+        )
 
     def get_profile_picture(self, uid):
         pass
@@ -136,7 +139,10 @@ class GroupProvider(Provider):
                 if key == 'name':
                     return self.dispatcher.call_sync('dscached.group.getgrnam', value)
 
-        return q.query(self.dispatcher.call_sync('dscached.group.query', filter, params), stream=True)
+        return q.query(
+            self.dispatcher.call_sync('dscached.group.query',),
+            *(filter or []), stream=True, **(params or {})
+        )
 
     @description("Retrieve the next GID available")
     @returns(int)
