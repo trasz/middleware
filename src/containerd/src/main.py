@@ -813,6 +813,13 @@ class DockerService(RpcService):
         for line in host.connection.pull(name, stream=True):
             yield json.loads(line.decode('utf-8'))
 
+    def delete_image(self, name, host):
+        host = self.context.docker_hosts.get(host)
+        try:
+            host.connection.remove_image(image=name, force=True)
+        except BaseException as err:
+            raise RpcException(errno.EFAULT, 'Failed to remove image: {0}'.format(str(err)))
+
     def start(self, id):
         host = self.context.docker_host_by_container_id(id)
         try:

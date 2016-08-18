@@ -28,7 +28,7 @@
 import gevent
 import dockerhub
 import logging
-from task import Provider, Task, ProgressTask, TaskDescription
+from task import Provider, Task, ProgressTask, TaskDescription, TaskException
 from cache import EventCacheStore
 from datastore.config import ConfigNode
 from freenas.utils import normalize, query as q
@@ -212,6 +212,24 @@ class DockerImagePullTask(ProgressTask):
                 self.set_progress(percentage, '{0} layer {1}'.format(i['status'], i['id']))
 
 
+class DockerImageDeleteTask(ProgressTask):
+    @classmethod
+    def early_describe(cls):
+        return "Deleting docker image"
+
+    def describe(self, name, hostid):
+        return TaskDescription("Deleting docker image {name}".format(name=name))
+
+    def verify(self, name, hostid):
+        return []
+
+    def run(self, name, hostid):
+        try:
+            self.dispatcher.call_sync('containerd.docker.delete_image', name, hostid)
+        except RpcException as err:
+            raise TaskException('Failed to remove image {0}: {1}'.format(name, err))
+
+
 def _depends():
     return ['VMPlugin']
 
@@ -330,6 +348,7 @@ def _init(dispatcher, plugin):
     plugin.register_task_handler('docker.container.stop', DockerContainerStopTask)
 
     plugin.register_task_handler('docker.image.pull', DockerImagePullTask)
+    plugin.register_task_handler('docker.image.delete', DockerImageDeleteTask)
 
     plugin.register_event_type('docker.host.changed')
     plugin.register_event_type('docker.container.changed')
