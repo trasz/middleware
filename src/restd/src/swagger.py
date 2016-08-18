@@ -2,45 +2,12 @@
 
 def normalize_schema(obj, rest=None):
     if isinstance(obj, dict):
-        if 'anyOf' in obj:
-            # FIXME: Wrong, OpenAPI does not support it, need workaround
-            new = obj['anyOf'][0]
-            obj.clear()
-            obj.update(new)
-        if 'oneOf' in obj:
-            # FIXME: Wrong, OpenAPI does not support it, need workaround
-            new = obj['oneOf'][0]
-            obj.clear()
-            obj.update(new)
-        if 'allOf' in obj:
-            # FIXME: Wrong, OpenAPI does not support it, need workaround
-            new = obj['allOf'][0]
-            obj.clear()
-            obj.update(new)
         if '$ref' in obj:
             ref = obj['$ref']
             if not ref.startswith('#/definitions/'):
                 if rest:
                     rest._used_schemas.add(ref)
                 obj['$ref'] = '#/definitions/{0}'.format(ref)
-        if 'type' in obj:
-            typ = obj['type']
-            # datetime type is not json schema compliant
-            # replace it with {"type": "string", "format": "date-time"}
-            if isinstance(typ, str) and typ == 'datetime':
-                obj['type'] = 'string'
-                obj['format'] = 'date-time'
-            elif isinstance(typ, str) and typ == 'binary':
-                del obj['type']
-                obj['$ref'] = '#/definitions/binary-type'
-            # if datetime type is within a list, replace it with string
-            # ideally we should replace it with anyOf
-            elif isinstance(typ, list) and 'datetime' in typ:
-                idx = typ.index('datetime')
-                if 'string' in typ:
-                    del typ[idx]
-                else:
-                    typ[idx] = 'string'
         for key in obj:
             normalize_schema(obj[key], rest)
     elif isinstance(obj, (list, tuple)):
