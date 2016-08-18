@@ -105,6 +105,36 @@ class DockerImagesProvider(Provider):
         pass
 
 
+class DockerBaseTask(ProgressTask):
+    def get_default_host(self):
+        hostid = self.dispatcher.call_sync('docker.get_config').get('default_host')
+        if not hostid:
+            host_name = 'docker_host_' + str(self.dispatcher.call_sync(
+                'vm.query', [('name', '~', 'docker_host_')], {'count': True}
+            ))
+
+            biggest_volume = self.dispatcher.call_sync(
+                'volume.query',
+                [],
+                {'sort': 'properties.size.parsed', 'single': True, 'select': 'name'}
+            )
+
+            self.join_subtasks(self.run_subtask('vm.create', {
+                'name': host_name,
+                'template': 'boot2docker',
+                'volume': biggest_volume
+            }))
+
+            return self.dispatcher.call_sync(
+                'vm.query',
+                [('name', '=', host_name)],
+                {'single': True, 'select': 'id'}
+            )
+
+        else:
+            return hostid
+
+
 @accepts(h.ref('docker-config'))
 class DockerUpdateTask(Task):
     @classmethod
@@ -122,7 +152,7 @@ class DockerUpdateTask(Task):
         node.update(updated_params)
 
 
-class DockerContainerCreateTask(ProgressTask):
+class DockerContainerCreateTask(DockerBaseTask):
     @classmethod
     def early_describe(cls):
         return "Creating a Docker container"
@@ -144,6 +174,9 @@ class DockerContainerCreateTask(ProgressTask):
 
         # Check if we have required image
         pass
+
+        if not container.get('host'):
+            container['host'] = self.get_default_host()
 
         container['name'] = container['names'][0]
         self.dispatcher.call_sync('containerd.docker.create', container)
@@ -194,7 +227,7 @@ class DockerContainerStopTask(Task):
         self.dispatcher.call_sync('containerd.docker.stop', id)
 
 
-class DockerImagePullTask(ProgressTask):
+class DockerImagePullTask(DockerBaseTask):
     @classmethod
     def early_describe(cls):
         return "Pulling docker image"
@@ -206,6 +239,9 @@ class DockerImagePullTask(ProgressTask):
         return []
 
     def run(self, name, hostid):
+        if not hostid:
+            hostid = self.get_default_host()
+
         for i in self.dispatcher.call_sync('containerd.docker.pull', name, hostid, timeout=3600):
             if 'progressDetail' in i and 'current' in i['progressDetail']:
                 percentage = i['progressDetail']['current'] / i['progressDetail']['total'] * 100
@@ -298,10 +334,37 @@ def _init(dispatcher, plugin):
                 )
                 if host:
                     logger.debug('Docker host {0} created'.format(host['name']))
+                    default_host = dispatcher.call_sync('docker.get_config').get('default_host')
+                    if not default_host:
+                        dispatcher.call_task_sync('docker.update', {'default_host': host['id']})
+                        logger.info('Docker host {0} set automatically as default Docker host'.format(host['name']))
                     dispatcher.dispatch_event('docker.host.changed', {
                         'operation': 'create',
                         'ids': [id]
                     })
+
+        elif args['operation'] == 'delete':
+            if dispatcher.call_sync('docker.get_config').get('default_host') in args['ids']:
+                host = dispatcher.datastore.query(
+                    'vms',
+                    ('config.docker_host', '=', True),
+                    single=True,
+                )
+
+                if host:
+                    logger.info(
+                        'Old default host deleted. Docker host {0} set automatically as default Docker host'.format(
+                            host['name']
+                        )
+                    )
+                    host_id = host['id']
+                else:
+                    logger.info(
+                        'Old default host deleted. There are no Docker hosts left to take the role of default host.'
+                    )
+                    host_id = None
+
+                dispatcher.call_task_sync('docker.update', {'default_host': host_id})
 
     def on_image_event(args):
         logger.trace('Received Docker image event: {0}'.format(args))
@@ -347,6 +410,8 @@ def _init(dispatcher, plugin):
     plugin.register_provider('docker.host', DockerHostProvider)
     plugin.register_provider('docker.container', DockerContainerProvider)
     plugin.register_provider('docker.image', DockerImagesProvider)
+
+    plugin.register_task_handler('docker.update', DockerUpdateTask)
 
     plugin.register_task_handler('docker.container.create', DockerContainerCreateTask)
     plugin.register_task_handler('docker.container.delete', DockerContainerDeleteTask)
