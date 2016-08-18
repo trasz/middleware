@@ -750,6 +750,7 @@ class DockerService(RpcService):
         except:
             raise RpcException(errno.ENXIO, 'Cannot connect to host {0}'.format(id))
 
+    @generator
     def query_containers(self, filter=None, params=None):
         result = []
 
@@ -777,6 +778,7 @@ class DockerService(RpcService):
 
         return q.query(result, *(filter or []), stream=True, **(params or {}))
 
+    @generator
     def query_images(self, filter=None, params=None):
         result = []
         for host in self.context.docker_hosts.values():
