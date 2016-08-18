@@ -823,11 +823,13 @@ class VMDeleteTask(Task):
             if err.code != errno.ENOENT:
                 raise err
 
-        self.datastore.delete('vms', id)
-        self.dispatcher.dispatch_event('vm.changed', {
-            'operation': 'delete',
-            'ids': [id]
-        })
+        with self.dispatcher.get_lock('vms'):
+            self.dispatcher.run_hook('vm.pre_destroy', {'name': id})
+            self.datastore.delete('vms', id)
+            self.dispatcher.dispatch_event('vm.changed', {
+                'operation': 'delete',
+                'ids': [id]
+            })
 
 
 @accepts(str)
@@ -1905,6 +1907,8 @@ def _init(dispatcher, plugin):
     plugin.register_task_handler('vm.template.fetch', VMTemplateFetchTask)
     plugin.register_task_handler('vm.template.delete', VMTemplateDeleteTask)
     plugin.register_task_handler('vm.template.ipfs.fetch', VMIPFSTemplateFetchTask)
+
+    plugin.register_hook('vm.pre_destroy')
 
     plugin.attach_hook('volume.pre_destroy', volume_pre_destroy)
     plugin.attach_hook('volume.pre_detach', volume_pre_detach)

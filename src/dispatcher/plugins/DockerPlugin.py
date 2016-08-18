@@ -65,7 +65,8 @@ class DockerHostProvider(Provider):
 
             return ret
 
-        results = self.datastore.query('vms', ('config.docker_host', '=', True), callback=extend)
+        with self.dispatcher.get_lock('vms'):
+            results = self.datastore.query('vms', ('config.docker_host', '=', True), callback=extend)
         return q.query(results, *(filter or []), stream=True, **(params or {}))
 
 
@@ -237,10 +238,33 @@ def _init(dispatcher, plugin):
                         sync_cache(images, images_query, new_images)
                     if new_containers:
                         sync_cache(containers, containers_query, new_containers)
+
+                dispatcher.dispatch_event('docker.host.changed', {
+                    'operation': 'create',
+                    'ids': args['ids']
+                })
             elif args['operation'] == 'delete':
                 for host_id in args['ids']:
                     images.remove_many(images.query(('host', '=', host_id), select='id'))
                     containers.remove_many(containers.query(('host', '=', host_id), select='id'))
+
+                dispatcher.dispatch_event('docker.host.changed', {
+                    'operation': 'update',
+                    'ids': args['ids']
+                })
+
+    def vm_pre_destroy(args):
+        host = dispatcher.datastore.query(
+            'vms',
+            ('config.docker_host', '=', True),
+            ('id', '=', args['name']),
+            single=True
+        )
+        if host:
+            dispatcher.dispatch_event('docker.host.changed', {
+                'operation': 'delete',
+                'ids': [args['name']]
+            })
 
     def on_image_event(args):
         if args['ids']:
@@ -293,6 +317,8 @@ def _init(dispatcher, plugin):
     plugin.register_event_handler('containerd.docker.image.changed', on_image_event)
     plugin.register_event_handler('plugin.service_registered',
                                   lambda a: init_cache() if a['service-name'] == 'containerd.docker' else None)
+
+    plugin.attach_hook('vm.pre_destroy', vm_pre_destroy)
 
     plugin.register_schema_definition('docker-config', {
         'type': 'object',
