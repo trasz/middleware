@@ -25,6 +25,7 @@
 #
 #####################################################################
 
+import errno
 import gevent
 import dockerhub
 import logging
@@ -263,7 +264,7 @@ class DockerImageDeleteTask(ProgressTask):
         try:
             self.dispatcher.call_sync('containerd.docker.delete_image', name, hostid)
         except RpcException as err:
-            raise TaskException('Failed to remove image {0}: {1}'.format(name, err))
+            raise TaskException(errno.EACCES, 'Failed to remove image {0}: {1}'.format(name, err))
 
 
 def _depends():
