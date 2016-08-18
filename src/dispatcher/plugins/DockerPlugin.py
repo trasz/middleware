@@ -119,11 +119,13 @@ class DockerBaseTask(ProgressTask):
                 [],
                 {'sort': ['properties.size.parsed'], 'single': True, 'select': 'name'}
             )
+            if not biggest_volume:
+                raise TaskException(errno.ENOENT, 'No pools available. Docker host could not be created.')
 
             self.join_subtasks(self.run_subtask('vm.create', {
                 'name': host_name,
                 'template': 'boot2docker',
-                'volume': biggest_volume
+                'target': biggest_volume
             }))
 
             return self.dispatcher.call_sync(
