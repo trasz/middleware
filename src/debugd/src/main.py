@@ -150,7 +150,7 @@ class DebugService(RpcService):
     def trace_process(self, pid, fd):
         self.context.run_job(ShellConnection(['/usr/bin/truss', '-p', str(pid)], fd))
 
-    def debug_proces(self, pid, gdb, fd):
+    def debug_process(self, pid, gdb, fd):
         self.context.run_job(DebugServerConnection(pid, gdb, fd))
 
     def proxy_dispatcher_rpc(self, fd):
@@ -374,7 +374,7 @@ class DebugServerConnection(Job):
         self.pid = pid
         self.fd = fd.fd
         self.fifoname = '/tmp/ds2.{0}.fifo'.format(self.pid)
-        self.args = [DS2, 'g', '-N', self.fifoname, '-a', pid]
+        self.args = [DS2, 'g', '-N', self.fifoname, '-a', str(pid)]
         if gdb:
             self.args.insert(2, '-g')
 
@@ -388,12 +388,12 @@ class DebugServerConnection(Job):
         proc = subprocess.Popen(self.args)
 
         with open(self.fifoname) as fifo:
-            port = int(fifo.read().strip())
+            port = int(fifo.read()[:-1])
 
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM, socket.IPPROTO_TCP)
         sock.connect(('localhost', port))
         with io.open(self.fd, 'r+b', buffering=0) as fd:
-            with sock.makefile('r+b', buffering=0) as s:
+            with sock.makefile('rwb', buffering=0) as s:
                 while True:
                     r, _, _ = select.select([fd, s], [], [])
                     for f in r:
