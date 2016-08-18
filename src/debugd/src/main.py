@@ -55,7 +55,7 @@ from threading import Condition
 from freenas.dispatcher.rpc import RpcContext, RpcService, RpcException, generator
 from freenas.dispatcher.fd import MSockChannelSerializer
 from freenas.dispatcher.bridge import Bridge
-from freenas.dispatcher.client import Client
+from freenas.dispatcher.client import Client, ClientError
 from freenas.dispatcher.server import Server
 from freenas.utils.permissions import get_type
 
@@ -447,6 +447,7 @@ class Context(object):
         self.rpc = RpcContext()
         self.client = Client()
         self.server = Server()
+        self.middleware_endpoint = None
 
     def start(self, configpath, sockpath):
         signal.signal(signal.SIGUSR2, lambda signo, frame: self.connect())
@@ -455,6 +456,29 @@ class Context(object):
         self.server.rpc.register_service_instance('control', ControlService(self))
         self.server.start(sockpath)
         threading.Thread(target=self.server.serve_forever, name='server thread', daemon=True).start()
+
+    def init_dispatcher(self):
+        def on_error(reason, **kwargs):
+            if reason in (ClientError.CONNECTION_CLOSED, ClientError.LOGOUT):
+                self.logger.warning('Connection to dispatcher lost')
+                self.connect_dispatcher()
+
+        self.middleware_endpoint = Client()
+        self.middleware_endpoint.on_error(on_error)
+        self.connect_dispatcher()
+
+    def connect_dispatcher(self):
+        while True:
+            try:
+                self.middleware_endpoint.connect('unix:')
+                self.middleware_endpoint.login_service('debugd')
+                self.middleware_endpoint.enable_server()
+                self.middleware_endpoint.register_service('debugd.management', ControlService(self))
+                self.middleware_endpoint.resume_service('debugd.management')
+                return
+            except (OSError, RpcException) as err:
+                self.logger.warning('Cannot connect to dispatcher: {0}, retrying in 1 second'.format(str(err)))
+                time.sleep(1)
 
     def read_config(self, path):
         try:
@@ -529,6 +553,7 @@ def main():
     logging.basicConfig(level=logging.DEBUG)
     context = Context()
     context.start(args.c, args.s)
+    context.init_dispatcher()
     setproctitle.setproctitle('debugd')
 
     if not os.path.isdir(CORES_DIR):
