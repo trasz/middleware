@@ -306,12 +306,18 @@ def _init(dispatcher, plugin):
     def on_image_event(args):
         logger.trace('Received Docker image event: {0}'.format(args))
         if args['ids']:
-            sync_cache(images, images_query, args['ids'])
+            if args['operation'] == 'delete':
+                images.remove_many(args['ids'])
+            else:
+                sync_cache(images, images_query, args['ids'])
 
     def on_container_event(args):
         logger.trace('Received Docker container event: {0}'.format(args))
         if args['ids']:
-            sync_cache(containers, containers_query, args['ids'])
+            if args['operation'] == 'delete':
+                containers.remove_many(args['ids'])
+            else:
+                sync_cache(containers, containers_query, args['ids'])
 
     def sync_caches():
         interval = dispatcher.configstore.get('container.cache_refresh_interval')
