@@ -254,8 +254,9 @@ def _init(dispatcher, plugin):
         interval = dispatcher.configstore.get('container.cache_refresh_interval')
         while True:
             gevent.sleep(interval)
-            sync_cache(images, images_query)
-            sync_cache(containers, containers_query)
+            if images.ready and containers.ready:
+                sync_cache(images, images_query)
+                sync_cache(containers, containers_query)
 
     def sync_cache(cache, query, ids=None):
         if ids:
@@ -264,6 +265,12 @@ def _init(dispatcher, plugin):
             objects = dispatcher.call_sync(query)
 
         cache.update(**{i['id']: i for i in objects})
+
+    def init_cache():
+        sync_cache(images, images_query)
+        images.ready = True
+        sync_cache(containers, containers_query)
+        containers.ready = True
 
     plugin.register_provider('docker', DockerProvider)
     plugin.register_provider('docker.host', DockerHostProvider)
@@ -284,6 +291,8 @@ def _init(dispatcher, plugin):
     plugin.register_event_handler('containerd.docker.host.changed', on_host_event)
     plugin.register_event_handler('containerd.docker.container.changed', on_container_event)
     plugin.register_event_handler('containerd.docker.image.changed', on_image_event)
+    plugin.register_event_handler('plugin.service_registered',
+                                  lambda a: init_cache() if a['service-name'] == 'containerd.docker' else None)
 
     plugin.register_schema_definition('docker-config', {
         'type': 'object',
@@ -379,9 +388,7 @@ def _init(dispatcher, plugin):
         'enum': ['TCP', 'UDP']
     })
 
-    sync_cache(images, images_query)
-    images.ready = True
-    sync_cache(containers, containers_query)
-    containers.ready = True
+    if 'containerd.docker' in dispatcher.call_sync('discovery.get_services'):
+        init_cache()
 
     gevent.spawn(sync_caches)
