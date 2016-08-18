@@ -893,12 +893,12 @@ class DiskParallelTestTask(ProgressTask):
 
     def verify(self, ids, test_type):
         res = []
-        for i in ids:
-            disk = diskinfo_cache.get(i)
+        for id in ids:
+            disk = diskinfo_cache.get(id)
             if not disk:
                 raise VerifyException(errno.ENOENT, 'Disk {0} not found'.format(id))
 
-            res.append('disk:{0}'.format(i['path']))
+            res.append('disk:{0}'.format(id['path']))
 
         return res
 
