@@ -631,9 +631,14 @@ class DockerHost(object):
                                     p.delete_rule('rdr', rule.index)
 
                     if ev['Type'] == 'image':
+                        image = first_or_default(
+                            lambda i: ev['id'] in i['RepoTags'],
+                            self.connection.images(),
+                            default=ev
+                        )
                         self.context.client.emit_event('containerd.docker.image.changed', {
                             'operation': actions.get(ev['Action'], 'update'),
-                            'ids': [ev['id']]
+                            'ids': [image['id']]
                         })
 
             except BaseException as err:
