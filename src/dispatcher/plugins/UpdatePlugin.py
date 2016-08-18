@@ -114,11 +114,15 @@ def parse_changelog(changelog, start='', end=''):
 def get_changelog(train, cache_dir='/var/tmp/update', start='', end=''):
     "Utility to get and eventually parse a changelog if available"
     conf = Configuration.Configuration()
-    changelog = conf.GetChangeLog(train=train, save_dir=cache_dir)
-    if not changelog:
-        return None
-
-    return parse_changelog(changelog.read(), start, end)
+    changelog = None
+    try:
+        changelog = conf.GetChangeLog(train=train, save_dir=cache_dir)
+        if not changelog:
+            return None
+        return parse_changelog(changelog.read().decode('utf8'), start, end)
+    finally:
+        if changelog:
+            changelog.close()
 
 
 # The handler(s) below is/are taken from the freenas 9.3 code
