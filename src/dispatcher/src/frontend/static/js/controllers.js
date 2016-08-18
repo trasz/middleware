@@ -108,17 +108,6 @@ function RpcController($scope, $location, $routeParams, $route, $rootScope, Moda
       //get params from middleware then set it to #args
       $("#args").val('[]');
     }
-    // $("#call").click(function () {
-    //     console.log('button clicked, loading data, please wait for a sec');
-    //     sock.call(
-    //         $("#method").val(),
-    //         JSON.parse($("#args").val()),
-    //         function(result) {
-    //             $("#result").html(JSON.stringify(result, null, 4));
-    //             $("#result").show("slow");
-    //         }
-    //     );
-    // });
 
     $scope.submitForm = function() {
         console.log('button clicked, loading data, please wait for a sec');
@@ -253,46 +242,53 @@ function EventsController($scope, $location, $routeParams, $route, $rootScope) {
     document.title = "System Events";
     var sock = new middleware.DispatcherClient(document.domain);
     sock.connect();
-    $scope.showLoginForm = function() {
-        //show ModalService
-        console.log("service here");
-    }
-    $scope.init = function () {
-        sock.onError = function(err) {
-            try {
-                $route.reload();
-            } catch (e) {
-                console.log(e);
-                $("#socket_status ").attr("src", "/static/images/service_issue_diamond.png");
-                $("#refresh_page_glyph").show();
-            }
-        };
-        sock.onConnect = function() {
-            if (!sessionStorage.getItem("freenas:username")) {
-                $location.path('/login'+$route.current.$$route.originalPath);
-            }
+    sock.onError = function(err) {
+        try {
+            $route.reload();
+        } catch (e) {
+            console.log(e);
+            $("#socket_status ").attr("src", "/static/images/service_issue_diamond.png");
+            $("#refresh_page_glyph").show();
+        }
+    };
+    sock.onConnect = function() {
+        if (!sessionStorage.getItem("freenas:username")) {
+            $location.path('/login'+$route.current.$$route.originalPath);
+        }
 
-            sock.login(
-                sessionStorage.getItem("freenas:username"),
-                sessionStorage.getItem("freenas:password")
-            );
-        };
-        sock.onLogin = function() {
-            sock.subscribe("*");
-            console.log("getting system events, plz wait");
-            var item_list = [];
-            sock.onEvent = function(name, args) {
-                var ctx = {
-                    name: name,
-                    args: angular.toJson(args, 4)
-                };
-                item_list.push(ctx);
-                $scope.$apply(function(){
-                  $scope.item_list = item_list;
-                });
+        sock.login(
+            sessionStorage.getItem("freenas:username"),
+            sessionStorage.getItem("freenas:password")
+        );
+    };
+    sock.onLogin = function() {
+        sock.subscribe("*.changed");
+        console.log("getting system events, plz wait");
+        var item_list = [];
+        sock.onEvent = function(name, args) {
+            var ctx = {
+                name: name,
+                args: angular.toJson(args, 4)
             };
+            item_list.push(ctx);
+            $scope.$apply(function(){
+              $scope.item_list = item_list;
+            });
         };
+    };
+
+    $scope.clearEvents = function() {
+        $scope.item_list = [];
     }
+    // $scope.myFilter = function (sys_event) {
+    //     if ($scope.regexText === ''){
+    //         return true;
+    //     }
+    //     var reg = RegExp("^" + $scope.regexText);
+    //     if(reg.test(sys_event.name) || reg.test(sys_event.args)) {
+    //         return sys_event;
+    //     }
+    // };
 }
 function SyslogController($scope, $location, $routeParams, $route, $rootScope) {
     document.title = "System Logs";
@@ -717,7 +713,6 @@ function TasksController($scope, $interval, $location, $routeParams, $route, $ro
             var item_list = [];
             var service_list = [];
             sock.call("discovery.get_tasks", null, function (tasks) {
-                console.log(tasks     );
                 $.each(tasks, function(key, value) {
                     value['name'] = key;
                     value['schema'] = angular.toJson(value['schema'], 4);
