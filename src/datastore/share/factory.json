@@ -415,6 +415,12 @@
                 ],
                 "name": "nfs"
             },
+            "da215368-6627-11e6-a751-00e04d680384": {
+                "dependencies": [
+                    "file:ntp.conf"
+                ],
+                "name": "ntpd"
+            },
             "52b83614-f3dd-47ec-a41b-39d297fe2ed8": {
                 "dependencies": [
                     "group:services",
