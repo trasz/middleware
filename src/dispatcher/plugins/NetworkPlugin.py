@@ -515,7 +515,7 @@ class DeleteHostTask(Task):
     def early_describe(cls):
         return "Deleting static host"
 
-    def describe(self, id, updated_fields):
+    def describe(self, id):
         return TaskDescription("Deleting static host {name}", name=id)
 
     def verify(self, id):
