@@ -27,6 +27,7 @@
 
 import sys
 import time
+import uuid
 import logging
 import setproctitle
 import argparse
@@ -106,8 +107,7 @@ class ManagementService(RpcService):
     @private
     def add(self, task):
         if 'id' not in task:
-            count = len(self.context.scheduler.get_jobs())
-            task_id = 'task{0}'.format(count + 1)
+            task_id = str(uuid.uuid4())
         else:
             task_id = task['id']
 
