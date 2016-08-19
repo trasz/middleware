@@ -30,12 +30,18 @@ import io
 import tarfile
 import errno
 import logging
-from freenas.dispatcher.rpc import RpcException, description, accepts, private
+from freenas.dispatcher.rpc import RpcException, SchemaHelper as h, description, accepts, returns, private
 from freenas.dispatcher.fd import FileDescriptor
 from lib.system import system, SubprocessException
-from task import ProgressTask, TaskWarning, TaskDescription, ValidationException
+from task import Provider, Task, ProgressTask, TaskWarning, TaskDescription, ValidationException
 
 logger = logging.getLogger('DebugPlugin')
+
+
+class RemoteDebugProvider(Provider):
+    @returns(h.ref('remote-debug-status'))
+    def get_status(self):
+        return self.dispatcher.call_sync('debugd.management.status')
 
 
 @private
@@ -136,6 +142,57 @@ class SaveDebugTask(ProgressTask):
         ))
 
 
+@description('Connects to the support server')
+class RemoteDebugConnectTask(Task):
+    @classmethod
+    def early_describe(cls):
+        return 'Connecting to the support server'
+
+    def describe(self, connect):
+        return TaskDescription('Connecting to the support server')
+
+    def verify(self, connect):
+        return []
+
+    def run(self, connect):
+        self.dispatcher.call_sync('debugd.management.connect')
+
+
+@description('Disconnects from the support server')
+class RemoteDebugDisconnectTask(Task):
+    @classmethod
+    def early_describe(cls):
+        return 'Disconnecting from the support server'
+
+    def describe(self, connect):
+        return TaskDescription('Disconnecting from the support server')
+
+    def verify(self, connect):
+        return []
+
+    def run(self, connect):
+        self.dispatcher.call_sync('debugd.management.disconnect')
+
+
 def _init(dispatcher, plugin):
+    plugin.register_schema_definition('remote-debug-status', {
+        'type': 'object',
+        'additionalProperties': False,
+        'readOnly': True,
+        'properties': {
+            'state': {
+                'type': 'string',
+                'enum': ['OFFLINE', 'CONNECTING', 'CONNECTED', 'LOST']
+            },
+            'server': {'type': 'string'},
+            'connection_id': {'type': 'string'},
+            'connected_at': {'type': 'datetime'},
+            'jobs': {'type': 'array'}
+        }
+    })
+
+    plugin.register_provider('debug.remote', RemoteDebugProvider)
+    plugin.register_task_handler('debug.remote.connect', RemoteDebugConnectTask)
+    plugin.register_task_handler('debug.remote.disconnect', RemoteDebugDisconnectTask)
     plugin.register_task_handler('debug.collect', CollectDebugTask)
     plugin.register_task_handler('debug.save_to_file', SaveDebugTask)
