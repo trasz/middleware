@@ -63,6 +63,8 @@ class CreateCalendarTask(Task):
         return TaskDescription("Creating calendar task {name}", name=task['name'])
 
     def verify(self, task):
+        if task['name'] in self.dispatcher.call_sync('scheduler.management.query', [], {'select': 'name'}):
+            raise TaskException(errno.EEXIST, 'Selected name already exists')
         return ['system']
 
     def run(self, task):
