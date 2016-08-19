@@ -85,8 +85,8 @@ class ManagementService(RpcService):
 
             return {
                 'id': job.id,
-                'description': job.name,
-                'name': job.args[0],
+                'name': job.name,
+                'task': job.args[0],
                 'args': job.args[1:],
                 'enabled': job.next_run_time is not None,
                 'hidden': job.kwargs['hidden'],
@@ -117,9 +117,10 @@ class ManagementService(RpcService):
         self.context.logger.info('Adding new job with ID {0}'.format(task_id))
         self.context.scheduler.add_job(
             job,
+            name=task['name'],
             trigger='cron',
             id=task_id,
-            args=[task['name']] + task['args'],
+            args=[task['task']] + task['args'],
             kwargs={
                 'id': task_id,
                 'hidden': task.get('hidden', False),
@@ -144,10 +145,13 @@ class ManagementService(RpcService):
         job = self.context.scheduler.get_job(job_id)
         self.context.logger.info('Updating job with ID {0}'.format(job_id))
 
-        if 'name' in updated_params or 'args' in updated_params:
-            name = updated_params.get('name', job.args[0])
+        if 'name' in updated_params:
+            self.context.scheduler.modify_job(job_id, name=updated_params['name'])
+
+        if 'task' in updated_params or 'args' in updated_params:
+            task = updated_params.get('task', job.args[0])
             args = updated_params.get('args', job.args[1:])
-            self.context.scheduler.modify_job(job_id, args=[name] + args)
+            self.context.scheduler.modify_job(job_id, args=[task] + args)
 
         if 'enabled' in updated_params:
             if updated_params['enabled']:
@@ -222,7 +226,7 @@ class Context(object):
                 'id': {'type': 'string'},
                 'name': {'type': 'string'},
                 'args': {'type': 'array'},
-                'description': {'type': 'string'},
+                'task': {'type': 'string'},
                 'enabled': {'type': 'boolean'},
                 'hidden': {'type': 'boolean'},
                 'protected': {'type': 'boolean'},
