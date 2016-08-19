@@ -31,5 +31,24 @@ class VmCRUD(CRUDBase):
     )
 
 
+class SnapshotPublishResource(Resource):
+    name = 'publish'
+    post = 'task:vm.snapshot.publish'
+
+
+class SnapshotRollbackResource(Resource):
+    name = 'rollback'
+    post = 'task:vm.snapshot.rollback'
+
+
+class VmSnapshotCRUD(CRUDBase):
+    namespace = 'vm.snapshot'
+    item_resources = (
+        SnapshotPublishResource,
+        SnapshotRollbackResource,
+    )
+
+
 def _init(rest):
     rest.register_crud(VmCRUD)
+    rest.register_crud(VmSnapshotCRUD)
