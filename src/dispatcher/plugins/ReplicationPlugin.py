@@ -202,7 +202,10 @@ class ReplicationLinkProvider(Provider):
 
 class ReplicationBaseTask(Task):
     def get_replication_state(self, link):
-        return self.dispatcher.call_sync('replication.link.get_replication_state', link)
+        return self.dispatcher.call_sync(
+            'replication.link.get_replication_state',
+            self.remove_datastore_timestamps(link)
+        )
 
     def set_datasets_readonly(self, datasets, readonly, client=None):
         for dataset in datasets:
