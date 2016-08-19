@@ -7,7 +7,12 @@ from client import Client
 class RESTTestCase(unittest.TestCase):
 
     def setUp(self):
-        self.client = Client(os.environ['URI'], '/api/v2.0/')
+        self.client = Client(
+            'http://{0}'.format(self.args.address),
+            '/api/v2.0/',
+            username=self.args.username,
+            password=self.args.password,
+        )
 
 
 class CRUDTestCase(RESTTestCase):

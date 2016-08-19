@@ -6,9 +6,13 @@ import unittest
 from base import CRUDTestCase, SingleItemTestCase
 
 
-def filter_tests(tests, only=None, skip=None, skip_class=None):
+def filter_tests(tests, args=None, only=None, skip=None, skip_class=None):
     if isinstance(tests, unittest.TestCase):
-        return tests
+        # Stupid way to pass params to test case instead of env var
+        suite = unittest.TestSuite()
+        tests.args = args
+        suite.addTest(tests)
+        return suite
     rv = []
     for test in tests._tests:
         # Skip abstract test cases
@@ -21,7 +25,7 @@ def filter_tests(tests, only=None, skip=None, skip_class=None):
                 continue
             if skip_class and test.__class__.__name__ in skip_class:
                 continue
-        rv.append(filter_tests(test, only=only, skip=skip, skip_class=skip_class))
+        rv.append(filter_tests(test, args=args, only=only, skip=skip, skip_class=skip_class))
     tests._tests = rv
     return tests
 
@@ -29,18 +33,18 @@ def filter_tests(tests, only=None, skip=None, skip_class=None):
 def main():
 
     parser = argparse.ArgumentParser()
-    parser.add_argument('-u', '--uri', required=True)
+    parser.add_argument('-a', '--address', required=True)
+    parser.add_argument('-u', '--username')
+    parser.add_argument('-p', '--password')
     parser.add_argument('-v', '--verbose', action='store_true')
     parser.add_argument('-s', '--skip', action='append')
     parser.add_argument('-sc', '--skip-class', action='append')
     parser.add_argument('-t', '--test', action='append')
     args = parser.parse_args()
 
-    os.environ.setdefault('URI', args.uri)
-
     loader = unittest.TestLoader()
     tests = loader.discover('resources')
-    tests = filter_tests(tests, only=args.test, skip=args.skip, skip_class=args.skip_class)
+    tests = filter_tests(tests, args=args, only=args.test, skip=args.skip, skip_class=args.skip_class)
 
     testRunner = unittest.runner.TextTestRunner(verbosity=2 if args.verbose else 1)
     testRunner.run(tests)
