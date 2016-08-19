@@ -78,6 +78,9 @@ class DockerContainerProvider(Provider):
     def query(self, filter=None, params=None):
         return containers.query(*(filter or []), stream=True, **(params or {}))
 
+    def request_serial_console(self, id):
+        return self.dispatcher.call_sync('containerd.console.request_console', id)
+
 
 class DockerImagesProvider(Provider):
     @generator

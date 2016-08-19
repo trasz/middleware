@@ -170,8 +170,11 @@ class VMProvider(Provider):
 
         return dependent_datasets
 
+    def request_serial_console(self, id):
+        return self.dispatcher.call_sync('containerd.console.request_console', id)
+
     def request_webvnc_console(self, id):
-        return self.dispatcher.call_sync('containerd.management.request_webvnc_console', id)
+        return self.dispatcher.call_sync('containerd.console.request_webvnc_console', id)
 
 
 @description('Provides information about VM snapshots')

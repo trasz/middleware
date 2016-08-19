@@ -732,10 +732,26 @@ class ManagementService(RpcService):
             self.context.cv.notify_all()
 
     @private
+    def get_mgmt_allocations(self):
+        return [i.__getstate__() for i in self.context.mgmt.allocations.values()]
+
+
+class ConsoleService(RpcService):
+    def __init__(self, context):
+        super(ConsoleService, self).__init__()
+        self.context = context
+
+    @private
     def request_console(self, id):
-        container = self.context.datastore.get_by_id('vms', id)
-        if not container:
-            raise RpcException(errno.ENOENT, 'Container {0} not found'.format(id))
+        vm = self.context.datastore.get_by_id('vms', id)
+        if not vm:
+            container = self.context.client.call_sync(
+                'containerd.docker.query_containers',
+                [('id', '=', id)],
+                {'single': True}
+            )
+            if not container:
+                raise RpcException(errno.ENOENT, '{0} not found as either a VM or a container'.format(id))
 
         token = generate_id()
         self.context.tokens[token] = id
@@ -745,10 +761,6 @@ class ManagementService(RpcService):
     def request_webvnc_console(self, id):
         token = self.request_console(id)
         return 'http://{0}/containerd/webvnc/{1}'.format(socket.gethostname(), token)
-
-    @private
-    def get_mgmt_allocations(self):
-        return [i.__getstate__() for i in self.context.mgmt.allocations.values()]
 
 
 class DockerService(RpcService):
@@ -1084,6 +1096,7 @@ class Main(object):
                 self.client.enable_server()
                 self.client.rpc.streaming_enabled = True
                 self.client.register_service('containerd.management', ManagementService(self))
+                self.client.register_service('containerd.console', ConsoleService(self))
                 self.client.register_service('containerd.docker', DockerService(self))
                 self.client.register_service('containerd.debug', DebugService(gevent=True, builtins={"context": self}))
                 self.client.resume_service('containerd.management')
