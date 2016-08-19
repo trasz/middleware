@@ -80,6 +80,7 @@ class StatProvider(Provider):
         return q.query(stats, *(filter or []), stream=True, **(params or {}))
 
     @returns(h.array(str))
+    @generator
     def get_data_sources(self):
         return self.dispatcher.call_sync('statd.output.get_data_sources')
 
