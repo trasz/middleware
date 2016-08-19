@@ -13,6 +13,8 @@ RUN_DEPENDS=	\
 		${PYTHON_PKGNAMEPREFIX}gevent>0:${PORTSDIR}/devel/py-gevent \
 		${PYTHON_PKGNAMEPREFIX}gevent-websocket>0:${PORTSDIR}/www/py-gevent-websocket \
 		${PYTHON_PKGNAMEPREFIX}setproctitle>0:${PORTSDIR}/devel/py-setproctitle \
+		${PYTHON_PKGNAMEPREFIX}docker-py>0:${PORTSDIR}/devel/py-docker \
+		${PYTHON_PKGNAMEPREFIX}dockerpty>0:${PORTSDIR}/devel/py-dockerpty \
 		uefi-edk2-bhyve>0:${PORTSDIR}/sysutils/uefi-edk2-bhyve \
 		uefi-edk2-bhyve-csm>0:${PORTSDIR}/sysutils/uefi-edk2-bhyve-csm
 
