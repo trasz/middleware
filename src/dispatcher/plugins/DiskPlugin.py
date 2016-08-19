@@ -416,10 +416,6 @@ class DiskConfigureTask(Task):
         if not self.dispatcher.call_sync('disk.is_online', disk['path']):
             raise TaskException(errno.EINVAL, 'Cannot configure offline disk')
 
-        if not disk['status']['smart_capable']:
-            if 'smart' in updated_fields or 'smart_options' in updated_fields:
-                raise TaskException(errno.EINVAL, 'Disk is not SMART capable')
-
         disk.update(updated_fields)
         self.datastore.update('disks', disk['id'], disk)
 
@@ -435,6 +431,9 @@ class DiskConfigureTask(Task):
                 # toggled then do not regenerate entier smartd conf for that, just toggle that
                 # disk's smart enabled thing.
                 disk_status = self.dispatcher.call_sync('disk.get_disk_config_by_id', id)
+                if not disk_status['smart_capable']:
+                    raise TaskException(errno.EINVAL, 'Disk is not SMART capable')
+
                 device_smart_handle = Device(disk_status['gdisk_name'], abridged=True)
                 if updated_fields['smart'] != device_smart_handle.smart_enabled:
                     toggle_result = device_smart_handle.smart_toggle(
