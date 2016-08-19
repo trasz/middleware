@@ -115,7 +115,7 @@ class DeviceInfoPlugin(Provider):
 
     def _get_class_serial_port(self):
         result = []
-        for devices in list(devinfo.DevInfo().resource_managers['I/O ports'].values()):
+        for devices in devinfo.DevInfo().resource_managers['I/O ports'].values():
             for dev in devices:
                 if not dev.name.startswith('uart'):
                     continue
