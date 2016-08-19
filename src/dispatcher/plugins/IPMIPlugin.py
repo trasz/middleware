@@ -95,7 +95,7 @@ class ConfigureIPMITask(Task):
         return 'Configuring IPMI module'
 
     def describe(self, id, updated_params):
-        config = self.dispatcher.call_sync('ipmi.get_config', id)
+        config = self.dispatcher.call_sync('ipmi.query', [('id', '=', id)], {'single': True})
         return TaskDescription('Configuring {name} IPMI module', name=config.get('address', '') if config else '')
 
     def verify(self, id, updated_params):
@@ -108,7 +108,7 @@ class ConfigureIPMITask(Task):
         if id not in self.dispatcher.call_sync('ipmi.channels'):
             raise TaskException(errno.ENXIO, 'Invalid channel')
 
-        config = self.dispatcher.call_sync('ipmi.get_config', id)
+        config = self.dispatcher.call_sync('ipmi.query', [('id', '=', id)], {'single': True})
         config.update(updated_params)
         channel = str(id)
 
