@@ -655,7 +655,7 @@ class ManagementService(RpcService):
 
     @private
     def get_status(self, id):
-        vm = self.context.containers.get(id)
+        vm = self.context.vms.get(id)
         if not vm:
             return {'state': 'STOPPED'}
 
@@ -701,7 +701,7 @@ class ManagementService(RpcService):
             self.context.docker_hosts[id] = host
 
         with self.context.cv:
-            self.context.containers[id] = vm
+            self.context.vms[id] = vm
             self.context.cv.notify_all()
 
     @private
@@ -712,7 +712,7 @@ class ManagementService(RpcService):
 
         self.context.logger.info('Stopping container {0} ({1})'.format(container['name'], id))
 
-        vm = self.context.containers.get(id)
+        vm = self.context.vms.get(id)
         if not vm:
             return
 
@@ -728,7 +728,7 @@ class ManagementService(RpcService):
 
         vm.stop(force)
         with self.context.cv:
-            self.context.containers.pop(id, None)
+            self.context.vms.pop(id, None)
             self.context.cv.notify_all()
 
     @private
@@ -980,9 +980,9 @@ class ConsoleConnection(WebSocketApplication, EventEmitter):
             self.authenticated = True
 
             with self.context.cv:
-                if not self.context.cv.wait_for(lambda: cid in self.context.containers, timeout=30):
+                if not self.context.cv.wait_for(lambda: cid in self.context.vms, timeout=30):
                     return
-                self.vm = self.context.containers[cid]
+                self.vm = self.context.vms[cid]
 
             self.console_queue = self.vm.console_register()
             self.ws.send(json.dumps({'status': 'ok'}))
@@ -1032,7 +1032,7 @@ class VncConnection(WebSocketApplication, EventEmitter):
 
                 self.ws.send(buffer[:n])
 
-        self.vm = self.context.containers[cid]
+        self.vm = self.context.vms[cid]
         self.logger.info('Opening VNC console to {0} (token {1})'.format(self.vm.name, token))
 
         self.cfd = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM, 0)
@@ -1059,7 +1059,7 @@ class Main(object):
         self.mgmt = None
         self.nat = None
         self.vm_started = Event()
-        self.containers = {}
+        self.vms = {}
         self.docker_hosts = {}
         self.tokens = {}
         self.logger = logging.getLogger('containerd')
@@ -1181,7 +1181,7 @@ class Main(object):
         self.ec2.start()
 
     def vm_by_mgmt_mac(self, mac):
-        for i in self.containers.values():
+        for i in self.vms.values():
             for tapmac in i.tap_interfaces.values():
                 if tapmac == mac:
                     return i
@@ -1221,7 +1221,7 @@ class Main(object):
 
     def die(self):
         self.logger.warning('Exiting')
-        for i in self.containers.values():
+        for i in self.vms.values():
             i.stop(True)
 
         self.client.disconnect()
