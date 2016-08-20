@@ -42,7 +42,7 @@ import logging
 import datetime
 from task import Provider, Task, ProgressTask, VerifyException, TaskException, query, TaskWarning, TaskDescription
 from freenas.dispatcher.rpc import RpcException, generator
-from freenas.dispatcher.rpc import SchemaHelper as h, description, accepts
+from freenas.dispatcher.rpc import SchemaHelper as h, description, accepts, returns
 from freenas.utils import first_or_default, normalize, deep_update, process_template, in_directory, sha256, query as q
 from utils import save_config, load_config, delete_config
 from freenas.utils.decorators import throttle
@@ -78,6 +78,8 @@ class VMProvider(Provider):
             **(params or {})
         )
 
+    @accepts(str)
+    @returns(h.one_of(str, None))
     def get_vm_root(self, vm_id):
         vm = self.datastore.get_by_id('vms', vm_id)
         if not vm:
@@ -85,10 +87,14 @@ class VMProvider(Provider):
 
         return os.path.join(self.dispatcher.call_sync('volume.get_volumes_root'), self.get_dataset(vm_id))
 
+    @accepts(str)
+    @returns(str)
     def get_dataset(self, vm_id):
         vm = self.datastore.get_by_id('vms', vm_id)
         return os.path.join(vm['target'], 'vm', vm['name'])
 
+    @accepts(str, str)
+    @returns(h.one_of(str, None))
     def get_disk_path(self, vm_id, disk_name):
         vm = self.datastore.get_by_id('vms', vm_id)
         if not vm:
@@ -104,6 +110,8 @@ class VMProvider(Provider):
         if disk['type'] == 'CDROM':
             return disk['properties']['path']
 
+    @accepts(str, str)
+    @returns(h.one_of(str, None))
     def get_volume_path(self, vm_id, volume_name):
         vm = self.datastore.get_by_id('vms', vm_id)
         if not vm:
@@ -119,6 +127,8 @@ class VMProvider(Provider):
         return vol['properties']['destination']
 
     @description("Get VMs dependent on provided filesystem path")
+    @accepts(str, bool, bool)
+    @returns(h.array(h.ref('vm')))
     def get_dependencies(self, path, enabled_only=True, recursive=True):
         result = []
 
@@ -138,9 +148,12 @@ class VMProvider(Provider):
 
         return result
 
+    @returns(str)
     def generate_mac(self):
         return VM_OUI + ':' + ':'.join('{0:02x}'.format(random.randint(0, 255)) for _ in range(0, 3))
 
+    @accepts(str)
+    @returns(h.array(str))
     def get_reserved_datasets(self, id):
         vm_snapshots = self.dispatcher.call_sync('vm.snapshot.query', [('parent.id', '=', id)])
 
@@ -150,6 +163,8 @@ class VMProvider(Provider):
 
         return list(set(reserved_datasets))
 
+    @accepts(str)
+    @returns(h.array(str))
     def get_dependent_datasets(self, id):
         vm = self.dispatcher.call_sync('vm.query', [('id', '=', id)], {'single': True})
         if not vm:
@@ -170,9 +185,13 @@ class VMProvider(Provider):
 
         return dependent_datasets
 
+    @accepts(str)
+    @returns(str)
     def request_serial_console(self, id):
         return self.dispatcher.call_sync('containerd.console.request_console', id)
 
+    @accepts(str)
+    @returns(str)
     def request_webvnc_console(self, id):
         return self.dispatcher.call_sync('containerd.console.request_webvnc_console', id)
 
@@ -184,6 +203,8 @@ class VMSnapshotProvider(Provider):
     def query(self, filter=None, params=None):
         return self.datastore.query_stream('vm.snapshots', *(filter or []), **(params or {}))
 
+    @accepts(str)
+    @returns(h.array(str))
     def get_dependent_datasets(self, id):
         snapshot = self.dispatcher.call_sync('vm.snapshot.query', [('id', '=', id)], {'single': True})
         if not snapshot:
