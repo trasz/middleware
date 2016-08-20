@@ -33,7 +33,7 @@ import time
 import logging
 from task import Task, Provider, TaskDescription, TaskWarning, ProgressTask
 from freenas.dispatcher.fd import FileDescriptor
-from freenas.dispatcher.rpc import RpcException, description, generator
+from freenas.dispatcher.rpc import RpcException, description, generator, accepts
 
 
 logger = logging.getLogger('TestPlugin')
@@ -82,6 +82,26 @@ class TestDownloadTask(Task):
         t.join(timeout=1)
 
         return url
+
+
+@accepts(FileDescriptor)
+@description('Download on the fly test task')
+class DownloadOnTheFlyTask(ProgressTask):
+    @classmethod
+    def early_describe(cls):
+        return 'Downloading random text and saving to file specified'
+
+    def descrive(self, fd):
+        return TaskDescription('Downloading random text and saving to file')
+
+    def verify(self, fd):
+        return []
+
+    def run(self, fd):
+        with os.fdopen(fd.fd, 'w') as f:
+            for i in range(0, 1000):
+                self.set_progress(i / 10.0, 'Writing data to the file being downloaded')
+                f.write(str(uuid.uuid4()) + '\n')
 
 
 class TestWarningsTask(Task):
@@ -237,6 +257,7 @@ class TestAbortSubtask(Task):
 def _init(dispatcher, plugin):
     plugin.register_provider("test", TestProvider)
     plugin.register_task_handler('test.test_download', TestDownloadTask)
+    plugin.register_task_handler('test.ontheflydownload', DownloadOnTheFlyTask)
     plugin.register_task_handler('test.test_warnings', TestWarningsTask)
     plugin.register_task_handler('test.progress', ProgressTestTask)
     plugin.register_task_handler('test.failing', FailingTask)
