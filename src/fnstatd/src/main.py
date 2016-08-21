@@ -47,7 +47,7 @@ import gevent.monkey
 import gevent.socket
 from gevent.server import StreamServer
 from freenas.dispatcher.client import Client, ClientError
-from freenas.dispatcher.rpc import RpcService, RpcException, SchemaHelper as h, accepts, returns
+from freenas.dispatcher.rpc import RpcService, RpcException, accepts, returns, generator
 from datastore import DatastoreException, get_datastore
 from ringbuffer import MemoryRingBuffer, PersistentRingBuffer
 from freenas.utils.debug import DebugService
@@ -328,6 +328,7 @@ class OutputService(RpcService):
 
         return stats
 
+    @generator
     def get_stats(self, data_source, params):
         start = params.pop('start', None)
         end = params.pop('end', datetime.utcnow())
@@ -355,11 +356,10 @@ class OutputService(RpcService):
 
             ds = self.context.data_sources[data_source]
             df = ds.query(start, end, frequency)
-            return {
-                'data': [
-                    [datetime.utcfromtimestamp(df.index[i].value // 10 ** 9), str(df[i])] for i in range(len(df))
-                ]
-            }
+            for i in range(len(df)):
+                yield datetime.utcfromtimestamp(df.index[i].value // 10 ** 9), str(df[i])
+
+            return
 
         if type(data_source) is list:
             final = pd.DataFrame()
@@ -370,11 +370,10 @@ class OutputService(RpcService):
                 ds = self.context.data_sources[ds_name]
                 final[ds_name] = ds.query(start, end, frequency)
 
-            return {
-                'data': [
-                    [datetime.utcfromtimestamp(final.index[i].value // 10 ** 9)] + [str(final[col][i]) for col in data_source] for i in range(len(final))
-                ]
-            }
+            for i in range(len(final)):
+                yield [datetime.utcfromtimestamp(final.index[i].value // 10 ** 9)] + [str(final[col][i]) for col in data_source]
+
+            return
 
 
 class AlertService(RpcService):
