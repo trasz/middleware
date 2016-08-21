@@ -1042,8 +1042,7 @@ class ConsoleConnection(WebSocketApplication, EventEmitter):
         self.logger.info('Opening console to %s...', self.console_provider.name)
 
         def read_worker():
-            while True:
-                data = self.console_queue.get()
+            for data in self. console_queue:
                 if data is None:
                     return
 
