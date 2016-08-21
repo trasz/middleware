@@ -48,6 +48,7 @@ import signal
 import select
 import tempfile
 import docker
+import dockerpty
 import ipaddress
 import pf
 import urllib.parse
@@ -541,6 +542,7 @@ class DockerHost(object):
         self.listener = None
         self.start_notifier = None
         self.mapped_ports = {}
+        self.active_consoles = {}
         self.ready = threading.Event()
         self.logger = logging.getLogger(self.__class__.__name__)
         gevent.spawn(self.wait_ready)
@@ -649,6 +651,105 @@ class DockerHost(object):
             except BaseException as err:
                 self.logger.info('Docker connection closed: {0}, retrying in 1 second'.format(str(err)))
                 time.sleep(1)
+
+    def get_container_console(self, id):
+        if id not in self.active_consoles:
+            self.active_consoles[id] = ContainerConsole(self, id)
+
+        return self.active_consoles[id]
+
+
+class ContainerConsole(object):
+    def __init__(self, host, id):
+        self.host = host
+        self.context = self.host.context
+        self.id = id
+        self.name = self.context.client.call_sync(
+            'containerd.docker.query_containers',
+            [('id', '=', self.id)],
+            {'single': True, 'select': 'names.0'}
+        )
+        self.stdin = None
+        self.stdout = None
+        self.scrollback = None
+        self.console_queues = []
+        self.scrollback_t = None
+        self.active = False
+        self.lock = threading.Lock()
+        self.logger = logging.getLogger('Container:{0}'.format(self.name))
+
+    def start_console(self):
+        stdout_r, stdout_w = os.pipe()
+        stdin_r, stdin_w = os.pipe()
+
+        stdin_r_file = open(stdin_r, 'rb', buffering=0)
+        stdout_w_file = open(stdout_w, 'wb', buffering=0)
+
+        dockerpty.start(
+            self.host.connection,
+            self.id,
+            stdout=stdout_w_file,
+            stderr=stdout_w_file,
+            stdin=stdin_r_file
+        )
+
+        self.stdin = open(stdin_w, 'wb', buffering=0)
+        self.stdout = open(stdout_r, 'rb', buffering=0)
+        self.scrollback = BinaryRingBuffer(SCROLLBACK_SIZE)
+        self.scrollback_t = gevent.spawn(self.console_worker)
+        self.active = True
+
+    def stop_console(self):
+        self.active = False
+        self.stdin.close()
+        self.stdout.close()
+        self.scrollback_t.join()
+
+    def console_register(self):
+        with self.lock:
+            queue = gevent.queue.Queue(4096)
+            self.console_queues.append(queue)
+            if not self.active:
+                self.start_console()
+
+            self.logger.debug('Registered a new console queue')
+            return queue
+
+    def console_unregister(self, queue):
+        with self.lock:
+            self.console_queues.remove(queue)
+
+            self.logger.debug('Stopped a console queue')
+            if not len(self.console_queues):
+                self.logger.debug('Last console queue stopped. Closing console')
+                self.stop_console()
+
+    def console_write(self, data):
+        try:
+            self.stdin.write(data)
+            self.stdin.flush()
+        except (ValueError, OSError):
+            pass
+
+    def console_worker(self):
+        self.logger.debug('Opening console to {0}'.format(self.name))
+        while True:
+            try:
+                fd = self.stdout.fileno()
+                r, w, x = select.select([fd], [], [])
+                if fd not in r:
+                    continue
+
+                ch = self.stdout.read(1024)
+            except (OSError, ValueError):
+                return
+
+            self.scrollback.push(ch)
+            try:
+                for i in self.console_queues:
+                    i.put(ch, block=False)
+            except:
+                pass
 
 
 class ManagementService(RpcService):
@@ -926,13 +1027,13 @@ class ConsoleConnection(WebSocketApplication, EventEmitter):
         self.logger = logging.getLogger('ConsoleConnection')
         self.authenticated = False
         self.console_queue = None
-        self.vm = None
+        self.console_provider = None
         self.rd = None
         self.wr = None
         self.inq = Queue()
 
     def worker(self):
-        self.logger.info('Opening console to %s...', self.vm.name)
+        self.logger.info('Opening console to %s...', self.console_provider.name)
 
         def read_worker():
             while True:
@@ -983,14 +1084,26 @@ class ConsoleConnection(WebSocketApplication, EventEmitter):
 
             self.authenticated = True
 
-            with self.context.cv:
-                if not self.context.cv.wait_for(lambda: cid in self.context.vms, timeout=30):
-                    return
-                self.vm = self.context.vms[cid]
+            container = self.context.client.call_sync(
+                'containerd.docker.query_containers',
+                [('id', '=', cid)],
+                {'single': True}
+            )
 
-            self.console_queue = self.vm.console_register()
+            if container:
+                docker_host = self.context.docker_host_by_container_id(cid)
+                self.console_provider = docker_host.get_container_console(cid)
+            else:
+                with self.context.cv:
+                    if not self.context.cv.wait_for(lambda: cid in self.context.vms, timeout=30):
+                        return
+                    self.console_provider = self.context.vms[cid]
+
+            self.console_queue = self.console_provider.console_register()
             self.ws.send(json.dumps({'status': 'ok'}))
-            self.ws.send(self.vm.scrollback.read())
+
+            self.ws.send(self.console_provider.scrollback.read())
+
             gevent.spawn(self.worker)
             return
 
