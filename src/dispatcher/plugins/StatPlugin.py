@@ -90,7 +90,9 @@ class StatProvider(Provider):
     @accepts(h.one_of(str, h.array(str)), h.ref('get-stats-params'))
     @returns(h.ref('get-stats-result'))
     def get_stats(self, data_source, params):
-        return self.dispatcher.call_sync('statd.output.get_stats', data_source, params)
+        return {
+            'data': list(self.dispatcher.call_sync('statd.output.get_stats', data_source, params))
+        }
 
     def normalize(self, name, value):
         return normalize(name, value)
