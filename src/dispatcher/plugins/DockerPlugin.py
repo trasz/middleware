@@ -411,8 +411,11 @@ def _init(dispatcher, plugin):
             gevent.sleep(interval)
             if images.ready and containers.ready:
                 logger.trace('Syncing Docker caches')
-                sync_cache(images, images_query)
-                sync_cache(containers, containers_query)
+                try:
+                    sync_cache(images, images_query)
+                    sync_cache(containers, containers_query)
+                except RpcException:
+                    pass
 
     def sync_cache(cache, query, ids=None):
         if ids:
