@@ -52,7 +52,6 @@ import ipaddress
 import pf
 import urllib.parse
 import requests
-import geventwebsocket
 from bsd import kld, sysctl
 from gevent.queue import Queue
 from gevent.event import Event
@@ -959,11 +958,8 @@ class ConsoleConnection(WebSocketApplication, EventEmitter):
         pass
 
     def on_close(self, *args, **kwargs):
-        try:
-            gevent.kill(self.rd)
-            gevent.kill(self.wr)
-        except geventwebsocket.exceptions.WebSocketError:
-            pass
+        self.inq.put(StopIteration)
+        self.console_queue.put(StopIteration)
 
         self.console_provider.console_unregister(self.console_queue)
 
