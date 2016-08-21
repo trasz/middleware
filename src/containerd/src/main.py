@@ -674,6 +674,7 @@ class ContainerConsole(object):
         self.scrollback = None
         self.console_queues = []
         self.scrollback_t = None
+        self.console_t = None
         self.active = False
         self.lock = threading.Lock()
         self.logger = logging.getLogger('Container:{0}'.format(self.name))
@@ -685,7 +686,8 @@ class ContainerConsole(object):
         stdin_r_file = open(stdin_r, 'rb', buffering=0)
         stdout_w_file = open(stdout_w, 'wb', buffering=0)
 
-        dockerpty.start(
+        self.console_t = gevent.spawn(
+            dockerpty.start,
             self.host.connection,
             self.id,
             stdout=stdout_w_file,
@@ -703,7 +705,7 @@ class ContainerConsole(object):
         self.active = False
         self.stdin.close()
         self.stdout.close()
-        self.scrollback_t.join()
+        gevent.joinall([self.scrollback_t, self.console_t])
 
     def console_register(self):
         with self.lock:
