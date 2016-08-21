@@ -738,7 +738,11 @@ class ContainerConsole(object):
         while True:
             try:
                 fd = self.stdout.fileno()
-                r, w, x = select.select([fd], [], [])
+                r, w, x = select.select([fd], [], [fd])
+
+                if fd in x:
+                    return
+
                 if fd not in r:
                     continue
 
