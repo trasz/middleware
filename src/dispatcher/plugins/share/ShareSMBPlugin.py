@@ -126,13 +126,20 @@ class UpdateSMBShareTask(Task):
 
     def run(self, id, updated_fields):
         share = self.datastore.get_by_id('shares', id)
+        oldname = share['name']
+        newname = updated_fields.get('name', oldname)
         share.update(updated_fields)
         self.datastore.update('shares', id, share)
         path = self.dispatcher.call_sync('share.translate_path', share['id'])
 
         try:
             smb_conf = smbconf.SambaConfig('registry')
-            smb_share = smb_conf.shares[share['name']]
+            if oldname != newname:
+                del smb_conf.shares[oldname]
+                smb_share = smbconf.SambaShare()
+                smb_conf.shares[newname] = smb_share
+
+            smb_share = smb_conf.shares[newname]
             convert_share(smb_share, path, share['enabled'], share['properties'])
             smb_share.save()
             reload_samba()
