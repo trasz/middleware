@@ -46,6 +46,7 @@ from gevent.queue import Queue
 from gevent.lock import RLock
 from gevent.event import Event, AsyncResult
 from gevent.subprocess import Popen
+from gevent.fileobject import FileObjectPosix
 from freenas.utils import first_or_default
 from resources import Resource
 from auth import FileToken
@@ -554,7 +555,7 @@ class Balancer(object):
                     user=sender.user,
                     lifetime=60,
                     direction='download',
-                    file=os.fdopen(rfd, 'rb', closefd=False),
+                    file=FileObjectPosix(rfd, 'rb', close=False),
                     name=f
                 ))
             ))
