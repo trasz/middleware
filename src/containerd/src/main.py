@@ -1049,7 +1049,7 @@ class ConsoleConnection(WebSocketApplication, EventEmitter):
 
         def write_worker():
             for i in self.inq:
-                self.vm.console_write(i)
+                self.console_provider.console_write(i)
 
         self.wr = gevent.spawn(write_worker)
         self.rd = gevent.spawn(read_worker)
