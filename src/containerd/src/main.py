@@ -111,6 +111,9 @@ def get_docker_ports(details):
     if 'PortBindings' not in details['HostConfig']:
         return
 
+    if not details['HostConfig']['PortBindings']:
+        return
+
     for port, config in details['HostConfig']['PortBindings'].items():
         num, proto = port.split('/')
         yield {
