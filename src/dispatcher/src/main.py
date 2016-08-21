@@ -1446,10 +1446,13 @@ class DownloadRequestHandler(object):
                 # if file object's underlying stream is a pipe
                 # then seek is illegal
                 pass
-            chunk = self.token.file.read(1024)
-            while chunk:
-                yield chunk
+
+            while True:
                 chunk = self.token.file.read(1024)
+                if chunk == b'':
+                    break
+
+                yield chunk
         finally:
             self.token.file.close()
 
