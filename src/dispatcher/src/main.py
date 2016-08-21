@@ -31,6 +31,7 @@ gevent.monkey.patch_all()
 import copy
 import os
 import sys
+import re
 import fnmatch
 import json
 import datetime
@@ -96,6 +97,14 @@ def trace_log(message, *args):
 
         print(message.format(*args), file=trace_log_file)
         trace_log_file.flush()
+
+
+def match_event(name, pat):
+    if isinstance(pat, str):
+        return fnmatch.fnmatch(name, pat)
+
+    if isinstance(pat, re._pattern_type):
+        return pat.match(name) is not None
 
 
 class Plugin(object):
@@ -887,7 +896,7 @@ class DispatcherConnection(ServerConnection):
 
         for mask in self.event_masks:
             for name, ev in list(self.dispatcher.event_types.items()):
-                if fnmatch.fnmatch(name, mask):
+                if match_event(name, mask):
                     ev.decref()
 
         self.outgoing_events.put(StopIteration)
@@ -936,7 +945,7 @@ class DispatcherConnection(ServerConnection):
             # Increment reference count for any newly subscribed event
             for mask in set.difference(set(event_masks), self.event_masks):
                 for name, ev in list(self.dispatcher.event_types.items()):
-                    if fnmatch.fnmatch(name, mask):
+                    if match_event(name, mask):
                         ev.incref()
 
             self.event_masks = set.union(self.event_masks, set(event_masks))
@@ -964,7 +973,7 @@ class DispatcherConnection(ServerConnection):
             intersecting_unsubscribe_events = set.intersection(set(event_masks), self.event_masks)
             for mask in intersecting_unsubscribe_events:
                 for name, ev in list(self.dispatcher.event_types.items()):
-                    if fnmatch.fnmatch(name, mask):
+                    if match_event(name, mask):
                         ev.decref()
 
             self.event_masks = set.difference(self.event_masks, intersecting_unsubscribe_events)
@@ -1205,7 +1214,7 @@ class DispatcherConnection(ServerConnection):
 
     def emit_event(self, event, args):
         for i in self.event_masks:
-            if not fnmatch.fnmatch(event, i):
+            if not match_event(event, i):
                 continue
 
             self.send_event(event, args)
