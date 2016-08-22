@@ -910,7 +910,7 @@ class DockerService(RpcService):
                     'id': container['Id'],
                     'image': container['Image'],
                     'names': list(normalize_names(container['Names'])),
-                    'command': container['Command'],
+                    'command': container['Command'] if isinstance(container['Command'], list) else [container['Command']],
                     'status': container['Status'],
                     'host': host.vm.id,
                     'ports': list(get_docker_ports(details)),
