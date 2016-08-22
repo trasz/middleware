@@ -28,20 +28,9 @@
 import errno
 import logging
 from datastore.config import ConfigNode
-from task import TaskException
+from freenas.dispatcher.rpc import RpcException, accepts, returns, SchemaHelper as h, generator
+from task import Provider, Task, TaskDescription, TaskException, query
 
-from freenas.dispatcher.rpc import (
-    RpcException,
-    accepts,
-    returns,
-    SchemaHelper as h,
-    generator
-)
-from task import (
-    query,
-    Provider,
-    Task
-)
 
 from freenas.utils import normalize, query as q
 
@@ -64,12 +53,20 @@ class DirectoryServicesProvider(Provider):
         )
 
 
+@accepts(h.ref('directoryservice-config'))
 class DirectoryServicesConfigureTask(Task):
+    @classmethod
+    def early_describe(cls):
+        return "Updating directory services settings"
+
+    def describe(self, updated_params):
+        return TaskDescription(self.early_describe())
+
     def verify(self, updated_params):
         return ['system']
 
     def run(self, updated_params):
-        node = ConfigNode('network', self.configstore)
+        node = ConfigNode('directory', self.configstore)
         node.update(updated_params)
 
         try:
@@ -215,3 +212,4 @@ def _init(dispatcher, plugin):
     plugin.register_task_handler('directory.create', DirectoryServiceCreateTask)
     plugin.register_task_handler('directory.update', DirectoryServiceUpdateTask)
     plugin.register_task_handler('directory.delete', DirectoryServiceDeleteTask)
+    plugin.register_task_handler('directoryservice.update', DirectoryServicesConfigureTask)
