@@ -55,6 +55,11 @@ class VmSnapshotCRUD(CRUDBase):
     )
 
 
+class VmTemplateCRUD(CRUDBase):
+    namespace = 'vm.template'
+
+
 def _init(rest):
     rest.register_crud(VmCRUD)
     rest.register_crud(VmSnapshotCRUD)
+    rest.register_crud(VmTemplateCRUD)
