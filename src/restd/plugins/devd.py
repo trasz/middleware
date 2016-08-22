@@ -1,4 +1,4 @@
-from base import ProviderMixin, Resource, SingleItemBase
+from base import ProviderMixin, Resource
 
 
 class SystemDeviceResource(ProviderMixin, Resource):
