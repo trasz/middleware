@@ -219,6 +219,15 @@ class DockerContainerCreateTask(DockerBaseTask):
 
         self.check_host_state(container['host'])
 
+        image = self.dispatcher.call_sync(
+            'docker.image.query',
+            [('host', '=', container['host']), ('image', '=', container['image'])],
+            {'single': True}
+        )
+
+        if not image:
+            self.join_subtasks(self.run_subtask('docker.image.pull', container['image'], container['host']))
+
         container['name'] = container['names'][0]
         self.dispatcher.call_sync('containerd.docker.create', container)
 
