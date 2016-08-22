@@ -1749,7 +1749,8 @@ def _init(dispatcher, plugin):
         resync = False
         for link in links:
             try:
-                dispatcher.call_task_sync('replication.reserve_services', link['name'])
+                if link['replicate_services']:
+                    dispatcher.call_task_sync('replication.reserve_services', link['name'])
                 status = link.get('status')
                 is_master, _ = dispatcher.call_sync('replication.link.get_replication_state', link)
                 recover = link['auto_recover'] and link['initial_master'] != link['master'] and not is_master
