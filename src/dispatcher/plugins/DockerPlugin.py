@@ -546,7 +546,10 @@ def _init(dispatcher, plugin):
                 'type': 'array',
                 'items': {'type': 'string'}
             },
-            'command': {'type': 'string'},
+            'command': {
+                'type': 'array',
+                'items': {'type': 'string'}
+            },
             'image': {'type': 'string'},
             'host': {'type': ['string', 'null']},
             'hostname': {'type': ['string', 'null']},
