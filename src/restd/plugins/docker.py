@@ -20,7 +20,7 @@ class DockerContainerCRUD(CRUDBase):
 
 
 class DockerSingleItem(SingleItemBase):
-	namespace = 'docker'
+    namespace = 'docker'
 
 
 def _init(rest):
