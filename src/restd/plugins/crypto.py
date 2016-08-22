@@ -1,9 +1,9 @@
 from base import CRUDBase
 
 
-class CryptoResource(CRUDBase):
+class CertificateCRUD(CRUDBase):
     namespace = 'crypto.certificate'
 
 
 def _init(rest):
-    rest.register_crud(CryptoResource)
+    rest.register_crud(CertificateCRUD)

@@ -1,14 +1,14 @@
 from base import CRUDBase
 
 
-class KerberosKeytabResource(CRUDBase):
+class KerberosKeytabCRUD(CRUDBase):
     namespace = 'kerberos.keytab'
 
 
-class KerberosRealmResource(CRUDBase):
+class KerberosRealmCRUD(CRUDBase):
     namespace = 'kerberos.realm'
 
 
 def _init(rest):
-    rest.register_crud(KerberosKeytabResource)
-    rest.register_crud(KerberosRealmResource)
+    rest.register_crud(KerberosKeytabCRUD)
+    rest.register_crud(KerberosRealmCRUD)

@@ -15,7 +15,7 @@ class BootEnvironmentEntity(EntityResource):
         return req.context['doc']
 
 
-class BootEnvironmentResource(CRUDBase):
+class BootEnvironmentCRUD(CRUDBase):
     namespace = 'boot.environment'
     entity_class = BootEnvironmentEntity
 
@@ -25,4 +25,4 @@ class BootEnvironmentResource(CRUDBase):
 
 def _init(rest):
     rest.register_singleitem(BootPoolItem)
-    rest.register_crud(BootEnvironmentResource)
+    rest.register_crud(BootEnvironmentCRUD)

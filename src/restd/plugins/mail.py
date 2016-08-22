@@ -1,9 +1,9 @@
 from base import SingleItemBase
 
 
-class MailResource(SingleItemBase):
+class MailSingleItem(SingleItemBase):
     namespace = 'mail'
 
 
 def _init(rest):
-    rest.register_singleitem(MailResource)
+    rest.register_singleitem(MailSingleItem)

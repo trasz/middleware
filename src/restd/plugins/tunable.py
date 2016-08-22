@@ -1,9 +1,9 @@
 from base import CRUDBase
 
 
-class TunableResource(CRUDBase):
+class TunableCRUD(CRUDBase):
     namespace = 'tunable'
 
 
 def _init(rest):
-    rest.register_crud(TunableResource)
+    rest.register_crud(TunableCRUD)

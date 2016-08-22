@@ -11,7 +11,7 @@ class DiskPartitionToDiskResource(Resource):
     post = 'rpc:disk.partition_to_disk'
 
 
-class DiskResource(CRUDBase):
+class DiskCRUD(CRUDBase):
     namespace = 'disk'
     entity_resources = (
         DiskIsOnlineResource,
@@ -23,4 +23,4 @@ class DiskResource(CRUDBase):
 
 
 def _init(rest):
-    rest.register_crud(DiskResource)
+    rest.register_crud(DiskCRUD)

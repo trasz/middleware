@@ -6,7 +6,7 @@ class ImportResource(Resource):
     post = 'task:system_dataset.import'
 
 
-class SystemDataset(SingleItemBase):
+class SystemDatasetSingleItem(SingleItemBase):
     namespace = 'system_dataset'
 
     subresources = (
@@ -21,4 +21,4 @@ class SystemDataset(SingleItemBase):
 
 
 def _init(rest):
-    rest.register_singleitem(SystemDataset)
+    rest.register_singleitem(SystemDatasetSingleItem)

@@ -7,7 +7,7 @@ class ServiceResource(Resource, ResourceQueryMixin):
         return req.context['doc']
 
 
-class Service(SingleItemBase):
+class ServiceSingleIterm(SingleItemBase):
     namespace = 'service'
     resource_class = ServiceResource
 
@@ -16,4 +16,4 @@ class Service(SingleItemBase):
 
 
 def _init(rest):
-    rest.register_singleitem(Service)
+    rest.register_singleitem(ServiceSingleItem)
