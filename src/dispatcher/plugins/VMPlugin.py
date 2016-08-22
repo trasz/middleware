@@ -42,7 +42,7 @@ import logging
 import datetime
 from task import Provider, Task, ProgressTask, VerifyException, TaskException, query, TaskWarning, TaskDescription
 from freenas.dispatcher.rpc import RpcException, generator
-from freenas.dispatcher.rpc import SchemaHelper as h, description, accepts, returns
+from freenas.dispatcher.rpc import SchemaHelper as h, description, accepts, returns, private
 from freenas.utils import first_or_default, normalize, deep_update, process_template, in_directory, sha256, query as q
 from utils import save_config, load_config, delete_config
 from freenas.utils.decorators import throttle
@@ -78,6 +78,7 @@ class VMProvider(Provider):
             **(params or {})
         )
 
+    @private
     @accepts(str)
     @returns(h.one_of(str, None))
     def get_vm_root(self, vm_id):
@@ -87,12 +88,14 @@ class VMProvider(Provider):
 
         return os.path.join(self.dispatcher.call_sync('volume.get_volumes_root'), self.get_dataset(vm_id))
 
+    @private
     @accepts(str)
     @returns(str)
     def get_dataset(self, vm_id):
         vm = self.datastore.get_by_id('vms', vm_id)
         return os.path.join(vm['target'], 'vm', vm['name'])
 
+    @private
     @accepts(str, str)
     @returns(h.one_of(str, None))
     def get_disk_path(self, vm_id, disk_name):
@@ -110,6 +113,7 @@ class VMProvider(Provider):
         if disk['type'] == 'CDROM':
             return disk['properties']['path']
 
+    @private
     @accepts(str, str)
     @returns(h.one_of(str, None))
     def get_volume_path(self, vm_id, volume_name):
@@ -126,6 +130,7 @@ class VMProvider(Provider):
 
         return vol['properties']['destination']
 
+    @private
     @description("Get VMs dependent on provided filesystem path")
     @accepts(str, bool, bool)
     @returns(h.array(h.ref('vm')))
@@ -148,10 +153,12 @@ class VMProvider(Provider):
 
         return result
 
+    @private
     @returns(str)
     def generate_mac(self):
         return VM_OUI + ':' + ':'.join('{0:02x}'.format(random.randint(0, 255)) for _ in range(0, 3))
 
+    @private
     @accepts(str)
     @returns(h.array(str))
     def get_reserved_datasets(self, id):
@@ -163,6 +170,7 @@ class VMProvider(Provider):
 
         return list(set(reserved_datasets))
 
+    @private
     @accepts(str)
     @returns(h.array(str))
     def get_dependent_datasets(self, id):
@@ -203,6 +211,7 @@ class VMSnapshotProvider(Provider):
     def query(self, filter=None, params=None):
         return self.datastore.query_stream('vm.snapshots', *(filter or []), **(params or {}))
 
+    @private
     @accepts(str)
     @returns(h.array(str))
     def get_dependent_datasets(self, id):
@@ -612,6 +621,7 @@ class VMCreateTask(VMBaseTask):
 
 
 @accepts(str, str)
+@returns(str)
 @description('Imports existing VM')
 class VMImportTask(VMBaseTask):
     @classmethod
@@ -657,6 +667,7 @@ class VMImportTask(VMBaseTask):
         return id
 
 
+@private
 @accepts(str, bool)
 @description('Sets VM immutable')
 class VMSetImmutableTask(VMBaseTask):
@@ -1145,6 +1156,7 @@ class VMSnapshotDeleteTask(Task):
 
 
 @accepts(str, str, str, str, str)
+@returns(str)
 @description('Publishes VM snapshot over IPFS')
 class VMSnapshotPublishTask(ProgressTask):
     @classmethod
@@ -1367,6 +1379,7 @@ class DeleteFilesTask(Task):
         shutil.rmtree(images_dir)
 
 
+@private
 @accepts(str, str, str)
 @description('Downloads VM file')
 class DownloadFileTask(ProgressTask):
@@ -1421,6 +1434,7 @@ class DownloadFileTask(ProgressTask):
             sha256_file.write(sha256_hash)
 
 
+@private
 @accepts(str, str, str)
 @description('Installs VM file')
 class InstallFileTask(ProgressTask):
@@ -1485,6 +1499,7 @@ class InstallFileTask(ProgressTask):
                         report_progress()
 
 
+@private
 @description('Downloads VM templates')
 class VMTemplateFetchTask(ProgressTask):
     @classmethod
@@ -1558,6 +1573,7 @@ class VMTemplateFetchTask(ProgressTask):
 
 
 @accepts(str)
+@returns(str)
 @description('Downloads VM template via IPFS')
 class VMIPFSTemplateFetchTask(ProgressTask):
     @classmethod
