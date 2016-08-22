@@ -6,6 +6,11 @@ class ExportResource(Resource):
     post = 'task:vm.export'
 
 
+class ImportResource(Resource):
+    name = 'import'
+    post = 'task:vm.import'
+
+
 class StartResource(Resource):
     name = 'start'
     post = 'task:vm.start'
@@ -25,6 +30,7 @@ class VmCRUD(CRUDBase):
     namespace = 'vm'
     item_resources = (
         ExportResource,
+        ImportResource,
         StartResource,
         StopResource,
         RebootResource,
