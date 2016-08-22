@@ -77,7 +77,7 @@ class DirectoryServicesConfigureTask(Task):
 
 @accepts(
     h.ref('directory'),
-    h.required('name', 'plugin'),
+    h.required('name', 'type'),
     h.forbidden('immutable')
 )
 @returns(str)
@@ -89,7 +89,7 @@ class DirectoryServiceCreateTask(Task):
         try:
             params = self.dispatcher.call_sync(
                 'dscached.management.normalize_parameters',
-                directory['plugin'],
+                directory['type'],
                 directory.get('parameters', {})
             )
         except RpcException as err:
@@ -104,7 +104,7 @@ class DirectoryServiceCreateTask(Task):
             'parameters': params
         })
 
-        if directory['plugin'] == 'winbind':
+        if directory['type'] == 'winbind':
             normalize(directory, {
                 'uid_range': [100000, 999999],
                 'gid_range': [100000, 999999]
@@ -181,7 +181,10 @@ def _init(dispatcher, plugin):
             'id': {'type': 'string'},
             'name': {'type': 'string'},
             'priority': {'type': 'integer'},
-            'plugin': {'type': 'string'},
+            'type': {
+                'type': 'string',
+                'enum': ['file', 'local', 'winbind', 'freeipa']
+            },
             'enabled': {'type': 'boolean'},
             'enumerate': {'type': 'boolean'},
             'uid_range': {

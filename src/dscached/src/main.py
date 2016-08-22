@@ -238,7 +238,7 @@ class Directory(object):
         self.id = definition['id']
         self.name = definition['name']
         self.domain_name = None
-        self.plugin_type = definition['plugin']
+        self.plugin_type = definition['type']
         self.parameters = definition['parameters']
         self.enabled = definition['enabled']
         self.enumerate = definition['enumerate']
