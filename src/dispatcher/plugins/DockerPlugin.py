@@ -190,7 +190,7 @@ class DockerUpdateTask(Task):
 
 
 @description('Creates a Docker container')
-@accepts('docker-container')
+@accepts(h.ref('docker-container'))
 class DockerContainerCreateTask(DockerBaseTask):
     @classmethod
     def early_describe(cls):
