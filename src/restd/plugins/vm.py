@@ -17,13 +17,13 @@ class StartResource(Resource):
 
 
 class StopResource(Resource):
-    name = 'start'
-    post = 'task:vm.start'
+    name = 'stop'
+    post = 'task:vm.stop'
 
 
 class RebootResource(Resource):
-    name = 'start'
-    post = 'task:vm.start'
+    name = 'reboot'
+    post = 'task:vm.reboot'
 
 
 class VmCRUD(CRUDBase):
