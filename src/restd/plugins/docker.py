@@ -1,4 +1,4 @@
-from base import CRUDBase, Resource
+from base import CRUDBase, Resource, SingleItemBase
 
 
 class ContainerStartResource(Resource):
@@ -19,5 +19,10 @@ class DockerContainerCRUD(CRUDBase):
     )
 
 
+class DockerSingleItem(SingleItemBase):
+	namespace = 'docker'
+
+
 def _init(rest):
+    rest.register_singleItem(DockerSingleItem)
     rest.register_crud(DockerContainerCRUD)
