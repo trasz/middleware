@@ -390,7 +390,7 @@ class DiskEraseTask(Task):
     str,
     h.all_of(
         h.ref('disk'),
-        h.no(h.required('name', 'serial', 'path', 'id', 'mediasize', 'status', 'description'))
+        h.no(h.required('name', 'serial', 'path', 'id', 'mediasize', 'status'))
     )
 )
 class DiskConfigureTask(Task):
