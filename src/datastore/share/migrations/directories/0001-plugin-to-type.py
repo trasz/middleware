@@ -25,8 +25,6 @@
 #
 #####################################################################
 
-import uuid
-
 
 def probe(obj, ds):
     return 'plugin' in obj and 'type' not in obj
