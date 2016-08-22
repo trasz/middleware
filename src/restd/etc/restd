@@ -4,7 +4,7 @@
 #
 
 # PROVIDE: restd
-# REQUIRE: dispatcher
+# REQUIRE: dispatcher schedulerd containerd fnstatd
 # BEFORE: FILESYSTEMS
 
 . /etc/rc.subr
