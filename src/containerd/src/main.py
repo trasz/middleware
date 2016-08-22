@@ -973,23 +973,28 @@ class DockerService(RpcService):
         if container['expose_ports']:
             labels.append('org.freenas.expose_ports_at_host')
 
-        try:
-            host.connection.create_container(
-                name=container['name'],
-                image=container['image'],
-                ports=[i['container_port'] for i in container['ports']],
-                volumes=[i['container_path'] for i in container['volumes']],
-                labels=labels,
-                host_config=host.connection.create_host_config(
-                    port_bindings={i['container_port']: i['host_port'] for i in container['ports']},
-                    binds={
-                        i['host_path'].replace('/mnt', '/host'): {
-                            'bind': i['container_path'],
-                            'mode': 'ro' if i['readonly'] else 'rw'
-                        } for i in container['volumes']
-                    },
-                )
+        create_args = {
+            'name': container['name'],
+            'image': container['image'],
+            'ports': [i['container_port'] for i in container['ports']],
+            'volumes': [i['container_path'] for i in container['volumes']],
+            'labels': labels,
+            'host_config': host.connection.create_host_config(
+                port_bindings={i['container_port']: i['host_port'] for i in container['ports']},
+                binds={
+                    i['host_path'].replace('/mnt', '/host'): {
+                        'bind': i['container_path'],
+                        'mode': 'ro' if i['readonly'] else 'rw'
+                    } for i in container['volumes']
+                },
             )
+        }
+
+        if container['command']:
+            create_args['command'] = container['command']
+
+        try:
+            host.connection.create_container(**create_args)
         except BaseException as err:
             raise RpcException(errno.EFAULT, str(err))
 
