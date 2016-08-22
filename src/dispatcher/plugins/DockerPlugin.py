@@ -29,11 +29,12 @@ import errno
 import gevent
 import dockerhub
 import logging
-from task import Provider, Task, ProgressTask, TaskDescription, TaskException
+from task import Provider, Task, ProgressTask, TaskDescription, TaskException, query
 from cache import EventCacheStore
 from datastore.config import ConfigNode
 from freenas.utils import normalize, query as q
-from freenas.dispatcher.rpc import generator, accepts, returns, SchemaHelper as h, RpcException
+from freenas.dispatcher.rpc import generator, accepts, returns, SchemaHelper as h, RpcException, description
+
 
 logger = logging.getLogger(__name__)
 
@@ -43,13 +44,18 @@ images = None
 images_query = 'containerd.docker.query_images'
 
 
+@description('Provides information about Docker configuration')
 class DockerProvider(Provider):
+    @description('Returns Docker general configuration')
     @returns(h.ref('docker-config'))
     def get_config(self):
         return ConfigNode('container.docker', self.configstore).__getstate__()
 
 
+@description('Provides information about Docker container hosts')
 class DockerHostProvider(Provider):
+    @description('Returns current status of Docker hosts')
+    @query('docker-host')
     @generator
     def query(self, filter=None, params=None):
         def extend(obj):
@@ -73,20 +79,32 @@ class DockerHostProvider(Provider):
         return q.query(results, *(filter or []), stream=True, **(params or {}))
 
 
+@description('Provides information about Docker containers')
 class DockerContainerProvider(Provider):
+    @description('Returns current status of Docker containers')
+    @query('docker-container')
     @generator
     def query(self, filter=None, params=None):
         return containers.query(*(filter or []), stream=True, **(params or {}))
 
+    @description('Requests authorization token for a container console')
+    @accepts(str)
+    @returns(str)
     def request_serial_console(self, id):
         return self.dispatcher.call_sync('containerd.console.request_console', id)
 
 
+@description('Provides information about Docker container images')
 class DockerImagesProvider(Provider):
+    @description('Returns current status of cached Docker container images')
+    @query('docker-image')
     @generator
     def query(self, filter=None, params=None):
         return images.query(*(filter or []), stream=True, **(params or {}))
 
+    @description('Returns a result of searching Docker Hub for a specified term - part of image name')
+    @accepts(str)
+    @returns(h.array(h.ref('docker-hub-image')))
     @generator
     def search(self, term):
         hub = dockerhub.DockerHub()
@@ -98,15 +116,15 @@ class DockerImagesProvider(Provider):
                 'pull_count': i['pull_count']
             }
 
+    @description('Returns a full description of specified Docker container image')
+    @accepts(str)
+    @returns(str)
     def readme(self, repo_name):
         hub = dockerhub.DockerHub()
         try:
             return hub.get_repository(repo_name).get('full_description')
         except ValueError:
             return None
-
-    def get_hub_image(self, name):
-        pass
 
 
 class DockerBaseTask(ProgressTask):
@@ -153,6 +171,7 @@ class DockerBaseTask(ProgressTask):
             raise TaskException(errno.EHOSTDOWN, 'Docker host {0} is down'.format(host['name']))
 
 
+@description('Updates Docker general configuration settings')
 @accepts(h.ref('docker-config'))
 class DockerUpdateTask(Task):
     @classmethod
@@ -170,6 +189,8 @@ class DockerUpdateTask(Task):
         node.update(updated_params)
 
 
+@description('Creates a Docker container')
+@accepts('docker-container')
 class DockerContainerCreateTask(DockerBaseTask):
     @classmethod
     def early_describe(cls):
@@ -202,6 +223,8 @@ class DockerContainerCreateTask(DockerBaseTask):
         self.dispatcher.call_sync('containerd.docker.create', container)
 
 
+@description('Deletes a Docker container')
+@accepts(str)
 class DockerContainerDeleteTask(ProgressTask):
     @classmethod
     def early_describe(cls):
@@ -217,6 +240,8 @@ class DockerContainerDeleteTask(ProgressTask):
         self.dispatcher.call_sync('containerd.docker.delete', id)
 
 
+@description('Starts a Docker container')
+@accepts(str)
 class DockerContainerStartTask(Task):
     @classmethod
     def early_describe(cls):
@@ -232,6 +257,8 @@ class DockerContainerStartTask(Task):
         self.dispatcher.call_sync('containerd.docker.start', id)
 
 
+@description('Stops a Docker container')
+@accepts(str)
 class DockerContainerStopTask(Task):
     @classmethod
     def early_describe(cls):
@@ -247,6 +274,8 @@ class DockerContainerStopTask(Task):
         self.dispatcher.call_sync('containerd.docker.stop', id)
 
 
+@description('Pulls a selected container image from Docker Hub and caches it on specified Docker host')
+@accepts(str, str)
 class DockerImagePullTask(DockerBaseTask):
     @classmethod
     def early_describe(cls):
@@ -270,6 +299,8 @@ class DockerImagePullTask(DockerBaseTask):
                 self.set_progress(percentage, '{0} layer {1}'.format(i['status'], i['id']))
 
 
+@description('Removes previously cached container image from a Docker host')
+@accepts(str, str)
 class DockerImageDeleteTask(DockerBaseTask):
     @classmethod
     def early_describe(cls):
@@ -468,16 +499,49 @@ def _init(dispatcher, plugin):
         }
     })
 
-    plugin.register_schema_definition('docker', {
+    plugin.register_schema_definition('docker-host', {
         'type': 'object',
         'additionalProperties': False,
         'properties': {
             'id': {'type': 'string'},
             'name': {'type': 'string'},
+            'state': {'$ref': 'docker-host-status'},
+            'status': {
+                'oneOf': [{'$ref': 'docker-host-status'}, {'type': 'null'}]
+            }
+        }
+    })
+
+    plugin.register_schema_definition('docker-host-state', {
+        'type': 'string',
+        'enum': ['UP', 'DOWN']
+    })
+
+    plugin.register_schema_definition('docker-host-status', {
+        'type': 'object',
+        'additionalProperties': False,
+        'properties': {
+            'unique_id': {'type': 'string'},
+            'hostname': {'type': 'string'},
+            'os': {'type': 'string'},
+            'mem_total': {'type': 'integer'}
+        }
+    })
+
+    plugin.register_schema_definition('docker-container', {
+        'type': 'object',
+        'additionalProperties': False,
+        'properties': {
+            'id': {'type': 'string'},
+            'names': {
+                'type': 'array',
+                'items': {'type': 'string'}
+            },
             'command': {'type': 'string'},
             'image': {'type': 'string'},
             'host': {'type': ['string', 'null']},
             'hostname': {'type': ['string', 'null']},
+            'status': {'type': ['string', 'null']},
             'memory_limit': {'type': ['integer', 'null']},
             'expose_ports': {'type': 'boolean'},
             'environment': {
