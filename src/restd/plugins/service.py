@@ -7,7 +7,7 @@ class ServiceResource(Resource, ResourceQueryMixin):
         return req.context['doc']
 
 
-class ServiceSingleIterm(SingleItemBase):
+class ServiceSingleItem(SingleItemBase):
     namespace = 'service'
     resource_class = ServiceResource
 

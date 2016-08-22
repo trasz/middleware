@@ -24,5 +24,5 @@ class DockerSingleItem(SingleItemBase):
 
 
 def _init(rest):
-    rest.register_singleItem(DockerSingleItem)
+    rest.register_singleitem(DockerSingleItem)
     rest.register_crud(DockerContainerCRUD)
