@@ -249,8 +249,8 @@ def _init(context):
             'kdc': {'type': ['string', 'null']},
             'username': {'type': 'string'},
             'password': {'type': 'string'},
-            'user_suffix': {'type': 'string'},
-            'group_suffix': {'type': 'string'},
+            'user_suffix': {'type': ['string', 'null']},
+            'group_suffix': {'type': ['string', 'null']},
             'encryption': {
                 'type': 'string',
                 'enum': ['NONE', 'SSL', 'TLS']
