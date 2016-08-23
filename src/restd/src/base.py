@@ -26,11 +26,10 @@ class Task(object):
         if get_args:
             args = get_args(req, urlparams)
         else:
-            args = []
-            if 'id' in urlparams:
-                args.append(urlparams['id'])
             if 'doc' in req.context:
-                args.append(req.context['doc'])
+                args = req.context['doc']
+            else:
+                args = []
         try:
             log.debug('Calling task {0} with args {1}'.format(self.name, args))
             result = self.dispatcher.call_task_sync(self.name, *args)
@@ -302,6 +301,12 @@ class EntityResource(Resource, ResourceQueryMixin):
             resp.status = falcon.HTTP_201
         return rv
 
+    def run_post(self, req, urlparams):
+        args = []
+        if 'doc' in req.context:
+            args.append(req.context['doc'])
+        return args
+
 
 class ItemResource(Resource):
 
@@ -315,6 +320,26 @@ class ItemResource(Resource):
         if id.isdigit():
             id = int(id)
         return [[('id', '=', id)], {'single': True}], {}
+
+    def _run_common(self, req, urlparams):
+        """
+        Common method to get the id from url and use a first task arg
+        """
+        args = []
+        if 'id' in urlparams:
+            args.append(urlparams['id'])
+        if 'doc' in req.context:
+            args.append(req.context['doc'])
+        return args
+
+    def run_post(self, req, urlparams):
+        return self._run_common(req, urlparams)
+
+    def run_put(self, req, urlparams):
+        return self._run_common(req, urlparams)
+
+    def run_delete(self, req, urlparams):
+        return self._run_common(req, urlparams)
 
     def do(self, method, req, resp, *args, **kwargs):
         rv = super(ItemResource, self).do(method, req, resp, *args, **kwargs)
