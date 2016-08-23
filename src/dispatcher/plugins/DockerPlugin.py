@@ -633,4 +633,14 @@ def _init(dispatcher, plugin):
     if 'containerd.docker' in dispatcher.call_sync('discovery.get_services'):
         init_cache()
 
+    if not dispatcher.call_sync('docker.get_config').get('default_host'):
+        host_id = dispatcher.datastore.query(
+            'vms',
+            ('config.docker_host', '=', True),
+            single=True,
+            select='id'
+        )
+        if host_id:
+            dispatcher.call_task_sync('docker.update', {'default_host': host_id})
+
     gevent.spawn(sync_caches)
