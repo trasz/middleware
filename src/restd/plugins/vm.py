@@ -28,6 +28,7 @@ class RebootResource(ItemResource):
 
 class VmCRUD(CRUDBase):
     namespace = 'vm'
+    entity_post = 'atask:vm.create'
     item_resources = (
         ExportResource,
         StartResource,
