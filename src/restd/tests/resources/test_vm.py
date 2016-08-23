@@ -5,10 +5,16 @@ class VmTestCase(CRUDTestCase):
     name = 'vm'
 
     def get_create_data(self):
+        r = self.client.get(self.name + '/template', params={
+            'template.name': 'freebsd-11-zfs',
+        })
+        self.assertEqual(r.status_code, 200, msg=r.text)
+        template = r.json()[0]
         return {
             'name': 'testvm',
             'enabled': True,
             'target': 'tank',
+            'template': template['template'],
         }
 
     def get_update_ident_data(self):
