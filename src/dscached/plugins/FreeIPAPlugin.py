@@ -79,7 +79,7 @@ class FreeIPAPlugin(DirectoryServicePlugin):
         if self.parameters['server']:
             return [self.parameters['server']]
 
-        return list(get_srv_records('ldap', 'tcp', self.parameters['realm']))
+        return [str(i) for i in get_srv_records('ldap', 'tcp', self.parameters['realm'])]
 
     @staticmethod
     def normalize_parameters(parameters):
