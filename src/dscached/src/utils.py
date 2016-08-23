@@ -28,6 +28,39 @@
 import dns.resolver
 import dns.exception
 import krb5
+from ldap3.utils.conv import escape_filter_chars
+
+
+class LdapQueryBuilder(object):
+    def __init__(self, mappings):
+        self.mappings = mappings
+
+    def _predicate(self, *args):
+        if len(args) == 2:
+            return self._joint_predicate(*args)
+
+        if len(args) == 3:
+            return self._operator_predicate(*args)
+
+    def _operator_predicate(self, name, op, value):
+        if op == '=':
+            return '({0}={1})'.format(self.mappings[name], escape_filter_chars(value))
+
+        if op == '!=':
+            return '(!{0}={1})'.format(self.mappings[name], escape_filter_chars(value))
+
+    def _joint_predicate(self, op, value):
+        if op == 'or':
+            return '(|{0})'.format(''.join(self._predicate(i) for i in value))
+
+        if op == 'and':
+            return '(&{0})'.format(''.join(self._predicate(i) for i in value))
+
+    def build_query(self, params):
+        if len(params) == 1:
+            return self._predicate(params[0])
+
+        return self._joint_predicate('and', params)
 
 
 def join_dn(*parts):
