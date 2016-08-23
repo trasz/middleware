@@ -394,11 +394,22 @@ class ProviderMixin:
             return self.get[4:].rsplit('.', 1)[0]
 
 
+class SingleItemResource(Resource):
+
+    def run_put(self, req, urlparams):
+        args = []
+        if 'id' in urlparams:
+            args.append(urlparams['id'])
+        if 'doc' in req.context:
+            args.append(req.context['doc'])
+        return args
+
+
 class SingleItemBase(object):
 
     name = None
     namespace = None
-    resource_class = Resource
+    resource_class = SingleItemResource
 
     subresources = None
 
