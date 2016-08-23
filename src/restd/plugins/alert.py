@@ -5,9 +5,6 @@ class AlertSendResource(Resource):
     name = 'send'
     post = 'task:alert.send'
 
-    def run_post(self, req, urlparams):
-        return req.context['doc']
-
 
 class AlertResource(ProviderMixin, Resource):
     name = 'alert'
