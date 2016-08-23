@@ -389,7 +389,7 @@ class VolumeProvider(Provider):
             'volume_guid': str(label['pool_guid']),
             'vdev_guid': str(label['guid']),
             'hostname': label['hostname'],
-            'hostid': label['hostid']
+            'hostid': label.get('hostid')
         }
 
     @description("Returns volume capabilities")
@@ -2950,7 +2950,7 @@ def _init(dispatcher, plugin):
             'volume_guid': {'type': 'string'},
             'vdev_guid': {'type': 'string'},
             'hostname': {'type': 'string'},
-            'hostid': {'type': 'integer'}
+            'hostid': {'type': ['integer', 'null']}
         }
     })
 

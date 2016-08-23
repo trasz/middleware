@@ -95,7 +95,7 @@ class ZpoolProvider(Provider):
     @returns(h.object())
     def get_disk_label(self, device):
         try:
-            return libzfs.read_label(device)
+            return libzfs.read_label(device, 0)
         except OSError as err:
             raise RpcException(err.errno, err.strerror)
 
