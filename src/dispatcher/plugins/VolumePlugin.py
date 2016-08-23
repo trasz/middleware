@@ -376,8 +376,11 @@ class VolumeProvider(Provider):
 
         return vdev
 
-    @description("Describes the various capacibilities of a Volumes given" +
-                 "What type of Volume it is (example call it with 'zfs'")
+    @accepts(str, str)
+    def get_disk_label(self, disk):
+        
+
+    @description("Returns volume capabilities")
     @accepts(str)
     @returns(h.object())
     def get_capabilities(self, type):
