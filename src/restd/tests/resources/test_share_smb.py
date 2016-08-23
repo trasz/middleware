@@ -18,7 +18,7 @@ class ShareSMBTestCase(CRUDTestCase):
         r = self.client.get(self.name, params={
             'name': 'share_smb_test',
         })
-        self.assertEqual(r.status_code, 200)
+        self.assertEqual(r.status_code, 200, msg=r.text)
         data = r.json()
         if not data:
             self.skipTest('Share not found.')
@@ -30,7 +30,7 @@ class ShareSMBTestCase(CRUDTestCase):
         r = self.client.get(self.name, params={
             'name': 'share_smb_test',
         })
-        self.assertEqual(r.status_code, 200)
+        self.assertEqual(r.status_code, 200, msg=r.text)
         data = r.json()
         if data:
             return data[0]['id']
