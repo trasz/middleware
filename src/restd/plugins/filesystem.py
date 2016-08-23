@@ -20,9 +20,6 @@ class FileSetPermissionsResource(Resource):
     name = 'file/set_permissions'
     post = 'task:file.set_permissions'
 
-    def run_post(self, req, urlparams):
-        return req.context['doc']
-
 
 def _init(rest):
     # TODO: filesystem.{download,upload}
