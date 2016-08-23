@@ -2930,6 +2930,17 @@ def _init(dispatcher, plugin):
         }
     })
 
+    plugin.register_schema_definition('volume-disk-label', {
+        'type': 'object',
+        'additionalProperties': False,
+        'properties': {
+            'volume_id': {'type': 'string'},
+            'volume_guid': {'type': 'string'},
+            'hostname': {'type': 'string'},
+            'hostid': {'type': 'integer'}
+        }
+    })
+
     plugin.register_schema_definition('disks-allocation', {
         'type': 'object',
         'additionalProperties': {
