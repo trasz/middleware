@@ -23,8 +23,27 @@ class VmTestCase(CRUDTestCase):
             'config': config,
         }
 
+    def test_061_start(self):
+        r = self.client.get(self.name, params={
+            'name': 'testvm',
+        })
+        self.assertEqual(r.status_code, 200, msg=r.text)
+        data = r.json()
+        vm = data[0]
+        r = self.client.post(self.name + '/id/' + vm['id'] + '/start')
+        self.assertEqual(r.status_code, 201, msg=r.text)
+
+    def test_065_stop(self):
+        r = self.client.get(self.name, params={
+            'name': 'testvm',
+        })
+        self.assertEqual(r.status_code, 200, msg=r.text)
+        data = r.json()
+        vm = data[0]
+        r = self.client.post(self.name + '/id/' + vm['id'] + '/stop')
+        self.assertEqual(r.status_code, 201, msg=r.text)
+
     def get_delete_identifier(self):
-        raise
         r = self.client.get(self.name, params={
             'name': 'testvm',
         })
