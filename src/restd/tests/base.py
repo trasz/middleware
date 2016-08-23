@@ -12,6 +12,11 @@ class RESTTestCase(unittest.TestCase):
         self.client = self.shared.client
         self.ssh_client = self.shared.ssh_client
 
+    def ssh_exec(self, command):
+        _, stdout, stderr = self.ssh_client.exec_command(command)
+        exitcode = stdout.channel.recv_exit_status()
+        return exitcode, stdout.read(), stderr.read()
+
 
 class CRUDTestCase(RESTTestCase):
 
