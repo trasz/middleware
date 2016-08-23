@@ -37,7 +37,12 @@ from freenas.utils import normalize, query as q
 logger = logging.getLogger('DirectoryServicePlugin')
 
 
-class DirectoryServicesProvider(Provider):
+class DirectoryServiceProvider(Provider):
+    def get_config(self):
+        return ConfigNode('directory', self.configstore).__getstate__()
+
+
+class DirectoryProvider(Provider):
     @query('directory')
     @generator
     def query(self, filter=None, params=None):
@@ -210,7 +215,8 @@ def _init(dispatcher, plugin):
         }
     })
 
-    plugin.register_provider('directory', DirectoryServicesProvider)
+    plugin.register_provider('directoryservice', DirectoryServiceProvider)
+    plugin.register_provider('directory', DirectoryProvider)
     plugin.register_event_type('directory.changed')
     plugin.register_task_handler('directory.create', DirectoryServiceCreateTask)
     plugin.register_task_handler('directory.update', DirectoryServiceUpdateTask)
