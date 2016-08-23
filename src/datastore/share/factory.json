@@ -1495,7 +1495,7 @@
         "data": {
             "946331f6-475a-4f99-8482-0881ec0c616e": {
                 "name": "local",
-                "plugin": "local",
+                "type": "local",
                 "enabled": true,
                 "immutable": true,
                 "enumerate": true,
@@ -1505,7 +1505,7 @@
             },
             "0b078c8c-b132-471f-b671-dc20c1396912": {
                 "name": "system",
-                "plugin": "file",
+                "type": "file",
                 "enabled": true,
                 "immutable": true,
                 "enumerate": true,

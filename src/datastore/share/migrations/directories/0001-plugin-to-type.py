@@ -32,3 +32,4 @@ def probe(obj, ds):
 
 def apply(obj, ds):
     obj['type'] = obj.pop('plugin')
+    return obj
