@@ -10,6 +10,9 @@ class ImportResource(Resource):
     name = 'import'
     post = 'task:vm.import'
 
+    def run_post(self, req, urlparams):
+        return req.context['doc']
+
 
 class StartResource(Resource):
     name = 'start'
