@@ -146,6 +146,7 @@ class WinbindPlugin(DirectoryServicePlugin):
                         self.domain_name = self.wbc.interface.netbios_domain
                         self.directory.put_state(DirectoryState.BOUND)
                 else:
+                    self.leave()
                     self.directory.put_state(DirectoryState.DISABLED)
 
     def configure_smb(self, enable):
