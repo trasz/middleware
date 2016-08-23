@@ -1,17 +1,17 @@
-from base import CRUDBase, Resource
+from base import CRUDBase, ItemResource
 
 
-class QueryResource(Resource):
+class QueryResource(ItemResource):
     name = 'query'
     post = 'task:backup.query'
 
 
-class RestoreResource(Resource):
+class RestoreResource(ItemResource):
     name = 'restore'
     post = 'task:backup.restore'
 
 
-class SyncResource(Resource):
+class SyncResource(ItemResource):
     name = 'sync'
     post = 'task:backup.sync'
 
