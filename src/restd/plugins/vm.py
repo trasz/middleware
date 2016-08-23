@@ -1,7 +1,7 @@
-from base import CRUDBase, Resource
+from base import CRUDBase, ItemResource, Resource
 
 
-class ExportResource(Resource):
+class ExportResource(ItemResource):
     name = 'export'
     post = 'task:vm.export'
 
@@ -10,21 +10,18 @@ class ImportResource(Resource):
     name = 'import'
     post = 'task:vm.import'
 
-    def run_post(self, req, urlparams):
-        return req.context['doc']
 
-
-class StartResource(Resource):
+class StartResource(ItemResource):
     name = 'start'
     post = 'task:vm.start'
 
 
-class StopResource(Resource):
+class StopResource(ItemResource):
     name = 'stop'
     post = 'task:vm.stop'
 
 
-class RebootResource(Resource):
+class RebootResource(ItemResource):
     name = 'reboot'
     post = 'task:vm.reboot'
 
@@ -42,12 +39,12 @@ class VmCRUD(CRUDBase):
     )
 
 
-class SnapshotPublishResource(Resource):
+class SnapshotPublishResource(ItemResource):
     name = 'publish'
     post = 'task:vm.snapshot.publish'
 
 
-class SnapshotRollbackResource(Resource):
+class SnapshotRollbackResource(ItemResource):
     name = 'rollback'
     post = 'task:vm.snapshot.rollback'
 
