@@ -376,9 +376,21 @@ class VolumeProvider(Provider):
 
         return vdev
 
-    @accepts(str, str)
+    @accepts(str)
+    @returns(h.ref('volume-disk-label'))
     def get_disk_label(self, disk):
-        
+        dev = get_disk_gptid(self.dispatcher, disk)
+        if not dev:
+            raise RpcException(errno.ENOENT, 'Disk {0} not found'.format(disk))
+
+        label = self.dispatcher.call_sync('zfs.pool.get_disk_label', dev)
+        return {
+            'volume_id': label['name'],
+            'volume_guid': str(label['pool_guid']),
+            'vdev_guid': str(label['guid']),
+            'hostname': label['hostname'],
+            'hostid': label['hostid']
+        }
 
     @description("Returns volume capabilities")
     @accepts(str)
@@ -2936,6 +2948,7 @@ def _init(dispatcher, plugin):
         'properties': {
             'volume_id': {'type': 'string'},
             'volume_guid': {'type': 'string'},
+            'vdev_guid': {'type': 'string'},
             'hostname': {'type': 'string'},
             'hostid': {'type': 'integer'}
         }

@@ -91,6 +91,14 @@ class ZpoolProvider(Provider):
 
         return [v['path'] for v in iterate_vdevs(pool['groups'])]
 
+    @accepts(str)
+    @returns(h.object())
+    def get_disk_label(self, device):
+        try:
+            return libzfs.read_label(device)
+        except OSError as err:
+            raise RpcException(err.errno, err.strerror)
+
     @returns(h.object())
     def get_capabilities(self):
         return {
