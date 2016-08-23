@@ -8,7 +8,7 @@ class RESTTestCase(unittest.TestCase):
 
     def setUp(self):
         self.client = Client(
-            'http://{0}'.format(self.args.address),
+            'http://{0}{1}'.format(self.args.address, ':{0}'.format(self.args.port) if self.args.port else ''),
             '/api/v2.0/',
             username=self.args.username,
             password=self.args.password,

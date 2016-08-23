@@ -36,6 +36,7 @@ def main():
     parser.add_argument('-a', '--address', required=True)
     parser.add_argument('-u', '--username')
     parser.add_argument('-p', '--password')
+    parser.add_argument('-P', '--port')
     parser.add_argument('-v', '--verbose', action='store_true')
     parser.add_argument('-s', '--skip', action='append')
     parser.add_argument('-sc', '--skip-class', action='append')
