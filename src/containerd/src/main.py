@@ -53,6 +53,7 @@ import ipaddress
 import pf
 import urllib.parse
 import requests
+import fcntl
 from bsd import kld, sysctl
 from gevent.queue import Queue
 from gevent.event import Event
@@ -686,6 +687,8 @@ class ContainerConsole(object):
         stdin_r_file = open(stdin_r, 'rb', buffering=0)
         stdout_w_file = open(stdout_w, 'wb', buffering=0)
 
+        self.host.ready.wait()
+        self.host.connection.start(container=self.id)
         self.console_t = gevent.spawn(
             dockerpty.start,
             self.host.connection,
@@ -697,12 +700,17 @@ class ContainerConsole(object):
 
         self.stdin = open(stdin_w, 'wb', buffering=0)
         self.stdout = open(stdout_r, 'rb', buffering=0)
+        flag = fcntl.fcntl(self.stdout.fileno(), fcntl.F_GETFL)
+        fcntl.fcntl(self.stdout.fileno(), fcntl.F_SETFL, flag | os.O_NONBLOCK)
+
         self.scrollback = BinaryRingBuffer(SCROLLBACK_SIZE)
         self.scrollback_t = gevent.spawn(self.console_worker)
         self.active = True
 
     def stop_console(self):
         self.active = False
+        self.host.ready.wait()
+        self.host.connection.stop(container=self.id)
         self.stdin.close()
         self.stdout.close()
         gevent.joinall([self.scrollback_t, self.console_t])
@@ -747,6 +755,8 @@ class ContainerConsole(object):
                     continue
 
                 ch = self.stdout.read(1024)
+                if ch == b'':
+                    return
             except (OSError, ValueError):
                 return
 
