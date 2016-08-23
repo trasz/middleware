@@ -30,10 +30,12 @@ class VmCRUD(CRUDBase):
     namespace = 'vm'
     item_resources = (
         ExportResource,
-        ImportResource,
         StartResource,
         StopResource,
         RebootResource,
+    )
+    entity_resources = (
+        ImportResource,
     )
 
 
