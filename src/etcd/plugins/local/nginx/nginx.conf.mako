@@ -79,8 +79,9 @@ http {
             proxy_set_header X-Forwarded-Proto $scheme;
         }
 
-        location /socket {
-            proxy_pass http://127.0.0.1:5000/socket;
+        location /dispatcher {
+            rewrite /dispatcher/(.+) /$1 break;
+            proxy_pass http://127.0.0.1:5000;
             proxy_http_version 1.1;
             proxy_set_header Upgrade $http_upgrade;
             proxy_set_header Connection "upgrade";
