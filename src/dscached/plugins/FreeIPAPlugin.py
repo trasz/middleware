@@ -213,6 +213,7 @@ class FreeIPAPlugin(DirectoryServicePlugin):
                         self.directory.put_state(DirectoryState.FAILURE)
                         continue
                 else:
+                    self.conn.unbind()
                     self.directory.put_state(DirectoryState.DISABLED)
                     continue
 
