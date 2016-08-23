@@ -46,12 +46,13 @@ class SessionProvider(Provider):
                  "Does not include the service sessions in this.")
     def get_live_user_sessions(self):
         live_user_session_ids = []
-        for conn in self.dispatcher.ws_server.connections:
-            # The if check for 'uid' below is to seperate the actuall gui/cli
-            # users of the websocket connection from that of system services
-            # like etcd, statd and so on.
-            if hasattr(conn.user, 'uid'):
-                live_user_session_ids.append(conn.session_id)
+        for srv in self.dispatcher.ws_servers:
+            for conn in srv.connections:
+                # The if check for 'uid' below is to seperate the actuall gui/cli
+                # users of the websocket connection from that of system services
+                # like etcd, statd and so on.
+                if hasattr(conn.user, 'uid'):
+                    live_user_session_ids.append(conn.session_id)
         return self.datastore.query('sessions', ('id', 'in', live_user_session_ids))
 
     @pass_sender
