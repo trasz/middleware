@@ -240,19 +240,23 @@ def _init(context):
     context.register_plugin('freeipa', FreeIPAPlugin)
 
     context.register_schema('freeipa-directory-params', {
-        'type': {'enum': ['ldap-directory-params']},
-        'realm': {'type': 'string'},
-        'server': {'type': ['string', 'null']},
-        'kdc': {'type': ['string', 'null']},
-        'username': {'type': 'string'},
-        'password': {'type': 'string'},
-        'user_suffix': {'type': 'string'},
-        'group_suffix': {'type': 'string'},
-        'encryption': {
-            'type': 'string',
-            'enum': ['NONE', 'SSL', 'TLS']
-        },
-        'certificate': {'type': ['string', 'null']},
+        'type': 'object',
+        'additionalProperties': False,
+        'properties': {
+            'type': {'enum': ['ldap-directory-params']},
+            'realm': {'type': 'string'},
+            'server': {'type': ['string', 'null']},
+            'kdc': {'type': ['string', 'null']},
+            'username': {'type': 'string'},
+            'password': {'type': 'string'},
+            'user_suffix': {'type': 'string'},
+            'group_suffix': {'type': 'string'},
+            'encryption': {
+                'type': 'string',
+                'enum': ['NONE', 'SSL', 'TLS']
+            },
+            'certificate': {'type': ['string', 'null']}
+        }
     })
 
     context.register_schema('freeipa-directory-status', {
