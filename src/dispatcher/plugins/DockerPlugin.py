@@ -294,7 +294,7 @@ class DockerContainerStopTask(Task):
 
 
 @description('Pulls a selected container image from Docker Hub and caches it on specified Docker host')
-@accepts(str, str)
+@accepts(str, h.one_of(str, None))
 class DockerImagePullTask(DockerBaseTask):
     @classmethod
     def early_describe(cls):
@@ -319,7 +319,7 @@ class DockerImagePullTask(DockerBaseTask):
 
 
 @description('Removes previously cached container image from a Docker host')
-@accepts(str, str)
+@accepts(str, h.one_of(str, None))
 class DockerImageDeleteTask(DockerBaseTask):
     @classmethod
     def early_describe(cls):
