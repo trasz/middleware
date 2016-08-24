@@ -60,7 +60,9 @@ def call(method, args, server=DEFAULT_SERVER, timeout=DEFAULT_TIMEOUT, stream=Fa
 
     try:
         if stream:
-            c.call_sync('management.enable_features', ['streaming_responses'])
+            if server == DEFAULT_SERVER:
+                c.call_sync('management.enable_features', ['streaming_responses'])
+
             for i in c.call_sync(method, *args):
                 dump(i, sys.stdout, indent=4)
                 print()
@@ -221,7 +223,8 @@ def create_client(server):
     try:
         c = Client()
         c.connect(server)
-        c.login_service('dispatcherctl', DEFAULT_TIMEOUT)
+        if server == DEFAULT_SERVER:
+            c.login_service('dispatcherctl', DEFAULT_TIMEOUT)
     except socket.error as err:
         print("Cannot connect: {0}".format(str(err)), file=sys.stderr)
         sys.exit(1)
