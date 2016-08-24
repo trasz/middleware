@@ -61,6 +61,12 @@ class VmSnapshotCRUD(CRUDBase):
 class VmTemplateCRUD(CRUDBase):
     namespace = 'vm.template'
 
+    def get_create_method_name(self):
+        return None
+
+    def get_update_method_name(self):
+        return None
+
 
 def _init(rest):
     rest.register_crud(VmCRUD)
