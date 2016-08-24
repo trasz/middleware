@@ -46,6 +46,9 @@ class LdapQueryBuilder(object):
         if op == '=':
             return '({0}={1})'.format(self.mappings.get(name, name), escape_filter_chars(str(value)))
 
+        if op == '~':
+            return '({0}={1})'.format(self.mappings.get(name, name), str(value))
+
         if op == '!=':
             return '(!({0}={1}))'.format(self.mappings.get(name, name), escape_filter_chars(str(value)))
 
