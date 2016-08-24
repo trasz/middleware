@@ -1262,7 +1262,7 @@ def sync_dataset_cache(dispatcher, dataset, old_dataset=None, recursive=False):
 
         if recursive:
             for i in ds.children:
-                oldpath = os.path.join(old_dataset, os.path.relpath(i.name, dataset))
+                oldpath = os.path.join(old_dataset, os.path.relpath(i.name, dataset)) if old_dataset else None
                 sync_dataset_cache(dispatcher, i.name, old_dataset=oldpath, recursive=True)
 
     except libzfs.ZFSException as e:
