@@ -1000,7 +1000,7 @@ class DockerService(RpcService):
             )
         }
 
-        if container['command']:
+        if container.get('command'):
             create_args['command'] = container['command']
 
         try:
