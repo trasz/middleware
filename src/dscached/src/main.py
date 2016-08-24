@@ -436,7 +436,7 @@ class AccountService(RpcService):
             if user:
                 resolve_primary_group(self.context, user)
                 aliases = alias(d, user, 'username')
-                item = CacheItem(user['uid'], user['id'], aliases, copy.copy(user), d, 300)
+                item = CacheItem(user['uid'], user['id'], aliases, copy.copy(user), d, self.context.cache_ttl)
                 self.context.users_cache.set(item)
                 return fix_passwords(item.annotated)
 
@@ -464,7 +464,7 @@ class AccountService(RpcService):
             if user:
                 resolve_primary_group(self.context, user)
                 aliases = alias(d, user, 'username')
-                item = CacheItem(user['uid'], user['id'], aliases, copy.copy(user), d, 300)
+                item = CacheItem(user['uid'], user['id'], aliases, copy.copy(user), d, self.context.cache_ttl)
                 self.context.users_cache.set(item)
                 return fix_passwords(item.annotated)
 
@@ -485,7 +485,7 @@ class AccountService(RpcService):
             if user:
                 resolve_primary_group(self.context, user)
                 aliases = alias(d, user, 'username')
-                item = CacheItem(user['uid'], user['id'], aliases, copy.copy(user), d, 300)
+                item = CacheItem(user['uid'], user['id'], aliases, copy.copy(user), d, self.context.cache_ttl)
                 self.context.users_cache.set(item)
                 return fix_passwords(item.annotated)
 
@@ -563,7 +563,7 @@ class GroupService(RpcService):
 
             if group:
                 aliases = alias(d, group, 'name')
-                item = CacheItem(group['gid'], group['id'], aliases, copy.copy(group), d, 300)
+                item = CacheItem(group['gid'], group['id'], aliases, copy.copy(group), d, self.context.cache_ttl)
                 self.context.groups_cache.set(item)
                 return item.annotated
 
@@ -586,7 +586,7 @@ class GroupService(RpcService):
 
             if group:
                 aliases = alias(d, group, 'name')
-                item = CacheItem(group['gid'], group['id'], aliases, copy.copy(group), d, 300)
+                item = CacheItem(group['gid'], group['id'], aliases, copy.copy(group), d, self.context.cache_ttl)
                 self.context.groups_cache.set(item)
                 return item.annotated
 
@@ -606,7 +606,7 @@ class GroupService(RpcService):
 
             if group:
                 aliases = alias(d, group, 'name')
-                item = CacheItem(group['gid'], group['id'], aliases, copy.copy(group), d, 300)
+                item = CacheItem(group['gid'], group['id'], aliases, copy.copy(group), d, self.context.cache_ttl)
                 self.context.groups_cache.set(item)
                 return item.annotated
 
