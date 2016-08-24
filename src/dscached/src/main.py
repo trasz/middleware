@@ -753,6 +753,7 @@ class Main(object):
     def init_server(self, address):
         self.server = Server(self)
         self.server.rpc = self.rpc
+        self.server.streaming = True
         self.server.start(address, transport_options={'permissions': 0o777})
         thread = Thread(target=self.server.serve_forever)
         thread.name = 'ServerThread'
