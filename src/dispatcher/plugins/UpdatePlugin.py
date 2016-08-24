@@ -987,16 +987,15 @@ def _init(dispatcher, plugin):
 
         logger.debug('Scheduling a nightly update check task')
         caltask = dispatcher.call_sync(
-            'calendar_task.query', [('task', '=', 'update.checkfetch')], {'single': True}
+            'calendar_task.query', [('name', '=', 'nightly_update_check')], {'single': True}
         ) or {'schedule': {}}
 
         caltask.update({
-            'name': 'auto_update_check',
+            'name': 'nightly_update_check',
             'task': 'update.checkfetch',
             'args': [],
             'hidden': True,
-            'protected': True,
-            'description': 'Nightly update check',
+            'protected': True
         })
         caltask['schedule'].update({
             'hour': str(random.randint(1, 6)),
