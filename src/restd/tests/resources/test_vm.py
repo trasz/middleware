@@ -1,5 +1,7 @@
 from base import CRUDTestCase
 
+import time
+
 
 class VmTestCase(CRUDTestCase):
     name = 'vm'
@@ -16,6 +18,22 @@ class VmTestCase(CRUDTestCase):
             'target': 'tank',
             'template': template['template'],
         }
+
+    def test_020_create(self):
+        tid = super(VmTestCase, self).test_020_create()
+        while True:
+            r = self.client.get('task', params={
+                'id': tid
+            })
+            self.assertEqual(r.status_code, 200, msg=r.text)
+            task = r.json()
+            self.assertIsInstance(task, list)
+            self.assertEqual(len(task), 1)
+            task = task[0]
+            if task['state'] != 'FINISHED':
+                time.sleep(1)
+            else:
+                break
 
     def get_update_ident_data(self):
         r = self.client.get(self.name, params={
