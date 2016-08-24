@@ -28,19 +28,21 @@
 import os
 import uuid
 import krb5
+import ldap3
 import smbconf
 import wbclient
 import logging
 import subprocess
 import errno
+import struct
 import contextlib
 from threading import Thread, Condition
 from datetime import datetime
 from plugin import DirectoryServicePlugin, DirectoryState, params, status
-from utils import obtain_or_renew_ticket, have_ticket
+from utils import domain_to_dn, join_dn, obtain_or_renew_ticket, have_ticket, get_srv_records, LdapQueryBuilder
 from freenas.dispatcher.rpc import SchemaHelper as h
-from freenas.utils import normalize
-from freenas.utils.query import query
+from freenas.utils import normalize, first_or_default
+from freenas.utils.query import get
 
 
 AD_REALM_ID = uuid.UUID('01a35b82-0168-11e6-88d6-0cc47a3511b4')
@@ -52,6 +54,19 @@ logger = logging.getLogger(__name__)
 
 def yesno(val):
     return 'yes' if val else 'no'
+
+
+def convert_sid(binary):
+    version, length = struct.unpack('BB', binary[0:2])
+    authority, = struct.unpack('>Q', b'\x00\x00' + binary[2:8])
+    string = 'S-%d-%d' % (version, authority)
+    binary = binary[8:]
+    assert len(binary) == 4 * length
+    for i in range(length):
+        value, = struct.unpack('<L', binary[4 * i:4 * (i + 1)])
+        string += '-%d' % (value)
+
+    return string
 
 
 @params(h.ref('winbind-directory-params'))
@@ -67,6 +82,8 @@ class WinbindPlugin(DirectoryServicePlugin):
         self.domain_name = None
         self.parameters = None
         self.directory = None
+        self.ldap_servers = None
+        self.ldap = None
         self.cv = Condition()
         self.bind_thread = Thread(target=self.bind, daemon=True)
         self.bind_thread.start()
@@ -86,6 +103,10 @@ class WinbindPlugin(DirectoryServicePlugin):
         return self.parameters['realm']
 
     @property
+    def base_dn(self):
+        return join_dn('CN=Users', domain_to_dn(self.realm))
+
+    @property
     def wbc(self):
         return wbclient.Context()
 
@@ -96,6 +117,10 @@ class WinbindPlugin(DirectoryServicePlugin):
     @property
     def domain_users_sid(self):
         return '{0}-{1}'.format(self.domain_info.sid, 513)
+
+    @property
+    def ldap_addresses(self):
+        return [str(i) for i in get_srv_records('ldap', 'tcp', self.parameters['realm'])]
 
     @staticmethod
     def normalize_parameters(parameters):
@@ -126,6 +151,17 @@ class WinbindPlugin(DirectoryServicePlugin):
     def __renew_ticket(self):
         obtain_or_renew_ticket(self.principal, self.parameters['password'])
 
+    def search(self, search_base, search_filter, attributes=None):
+        if self.ldap.closed:
+            self.ldap.bind()
+
+        id = self.ldap.search(search_base, search_filter, attributes=attributes or ldap3.ALL_ATTRIBUTES)
+        result, status = self.ldap.get_response(id)
+        return result
+
+    def search_one(self, *args, **kwargs):
+        return first_or_default(None, self.search(*args, **kwargs))
+
     def bind(self):
         logger.debug('Bind thread: starting')
         while True:
@@ -145,6 +181,24 @@ class WinbindPlugin(DirectoryServicePlugin):
                         self.domain_info = self.wbc.get_domain_info(self.realm)
                         self.domain_name = self.wbc.interface.netbios_domain
                         self.directory.put_state(DirectoryState.BOUND)
+
+                    if not self.ldap:
+                        logger.debug('Initializing LDAP connection')
+                        self.ldap_servers = [ldap3.Server(i) for i in self.ldap_addresses]
+                        self.ldap = ldap3.Connection(
+                            self.ldap_servers,
+                            client_strategy='ASYNC',
+                            authentication=ldap3.SASL,
+                            sasl_mechanism='GSSAPI'
+                        )
+
+                        try:
+                            self.ldap.bind()
+                            logger.debug('LDAP bound')
+                        except BaseException as err:
+                            self.directory.put_status(errno.ENXIO, str(err))
+                            self.directory.put_state(DirectoryState.FAILURE)
+
                 else:
                     self.leave()
                     self.directory.put_state(DirectoryState.DISABLED)
@@ -163,8 +217,8 @@ class WinbindPlugin(DirectoryServicePlugin):
             'security': 'ads',
             'winbind cache time': str(self.context.cache_ttl),
             'winbind offline logon': 'yes',
-            'winbind enum users': 'yes',
-            'winbind enum groups': 'yes',
+            'winbind enum users': 'no',
+            'winbind enum groups': 'no',
             'winbind nested groups': 'yes',
             'winbind use default domain': 'no',
             'winbind refresh tickets': 'no',
@@ -207,38 +261,35 @@ class WinbindPlugin(DirectoryServicePlugin):
             'domain_controller': self.dc
         }
 
-    def generate_id(self, sid):
-        sid = str(sid).split('-')
-        fields = list(WINBIND_ID_BASE.fields)
-        fields[-1] = int(sid[-1])
-        return str(uuid.UUID(fields=fields))
-
-    def uuid_to_sid(self, id):
-        u = uuid.UUID(id)
-        return wbclient.SID('{0}-{1}'.format(str(self.domain_info.sid), u.node))
-
-    def convert_user(self, user):
-        if not user:
+    def convert_user(self, entry):
+        if not entry:
             return
 
-        domain, username = user.passwd.pw_name.split('\\')
+        entry = dict(entry['attributes'])
+        username = get(entry, 'sAMAccountName.0')
+        logging.debug('entry={0}'.format(entry))
+        wbu = self.wbc.get_user(name='{0}\\{1}'.format(self.realm, username))
+
+        if not wbu:
+            logging.warning('User {0} found in LDAP, but not in winbindd.'.format(username))
+            return
 
         return {
-            'id': self.generate_id(user.sid),
-            'sid': user.sid,
-            'uid': user.passwd.pw_uid,
+            'id': str(uuid.UUID(bytes=get(entry, 'objectGUID.0'))),
+            'sid': convert_sid(get(entry, 'objectSid.0')),
+            'uid': wbu.passwd.pw_uid,
             'builtin': False,
             'username': username,
-            'aliases': [user.passwd.pw_name],
-            'full_name': user.passwd.pw_gecos,
+            'aliases': [wbu.passwd.pw_name],
+            'full_name': get(entry, 'name.0'),
             'email': None,
             'locked': False,
             'sudo': False,
             'password_disabled': False,
-            'group': self.generate_id(self.domain_users_sid),
-            'groups': [self.generate_id(sid) for sid in user.groups],
-            'shell': user.passwd.pw_shell,
-            'home': user.passwd.pw_dir
+            'group': str(uuid.uuid4()),
+            'groups': [],
+            'shell': wbu.passwd.pw_shell,
+            'home': wbu.passwd.pw_dir
         }
 
     def convert_group(self, group):
@@ -259,11 +310,8 @@ class WinbindPlugin(DirectoryServicePlugin):
             logger.debug('getpwent: not joined')
             return []
 
-        return query(
-            [self.convert_user(i) for i in self.wbc.query_users(self.domain_name)],
-            *(filter or []),
-            **(params or {})
-        )
+        results = self.search(self.base_dn, '(objectclass=person)')
+        return (self.convert_user(i) for i in results)
 
     def getpwuid(self, uid):
         logger.debug('getpwuid(uid={0})'.format(uid))
