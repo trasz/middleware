@@ -131,6 +131,16 @@ class DockerBaseTask(ProgressTask):
     def get_default_host(self):
         hostid = self.dispatcher.call_sync('docker.get_config').get('default_host')
         if not hostid:
+            hostid = self.datastore.query(
+                'vms',
+                ('config.docker_host', '=', True),
+                single=True,
+                select='id'
+            )
+            if hostid:
+                self.join_subtasks(self.run_subtask('docker.update', {'default_host': hostid}))
+                return hostid
+
             host_name = 'docker_host_' + str(self.dispatcher.call_sync(
                 'vm.query', [('name', '~', 'docker_host_')], {'count': True}
             ))
