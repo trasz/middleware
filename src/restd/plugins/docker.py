@@ -18,6 +18,9 @@ class DockerContainerCRUD(CRUDBase):
         ContainerStopResource,
     )
 
+    def get_update_method_name(self):
+        return None
+
 
 class DockerSingleItem(SingleItemBase):
     namespace = 'docker'
