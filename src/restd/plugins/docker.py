@@ -13,6 +13,7 @@ class ContainerStopResource(Resource):
 
 class DockerContainerCRUD(CRUDBase):
     namespace = 'docker.container'
+    entity_post = 'atask:docker.container.create'
     item_resources = (
         ContainerStartResource,
         ContainerStopResource,
