@@ -155,9 +155,14 @@ class WinbindPlugin(DirectoryServicePlugin):
         if self.ldap.closed:
             self.ldap.bind()
 
-        id = self.ldap.search(search_base, search_filter, attributes=attributes or ldap3.ALL_ATTRIBUTES)
-        result, status = self.ldap.get_response(id)
-        return result
+        return self.ldap.extend.standard.paged_search(
+            search_base=search_base,
+            search_filter=search_filter,
+            search_scope=ldap3.SUBTREE,
+            attributes=attributes or ldap3.ALL_ATTRIBUTES,
+            paged_size=16,
+            generator=True
+        )
 
     def search_one(self, *args, **kwargs):
         return first_or_default(None, self.search(*args, **kwargs))
