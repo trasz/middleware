@@ -29,12 +29,13 @@ import os
 import uuid
 import krb5
 import ldap3
+import ldap3.utils.conv
 import smbconf
 import wbclient
 import logging
 import subprocess
 import errno
-import struct
+import sid
 import contextlib
 from threading import Thread, Condition
 from datetime import datetime
@@ -54,19 +55,6 @@ logger = logging.getLogger(__name__)
 
 def yesno(val):
     return 'yes' if val else 'no'
-
-
-def convert_sid(binary):
-    version, length = struct.unpack('BB', binary[0:2])
-    authority, = struct.unpack('>Q', b'\x00\x00' + binary[2:8])
-    string = 'S-%d-%d' % (version, authority)
-    binary = binary[8:]
-    assert len(binary) == 4 * length
-    for i in range(length):
-        value, = struct.unpack('<L', binary[4 * i:4 * (i + 1)])
-        string += '-%d' % (value)
-
-    return string
 
 
 @params(h.ref('winbind-directory-params'))
@@ -272,6 +260,7 @@ class WinbindPlugin(DirectoryServicePlugin):
 
         entry = dict(entry['attributes'])
         username = get(entry, 'sAMAccountName.0')
+        usersid = sid.sid(get(entry, 'objectSid.0'), sid.SID_BINARY)
         logging.debug('entry={0}'.format(entry))
         wbu = self.wbc.get_user(name='{0}\\{1}'.format(self.realm, username))
 
@@ -281,7 +270,7 @@ class WinbindPlugin(DirectoryServicePlugin):
 
         return {
             'id': str(uuid.UUID(bytes=get(entry, 'objectGUID.0'))),
-            'sid': convert_sid(get(entry, 'objectSid.0')),
+            'sid': str(usersid),
             'uid': wbu.passwd.pw_uid,
             'builtin': False,
             'username': username,
@@ -324,7 +313,12 @@ class WinbindPlugin(DirectoryServicePlugin):
             logger.debug('getpwuid: not joined')
             return
 
-        return self.convert_user(self.wbc.get_user(uid=uid))
+        wbu = self.wbc.get_user(uid=uid)
+        if not wbu:
+            return
+
+        usid = ldap3.utils.conv.escape_bytes(bytes(wbu.sid))
+        return self.convert_user(self.search_one(self.base_dn, '(objectSid={0})'.format(usid)))
 
     def getpwuuid(self, id):
         logger.debug('getpwuuid(uuid={0})'.format(id))
@@ -332,20 +326,22 @@ class WinbindPlugin(DirectoryServicePlugin):
             logger.debug('getpwuuid: not joined')
             return
 
-        sid = self.uuid_to_sid(uuid)
-        return self.convert_user(self.wbc.get_user(sid=sid))
+        guid = ldap3.utils.conv.escape_bytes(uuid.UUID(id).bytes)
+        return self.convert_user(self.search_one(self.base_dn, '(objectGUID={0})'.format(guid)))
 
     def getpwnam(self, name):
         logger.debug('getpwnam(name={0})'.format(name))
 
-        if '\\' not in name:
-            name = '{0}\\{1}'.format(self.realm, name)
+        if '\\' in name:
+            domain, name = name.split('\\', 1)
+            if domain != self.domain_name:
+                return
 
         if not self.is_joined():
             logger.debug('getpwnam: not joined')
             return
 
-        return self.convert_user(self.wbc.get_user(name=name))
+        return self.convert_user(self.search_one(self.base_dn, '(sAMAccountName={0})'.format(name)))
 
     def getgrent(self, filter=None, params=None):
         logger.debug('getgrent(filter={0}, params={1})'.format(filter, params))
