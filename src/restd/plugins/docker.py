@@ -1,4 +1,4 @@
-from base import CRUDBase, ProviderMixin, Resource, ResourceQueryMixin, SingleItemBase
+from base import CRUDBase, ItemResource, ProviderMixin, Resource, ResourceQueryMixin, SingleItemBase
 
 
 class ContainerStartResource(Resource):
@@ -22,6 +22,24 @@ class DockerContainerCRUD(CRUDBase):
         return None
 
 
+class ImagePullResource(ItemResource):
+    name = 'pull'
+    post = 'atask:docker.image.pull'
+
+
+class DockerImageCRUD(CRUDBase):
+    namespace = 'docker.image'
+    item_resources = (
+        ImagePullResource,
+    )
+
+    def get_create_method_name(self):
+        return None
+
+    def get_update_method_name(self):
+        return None
+
+
 class DockerSingleItem(SingleItemBase):
     namespace = 'docker'
 
@@ -35,4 +53,5 @@ class DockerHostResource(ProviderMixin, ResourceQueryMixin, Resource):
 def _init(rest):
     rest.register_singleitem(DockerSingleItem)
     rest.register_crud(DockerContainerCRUD)
+    rest.register_crud(DockerImageCRUD)
     rest.register_resource(DockerHostResource)
