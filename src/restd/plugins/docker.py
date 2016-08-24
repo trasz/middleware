@@ -1,4 +1,4 @@
-from base import CRUDBase, Resource, SingleItemBase
+from base import CRUDBase, ProviderMixin, Resource, ResourceQueryMixin, SingleItemBase
 
 
 class ContainerStartResource(Resource):
@@ -26,6 +26,13 @@ class DockerSingleItem(SingleItemBase):
     namespace = 'docker'
 
 
+class DockerHostResource(ProviderMixin, ResourceQueryMixin, Resource):
+    name = 'docker/host'
+    provider = 'docker.host'
+    get = 'rpc:docker.host.query'
+
+
 def _init(rest):
     rest.register_singleitem(DockerSingleItem)
     rest.register_crud(DockerContainerCRUD)
+    rest.register_resource(DockerHostResource)
