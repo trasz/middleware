@@ -33,18 +33,23 @@ import errno
 from threading import Thread, Condition
 from datetime import datetime
 from plugin import DirectoryServicePlugin, DirectoryState
-from utils import obtain_or_renew_ticket, join_dn, domain_to_dn, get_srv_records
+from utils import obtain_or_renew_ticket, join_dn, domain_to_dn, get_srv_records, LdapQueryBuilder
 from freenas.utils import normalize, first_or_default
 from freenas.utils.query import get
 
 
 FREEIPA_REALM_ID = uuid.UUID('e44553e1-0c0b-11e6-9898-000c2957240a')
 TICKET_RENEW_LIFE = 30 * 86400  # 30 days
+LDAP_ATTRIBUTE_MAPPING = {
+    'id': 'ipaUniqueID',
+    'uid': 'uidNumber',
+    'username': 'uid',
+    'full_name': 'gecos',
+    'shell': 'loginShell',
+    'home': 'homeDirectory',
+}
+
 logger = logging.getLogger(__name__)
-
-
-def get_ldap_address(realm):
-    pass
 
 
 class FreeIPAPlugin(DirectoryServicePlugin):
@@ -133,8 +138,12 @@ class FreeIPAPlugin(DirectoryServicePlugin):
         }
 
     def getpwent(self, filter=None, params=None):
-        logger.debug('getpwent(filter={0}, params={0})'.format(filter, params))
-        result = self.search(self.user_dn, '(objectclass=posixAccount)')
+        logger.debug('getpwent(filter={0}, params={1})'.format(filter, params))
+        query = LdapQueryBuilder(LDAP_ATTRIBUTE_MAPPING)
+        qstr = query.build_query([['objectclass', '=', 'posixAccount']] + (filter or []))
+        logger.debug('getpwent query string: {0}'.format(qstr))
+
+        result = self.search(self.user_dn, qstr)
         return (self.convert_user(i) for i in result)
 
     def getpwnam(self, name):
