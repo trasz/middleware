@@ -672,36 +672,23 @@ class ContainerConsole(object):
         )
         self.stdin = None
         self.stdout = None
+        self.stderr = None
         self.scrollback = None
         self.console_queues = []
         self.scrollback_t = None
-        self.console_t = None
         self.active = False
         self.lock = threading.Lock()
         self.logger = logging.getLogger('Container:{0}'.format(self.name))
 
     def start_console(self):
-        stdout_r, stdout_w = os.pipe()
-        stdin_r, stdin_w = os.pipe()
-
-        stdin_r_file = open(stdin_r, 'rb', buffering=0)
-        stdout_w_file = open(stdout_w, 'wb', buffering=0)
-
         self.host.ready.wait()
         self.host.connection.start(container=self.id)
-        self.console_t = gevent.spawn(
-            dockerpty.start,
-            self.host.connection,
-            self.id,
-            stdout=stdout_w_file,
-            stderr=stdout_w_file,
-            stdin=stdin_r_file
-        )
 
-        self.stdin = open(stdin_w, 'wb', buffering=0)
-        self.stdout = open(stdout_r, 'rb', buffering=0)
-        flag = fcntl.fcntl(self.stdout.fileno(), fcntl.F_GETFL)
-        fcntl.fcntl(self.stdout.fileno(), fcntl.F_SETFL, flag | os.O_NONBLOCK)
+        operation = dockerpty.pty.RunOperation(self.host.connection, self.id)
+        self.stdin, self.stdout, self.stderr = operation.sockets()
+
+        self.stdout.set_blocking(False)
+        self.stderr.set_blocking(False)
 
         self.scrollback = BinaryRingBuffer(SCROLLBACK_SIZE)
         self.scrollback_t = gevent.spawn(self.console_worker)
@@ -713,7 +700,7 @@ class ContainerConsole(object):
         self.host.connection.stop(container=self.id)
         self.stdin.close()
         self.stdout.close()
-        gevent.joinall([self.scrollback_t, self.console_t])
+        gevent.kill(self.scrollback_t)
 
     def console_register(self):
         with self.lock:
@@ -735,37 +722,45 @@ class ContainerConsole(object):
                 self.stop_console()
 
     def console_write(self, data):
-        try:
-            self.stdin.write(data)
-            self.stdin.flush()
-        except (ValueError, OSError):
-            pass
+        self.stdin.write(data)
 
     def console_worker(self):
         self.logger.debug('Opening console to {0}'.format(self.name))
-        while True:
-            try:
-                fd = self.stdout.fileno()
-                r, w, x = select.select([fd], [], [fd])
 
-                if fd in x:
-                    return
-
-                if fd not in r:
-                    continue
-
-                ch = self.stdout.read(1024)
-                if ch == b'':
-                    return
-            except (OSError, ValueError):
-                return
-
-            self.scrollback.push(ch)
+        def write(data):
+            self.scrollback.push(data)
             try:
                 for i in self.console_queues:
-                    i.put(ch, block=False)
+                    i.put(data, block=False)
             except:
                 pass
+
+        while True:
+            try:
+                fd_o = self.stdout.fileno()
+                fd_e = self.stderr.fileno()
+                r, w, x = select.select([fd_o, fd_e], [], [fd_o, fd_e])
+
+                if any(fd in x for fd in (fd_o, fd_e)):
+                    return
+
+                if not any(fd in r for fd in (fd_o, fd_e)):
+                    continue
+
+                if fd_o in r:
+                    ch = self.stdout.read(1024)
+                    if ch == b'':
+                        return
+                    write(ch)
+
+                if fd_e in r:
+                    ch = self.stderr.read(1024)
+                    if ch == b'':
+                        return
+                    write(ch)
+
+            except (OSError, ValueError):
+                return
 
 
 class ManagementService(RpcService):
