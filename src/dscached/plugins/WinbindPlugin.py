@@ -177,7 +177,8 @@ class WinbindPlugin(DirectoryServicePlugin):
                         # Try to rejoin
                         logger.debug('Keepalive thread: rejoining')
                         self.directory.put_state(DirectoryState.JOINING)
-                        self.join()
+                        if not self.join():
+                            continue
                     else:
                         self.domain_info = self.wbc.get_domain_info(self.realm)
                         self.domain_name = self.wbc.interface.netbios_domain
@@ -478,14 +479,14 @@ class WinbindPlugin(DirectoryServicePlugin):
             self.dc = self.wbc.ping_dc(self.realm)
             self.domain_info = self.wbc.get_domain_info(self.realm)
             self.domain_name = self.wbc.interface.netbios_domain
-            self.directory.put_state(DirectoryState.BOUND)
         except BaseException as err:
             self.directory.put_status(errno.ENXIO, str(err))
             self.directory.put_state(DirectoryState.FAILURE)
-            return
+            return False
 
         logger.info('Sucessfully joined to the domain {0}'.format(self.realm))
         self.directory.put_state(DirectoryState.BOUND)
+        return True
 
     def leave(self):
         logger.info('Leaving domain {0}'.format(self.realm))
