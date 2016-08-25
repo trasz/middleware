@@ -78,6 +78,7 @@ NSS_METHOD_PROTOTYPE(nss_freenas_ghbyname);
 
 static json_t *flat_users;
 static json_t *flat_groups;
+static connection_t *conn = NULL;
 
 static int pw_idx = 0;
 static json_t *pw_results = NULL;
@@ -337,8 +338,8 @@ call_dispatcher(const char *method, json_t *args, json_t **result)
 {
 	struct timespec ts;
 	struct timeval tv;
-	connection_t *conn;
 	rpc_call_t *call;
+	connection_t *conn;
 
 	conn = dispatcher_open("unix:///var/run/dscached.sock");
 	if (conn == NULL)
@@ -375,7 +376,6 @@ static rpc_call_t *
 call_dispatcher_stream(const char *method, json_t *args, json_t **result)
 {
         struct timespec ts;
-        connection_t *conn;
         rpc_call_t *call;
 
         conn = dispatcher_open("unix:///var/run/dscached.sock");
@@ -563,6 +563,11 @@ nss_freenas_endpwent(void *retval, void *mdata, va_list ap)
 	pw_idx = 0;
 	pw_results = NULL;
 
+	if (conn != NULL) {
+		dispatcher_close(conn);
+		conn = NULL;
+	}
+
 	return (NS_SUCCESS);
 }
 
@@ -716,6 +721,11 @@ nss_freenas_endgrent(void *retval, void *mdata, va_list ap)
 
 	pw_idx = 0;
 	pw_results = NULL;
+
+	if (conn != NULL) {
+		dispatcher_close(conn);
+		conn = NULL;
+	}
 
 	return (NS_SUCCESS);
 }
