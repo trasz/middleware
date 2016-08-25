@@ -555,6 +555,12 @@ class DockerHost(object):
         self.connection = docker.Client(base_url='http://{0}:2375'.format(ip))
         self.listener = gevent.spawn(self.listen)
         self.start_notifier = gevent.spawn(self.notify)
+        if self.vm.id == self.context.client.call_sync('docker.get_config').get('default_host'):
+            try:
+                self.context.set_docker_api_forwarding(None)
+                self.context.set_docker_api_forwarding(self.vm.id)
+            except ValueError as err:
+                self.logger.warning('Failed to set up Docker API forwarding to default Docker host: {}'.format(err))
 
     def notify(self):
         ready = False
@@ -1010,6 +1016,16 @@ class DockerService(RpcService):
         except BaseException as err:
             raise RpcException(errno.EFAULT, 'Failed to remove container: {0}'.format(str(err)))
 
+    def set_api_forwarding(self, hostid):
+        if hostid in self.context.docker_hosts:
+            try:
+                self.context.set_docker_api_forwarding(None)
+                self.context.set_docker_api_forwarding(hostid)
+            except ValueError as err:
+                raise RpcException(errno.EINVAL, err)
+        else:
+            self.context.set_docker_api_forwarding(None)
+
 
 class ServerResource(Resource):
     def __init__(self, apps=None, context=None):
@@ -1352,8 +1368,37 @@ class Main(object):
             host.ready.wait()
             yield host
 
+    def set_docker_api_forwarding(self, hostid):
+        p = pf.PF()
+        if hostid:
+            if first_or_default(lambda r: r.proxy_ports[0] == 2375, p.get_rules('rdr')):
+                raise ValueError('Cannot redirect Docker API to {0}: port 2375 already in use'.format(hostid))
+
+            rule = pf.Rule()
+            rule.dst.port_range = [2375, 0]
+            rule.dst.port_op = pf.RuleOperator.EQ
+            rule.action = pf.RuleAction.RDR
+            rule.af = socket.AF_INET
+            rule.ifname = self.default_if
+            rule.natpass = True
+
+            host = self.get_docker_host(hostid)
+
+            rule.redirect_pool.append(pf.Address(
+                address=host.vm.management_lease.lease.client_ip,
+                netmask=ipaddress.ip_address('255.255.255.255')
+            ))
+            rule.proxy_ports = [2375, 0]
+            p.append_rule('rdr', rule)
+
+        else:
+            rule = first_or_default(lambda r: r.proxy_ports[0] == 2375, p.get_rules('rdr'))
+            if rule:
+                p.delete_rule('rdr', rule.index)
+
     def die(self):
         self.logger.warning('Exiting')
+        self.set_docker_api_forwarding(None)
         for i in self.vms.values():
             i.stop(True)
 

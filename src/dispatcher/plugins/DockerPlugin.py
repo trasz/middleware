@@ -29,7 +29,7 @@ import errno
 import gevent
 import dockerhub
 import logging
-from task import Provider, Task, ProgressTask, TaskDescription, TaskException, query
+from task import Provider, Task, ProgressTask, TaskDescription, TaskException, query, TaskWarning
 from cache import EventCacheStore
 from datastore.config import ConfigNode
 from freenas.utils import normalize, query as q
@@ -195,6 +195,14 @@ class DockerUpdateTask(Task):
         return ['system']
 
     def run(self, updated_params):
+        if 'default_host' in updated_params:
+            try:
+                self.dispatcher.call_sync('containerd.docker.set_api_forwarding', updated_params['default_host'])
+            except RpcException as err:
+                self.add_warning(
+                    TaskWarning(err.code, err.message)
+                )
+
         node = ConfigNode('container.docker', self.configstore)
         node.update(updated_params)
 
