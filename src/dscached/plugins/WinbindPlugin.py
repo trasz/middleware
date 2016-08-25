@@ -265,7 +265,6 @@ class WinbindPlugin(DirectoryServicePlugin):
 
         username = get(entry, 'sAMAccountName.0')
         usersid = sid.sid(get(entry, 'objectSid.0'), sid.SID_BINARY)
-        logging.debug('entry={0}'.format(entry))
         wbu = self.wbc.get_user(name='{0}\\{1}'.format(self.realm, username))
 
         if not wbu:
