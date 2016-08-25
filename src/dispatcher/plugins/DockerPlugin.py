@@ -197,9 +197,13 @@ class DockerUpdateTask(Task):
     def run(self, updated_params):
         node = ConfigNode('container.docker', self.configstore)
         node.update(updated_params)
+        state = node.__getstate__()
         if 'api_forwarding' in updated_params:
             try:
-                self.dispatcher.call_sync('containerd.docker.set_api_forwarding', updated_params['api_forwarding'])
+                if state['api_forwarding_enable']:
+                    self.dispatcher.call_sync('containerd.docker.set_api_forwarding', state['api_forwarding'])
+                else:
+                    self.dispatcher.call_sync('containerd.docker.set_api_forwarding', None)
             except RpcException as err:
                 self.add_warning(
                     TaskWarning(err.code, err.message)
@@ -522,7 +526,8 @@ def _init(dispatcher, plugin):
         'additionalProperties': False,
         'properties': {
             'default_host': {'type': ['string', 'null']},
-            'api_forwarding': {'type': ['string', 'null']}
+            'api_forwarding': {'type': ['string', 'null']},
+            'api_forwarding_enable': {'type': 'boolean'}
         }
     })
 
