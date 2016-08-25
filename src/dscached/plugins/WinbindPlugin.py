@@ -206,8 +206,9 @@ class WinbindPlugin(DirectoryServicePlugin):
                         logger.debug('Domain Users GUID is {0}'.format(self.domain_users_guid))
 
                 else:
-                    self.leave()
-                    self.directory.put_state(DirectoryState.DISABLED)
+                    if self.directory.state != DirectoryState.DISABLED:
+                        self.leave()
+                        self.directory.put_state(DirectoryState.DISABLED)
 
     def configure_smb(self, enable):
         workgroup = self.parameters['realm'].split('.')[0]

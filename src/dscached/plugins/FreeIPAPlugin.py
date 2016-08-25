@@ -227,9 +227,10 @@ class FreeIPAPlugin(DirectoryServicePlugin):
                         self.directory.put_state(DirectoryState.FAILURE)
                         continue
                 else:
-                    self.conn.unbind()
-                    self.directory.put_state(DirectoryState.DISABLED)
-                    continue
+                    if self.directory.state != DirectoryState.DISABLED:
+                        self.conn.unbind()
+                        self.directory.put_state(DirectoryState.DISABLED)
+                        continue
 
     def authenticate(self, user, password):
         logger.debug('authenticate(user={0}, password=<...>)'.format(user))
