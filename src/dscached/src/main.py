@@ -495,10 +495,17 @@ class AccountService(RpcService):
         result = []
         user = self.getpwnam(user_name)
 
-        for g in user.get('groups', []):
+        def collect_groups(group):
+            result.append(group['gid'])
+            for i in group.get('parents', []):
+                g = self.context.group_service.getgruuid(i)
+                if g:
+                    collect_groups(g)
+
+        for i in user.get('groups', []):
             try:
-                group = self.context.group_service.getgruuid(g)
-                result.append(group['gid'])
+                g = self.context.group_service.getgruuid(i)
+                collect_groups(g)
             except:
                 continue
 
