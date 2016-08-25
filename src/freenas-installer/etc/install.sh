@@ -249,7 +249,7 @@ install_grub() {
 	mv ${_mnt}/conf/base/etc/local/grub.d/10_ktrueos.bak /tmp/bakup
 	for _disk in ${_disks}; do
 	    _grub_args=""
-	    if [ "$BOOTMODE" = "efi" ] ; then
+	    if [ "$BOOTMODE" = "efi" -a 1 = 0 ] ; then
 		# EFI Mode
 		sed -i '' 's|GRUB_TERMINAL_OUTPUT=console|GRUB_TERMINAL_OUTPUT=gfxterm|g' ${_mnt}/conf/base/etc/local/default/grub
 #		conf/base/etc/local/default/grub
@@ -298,7 +298,7 @@ create_partitions() {
     fi
     gpart destroy -F ${_disk} || true
     if gpart create -s GPT ${_disk}; then
-	if [ "$BOOTMODE" = "efi" ] ; then
+	if [ "$BOOTMODE" = "efi" -a 1 = 0 ] ; then
 	    # EFI Mode
 	    sysctl kern.geom.debugflags=16
 	    sysctl kern.geom.label.disk_ident.enable=0
@@ -383,7 +383,7 @@ partition_disk() {
 	    dd if=/dev/zero of=/dev/${_disk} bs=1m count=1 >&2
 
 	    create_partitions ${_disk} ${_minsize} >&2
-	    if [ "$BOOTMODE" != "efi" ] ; then
+	    if [ "$BOOTMODE" != "efi" -a 1 = 0 ] ; then
 	      # Make the disk active
 	      gpart set -a active ${_disk} >&2
 	    fi
