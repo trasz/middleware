@@ -258,6 +258,10 @@ class WinbindPlugin(DirectoryServicePlugin):
         if not entry:
             return
 
+        if 'user' not in get(entry, 'objectClass'):
+            # not a user
+            return
+
         entry = dict(entry['attributes'])
         username = get(entry, 'sAMAccountName.0')
         usersid = sid.sid(get(entry, 'objectSid.0'), sid.SID_BINARY)
@@ -288,6 +292,10 @@ class WinbindPlugin(DirectoryServicePlugin):
 
     def convert_group(self, entry):
         if not entry:
+            return
+
+        if 'group' not in get(entry, 'objectClass'):
+            # not a group
             return
 
         entry = dict(entry['attributes'])
@@ -381,9 +389,8 @@ class WinbindPlugin(DirectoryServicePlugin):
             logger.debug('getgruuid: not joined')
             return
 
-        sid = self.uuid_to_sid(id)
-        logger.debug('getgruuid: SID={0}'.format(sid))
-        return self.convert_group(self.wbc.get_group(sid=sid))
+        guid = ldap3.utils.conv.escape_bytes(uuid.UUID(id).bytes)
+        return self.convert_group(self.search_one(self.base_dn, '(objectGUID={0})'.format(guid)))
 
     def getgrgid(self, gid):
         logger.debug('getgrgid(gid={0})'.format(gid))
