@@ -258,11 +258,11 @@ class WinbindPlugin(DirectoryServicePlugin):
         if not entry:
             return
 
+        entry = dict(entry['attributes'])
         if 'user' not in get(entry, 'objectClass'):
             # not a user
             return
 
-        entry = dict(entry['attributes'])
         username = get(entry, 'sAMAccountName.0')
         usersid = sid.sid(get(entry, 'objectSid.0'), sid.SID_BINARY)
         logging.debug('entry={0}'.format(entry))
@@ -294,14 +294,14 @@ class WinbindPlugin(DirectoryServicePlugin):
         if not entry:
             return
 
+        entry = dict(entry['attributes'])
         if 'group' not in get(entry, 'objectClass'):
             # not a group
             return
 
-        entry = dict(entry['attributes'])
         groupname = get(entry, 'sAMAccountName.0')
         groupsid = sid.sid(get(entry, 'objectSid.0'), sid.SID_BINARY)
-        wbg = self.wbc.get_group (name='{0}\\{1}'.format(self.realm, groupname))
+        wbg = self.wbc.get_group(name='{0}\\{1}'.format(self.realm, groupname))
 
         if not wbg:
             logging.warning('Group {0} found in LDAP, but not in winbindd.'.format(groupname))
@@ -374,14 +374,16 @@ class WinbindPlugin(DirectoryServicePlugin):
     def getgrnam(self, name):
         logger.debug('getgrnam(name={0})'.format(name))
 
-        if '\\' not in name:
-            name = '{0}\\{1}'.format(self.realm, name)
+        if '\\' in name:
+            domain, name = name.split('\\', 1)
+            if domain != self.domain_name:
+                return
 
         if not self.is_joined():
             logger.debug('getgrnam: not joined')
             return
 
-        return self.convert_group(self.wbc.get_group(name=name))
+        return self.convert_group(self.search_one(self.base_dn, '(sAMAccountName={0})'.format(name)))
 
     def getgruuid(self, id):
         logger.debug('getgruuid(uuid={0})'.format(id))
@@ -398,7 +400,12 @@ class WinbindPlugin(DirectoryServicePlugin):
             logger.debug('getgrgid: not joined')
             return
 
-        return self.convert_group(self.wbc.get_group(gid=gid))
+        wbg = self.wbc.get_group(gid=gid)
+        if not wbg:
+            return
+
+        usid = ldap3.utils.conv.escape_bytes(bytes(wbg.sid))
+        return self.convert_group(self.search_one(self.base_dn, '(objectSid={0})'.format(usid)))
 
     def configure(self, enable, directory):
         with self.cv:
