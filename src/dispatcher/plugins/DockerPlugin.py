@@ -195,16 +195,15 @@ class DockerUpdateTask(Task):
         return ['system']
 
     def run(self, updated_params):
-        if 'default_host' in updated_params:
+        node = ConfigNode('container.docker', self.configstore)
+        node.update(updated_params)
+        if 'api_forwarding' in updated_params:
             try:
-                self.dispatcher.call_sync('containerd.docker.set_api_forwarding', updated_params['default_host'])
+                self.dispatcher.call_sync('containerd.docker.set_api_forwarding', updated_params['api_forwarding'])
             except RpcException as err:
                 self.add_warning(
                     TaskWarning(err.code, err.message)
                 )
-
-        node = ConfigNode('container.docker', self.configstore)
-        node.update(updated_params)
 
 
 @description('Creates a Docker container')
@@ -522,7 +521,8 @@ def _init(dispatcher, plugin):
         'type': 'object',
         'additionalProperties': False,
         'properties': {
-            'default_host': {'type': ['string', 'null']}
+            'default_host': {'type': ['string', 'null']},
+            'api_forwarding': {'type': ['string', 'null']}
         }
     })
 

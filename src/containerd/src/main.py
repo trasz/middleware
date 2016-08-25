@@ -555,12 +555,14 @@ class DockerHost(object):
         self.connection = docker.Client(base_url='http://{0}:2375'.format(ip))
         self.listener = gevent.spawn(self.listen)
         self.start_notifier = gevent.spawn(self.notify)
-        if self.vm.id == self.context.client.call_sync('docker.get_config').get('default_host'):
+        if self.vm.id == self.context.client.call_sync('docker.get_config').get('api_forwarding'):
             try:
                 self.context.set_docker_api_forwarding(None)
                 self.context.set_docker_api_forwarding(self.vm.id)
             except ValueError as err:
-                self.logger.warning('Failed to set up Docker API forwarding to default Docker host: {}'.format(err))
+                self.logger.warning(
+                    'Failed to set up Docker API forwarding to Docker host {0}: {1}'.format(self.vm.name, err)
+                )
 
     def notify(self):
         ready = False
@@ -841,6 +843,7 @@ class ManagementService(RpcService):
             raise RpcException(errno.EACCES, 'Container {0} is already stopped'.format(container['name']))
 
         if vm.config.get('docker_host', False):
+            self.context.set_docker_api_forwarding(None)
             self.context.docker_hosts.pop(id, None)
             self.context.client.emit_event('containerd.docker.host.changed', {
                 'operation': 'delete',
