@@ -32,8 +32,8 @@ from ldap3.utils.conv import escape_filter_chars
 
 
 class LdapQueryBuilder(object):
-    def __init__(self, mappings):
-        self.mappings = mappings
+    def __init__(self, mappings=None):
+        self.mappings = mappings or {}
 
     def _predicate(self, *args):
         if len(args) == 2:
@@ -51,6 +51,11 @@ class LdapQueryBuilder(object):
 
         if op == '!=':
             return '(!({0}={1}))'.format(self.mappings.get(name, name), escape_filter_chars(str(value)))
+
+        if op == 'in':
+            return self._joint_predicate('or', [
+                (self.mappings.get(name, name), '=', str(v)) for v in value
+            ])
 
     def _joint_predicate(self, op, value):
         if op == 'or':

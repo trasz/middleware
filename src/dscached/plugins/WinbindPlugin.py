@@ -307,11 +307,23 @@ class WinbindPlugin(DirectoryServicePlugin):
 
         groupname = get(entry, 'sAMAccountName.0')
         groupsid = sid.sid(get(entry, 'objectSid.0'), sid.SID_BINARY)
+        parents = []
         wbg = self.wbc.get_group(name='{0}\\{1}'.format(self.realm, groupname))
 
         if not wbg:
             logging.warning('Group {0} found in LDAP, but not in winbindd.'.format(groupname))
             return
+
+        if get(entry, 'memberOf'):
+            builder = LdapQueryBuilder()
+            qstr = builder.build_query([
+                ('distinguishedName', 'in', get(entry, 'memberOf'))
+            ])
+
+            for r in self.search(self.base_dn, qstr):
+                r = dict(r['attributes'])
+                guid = uuid.UUID(bytes=get(r, 'objectGUID.0'))
+                parents.append(str(guid))
 
         return {
             'id': str(uuid.UUID(bytes=get(entry, 'objectGUID.0'))),
@@ -320,6 +332,7 @@ class WinbindPlugin(DirectoryServicePlugin):
             'builtin': False,
             'name': groupname,
             'aliases': [wbg.group.gr_name],
+            'parents': parents,
             'sudo': False
         }
 
