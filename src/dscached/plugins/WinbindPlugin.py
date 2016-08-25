@@ -272,11 +272,23 @@ class WinbindPlugin(DirectoryServicePlugin):
 
         username = get(entry, 'sAMAccountName.0')
         usersid = sid.sid(get(entry, 'objectSid.0'), sid.SID_BINARY)
+        groups = []
         wbu = self.wbc.get_user(name='{0}\\{1}'.format(self.realm, username))
 
         if not wbu:
             logging.warning('User {0} found in LDAP, but not in winbindd.'.format(username))
             return
+
+        if get(entry, 'memberOf'):
+            builder = LdapQueryBuilder()
+            qstr = builder.build_query([
+                ('distinguishedName', 'in', get(entry, 'memberOf'))
+            ])
+
+            for r in self.search(self.base_dn, qstr):
+                r = dict(r['attributes'])
+                guid = uuid.UUID(bytes=get(r, 'objectGUID.0'))
+                groups.append(str(guid))
 
         return {
             'id': str(uuid.UUID(bytes=get(entry, 'objectGUID.0'))),
@@ -291,7 +303,7 @@ class WinbindPlugin(DirectoryServicePlugin):
             'sudo': False,
             'password_disabled': False,
             'group': str(uuid.uuid4()),
-            'groups': [],
+            'groups': groups,
             'shell': wbu.passwd.pw_shell,
             'home': wbu.passwd.pw_dir
         }
