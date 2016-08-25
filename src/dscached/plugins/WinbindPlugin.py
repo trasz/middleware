@@ -286,15 +286,26 @@ class WinbindPlugin(DirectoryServicePlugin):
             'home': wbu.passwd.pw_dir
         }
 
-    def convert_group(self, group):
-        domain, groupname = group.group.gr_name.split('\\')
+    def convert_group(self, entry):
+        if not entry:
+            return
+
+        entry = dict(entry['attributes'])
+        groupname = get(entry, 'sAMAccountName.0')
+        groupsid = sid.sid(get(entry, 'objectSid.0'), sid.SID_BINARY)
+        wbg = self.wbc.get_group (name='{0}\\{1}'.format(self.realm, groupname))
+
+        if not wbg:
+            logging.warning('Group {0} found in LDAP, but not in winbindd.'.format(groupname))
+            return
+
         return {
-            'id': self.generate_id(group.sid),
-            'sid': group.sid,
-            'gid': group.group.gr_gid,
+            'id': str(uuid.UUID(bytes=get(entry, 'objectGUID.0'))),
+            'sid': str(groupsid),
+            'gid': wbg.group.gr_gid,
             'builtin': False,
             'name': groupname,
-            'aliases': [group.group.gr_name],
+            'aliases': [wbg.group.gr_name],
             'sudo': False
         }
 
@@ -304,7 +315,7 @@ class WinbindPlugin(DirectoryServicePlugin):
             logger.debug('getpwent: not joined')
             return []
 
-        results = self.search(self.base_dn, '(objectclass=person)')
+        results = self.search(self.base_dn, '(objectClass=person)')
         return (self.convert_user(i) for i in results)
 
     def getpwuid(self, uid):
@@ -349,11 +360,8 @@ class WinbindPlugin(DirectoryServicePlugin):
             logger.debug('getgrent: not joined')
             return []
 
-        return query(
-            [self.convert_group(i) for i in self.wbc.query_groups(self.domain_name)],
-            *(filter or []),
-            **(params or {})
-        )
+        results = self.search(self.base_dn, '(objectClass=group)')
+        return (self.convert_group(i) for i in results)
 
     def getgrnam(self, name):
         logger.debug('getgrnam(name={0})'.format(name))
