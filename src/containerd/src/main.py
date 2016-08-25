@@ -708,8 +708,13 @@ class ContainerConsole(object):
         self.host.ready.wait()
         self.stdin.write(b'\x10\x11')
         self.stdin.close()
+        if isinstance(self.stdout, socket.SocketIO):
+            self.stdout.fd.shutdown(socket.SHUT_RDWR)
+        if isinstance(self.stderr, socket.SocketIO):
+            self.stderr.fd.shutdown(socket.SHUT_RDWR)
         self.stdout.close()
-        gevent.kill(self.scrollback_t)
+        self.stderr.close()
+        self.scrollback_t.join()
 
     def console_register(self):
         with self.lock:
