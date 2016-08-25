@@ -50,6 +50,13 @@ AD_REALM_ID = uuid.UUID('01a35b82-0168-11e6-88d6-0cc47a3511b4')
 WINBIND_ID_BASE = uuid.UUID('e6ae958e-fdaa-44a1-8905-0a0c8d015245')
 WINBINDD_PIDFILE = '/var/run/samba4/winbindd.pid'
 WINBINDD_KEEPALIVE = 60
+AD_LDAP_ATTRIBUTE_MAPPING = {
+    'id': 'objectGUID',
+    'sd': 'objectSid',
+    'username': 'sAMAccountName',
+    'full_name': 'name'
+}
+
 logger = logging.getLogger(__name__)
 
 
@@ -322,7 +329,10 @@ class WinbindPlugin(DirectoryServicePlugin):
             logger.debug('getpwent: not joined')
             return []
 
-        results = self.search(self.base_dn, '(objectClass=person)')
+        query = LdapQueryBuilder(AD_LDAP_ATTRIBUTE_MAPPING)
+        qstr = query.build_query([['objectClass', '=', 'person']] + (filter or []))
+        logger.debug('getpwent query string: {0}'.format(qstr))
+        results = self.search(self.base_dn, qstr)
         return (self.convert_user(i) for i in results)
 
     def getpwuid(self, uid):
