@@ -79,6 +79,7 @@ class WinbindPlugin(DirectoryServicePlugin):
         self.directory = None
         self.ldap_servers = None
         self.ldap = None
+        self.domain_users_guid = None
         self.cv = Condition()
         self.bind_thread = Thread(target=self.bind, daemon=True)
         self.bind_thread.start()
@@ -199,6 +200,11 @@ class WinbindPlugin(DirectoryServicePlugin):
                             self.directory.put_status(errno.ENXIO, str(err))
                             self.directory.put_state(DirectoryState.FAILURE)
 
+                        # Prefetch "Domain Users" GUID
+                        du = self.search_one(self.base_dn, '(sAMAccountName=Domain Users)')
+                        self.domain_users_guid = uuid.UUID(bytes=du['attributes']['objectGUID'][0])
+                        logger.debug('Domain Users GUID is {0}'.format(self.domain_users_guid))
+
                 else:
                     self.leave()
                     self.directory.put_state(DirectoryState.DISABLED)
@@ -302,7 +308,7 @@ class WinbindPlugin(DirectoryServicePlugin):
             'locked': False,
             'sudo': False,
             'password_disabled': False,
-            'group': str(uuid.uuid4()),
+            'group': str(self.domain_users_guid),
             'groups': groups,
             'shell': wbu.passwd.pw_shell,
             'home': wbu.passwd.pw_dir
