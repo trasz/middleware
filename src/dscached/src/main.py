@@ -738,6 +738,13 @@ class Main(object):
                 self.directories
             )
 
+    def wait_for_etcd(self):
+        self.client.test_or_wait_for_event(
+            'plugin.service_resume',
+            lambda args: args['name'] == 'etcd.generation',
+            lambda: 'etcd.generation' in self.client.call_sync('discovery.get_services')
+        )
+
     def init_datastore(self):
         try:
             self.datastore = datastore.get_datastore()
@@ -826,7 +833,7 @@ class Main(object):
                 directory = Directory(self, i)
                 self.directories.append(directory)
                 directory.configure()
-            except BaseException as err:
+            except:
                 continue
 
     def load_config(self):
@@ -850,6 +857,7 @@ class Main(object):
         self.load_config()
         self.init_server(args.s)
         self.scan_plugins()
+        self.wait_for_etcd()
         self.init_directories()
         self.client.wait_forever()
 
