@@ -550,7 +550,7 @@ class Balancer(object):
         for f in file_name_list:
             rfd, wfd = os.pipe()
             fd_list.append(FileDescriptor(wfd))
-            url_list.append(":5000/filedownload?token={0}".format(
+            url_list.append("/dispatcher/filedownload?token={0}".format(
                 self.dispatcher.token_store.issue_token(FileToken(
                     user=sender.user,
                     lifetime=60,
