@@ -706,7 +706,7 @@ class ContainerConsole(object):
     def stop_console(self):
         self.active = False
         self.host.ready.wait()
-        self.host.connection.stop(container=self.id)
+        self.stdin.write(b'\x10\x11')
         self.stdin.close()
         self.stdout.close()
         gevent.kill(self.scrollback_t)
@@ -727,7 +727,7 @@ class ContainerConsole(object):
 
             self.logger.debug('Stopped a console queue')
             if not len(self.console_queues):
-                self.logger.debug('Last console queue stopped. Closing console')
+                self.logger.debug('Last console queue stopped. Detaching console')
                 self.stop_console()
 
     def console_write(self, data):
