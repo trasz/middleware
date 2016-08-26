@@ -460,23 +460,6 @@ class ReplicationPrepareSlaveTask(ReplicationBaseTask):
         return ['replication']
 
     def run(self, link):
-        def match_disk(empty_disks, path):
-            disk_config = self.dispatcher.call_sync('disk.get_disk_config', path)
-            matching_disks = sorted(empty_disks, key=lambda d: d['mediasize'])
-            disk = first_or_default(lambda d: d['mediasize'] >= disk_config['mediasize'], matching_disks)
-            if not disk:
-                raise TaskException(
-                    errno.ENOENT,
-                    'Cannot create a disk match for local disk {0}.'
-                    'There are no empty disks left on {1} with mediasize equal or greater than {2}.'.format(
-                        disk_config['gdisk_name'],
-                        remote,
-                        disk_config['mediasize']
-                    )
-                )
-            del empty_disks[empty_disks.index(disk)]
-            return disk
-
         is_master, remote = self.get_replication_state(link)
         remote_client = get_replication_client(self.dispatcher, remote)
 
@@ -546,45 +529,10 @@ class ReplicationPrepareSlaveTask(ReplicationBaseTask):
 
                     if not remote_dataset:
                         if not remote_volume:
-
-                            empty_disks = remote_client.call_sync('disk.query', [('status.empty', '=', True)])
-                            if len(empty_disks) == 0:
-                                raise TaskException(
-                                    errno.ENOENT,
-                                    'There are no empty disks left on {0} to be choose from'.format(remote)
-                                )
-                            topology = vol['topology']
-
-                            for group_type in topology:
-                                for item in topology[group_type]:
-                                    if item['type'] == 'disk':
-                                        item['path'] = match_disk(empty_disks, item['path'])['path']
-                                    else:
-                                        for vdev in item['children']:
-                                            vdev['path'] = match_disk(empty_disks, vdev['path'])['path']
-
-                            try:
-                                call_task_and_check_state(
-                                    remote_client,
-                                    'volume.create',
-                                    {
-                                        'id': vol['id'],
-                                        'type': vol['type'],
-                                        'params': {'mount': False},
-                                        'topology': topology
-                                    }
-                                )
-                            except RpcException as e:
-                                raise TaskException(
-                                    e.code,
-                                    'Cannot create exact duplicate of {0} on {1}. Message: {2}'.format(
-                                        volume_name,
-                                        remote,
-                                        e.message
-                                    ),
-                                    stacktrace=e.stacktrace
-                                )
-
+                            raise TaskException(
+                                errno.ENOENT,
+                                'Volume {0} not found at slave. Please create it first.'.format(volume_name)
+                            )
                         if dataset_name:
                             for idx, sub_dataset in enumerate(dataset_name.split('/')):
                                 sub_dataset_name = volume_name + '/' + '/'.join(dataset_name.split('/')[0:idx+1])
