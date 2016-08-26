@@ -25,12 +25,12 @@
 #
 #####################################################################
 
+import errno
 import time
 from task import Provider, query
 from auth import Token
-from freenas.dispatcher.rpc import (
-    description, pass_sender, returns, accepts, generator, SchemaHelper as h
-)
+from freenas.dispatcher.rpc import RpcException, description, pass_sender, returns, accepts, generator, SchemaHelper as h
+from freenas.utils import first_or_default
 
 
 @description("Provides Information about the current loggedin Session")
@@ -79,6 +79,26 @@ class SessionProvider(Provider):
             )
         )
 
+    @description("Sends a message to given session")
+    @accepts(int, str)
+    @pass_sender
+    def send_to_session(self, id, message, sender):
+        target = None
+        for srv in self.dispatcher.ws_servers:
+            target = first_or_default(lambda s: s.session_id == id, srv)
+            if target:
+                break
+
+        if not target:
+            raise RpcException(errno.ENOENT, 'Session {0} not found'.format(id))
+
+        target.outgoing_events.put(('session.message', {
+            'sender_id': sender.session_id,
+            'sender_name': sender.user.name if sender.user else None,
+            'message': message
+        }))
+
+
 
 def _init(dispatcher, plugin):
     def pam_event(args):
@@ -119,4 +139,6 @@ def _init(dispatcher, plugin):
     })
 
     plugin.register_provider('session', SessionProvider)
+    plugin.register_event_type('session.changed')
+    plugin.register_event_type('session.message')
     plugin.register_event_handler('system.pam.event', pam_event)
