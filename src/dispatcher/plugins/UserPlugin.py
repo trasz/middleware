@@ -93,7 +93,7 @@ class UserProvider(Provider):
                     return self.dispatcher.call_sync('dscached.account.getpwnam', value)
 
         return q.query(
-            self.dispatcher.call_sync('dscached.account.query'),
+            self.dispatcher.call_sync('dscached.account.query', filter, params),
             *(filter or []), stream=True, **(params or {})
         )
 
@@ -140,7 +140,7 @@ class GroupProvider(Provider):
                     return self.dispatcher.call_sync('dscached.group.getgrnam', value)
 
         return q.query(
-            self.dispatcher.call_sync('dscached.group.query',),
+            self.dispatcher.call_sync('dscached.group.query', filter, params),
             *(filter or []), stream=True, **(params or {})
         )
 
