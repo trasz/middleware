@@ -1757,6 +1757,7 @@ def _init(dispatcher, plugin):
 
     plugin.register_schema_definition('vm-device', {
         'type': 'object',
+        'discriminator': 'type',
         'additionalProperties': False,
         'properties': {
             'id': {'type': 'string'},
@@ -1783,6 +1784,7 @@ def _init(dispatcher, plugin):
         'type': 'object',
         'additionalProperties': False,
         'properties': {
+            'type': {'enum': ['vm-device-nic']},
             'device': {'$ref': 'vm-device-nic-device'},
             'mode': {'$ref': 'vm-device-nic-mode'},
             'link_address': {'type': 'string'},
@@ -1804,10 +1806,12 @@ def _init(dispatcher, plugin):
         'type': 'object',
         'additionalProperties': False,
         'properties': {
+            'type': {'enum': ['vm-device-disk']},
             'mode': {'$ref': 'vm-device-disk-mode'},
             'size': {'type': 'integer'},
             'source': {'type': 'string'}
-        }
+        },
+        'required': ['size']
     })
 
     plugin.register_schema_definition('vm-device-disk-mode', {
@@ -1819,8 +1823,11 @@ def _init(dispatcher, plugin):
         'type': 'object',
         'additionalProperties': False,
         'properties': {
+            'type': {'enum': ['vm-device-cdrom']},
             'path': {'type': 'string'}
-        }
+        },
+        'required': ['path']
+
     })
 
     plugin.register_schema_definition('vm-device-volume', {
@@ -1842,6 +1849,7 @@ def _init(dispatcher, plugin):
         'type': 'object',
         'additionalProperties': False,
         'properties': {
+            'type': {'enum': ['vm-device-graphics']},
             'resolution': {'$ref': 'vm-device-graphics-resolution'},
             'vnc_enabled': {'type': 'boolean'},
             'vnc_port': {
@@ -1886,11 +1894,13 @@ def _init(dispatcher, plugin):
         'type': 'object',
         'additionalProperties': False,
         'properties': {
+            'type': {'enum': ['vm-device-usb']},
             'device': {'$ref': 'vm-device-usb-device'},
             'config': {
                 'type': 'object'  # XXX: not sure what goes there
             }
-        }
+        },
+        'required': ['device']
     })
 
     plugin.register_schema_definition('vm-device-usb-device', {
