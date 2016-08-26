@@ -1844,7 +1844,7 @@ def _init(dispatcher, plugin):
         'properties': {
             'resolution': {'$ref': 'vm-device-graphics-resolution'},
             'vnc_enabled': {'type': 'boolean'},
-            'vnc_port': {'type': ['integer', 'null']}
+            'vnc_port': {'$ref': 'vm-device-graphics-vncport'}
         }
     })
 
@@ -1861,6 +1861,12 @@ def _init(dispatcher, plugin):
             '800x600',
             '640x480'
         ]
+    })
+
+    plugin.register_schema_definition('vm-device-graphics-vncport', {
+        'type': ['integer', 'null'],
+        'mininum': 1,
+        'maximum': 65535
     })
 
     plugin.register_schema_definition('vm-guest-type', {
