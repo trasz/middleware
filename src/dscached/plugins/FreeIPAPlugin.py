@@ -106,6 +106,7 @@ class FreeIPAPlugin(DirectoryServicePlugin):
 
     def convert_user(self, entry):
         entry = dict(entry['attributes'])
+        groups = []
         group = None
 
         if 'gidNumber.0' in entry:
@@ -116,6 +117,16 @@ class FreeIPAPlugin(DirectoryServicePlugin):
             )
 
             group = dict(group['attributes'])
+
+        if get(entry, 'memberOf'):
+            builder = LdapQueryBuilder()
+            qstr = builder.build_query([
+                ('dn', 'in', get(entry, 'memberOf'))
+            ])
+
+            for r in self.search(self.base_dn, qstr):
+                r = dict(r['attributes'])
+                groups.append(get(r, 'ipaUniqueID.0'))
 
         return {
             'id': get(entry, 'ipaUniqueID.0'),
@@ -128,7 +139,7 @@ class FreeIPAPlugin(DirectoryServicePlugin):
             'home': get(entry, 'homeDirectory.0', '/nonexistent'),
             'sshpubkey': get(entry, 'ipaSshPubKey.0', None),
             'group': get(group, 'ipaUniqueID.0') if group else None,
-            'groups': [],
+            'groups': groups,
             'sudo': False
         }
 
