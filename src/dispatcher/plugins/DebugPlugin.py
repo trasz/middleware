@@ -118,7 +118,7 @@ class CollectDebugTask(ProgressTask):
                         done += 1
 
         except BrokenPipeError as err:
-            raise TaskException(errno.EPIPE, 'The download timed out, error: {0}'.format(str(err)))
+            raise TaskException(errno.EPIPE, 'The download timed out') from err
 
 
 @accepts(str)
