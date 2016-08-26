@@ -548,7 +548,7 @@ class GroupService(RpcService):
         params = params or {}
         single = params.get('single', False)
         for d in self.context.get_enabled_directories():
-            result = d.instance.getpwent(filter, params)
+            result = d.instance.getgrent(filter, params)
             if single:
                 if result:
                     yield result
