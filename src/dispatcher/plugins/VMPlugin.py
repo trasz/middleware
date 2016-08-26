@@ -594,6 +594,7 @@ class VMCreateTask(VMBaseTask):
         self.init_dataset(vm)
         devices_len = len(vm['devices'])
         for idx, res in enumerate(vm['devices']):
+            res.pop('id', None)
             self.create_device(vm, res, lambda p, m, e=None: collect_progress('Initializing VM devices:', 30, p, m, e))
 
         self.init_files(vm, lambda p, m, e=None: self.chunk_progress(60, 90, 'Initializing VM files:', p, m, e))
@@ -777,6 +778,7 @@ class VMUpdateTask(VMBaseTask):
                 self.join_subtasks(self.run_subtask('vm.cache.update', vm['template']['name']))
 
             for res in updated_params['devices']:
+                res.pop('id', None)
                 existing = first_or_default(lambda i: i['name'] == res['name'], vm['devices'])
                 if existing:
                     self.update_device(vm, existing, res)
@@ -1757,6 +1759,7 @@ def _init(dispatcher, plugin):
         'type': 'object',
         'additionalProperties': False,
         'properties': {
+            'id': {'type': 'string'},
             'name': {'type': 'string'},
             'type': {'$ref': 'vm-device-type'},
             'properties': {'oneOf': [
