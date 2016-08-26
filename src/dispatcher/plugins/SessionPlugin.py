@@ -28,7 +28,6 @@
 import errno
 import time
 from task import Provider, query
-from auth import Token
 from freenas.dispatcher.rpc import RpcException, description, pass_sender, returns, accepts, generator, SchemaHelper as h
 from freenas.utils import first_or_default
 
