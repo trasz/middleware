@@ -1153,12 +1153,21 @@ class DispatcherConnection(ServerConnection):
             'username': self.user.name
         })
 
+        self.dispatcher.dispatch_event('session.changed', {
+            'operation': 'create',
+            'ids': [self.session_id]
+        })
+
     def close_session(self):
         if self.session_id:
             session = self.dispatcher.datastore.get_by_id('sessions', self.session_id)
             session['active'] = False
             session['ended_at'] = datetime.datetime.utcnow()
             self.dispatcher.datastore.update('sessions', self.session_id, session)
+            self.dispatcher.dispatch_event('session.changed', {
+                'operation': 'update',
+                'ids': [self.session_id]
+            })
 
         if isinstance(self.user, User):
             self.dispatcher.dispatch_event('server.client_logout', {
