@@ -33,7 +33,9 @@ import logging
 from freenas.dispatcher.rpc import RpcException, SchemaHelper as h, description, accepts, returns, private
 from freenas.dispatcher.fd import FileDescriptor
 from lib.system import system, SubprocessException
-from task import Provider, Task, ProgressTask, TaskWarning, TaskDescription, ValidationException
+from task import (
+    Provider, Task, ProgressTask, TaskWarning, TaskDescription, ValidationException, TaskException
+)
 
 logger = logging.getLogger('DebugPlugin')
 
@@ -92,27 +94,31 @@ class CollectDebugTask(ProgressTask):
             )
 
     def run(self, fd):
-        with os.fdopen(fd.fd, 'wb') as f:
-            with tarfile.open(fileobj=f, mode='w:gz', dereference=True) as tar:
-                plugins = self.dispatcher.call_sync('management.get_plugin_names')
-                total = len(plugins)
-                done = 0
+        try:
+            with os.fdopen(fd.fd, 'wb') as f:
+                with tarfile.open(fileobj=f, mode='w:gz', dereference=True) as tar:
+                    plugins = self.dispatcher.call_sync('management.get_plugin_names')
+                    total = len(plugins)
+                    done = 0
 
-                # Iterate over plugins
-                for plugin in plugins:
-                    self.set_progress(done / total * 100, 'Collecting debug info for {0}'.format(plugin))
-                    try:
-                        hooks = self.dispatcher.call_sync('management.collect_debug', plugin)
-                    except RpcException as err:
-                        self.add_warning(
-                            TaskWarning(err.code, 'Cannot collect debug data for {0}: {1}'.format(plugin, err.message))
-                        )
-                        continue
+                    # Iterate over plugins
+                    for plugin in plugins:
+                        self.set_progress(done / total * 100, 'Collecting debug info for {0}'.format(plugin))
+                        try:
+                            hooks = self.dispatcher.call_sync('management.collect_debug', plugin)
+                        except RpcException as err:
+                            self.add_warning(
+                                TaskWarning(err.code, 'Cannot collect debug data for {0}: {1}'.format(plugin, err.message))
+                            )
+                            continue
 
-                    for hook in hooks:
-                        self.process_hook(hook, plugin, tar)
+                        for hook in hooks:
+                            self.process_hook(hook, plugin, tar)
 
-                    done += 1
+                        done += 1
+
+        except BrokenPipeError as err:
+            raise TaskException(errno.EPIPE, 'The download timed out, error: {0}'.format(str(err)))
 
 
 @accepts(str)
