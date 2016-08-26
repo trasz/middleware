@@ -134,10 +134,23 @@ class FreeIPAPlugin(DirectoryServicePlugin):
 
     def convert_group(self, entry):
         entry = dict(entry['attributes'])
+        parents = []
+
+        if get(entry, 'memberOf'):
+            builder = LdapQueryBuilder()
+            qstr = builder.build_query([
+                ('dn', 'in', get(entry, 'memberOf'))
+            ])
+
+            for r in self.search(self.base_dn, qstr):
+                r = dict(r['attributes'])
+                parents.append(get(r, 'ipaUniqueID.0'))
+
         return {
             'id': get(entry, 'ipaUniqueID.0'),
             'gid': int(get(entry, 'gidNumber.0')),
             'name': get(entry, 'cn.0'),
+            'parents': parents,
             'builtin': False,
             'sudo': False
         }
