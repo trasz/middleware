@@ -306,7 +306,10 @@ class UserCreateTask(Task):
                 except RpcException as err:
                     raise TaskException(err.code, err.message)
                 os.makedirs(user['home'])
-            group = self.datastore.get_by_id('groups', user['group'])
+            group = self.dispatcher.call_sync('group.query', [('id', '=', user['group'])], {'single': True})
+            if not group:
+                raise TaskException(errno.ENOENT, 'Group {0} not found'.format(user['group']))
+
             os.chown(user['home'], uid, group['gid'])
             os.chmod(user['home'], 0o755)
 
