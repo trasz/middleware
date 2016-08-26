@@ -105,7 +105,7 @@ class DebugService(RpcService):
 
     @generator
     def listdir(self, directory):
-        for i in os.listdir(directory):
+        for i in sorted(os.listdir(directory)):
             path = os.path.join(directory, i)
             stat = os.lstat(path)
             yield {
@@ -122,10 +122,12 @@ class DebugService(RpcService):
         procs = bsd.getprocs(bsd.ProcessLookupPredicate.PROC)
         for i in procs:
             try:
+                argv = list(i.argv)
                 yield {
                     'pid': i.pid,
+                    'title': argv[0],
                     'command': i.command,
-                    'argv': list(i.argv),
+                    'argv': argv,
                     'env': list(i.env)
                 }
             except:
@@ -228,11 +230,14 @@ class ShellConnection(Job):
         self.logger.info('Attempting to start shell session of {0}'.format(args))
         self.args = args
         self.fd = fd.fd
+        self.channel = None
 
         try:
             self.pid, self.master = pty.fork()
 
             if self.pid == 0:
+                os.putenv('TERM', 'xterm')
+                os.putenv('PATH', '/bin:/sbin:/usr/bin:/usr/sbin:/usr/local/bin:/usr/local/sbin')
                 os.execv(args[0], args)
 
             self.logger.info('Spawned {0} as pid {1}'.format(args, self.pid))
@@ -243,18 +248,26 @@ class ShellConnection(Job):
     def describe(self):
         return "Shell: {0}".format(' '.join(self.args))
 
-    def worker(self):
+    def reader(self):
         while True:
-            r, _, _ = select.select([self.fd, self.master], [], [])
-            for fd in r:
-                data = os.read(fd, 1024)
-                if data == b'':
-                    self.logger.debug('Closing shell session')
-                    os.close(self.fd if fd == self.master else self.master)
-                    self.close()
-                    return
+            data = self.channel.recv(1024)
+            if data == b'':
+                os.close(self.master)
+                return
 
-                os.write(self.fd if fd == self.master else self.master, data)
+            os.write(self.master, data)
+
+    def worker(self):
+        self.channel = self.context.msock.channels[self.fd]
+        threading.Thread(target=self.reader, daemon=True).start()
+        while True:
+            data = os.read(self.master, 1024)
+            if data == b'':
+                self.logger.debug('Closing shell session')
+                self.close()
+                return
+
+            self.channel.write(data)
 
 
 class FileConnection(Job):
@@ -501,11 +514,13 @@ class Context(object):
             try:
                 if not self.connection_id:
                     self.connection_id = uuid.uuid4()
+
                 self.msock.connect(SUPPORT_PROXY_ADDRESS)
                 self.logger.info('Connecting to {0}'.format(SUPPORT_PROXY_ADDRESS))
-                self.rpc_fd = self.msock.create_channel(0).fileno()
+                self.rpc_fd = self.msock.create_channel(0)
                 time.sleep(1)  # FIXME
-                self.client.connect('fd://{0}'.format(self.rpc_fd))
+                self.client = Client()
+                self.client.connect('fd://', fobj=self.rpc_fd)
                 self.client.channel_serializer = MSockChannelSerializer(self.msock)
                 self.client.standalone_server = True
                 self.client.enable_server()
@@ -513,7 +528,8 @@ class Context(object):
                 self.client.call_sync('server.login', str(self.connection_id), socket.gethostname(), get_version(), 'none')
                 self.set_state(ConnectionState.CONNECTED)
             except BaseException as err:
-                self.logger.warning('Failed to initiate support connection: {0}'.format(err))
+                self.logger.warning('Failed to initiate support connection: {0}'.format(err), exc_info=True)
+                self.msock.disconnect()
             else:
                 self.connected_at = datetime.now()
                 with self.cv:
@@ -527,6 +543,8 @@ class Context(object):
     def disconnect(self):
         self.connected_at = None
         self.set_state(ConnectionState.OFFLINE)
+        self.client.disconnect()
+        self.msock.destroy_channel(0)
         self.msock.disconnect()
         self.jobs.clear()
 
