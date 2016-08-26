@@ -68,7 +68,7 @@ def delete_config(conf_path, name_mod):
 def get_replication_client(dispatcher, remote):
     host = dispatcher.call_sync(
         'peer.query',
-        [('address', '=', remote), ('type', '=', 'replication')],
+        [('address', '=', remote), ('type', '=', 'freenas')],
         {'single': True}
     )
     if not host:

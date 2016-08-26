@@ -1808,7 +1808,7 @@ def _init(dispatcher, plugin):
 
                 peer_ssh_port = dispatcher.call_sync(
                     'peer.query',
-                    [('type', '=', 'replication'), ('address', '=', remote)],
+                    [('type', '=', 'freenas'), ('address', '=', remote)],
                     {'single': True, 'select': 'credentials.port'}
                 )
                 if not peer_ssh_port:

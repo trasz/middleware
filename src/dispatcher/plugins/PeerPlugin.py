@@ -66,7 +66,7 @@ class PeerProvider(Provider):
 
     @private
     def credentials_types(self):
-        return ['replication', 'ssh', 'amazon-s3']
+        return ['freenas', 'ssh', 'amazon-s3']
 
 
 @description('Creates a peer entry')
@@ -106,8 +106,8 @@ class PeerCreateTask(Task):
                 'Please specify a remote address. {0} is a local machine address'.format(peer['address'])
             )
 
-        if peer['type'] == 'replication':
-            self.join_subtasks(self.run_subtask('peer.replication.create', peer))
+        if peer['type'] == 'freenas':
+            self.join_subtasks(self.run_subtask('peer.freenas.create', peer))
         else:
             if peer['type'] != peer['credentials']['type']:
                 raise TaskException(errno.EINVAL, 'Peer type and credentials type must match')
@@ -138,8 +138,8 @@ class PeerUpdateTask(Task):
 
     def run(self, id, updated_fields):
         peer = self.datastore.get_by_id('peers', id)
-        if peer['type'] == 'replication':
-            self.join_subtasks(self.run_subtask('peer.replication.update', id, updated_fields))
+        if peer['type'] == 'freenas':
+            self.join_subtasks(self.run_subtask('peer.freenas.update', id, updated_fields))
         else:
             peer.update(updated_fields)
             self.datastore.update('peers', id, peer)
@@ -169,8 +169,8 @@ class PeerDeleteTask(Task):
 
         peer = self.datastore.get_by_id('peers', id)
 
-        if peer['type'] == 'replication':
-            self.join_subtasks(self.run_subtask('peer.replication.delete', id))
+        if peer['type'] == 'freenas':
+            self.join_subtasks(self.run_subtask('peer.freenas.delete', id))
         else:
             self.datastore.delete('peers', id)
             self.dispatcher.dispatch_event('peer.changed', {
@@ -179,12 +179,12 @@ class PeerDeleteTask(Task):
             })
 
 
-@description('Exchanges SSH keys with remote machine for replication purposes')
+@description('Exchanges SSH keys with remote FreeNAS machine')
 @accepts(h.all_of(
     h.ref('peer'),
     h.required('name', 'address', 'type', 'credentials')
 ))
-class ReplicationPeerCreateTask(Task):
+class FreeNASPeerCreateTask(Task):
     @classmethod
     def early_describe(cls):
         return 'Exchanging SSH keys with remote host'
@@ -196,11 +196,11 @@ class ReplicationPeerCreateTask(Task):
         return ['system']
 
     def run(self, peer):
-        if self.datastore.exists('peers', ('address', '=', peer['address']), ('type', '=', 'replication')):
-            raise TaskException(errno.EEXIST, 'Replication peer entry for {0} already exists'.format(peer['address']))
+        if self.datastore.exists('peers', ('address', '=', peer['address']), ('type', '=', 'freenas')):
+            raise TaskException(errno.EEXIST, 'FreeNAS peer entry for {0} already exists'.format(peer['address']))
 
         if peer['credentials']['type'] != 'ssh':
-            raise TaskException(errno.EINVAL, 'SSH credentials type is needed to perform replication peer pairing')
+            raise TaskException(errno.EINVAL, 'SSH credentials type is needed to perform FreeNAS peer pairing')
 
         remote = peer.get('address')
         credentials = peer['credentials']
@@ -241,11 +241,11 @@ class ReplicationPeerCreateTask(Task):
                 'pubkey': remote_keys[1],
                 'hostkey': remote_host_key,
                 'port': port,
-                'type': 'replication'
+                'type': 'freenas'
             }
 
             self.join_subtasks(self.run_subtask(
-                'peer.replication.create_local',
+                'peer.freenas.create_local',
                 peer
             ))
 
@@ -254,14 +254,14 @@ class ReplicationPeerCreateTask(Task):
                 'pubkey': local_keys[1],
                 'hostkey': local_host_key,
                 'port': local_ssh_config['port'],
-                'type': 'replication'
+                'type': 'freenas'
             }
 
             id = self.datastore.query('peers', ('name', '=', peer['name']), select='id')
             try:
                 call_task_and_check_state(
                     remote_client,
-                    'peer.replication.create_local',
+                    'peer.freenas.create_local',
                     peer
                 )
             except TaskException:
@@ -276,22 +276,22 @@ class ReplicationPeerCreateTask(Task):
 
 
 @private
-@description('Creates replication peer entry in database')
+@description('Creates FreeNAS peer entry in database')
 @accepts(h.ref('peer'))
-class ReplicationPeerCreateLocalTask(Task):
+class FreeNASPeerCreateLocalTask(Task):
     @classmethod
     def early_describe(cls):
-        return 'Creating replication peer entry'
+        return 'Creating FreeNAS peer entry'
 
     def describe(self, peer):
-        return TaskDescription('Creating replication peer entry {name}', name=peer['name'])
+        return TaskDescription('Creating FreeNAS peer entry {name}', name=peer['name'])
 
     def verify(self, peer):
         return ['system']
 
     def run(self, peer):
         if self.datastore.exists('peers', ('name', '=', peer['name'])):
-            raise TaskException(errno.EEXIST, 'Replication peer entry {0} already exists'.format(peer['name']))
+            raise TaskException(errno.EEXIST, 'FreeNAS peer entry {0} already exists'.format(peer['name']))
 
         id = self.datastore.insert('peers', peer)
 
@@ -304,16 +304,16 @@ class ReplicationPeerCreateLocalTask(Task):
         })
 
 
-@description('Removes replication peer entries from both ends of replication link')
+@description('Removes FreeNAS peer entry')
 @accepts(str)
-class ReplicationPeerDeleteTask(Task):
+class FreeNASPeerDeleteTask(Task):
     @classmethod
     def early_describe(cls):
-        return 'Removing replication peer entries'
+        return 'Removing FreeNAS peer entry'
 
     def describe(self, id):
         peer = self.datastore.get_by_id('peers', id)
-        return TaskDescription('Removing replication peer entries: {name}', name=peer['name'])
+        return TaskDescription('Removing FreeNAS peer entry: {name}', name=peer['name'])
 
     def verify(self, id):
         return ['system']
@@ -331,7 +331,7 @@ class ReplicationPeerDeleteTask(Task):
 
                 call_task_and_check_state(
                     remote_client,
-                    'peer.replication.delete_local',
+                    'peer.freenas.delete_local',
                     id
                 )
             except RpcException as e:
@@ -346,7 +346,7 @@ class ReplicationPeerDeleteTask(Task):
                 ))
 
             self.join_subtasks(self.run_subtask(
-                'peer.replication.delete_local',
+                'peer.freenas.delete_local',
                 id
             ))
 
@@ -356,16 +356,16 @@ class ReplicationPeerDeleteTask(Task):
 
 
 @private
-@description('Removes local replication peer entry from database')
+@description('Removes local FreeNAS peer entry from database')
 @accepts(str)
-class ReplicationPeerDeleteLocalTask(Task):
+class FreeNASPeerDeleteLocalTask(Task):
     @classmethod
     def early_describe(cls):
-        return 'Removing replication peer entry'
+        return 'Removing FreeNAS peer entry'
 
     def describe(self, id):
         peer = self.datastore.get_by_id('peers', id)
-        return TaskDescription('Removing replication peer entry {name}', name=peer['name'])
+        return TaskDescription('Removing FreeNAS peer entry {name}', name=peer['name'])
 
     def verify(self, id):
         return ['system']
@@ -373,7 +373,7 @@ class ReplicationPeerDeleteLocalTask(Task):
     def run(self, id):
         peer = self.datastore.get_by_id('peers', id)
         if not peer:
-            raise TaskException(errno.ENOENT, 'Replication peer entry {0} does not exist'.format(peer['name']))
+            raise TaskException(errno.ENOENT, 'FreeNAS peer entry {0} does not exist'.format(peer['name']))
         peer_pubkey = peer['credentials']['pubkey']
         self.datastore.delete('peers', id)
 
@@ -395,16 +395,16 @@ class ReplicationPeerDeleteLocalTask(Task):
 
 
 @private
-@description('Updates replication peer entry in database')
+@description('Updates FreeNAS peer entry in database')
 @accepts(str, h.ref('peer'))
-class ReplicationPeerUpdateTask(Task):
+class FreeNASPeerUpdateTask(Task):
     @classmethod
     def early_describe(cls):
-        return 'Updating replication peer entry'
+        return 'Updating FreeNAS peer entry'
 
     def describe(self, id, updated_fields):
         peer = self.datastore.get_by_id('peers', id)
-        return TaskDescription('Updating replication peer entry {name}', name=peer['name'])
+        return TaskDescription('Updating FreeNAS peer entry {name}', name=peer['name'])
 
     def verify(self, id, updated_fields):
         return ['system']
@@ -412,16 +412,16 @@ class ReplicationPeerUpdateTask(Task):
     def run(self, id, updated_fields):
         peer = self.datastore.get_by_id('peers', id)
         if not peer:
-            raise TaskException(errno.ENOENT, 'Replication peer entry {0} does not exist'.format(id))
+            raise TaskException(errno.ENOENT, 'FreeNAS peer entry {0} does not exist'.format(id))
 
         if 'address' in updated_fields:
-            raise TaskException(errno.EINVAL, 'Address of replication peer cannot be updated')
+            raise TaskException(errno.EINVAL, 'Address of FreeNAS peer cannot be updated')
 
         if 'type' in updated_fields:
-            raise TaskException(errno.EINVAL, 'Type of replication peer cannot be updated')
+            raise TaskException(errno.EINVAL, 'Type of FreeNAS peer cannot be updated')
 
         if 'id' in updated_fields:
-            raise TaskException(errno.EINVAL, 'ID of replication peer cannot be updated')
+            raise TaskException(errno.EINVAL, 'ID of FreeNAS peer cannot be updated')
 
         peer.update(updated_fields)
 
@@ -433,9 +433,9 @@ class ReplicationPeerUpdateTask(Task):
 
 
 @private
-@description('Updates ssh port in number in remote replication peer entry')
+@description('Updates SSH port in number in remote FreeNAS peer entry')
 @accepts(str, int)
-class ReplicationPeerUpdatePortTask(Task):
+class FreeNASPeerUpdatePortTask(Task):
     @classmethod
     def early_describe(cls):
         return 'Updating SSH port in remote peer'
@@ -451,7 +451,7 @@ class ReplicationPeerUpdatePortTask(Task):
         peer = self.datastore.get_by_id('peers', id)
         remote_client = None
         if not peer:
-            raise TaskException(errno.ENOENT, 'Replication peer entry {0} does not exist'.format(id))
+            raise TaskException(errno.ENOENT, 'FreeNAS peer entry {0} does not exist'.format(id))
 
         try:
             remote_client = get_replication_client(self.dispatcher, peer['address'])
@@ -463,12 +463,12 @@ class ReplicationPeerUpdatePortTask(Task):
 
             call_task_and_check_state(
                 remote_client,
-                'peer.replication.delete_local',
+                'peer.freenas.delete_local',
                 id
             )
             call_task_and_check_state(
                 remote_client,
-                'peer.replication.create_local',
+                'peer.freenas.create_local',
                 remote_peer
             )
         finally:
@@ -491,16 +491,16 @@ def _init(dispatcher, plugin):
             'name': {'type': 'string'},
             'address': {'type': 'string'},
             'id': {'type': 'string'},
-            'type': {'enum': ['replication', 'ssh', 'amazon-s3']},
+            'type': {'enum': ['freenas', 'ssh', 'amazon-s3']},
             'credentials': {'$ref': 'peer-credentials'}
         },
         'additionalProperties': False
     })
 
-    plugin.register_schema_definition('replication-credentials', {
+    plugin.register_schema_definition('freenas-credentials', {
         'type': 'object',
         'properties': {
-            'type': {'enum': ['replication']},
+            'type': {'enum': ['freenas']},
             'port': {'type': 'number'},
             'pubkey': {'type': 'string'},
             'hostkey': {'type': 'string'}
@@ -549,12 +549,12 @@ def _init(dispatcher, plugin):
     plugin.register_task_handler("peer.create", PeerCreateTask)
     plugin.register_task_handler("peer.update", PeerUpdateTask)
     plugin.register_task_handler("peer.delete", PeerDeleteTask)
-    plugin.register_task_handler("peer.replication.create", ReplicationPeerCreateTask)
-    plugin.register_task_handler("peer.replication.create_local", ReplicationPeerCreateLocalTask)
-    plugin.register_task_handler("peer.replication.delete", ReplicationPeerDeleteTask)
-    plugin.register_task_handler("peer.replication.delete_local", ReplicationPeerDeleteLocalTask)
-    plugin.register_task_handler("peer.replication.update", ReplicationPeerUpdateTask)
-    plugin.register_task_handler("peer.replication.update_remote_port", ReplicationPeerUpdatePortTask)
+    plugin.register_task_handler("peer.freenas.create", FreeNASPeerCreateTask)
+    plugin.register_task_handler("peer.freenas.create_local", FreeNASPeerCreateLocalTask)
+    plugin.register_task_handler("peer.freenas.delete", FreeNASPeerDeleteTask)
+    plugin.register_task_handler("peer.freenas.delete_local", FreeNASPeerDeleteLocalTask)
+    plugin.register_task_handler("peer.freenas.update", FreeNASPeerUpdateTask)
+    plugin.register_task_handler("peer.freenas.update_remote_port", FreeNASPeerUpdatePortTask)
 
     # Register event types
     plugin.register_event_type('peer.changed')
@@ -565,10 +565,10 @@ def _init(dispatcher, plugin):
         new_ssh_port = dispatcher.call_sync('service.sshd.get_config')['port']
         if ssh_port != new_ssh_port:
             ssh_port = new_ssh_port
-            ids = dispatcher.call_sync('peer.query', [('type', '=', 'replication')], {'select': 'id'})
+            ids = dispatcher.call_sync('peer.query', [('type', '=', 'freenas')], {'select': 'id'})
             try:
                 for id in ids:
-                    dispatcher.call_task_sync('peer.replication.update_remote_port', id, new_ssh_port)
+                    dispatcher.call_task_sync('peer.freenas.update_remote_port', id, new_ssh_port)
             except RpcException:
                 pass
 
@@ -582,5 +582,5 @@ def _init(dispatcher, plugin):
     if not os.path.exists(ssh_dir):
         os.mkdir(ssh_dir)
     with open(AUTH_FILE, 'w') as auth_file:
-        for host in dispatcher.call_sync('peer.query', [('type', '=', 'replication')]):
+        for host in dispatcher.call_sync('peer.query', [('type', '=', 'freenas')]):
             auth_file.write(host['credentials']['pubkey'])
