@@ -8,6 +8,7 @@
 [libdefaults]
 	dns_lookup_realm = true
 	dns_lookup_kdc = true
+    kdc_timesync = true
 	ticket_lifetime = 24h
 	clockskew = 300
 	forwardable = yes 
