@@ -124,6 +124,13 @@ def _init(dispatcher, plugin):
         }
     })
 
+    # Mark all orphaned sessions as inactive
+    for i in dispatcher.datastore.query('sessions', ('active', '=', True)):
+        i['active'] = False
+        i['ended_at'] = datetime.utcnow()
+        dispatcher.datastore.update('sessions', i['id'], i)
+
+
     plugin.register_provider('session', SessionProvider)
     plugin.register_event_type('session.changed')
     plugin.register_event_type('session.message')
