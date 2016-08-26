@@ -66,19 +66,6 @@ class SessionProvider(Provider):
     def whoami(self, sender):
         return sender.user.name
 
-    @description("Returns new, valid authentication token")
-    @returns(str)
-    @pass_sender
-    def create_token(self, sender):
-        lifetime = self.configstore.get("middleware.token_lifetime")
-        return self.dispatcher.token_store.issue_token(
-            Token(
-                user=sender.user,
-                lifetime=lifetime,
-                revocation_function=sender.logout
-            )
-        )
-
     @description("Sends a message to given session")
     @accepts(int, str)
     @pass_sender
