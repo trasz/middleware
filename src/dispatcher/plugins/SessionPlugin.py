@@ -71,7 +71,7 @@ class SessionProvider(Provider):
     def send_to_session(self, id, message, sender):
         target = None
         for srv in self.dispatcher.ws_servers:
-            target = first_or_default(lambda s: s.session_id == id, srv)
+            target = first_or_default(lambda s: s.session_id == id, srv.connections)
             if target:
                 break
 
