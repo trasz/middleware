@@ -1379,10 +1379,14 @@ class FileConnection(WebSocketApplication, EventEmitter):
                     if not data:
                         break
                     self.ws.send(data)
+                    # issue keepalive
+                    self.dispatcher.token_store.keepalive_token(self.token)
                     self.bytes_done = file.tell()
             else:
                 for i in self.inq:
                     file.write(i)
+                    # issue keepalive
+                    self.dispatcher.token_store.keepalive_token(self.token)
                     self.bytes_done = file.tell()
         finally:
             file.close()
@@ -1392,6 +1396,8 @@ class FileConnection(WebSocketApplication, EventEmitter):
 
     def on_open(self, *args, **kwargs):
         self.logger.info("FileConnection Opened")
+        # issue keepalive
+        self.dispatcher.token_store.keepalive_token(self.token)
 
     def on_close(self, *args, **kwargs):
         self.inq.put(StopIteration)
@@ -1413,6 +1419,8 @@ class FileConnection(WebSocketApplication, EventEmitter):
                 return
 
             self.token = self.dispatcher.token_store.lookup_token(message['token'])
+            # issue keepalive
+            self.dispatcher.token_store.keepalive_token(self.token)
             self.authenticated = True
             self.bytes_total = self.token.size
 
@@ -1469,7 +1477,8 @@ class DownloadRequestHandler(object):
                 chunk = self.token.file.read(1024)
                 if chunk == b'':
                     break
-
+                # issue keepalive
+                self.dispatcher.token_store.keepalive_token(self.token)
                 yield chunk
         finally:
             self.token.file.close()

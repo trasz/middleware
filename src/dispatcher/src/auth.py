@@ -28,8 +28,11 @@
 import string
 import random
 import gevent
+import logging
 from freenas.dispatcher.rpc import RpcException
 from lib.freebsd import sockstat
+
+logger = logging.getLogger('dispatcher.auth')
 
 
 class User(object):
@@ -135,12 +138,33 @@ class ShellToken(Token):
 
 
 class FileToken(Token):
+    def file_token_revocation(self, token_store, token, token_id):
+        # Try to close the file if its still open
+        try:
+            self.file.close()
+        except:
+            pass
+        # Revoke the token
+        logger.debug('Revoking FileToken for Reason: {0}'.format(self.revocation_reason))
+        token_store.revoke_token(token_id)
+
     def __init__(self, *args, **kwargs):
         super(FileToken, self).__init__(*args, **kwargs)
         self.direction = kwargs.pop('direction')
         self.file = kwargs.pop('file')
         self.name = kwargs.pop('name')
         self.size = kwargs.pop('size', None)
+        self.revocation_reason = '{0} of file: {1} timed out'.format(
+            self.direction or 'Transfer',
+            self.name or 'Unknown'
+        )
+
+        # Add a default token lifetime of 60 seconds for all FileToken
+        # We do not want such tokens and their correspnding file handles
+        # open indefinitely
+        if self.lifetime is None:
+            self.lifetime = 60
+        self.revocation_function = self.file_token_revocation
 
 
 class TokenStore(object):
