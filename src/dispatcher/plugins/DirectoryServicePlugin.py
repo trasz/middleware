@@ -185,6 +185,7 @@ def _init(dispatcher, plugin):
 
     plugin.register_schema_definition('directory',  {
         'type': 'object',
+        'additionalProperties': False,
         'properties': {
             'id': {'type': 'string'},
             'name': {'type': 'string'},
@@ -213,7 +214,16 @@ def _init(dispatcher, plugin):
                 'type': 'object'
             },
             'status': {
-                'type': 'object'
+                'type': 'object',
+                'additionalProperties': False,
+                'properties': {
+                    'state': {
+                        'type': 'string',
+                        'enum': ['DISABLED', 'JOINING', 'FAILURE', 'BOUND', 'EXITING']
+                    },
+                    'status_code': {'type': 'integer'},
+                    'status_message': {'type': 'string'}
+                }
             }
         }
     })
