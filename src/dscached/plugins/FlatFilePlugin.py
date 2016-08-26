@@ -151,7 +151,7 @@ class FlatFilePlugin(DirectoryServicePlugin):
             shutil.copy(self.passwd_filename, os.path.join('/conf/base', self.passwd_filename[1:]))
             self.__load()
         except (IOError, ValueError) as err:
-            logger.warn('Cannot change password: {1}'.format(str(err)))
+            logger.warn('Cannot change password: {0}'.format(str(err)))
             raise
 
     def configure(self, enable, directory):
