@@ -160,7 +160,9 @@ class TokenStore(object):
                 token.timer = gevent.spawn_later(
                     token.lifetime,
                     token.revocation_function,
-                    token.revocation_reason
+                    self,
+                    token,
+                    token_id
                 )
             else:
                 token.timer = gevent.spawn_later(
@@ -185,7 +187,9 @@ class TokenStore(object):
                 token.timer = gevent.spawn_later(
                     token.lifetime,
                     token.revocation_function,
-                    token.revocation_reason
+                    self,
+                    token,
+                    token_id
                 )
             else:
                 token.timer = gevent.spawn_later(

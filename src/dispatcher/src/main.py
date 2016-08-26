@@ -1192,15 +1192,15 @@ class DispatcherConnection(ServerConnection):
 
         self.enabled_features.add(feature)
 
-    def logout(self, reason):
+    def logout(self, token_store, token, token_id):
         args = {
-            "reason": reason,
+            "reason": token.revocation_reason,
         }
         try:
             self.send('events', 'logout', args)
             # Delete the token at logout since otherwise
             # the reconnect will just log the session back in
-            self.dispatcher.token_store.revoke_token(self.token)
+            token_store.revoke_token(token_id)
             self.transport.close()
 
             # geventwebsocket doesn't notify us when we initiate the close
