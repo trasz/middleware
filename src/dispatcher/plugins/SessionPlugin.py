@@ -26,7 +26,7 @@
 #####################################################################
 
 import errno
-import time
+from datetime import datetime
 from task import Provider, query
 from freenas.dispatcher.rpc import RpcException, description, pass_sender, returns, accepts, generator, SchemaHelper as h
 from freenas.utils import first_or_default
@@ -85,7 +85,6 @@ class SessionProvider(Provider):
         }))
 
 
-
 def _init(dispatcher, plugin):
     def pam_event(args):
         if args['type'] == 'open_session':
@@ -94,8 +93,8 @@ def _init(dispatcher, plugin):
                 'resource': args['service'],
                 'tty': args['tty'],
                 'active': True,
-                'started-at': time.time(),
-                'ended-at': None
+                'started_at': datetime.utcnow()
+                'ended_at': None
             })
 
         if args['type'] == 'close_session':
@@ -105,10 +104,10 @@ def _init(dispatcher, plugin):
                 ('resource', '=', args['service']),
                 ('tty', '=', args['tty']),
                 ('active', '=', True),
-                ('ended-at', '=', None)
+                ('ended_at', '=', None)
             )
 
-            session['ended-at'] = time.time()
+            session['ended_at'] = datetime.utcnow()
             session['active'] = False
             dispatcher.datastore.update('session', session['id'], session)
 
@@ -119,8 +118,8 @@ def _init(dispatcher, plugin):
             'resource': {'type': ['string', 'null']},
             'tty': {'type': ['string', 'null']},
             'active': {'type': 'boolean'},
-            'started-at': {'type': 'integer'},
-            'ended-at': {'type': 'integer'}
+            'started_at': {'type': 'datetime'},
+            'ended_at': {'type': 'datetime'}
         }
     })
 
