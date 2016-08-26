@@ -342,7 +342,7 @@ class ReplicationBaseTask(Task):
         h.ref('replication-link'),
         h.required(
             'name', 'partners', 'master', 'datasets', 'replicate_services', 'bidirectional',
-            'auto_recover', 'recursive', 'transport_options'
+            'auto_recover', 'recursive', 'transport_options', 'snapshot_lifetime', 'followdelete'
         )
     )
 )
@@ -917,7 +917,9 @@ class ReplicationSyncTask(ReplicationBaseTask):
                                 'remote': remote,
                                 'remote_dataset': dataset['name'],
                                 'recursive': link['recursive'],
-                                'nomount': True
+                                'nomount': True,
+                                'lifetime': link['snapshot_lifetime'],
+                                'followdelete': link['followdelete']
                             },
                             link['transport_options']
                         ))
@@ -1659,6 +1661,8 @@ def _init(dispatcher, plugin):
                 'type': 'array',
                 'items': {'$ref': 'replication-transport-plugin'}
             },
+            'snapshot_lifetime': {'type': 'number'},
+            'followdelete': {'type': 'boolean'}
         },
         'additionalProperties': False,
     })
@@ -1760,8 +1764,7 @@ def _init(dispatcher, plugin):
                 if (status and status['status'] == 'FAILED') or recover:
                     dispatcher.call_task_sync(
                         'replication.sync',
-                        link['name'],
-                        link['transport_options']
+                        link['name']
                     )
                 if recover:
                     link['update_date'] = str(datetime.utcnow())
