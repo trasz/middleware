@@ -1846,7 +1846,7 @@ def _init(dispatcher, plugin):
             'vnc_enabled': {'type': 'boolean'},
             'vnc_port': {
                 'type': ['integer', 'null'],
-                'mininum': 1,
+                'minimum': 1,
                 'maximum': 65535
             }
         }
