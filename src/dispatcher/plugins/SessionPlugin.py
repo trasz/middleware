@@ -93,7 +93,7 @@ def _init(dispatcher, plugin):
                 'resource': args['service'],
                 'tty': args['tty'],
                 'active': True,
-                'started_at': datetime.utcnow()
+                'started_at': datetime.utcnow(),
                 'ended_at': None
             })
 
