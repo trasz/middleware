@@ -413,8 +413,18 @@ class AccountService(RpcService):
 
     @generator
     def query(self, filter=None, params=None):
+        params = params or {}
+        single = params.get('single', False)
         for d in self.context.get_enabled_directories():
-            for user in d.instance.getpwent(filter, params):
+            result = d.instance.getpwent(filter, params)
+            if single:
+                if result:
+                    yield result
+                    return
+
+                continue
+
+            for user in result:
                 resolve_primary_group(self.context, user)
                 yield fix_passwords(annotate(user, d, 'username'))
 
@@ -545,8 +555,18 @@ class GroupService(RpcService):
 
     @generator
     def query(self, filter=None, params=None):
+        params = params or {}
+        single = params.get('single', False)
         for d in self.context.get_enabled_directories():
-            for group in d.instance.getgrent(filter, params):
+            result = d.instance.getpwent(filter, params)
+            if single:
+                if result:
+                    yield result
+                    return
+
+                continue
+
+            for group in result:
                 yield annotate(group, d, 'name')
 
     def getgrnam(self, name):
