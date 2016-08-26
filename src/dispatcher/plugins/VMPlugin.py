@@ -383,8 +383,7 @@ class VMBaseTask(ProgressTask):
                         )
 
         if res['type'] == 'GRAPHICS':
-            if 'resolution' not in res['properties']:
-                res['properties']['resolution'] = '1024x768'
+            normalize(res['properties'], {'resolution': '1024x768'})
 
         if res['type'] == 'DISK':
             vm_ds = os.path.join(vm['target'], 'vm', vm['name'])
