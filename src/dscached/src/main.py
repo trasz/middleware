@@ -399,18 +399,6 @@ class AccountService(RpcService):
         self.logger = context.logger
         self.context = context
 
-    def __get_user(self, user_name):
-        for d in self.context.get_enabled_directories():
-            try:
-                user = d.instance.getpwnam(user_name)
-            except:
-                continue
-
-            if user:
-                return self.__annotate(d, user), d.instance
-
-        return None, None
-
     @generator
     def query(self, filter=None, params=None):
         params = params or {}
@@ -535,18 +523,20 @@ class AccountService(RpcService):
 
     def change_password(self, user_name, password):
         self.logger.debug('Change password request for user {0}'.format(user_name))
-        user, plugin = self.__get_user(user_name)
-        if not user:
+        if not self.getpwnam(user_name):
             raise RpcException(errno.ENOENT, 'User {0} not found'.format(user_name))
+
+        # Now user is cached (if exists)
+        item = self.context.users_cache.get(name=user_name)
 
         sender = get_sender()
         if not sender.credentials:
             raise RpcException(errno.EPERM, 'Permission denied')
 
-        if sender.credentials['uid'] not in (user['uid'], 0):
+        if sender.credentials['uid'] not in (item.value['uid'], 0):
             raise RpcException(errno.EPERM, 'Permission denied')
 
-        plugin.change_password(user_name, password)
+        item.directory.instance.change_password(user_name, password)
 
 
 class GroupService(RpcService):
