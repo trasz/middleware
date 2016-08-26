@@ -342,7 +342,7 @@ class ReplicationBaseTask(Task):
         h.ref('replication-link'),
         h.required(
             'name', 'partners', 'master', 'datasets', 'replicate_services', 'bidirectional',
-            'auto_recover', 'recursive'
+            'auto_recover', 'recursive', 'transport_options'
         )
     )
 )
@@ -876,22 +876,22 @@ class ReplicationUpdateTask(ReplicationBaseTask):
 
 
 @description("Runs replication process based on saved link")
-@accepts(str, h.array(h.ref('replication-transport-plugin')))
+@accepts(str)
 class ReplicationSyncTask(ReplicationBaseTask):
     @classmethod
     def early_describe(cls):
         return "Synchronizing replication link"
 
-    def describe(self, name, transport_plugins):
+    def describe(self, name):
         return TaskDescription("Synchronizing replication link {name}", name=name)
 
-    def verify(self, name, transport_plugins):
+    def verify(self, name):
         if not self.datastore.exists('replication.links', ('name', '=', name)):
             raise VerifyException(errno.ENOENT, 'Replication link {0} do not exist.'.format(name))
 
         return ['replication:{0}'.format(name)]
 
-    def run(self, name, transport_plugins):
+    def run(self, name):
         if not self.datastore.exists('replication.links', ('name', '=', name)):
             raise TaskException(errno.ENOENT, 'Replication link {0} do not exist.'.format(name))
 
@@ -919,7 +919,7 @@ class ReplicationSyncTask(ReplicationBaseTask):
                                 'recursive': link['recursive'],
                                 'nomount': True
                             },
-                            transport_plugins
+                            link['transport_options']
                         ))
 
                         total_size += result[0][1]
@@ -930,8 +930,7 @@ class ReplicationSyncTask(ReplicationBaseTask):
                 call_task_and_check_state(
                     remote_client,
                     'replication.sync',
-                    link['name'],
-                    transport_plugins
+                    link['name']
                 )
 
         except TaskException as e:
@@ -1655,7 +1654,11 @@ def _init(dispatcher, plugin):
             'auto_recover': {'type': 'boolean'},
             'replicate_services': {'type': 'boolean'},
             'recursive': {'type': 'boolean'},
-            'status': {'$ref': 'replication-status'}
+            'status': {'$ref': 'replication-status'},
+            'transport_options': {
+                'type': 'array',
+                'items': {'$ref': 'replication-transport-plugin'}
+            },
         },
         'additionalProperties': False,
     })
@@ -1758,10 +1761,7 @@ def _init(dispatcher, plugin):
                     dispatcher.call_task_sync(
                         'replication.sync',
                         link['name'],
-                        [{
-                            'name': 'encrypt',
-                            'type': 'AES128'
-                        }]
+                        link['transport_options']
                     )
                 if recover:
                     link['update_date'] = str(datetime.utcnow())
