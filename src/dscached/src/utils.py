@@ -29,6 +29,7 @@ import dns.resolver
 import dns.exception
 import krb5
 from ldap3.utils.conv import escape_filter_chars
+from ldap3.utils.dn import parse_dn
 
 
 class LdapQueryBuilder(object):
@@ -77,6 +78,10 @@ def join_dn(*parts):
 
 def domain_to_dn(domain):
     return ','.join('dc={0}'.format(i) for i in domain.split('.'))
+
+
+def dn_to_domain(dn):
+    return '.'.join(i[1] for i in parse_dn(dn))
 
 
 def obtain_or_renew_ticket(principal, password, renew_life=None):
