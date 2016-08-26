@@ -465,15 +465,7 @@ class WinbindPlugin(DirectoryServicePlugin):
 
         try:
             self.configure_smb(True)
-            krb = krb5.Context()
-            tgt = krb.obtain_tgt_password(
-                self.principal,
-                self.parameters['password'],
-                renew_life=86400
-            )
-
-            ccache = krb5.CredentialsCache(krb)
-            ccache.add(tgt)
+            obtain_or_renew_ticket(self.principal, self.parameters['password'])
             subprocess.call(['/usr/local/bin/net', 'ads', 'join', '-k'])
 
             self.dc = self.wbc.ping_dc(self.realm)

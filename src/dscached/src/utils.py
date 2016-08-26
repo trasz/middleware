@@ -28,6 +28,7 @@
 import dns.resolver
 import dns.exception
 import krb5
+from datetime import datetime
 from ldap3.utils.conv import escape_filter_chars
 from ldap3.utils.dn import parse_dn
 
@@ -88,8 +89,14 @@ def obtain_or_renew_ticket(principal, password, renew_life=None):
     ctx = krb5.Context()
     cc = krb5.CredentialsCache(ctx)
 
-    tgt = ctx.obtain_tgt_password(principal, password, renew_life=renew_life)
-    cc.add(tgt)
+    try:
+        tgt = ctx.obtain_tgt_password(principal, password, renew_life=renew_life)
+        if abs((tgt.starttime - datetime.now()).total_seconds()) > 300:
+            raise RuntimeError("Clock skew too great")
+
+        cc.add(tgt)
+    except:
+        raise
 
 
 def have_ticket(principal):
