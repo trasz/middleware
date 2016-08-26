@@ -89,14 +89,11 @@ def obtain_or_renew_ticket(principal, password, renew_life=None):
     ctx = krb5.Context()
     cc = krb5.CredentialsCache(ctx)
 
-    try:
-        tgt = ctx.obtain_tgt_password(principal, password, renew_life=renew_life)
-        if abs((tgt.starttime - datetime.now()).total_seconds()) > 300:
-            raise RuntimeError("Clock skew too great")
+    tgt = ctx.obtain_tgt_password(principal, password, renew_life=renew_life)
+    if abs((tgt.starttime - datetime.now()).total_seconds()) > 300:
+        raise krb5.KrbException("Clock skew too great")
 
-        cc.add(tgt)
-    except:
-        raise
+    cc.add(tgt)
 
 
 def have_ticket(principal):
