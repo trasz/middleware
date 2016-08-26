@@ -383,7 +383,7 @@ partition_disk() {
 	    dd if=/dev/zero of=/dev/${_disk} bs=1m count=1 >&2
 
 	    create_partitions ${_disk} ${_minsize} >&2
-	    if [ "$BOOTMODE" != "efi" -a 1 = 0 ] ; then
+	    if [ "$BOOTMODE" != "efi" ] ; then
 	      # Make the disk active
 	      gpart set -a active ${_disk} >&2
 	    fi
