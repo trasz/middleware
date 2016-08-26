@@ -555,7 +555,7 @@ class Balancer(object):
                     user=sender.user,
                     lifetime=60,
                     direction='download',
-                    file=FileObjectPosix(rfd, 'rb', close=False),
+                    file=FileObjectPosix(rfd, 'rb', close=True),
                     name=f
                 ))
             ))
