@@ -1454,6 +1454,7 @@ def _init(dispatcher, plugin):
                 if type == 'mount':
                     datasets.update_one(ds['id'], **{
                         'mounted': True,
+                        'mountpoint': args['path'],
                         'properties.mounted.rawvalue': 'yes',
                         'properties.mounted.value': 'yes',
                         'properties.mounted.parsed': True
@@ -1462,12 +1463,11 @@ def _init(dispatcher, plugin):
                 if type == 'unmount':
                     datasets.update_one(ds['id'], **{
                         'mounted': True,
+                        'mountpoint': args['path'],
                         'properties.mounted.rawvalue': 'no',
                         'properties.mounted.value': 'no',
                         'properties.mounted.parsed': False
                     })
-
-                datasets.put(ds['id'], ds)
 
     def on_device_attached(args):
         for p in pools.validvalues():
