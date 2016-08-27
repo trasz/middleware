@@ -1190,6 +1190,7 @@ class CalculateReplicationDeltaTask(Task):
         return actions, total_send_size
 
 
+@accepts(str, h.ref('replication-options'), h.one_of(None, h.array(h.ref('replication-transport-plugin'))), bool)
 @description("Runs a dataset replication with the specified arguments")
 class ReplicateDatasetTask(ProgressTask):
     def __init__(self, dispatcher, datastore):
@@ -1215,6 +1216,7 @@ class ReplicateDatasetTask(ProgressTask):
         recursive = options.get('recursive', False)
         lifetime = options.get('lifetime', 365 * 24 * 60 * 60)
         force = options.get('force', True)
+        peer = options.get('peer')
         nomount = options.get('nomount', False)
 
         self.join_subtasks(self.run_subtask(
@@ -1225,6 +1227,16 @@ class ReplicateDatasetTask(ProgressTask):
             'repl',
             True
         ))
+
+        if peer:
+            remote = self.dispatcher.call_sync(
+                'peer.query',
+                [('type', '=', 'freenas'), ('id', '=', peer)],
+                {'single': True, 'select': 'address'}
+            )
+
+        if not remote:
+            raise TaskException(errno.EINVAL, 'Remote host is not specified')
 
         remote_client = get_replication_client(self.dispatcher, remote)
 
@@ -1575,11 +1587,13 @@ def _init(dispatcher, plugin):
         'type': 'object',
         'properties': {
             'remote': {'type': 'string'},
+            'peer': {'type': 'string'},
             'remote_dataset': {'type': 'string'},
             'followdelete': {'type': 'boolean'},
             'lifetime': {'type': ['number', 'null']},
-            'transport_plugins': {'$ref': 'replication-transport-plugin'},
             'recursive': {'type': 'boolean'},
+            'force': {'type': 'boolean'},
+            'nomount': {'type': 'boolean'}
         },
         'additionalProperties': False,
     })
