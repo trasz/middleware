@@ -126,6 +126,15 @@ class DockerImagesProvider(Provider):
         except ValueError:
             return None
 
+    def get_templates(self):
+        return {
+            'busybox': {
+                'names': ['my_busybox'],
+                'image': 'busybox:latest',
+                'command': ['/bin/sh']
+            }
+        }
+
 
 class DockerBaseTask(ProgressTask):
     def get_default_host(self):
