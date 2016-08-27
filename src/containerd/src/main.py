@@ -1467,7 +1467,7 @@ class Main(object):
         self.init_mgmt()
         self.init_nat()
         self.init_ec2()
-        self.init_autostart()
+        gevent.spawn(self.init_autostart)
         self.logger.info('Started')
 
         # WebSockets server
