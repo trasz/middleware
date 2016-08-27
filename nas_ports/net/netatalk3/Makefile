@@ -16,7 +16,9 @@ LICENSE=	GPLv2
 LIB_DEPENDS=	libgcrypt.so:security/libgcrypt \
 		libevent.so:devel/libevent2
 
-USES=		iconv gmake pkgconfig libtool tar:bzip2 bdb:5+ ssl
+USE_BDB=	5+
+USE_OPENSSL=	yes
+USES=		iconv gmake pkgconfig libtool tar:bzip2
 GNU_CONFIGURE=	yes
 USE_LDCONFIG=	yes
 USE_RC_SUBR=	netatalk
