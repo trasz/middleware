@@ -30,6 +30,7 @@ import errno
 import json
 from datastore import DatastoreException
 from datastore.restore import restore_db, dump_collection
+from freenas.dispatcher.fd import FileDescriptor
 from freenas.dispatcher.rpc import description
 from task import Task, ProgressTask, TaskException, TaskDescription
 
@@ -103,23 +104,8 @@ class RestoreFactoryConfigTask(ProgressTask):
         return ['root']
 
     def run(self):
-        try:
-            with open(FACTORY_DB, 'r') as fd:
-                dump = json.load(fd)
-        except IOError as err:
-            raise TaskException(errno.ENOENT, "Cannot open input file: {0}".format(str(err)))
-        except ValueError as err:
-            raise TaskException(errno.EINVAL, "Cannot parse input file: {0}".format(str(err)))
-
-        def progress(name):
-            self.set_progress(50, 'Restored collection {0}'.format(name))
-
-        try:
-            restore_db(self.datastore, dump, progress_callback=progress)
-        except DatastoreException as err:
-            raise TaskException(errno.EFAULT, 'Cannot restore factory database: {0}'.format(str(err)))
-
-        self.join_subtasks(self.run_subtask('system.reboot', 1))
+        with open(FACTORY_DB, 'r') as fd:
+            self.join_subtasks(self.run_subtask('database.restore', FileDescriptor(fd.fileno())))
 
 
 def _init(dispatcher, plugin):
