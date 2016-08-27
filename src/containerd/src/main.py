@@ -471,8 +471,10 @@ class VirtualMachine(object):
             self.set_state(VirtualMachineState.RUNNING)
 
             self.bhyve_process = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, close_fds=True)
-            out, err = self.bhyve_process.communicate()
-            self.logger.debug('bhyve: {0}'.format(out))
+
+            for line in self.bhyve_process.stdout:
+                self.logger.debug('bhyve: {0}'.format(line.decode('utf-8', 'ignore')))
+
             self.bhyve_process.wait()
 
             subprocess.call(['/usr/sbin/bhyvectl', '--destroy', '--vm={0}'.format(self.name)])
