@@ -30,8 +30,8 @@ import sys
 import argparse
 import json
 import datastore
+import datastore.restore
 from bson import json_util
-from freenas.utils import exclude
 
 
 DEFAULT_CONFIGFILE = '/usr/local/etc/middleware.conf'
@@ -48,17 +48,7 @@ def init_datastore(filename):
         sys.exit(1)
 
 
-def dump_collection(ds, name):
-    metadata = {
-        'name': name,
-        'pkey-type': ds.collection_get_pkey_type(name),
-        'attributes': ds.collection_get_attrs(name)
-    }
 
-    return {
-        'metadata': metadata,
-        'data': {x['id']: exclude(x, 'id') for x in ds.query(name)}
-    }
 
 
 def main():
@@ -84,7 +74,7 @@ def main():
         if types and 'type' in attrs.keys() and attrs['type'] not in types:
             continue
 
-        result.append(dump_collection(ds, cname))
+        result.append(datastore.restore.dump_collection(ds, cname))
 
     try:
         fd = open(args.o, 'w') if args.o else sys.stdout
