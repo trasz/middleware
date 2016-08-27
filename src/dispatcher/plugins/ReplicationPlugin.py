@@ -1643,7 +1643,7 @@ def _init(dispatcher, plugin):
     })
 
     dispatcher.register_resource(Resource('replication'))
-    plugin.register_provider('replication.link', ReplicationLinkProvider)
+    plugin.register_provider('replication', ReplicationLinkProvider)
     plugin.register_task_handler('volume.snapshot_dataset', SnapshotDatasetTask)
     plugin.register_task_handler('replication.calculate_delta', CalculateReplicationDeltaTask)
     plugin.register_task_handler('replication.replicate_dataset', ReplicateDatasetTask)
