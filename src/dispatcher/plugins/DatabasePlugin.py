@@ -25,10 +25,11 @@
 #
 #####################################################################
 
+import os
 import errno
 import json
 from datastore import DatastoreException
-from datastore.restore import restore_db
+from datastore.restore import restore_db, dump_collection
 from freenas.dispatcher.rpc import description
 from task import Task, ProgressTask, TaskException, TaskDescription
 
@@ -42,14 +43,19 @@ class DownloadDatabaseTask(Task):
     def early_describe(cls):
         return 'Downloading current database state'
 
-    def describe(self):
+    def describe(self, fd):
         return TaskDescription('Downloading current database state')
 
-    def verify(self):
-        return ['system']
+    def verify(self, fd):
+        return ['root']
 
-    def run(self):
-        pass
+    def run(self, fd):
+        result = []
+        for i in self.datastore.collection_list():
+            result.append(dump_collection(self.datastore, i))
+
+        with os.fdopen(fd, mode='w') as f:
+            json.dump(result, f)
 
 
 @description('Uploads database state from file')
@@ -58,13 +64,13 @@ class UploadDatabaseTask(Task):
     def early_describe(cls):
         return 'Loading database from file'
 
-    def describe(self):
+    def describe(self, fd):
         return TaskDescription('Loading database from file')
 
-    def verify(self):
+    def verify(self, fd):
         return ['system']
 
-    def run(self):
+    def run(self, fd):
         pass
 
 
@@ -101,4 +107,5 @@ class RestoreFactoryConfigTask(ProgressTask):
 
 
 def _init(dispatcher, plugin):
+    plugin.register_task_handler('database.dump', DownloadDatabaseTask)
     plugin.register_task_handler('database.factory_restore', RestoreFactoryConfigTask)
