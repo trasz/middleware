@@ -6,10 +6,10 @@ class ReplicateDatasetResource(Resource):
     post = 'task:replication.replicate_dataset'
 
 
-class ReplicationLinkResource(ProviderMixin, ResourceQueryMixin, Resource):
+class ReplicationResource(ProviderMixin, ResourceQueryMixin, Resource):
     name = 'replication/link'
-    provider = 'replication.link'
-    get = 'rpc:replication.link.query'
+    provider = 'replication'
+    get = 'rpc:replication.query'
     subresources = (
         ReplicateDatasetResource,
     )
@@ -23,5 +23,5 @@ class ReplicationCRUD(CRUDBase):
 
 
 def _init(rest):
-    rest.register_resource(ReplicationLinkResource)
+    rest.register_resource(ReplicationResource)
     rest.register_crud(ReplicationCRUD)
