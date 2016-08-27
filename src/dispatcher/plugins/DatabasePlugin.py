@@ -54,7 +54,7 @@ class DownloadDatabaseTask(Task):
         for i in self.datastore.collection_list():
             result.append(dump_collection(self.datastore, i))
 
-        with os.fdopen(fd, mode='w') as f:
+        with os.fdopen(fd.fd, mode='w') as f:
             json.dump(result, f)
 
 
@@ -68,10 +68,26 @@ class UploadDatabaseTask(Task):
         return TaskDescription('Loading database from file')
 
     def verify(self, fd):
-        return ['system']
+        return ['root']
 
     def run(self, fd):
-        pass
+        try:
+            with os.fdopen(fd.fd, 'r') as f:
+                dump = json.load(f)
+        except IOError as err:
+            raise TaskException(errno.ENOENT, "Cannot open input file: {0}".format(str(err)))
+        except ValueError as err:
+            raise TaskException(errno.EINVAL, "Cannot parse input file: {0}".format(str(err)))
+
+        def progress(name):
+            self.set_progress(50, 'Restored collection {0}'.format(name))
+
+        try:
+            restore_db(self.datastore, dump, progress_callback=progress)
+        except DatastoreException as err:
+            raise TaskException(errno.EFAULT, 'Cannot restore factory database: {0}'.format(str(err)))
+
+        self.join_subtasks(self.run_subtask('system.reboot', 1))
 
 
 @description('Restores database config to it\'s defaults')
@@ -108,4 +124,5 @@ class RestoreFactoryConfigTask(ProgressTask):
 
 def _init(dispatcher, plugin):
     plugin.register_task_handler('database.dump', DownloadDatabaseTask)
+    plugin.register_task_handler('database.restore', UploadDatabaseTask)
     plugin.register_task_handler('database.factory_restore', RestoreFactoryConfigTask)
