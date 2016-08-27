@@ -101,6 +101,12 @@ class DockerHostState(enum.Enum):
     UP = 3
 
 
+class ConsoleToken(object):
+    def __init__(self, type, id):
+        self.type = type
+        self.id = id
+
+
 def generate_id():
     return ''.join([random.choice(string.ascii_letters + string.digits) for _ in range(32)])
 
@@ -873,8 +879,10 @@ class ConsoleService(RpcService):
 
     @private
     def request_console(self, id):
+        type = 'VM'
         vm = self.context.datastore.get_by_id('vms', id)
         if not vm:
+            type = 'CONTAINER'
             container = self.context.client.call_sync(
                 'containerd.docker.query_containers',
                 [('id', '=', id)],
@@ -884,7 +892,7 @@ class ConsoleService(RpcService):
                 raise RpcException(errno.ENOENT, '{0} not found as either a VM or a container'.format(id))
 
         token = generate_id()
-        self.context.tokens[token] = id
+        self.context.tokens[token] = ConsoleToken(type, id)
         return token
 
     @private
@@ -1124,24 +1132,25 @@ class ConsoleConnection(WebSocketApplication, EventEmitter):
 
             self.authenticated = True
 
-            container = self.context.client.call_sync(
-                'containerd.docker.query_containers',
-                [('id', '=', cid)],
-                {'single': True}
-            )
+            if cid.type == 'CONTAINER':
+                container = self.context.client.call_sync(
+                    'containerd.docker.query_containers',
+                    [('id', '=', cid.id)],
+                    {'single': True}
+                )
 
-            if container:
-                docker_host = self.context.docker_host_by_container_id(cid)
-                self.console_provider = docker_host.get_container_console(cid)
-            else:
+                if container:
+                    docker_host = self.context.docker_host_by_container_id(cid.id)
+                    self.console_provider = docker_host.get_container_console(cid.id)
+
+            if cid.type == 'VM':
                 with self.context.cv:
-                    if not self.context.cv.wait_for(lambda: cid in self.context.vms, timeout=30):
+                    if not self.context.cv.wait_for(lambda: cid.id in self.context.vms, timeout=30):
                         return
-                    self.console_provider = self.context.vms[cid]
+                    self.console_provider = self.context.vms[cid.id]
 
             self.console_queue = self.console_provider.console_register()
             self.ws.send(json.dumps({'status': 'ok'}))
-
             self.ws.send(self.console_provider.scrollback.read())
 
             gevent.spawn(self.worker)
@@ -1189,7 +1198,7 @@ class VncConnection(WebSocketApplication, EventEmitter):
 
                 self.ws.send(buffer[:n])
 
-        self.vm = self.context.vms[cid]
+        self.vm = self.context.vms[cid.id]
         self.logger.info('Opening VNC console to {0} (token {1})'.format(self.vm.name, token))
 
         self.cfd = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM, 0)
