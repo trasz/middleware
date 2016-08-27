@@ -1842,7 +1842,8 @@ def _init(dispatcher, plugin):
             '@type': {'enum': ['vm-device-volume']},
             'type': {'$ref': 'vm-device-volume-type'},
             'auto': {'type': ['boolean', 'null']},
-            'destination': {'type': ['string', 'null']}
+            'destination': {'type': ['string', 'null']},
+            'source': {'type': 'string'}
         }
     })
 
