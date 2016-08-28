@@ -45,30 +45,37 @@ class LdapQueryBuilder(object):
             return self._operator_predicate(*args)
 
     def _operator_predicate(self, name, op, value):
+        name = self.mappings.get(name, name)
+        if name is None:
+            return
+
+        if name is True:
+            return '(objectClass=*)'
+
         if op == '=':
-            return '({0}={1})'.format(self.mappings.get(name, name), escape_filter_chars(str(value)))
+            return '({0}={1})'.format(name, escape_filter_chars(str(value)))
 
         if op == '~':
-            return '({0}={1})'.format(self.mappings.get(name, name), str(value))
+            return '({0}={1})'.format(name, str(value))
 
         if op == '!=':
-            return '(!({0}={1}))'.format(self.mappings.get(name, name), escape_filter_chars(str(value)))
+            return '(!({0}={1}))'.format(name, escape_filter_chars(str(value)))
 
         if op == 'in':
             return self._joint_predicate('or', [
-                (self.mappings.get(name, name), '=', str(v)) for v in value
+                (name, '=', str(v)) for v in value
             ])
 
     def _joint_predicate(self, op, value):
         if op == 'or':
-            return '(|{0})'.format(''.join(self._predicate(*i) for i in value))
+            return '(|{0})'.format(''.join(filter(None.__ne__, (self._predicate(*i) for i in value))))
 
         if op == 'and':
-            return '(&{0})'.format(''.join(self._predicate(*i) for i in value))
+            return '(&{0})'.format(''.join(filter(None.__ne__, (self._predicate(*i) for i in value))))
 
     def build_query(self, params):
         if len(params) == 1:
-            return self._predicate(*params[0])
+            return self._predicate(*params[0]) or '()'
 
         return self._joint_predicate('and', params)
 

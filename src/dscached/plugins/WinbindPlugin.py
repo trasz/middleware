@@ -54,7 +54,9 @@ AD_LDAP_ATTRIBUTE_MAPPING = {
     'id': 'objectGUID',
     'sd': 'objectSid',
     'username': 'sAMAccountName',
-    'full_name': 'name'
+    'full_name': 'name',
+    'builtin': True,
+    'uid': None
 }
 
 logger = logging.getLogger(__name__)
