@@ -709,7 +709,7 @@ def _init(dispatcher, plugin):
         'type': 'object',
         'properties': {
             'id': {'type': 'string'},
-            'sid': {'type': 'string', 'readOnly': True},
+            'sid': {'type': ['string', 'null'], 'readOnly': True},
             'uid': {
                 'type': 'integer',
                 'minimum': 0,
@@ -758,6 +758,7 @@ def _init(dispatcher, plugin):
         'type': 'object',
         'properties': {
             'id': {'type': 'string'},
+            'sid': {'type': ['string', 'null'], 'readOnly': True},
             'gid': {
                 'type': 'integer',
                 'minimum': 0,
