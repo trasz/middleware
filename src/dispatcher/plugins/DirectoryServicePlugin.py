@@ -160,6 +160,7 @@ class DirectoryServiceDeleteTask(Task):
 
     def run(self, id):
         directory = self.datastore.get_by_id('directories', id)
+        name = directory['name']
         if directory['immutable']:
             raise TaskException(errno.EPERM, 'Directory {0} is immutable'.format(directory['name']))
 
@@ -169,6 +170,9 @@ class DirectoryServiceDeleteTask(Task):
             'operation': 'delete',
             'ids': [id]
         })
+
+        node = ConfigNode('directory', self.configstore)
+        node['search_order'] = [i for i in node['search_order'] if i != name]
 
 
 def _init(dispatcher, plugin):
