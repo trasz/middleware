@@ -102,11 +102,11 @@ class DeviceInfoPlugin(Provider):
     def _get_class_network(self):
         result = []
         for i in list(netif.list_interfaces().keys()):
-            if i.startswith(netif.CLONED_PREFIXES):
+            if i.startswith(tuple(netif.CLONED_PREFIXES)):
                 continue
 
             try:
-                get_sysctl(re.sub('(\w+)([0-9]+)', 'dev.\\1.\\2.%desc', i))
+                desc = get_sysctl(re.sub('(\w+)([0-9]+)', 'dev.\\1.\\2.%desc', i))
                 result.append({
                     'name': i,
                     'description': desc
