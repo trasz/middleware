@@ -200,6 +200,7 @@ class WinbindPlugin(DirectoryServicePlugin):
                         except BaseException as err:
                             self.directory.put_status(errno.ENXIO, str(err))
                             self.directory.put_state(DirectoryState.FAILURE)
+                            continue
 
                         # Prefetch "Domain Users" GUID
                         du = self.search_one(self.base_dn, '(sAMAccountName=Domain Users)')
