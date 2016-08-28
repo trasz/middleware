@@ -74,7 +74,8 @@ class PasswordAuthenticator(object):
     def get_user(self, name):
         try:
             entity = self.dispatcher.call_sync('dscached.account.getpwnam', name)
-        except RpcException:
+        except RpcException as err:
+            logger.warning('Cannot look up user {0}: {1}'.format(name, str(err)))
             self.users.pop(name, None)
             return None
 
