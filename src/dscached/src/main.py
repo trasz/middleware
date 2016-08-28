@@ -403,19 +403,14 @@ class AccountService(RpcService):
     def query(self, filter=None, params=None):
         params = params or {}
         params.pop('select', None)
-        single = params.get('single', False)
+        single = params.pop('single', False)
         for d in self.context.get_enabled_directories():
             result = d.instance.getpwent(filter, params)
-            if single:
-                if result:
-                    yield result
-                    return
-
-                continue
-
             for user in result:
                 resolve_primary_group(self.context, user)
                 yield fix_passwords(annotate(user, d, 'username'))
+                if single:
+                    return
 
     def getpwuid(self, uid):
         # Try the cache first
