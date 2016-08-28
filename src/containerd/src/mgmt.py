@@ -30,7 +30,6 @@ import logging
 import errno
 import weakref
 import gevent
-import gevent.threadpool
 import netif
 from gevent.os import make_nonblocking
 from dhcp.server import Server
@@ -61,7 +60,6 @@ class ManagementNetwork(object):
         self.dhcp_server_thread = None
         self.dhcp_server = Server()
         self.allocations = {}
-        self.pool = gevent.threadpool.ThreadPool(1)
         self.logger = logging.getLogger('ManagementNetwork:{0}'.format(self.ifname))
 
     def up(self):
