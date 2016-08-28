@@ -699,8 +699,8 @@ class GroupDeleteTask(Task):
 
 
 def collect_debug(dispatcher):
-    yield AttachFile('passwd', '/etc/passwd')
-    yield AttachFile('group', '/etc/group')
+    yield AttachFile('passwd', '/etc/passwd.json')
+    yield AttachFile('group', '/etc/group.json')
 
 
 def _init(dispatcher, plugin):
