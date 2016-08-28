@@ -60,8 +60,9 @@ class ServerApplication(WebSocketApplication):
 
     @property
     def client_address(self):
-        if 'HTTP_X_REAL_IP' in self.ws.environ and 'HTTP_X_REAL_PORT' in self.ws.environ:
-            return self.ws.environ['HTTP_X_REAL_IP'], int(self.ws.environ['HTTP_X_REAL_PORT'])
+        if self.ws.environ:
+            if 'HTTP_X_REAL_IP' in self.ws.environ and 'HTTP_X_REAL_PORT' in self.ws.environ:
+                return self.ws.environ['HTTP_X_REAL_IP'], int(self.ws.environ['HTTP_X_REAL_PORT'])
 
         return self.ws.handler.client_address[:2]
 
