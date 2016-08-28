@@ -125,6 +125,8 @@ class DirectoryServiceCreateTask(Task):
             'ids': [self.id]
         })
 
+        node = ConfigNode('directory', self.configstore)
+        node['search_order'] = node['search_order'] + [self['name']]
         return self.id
 
     def rollback(self, directory):
