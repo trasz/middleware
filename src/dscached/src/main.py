@@ -402,6 +402,7 @@ class AccountService(RpcService):
     @generator
     def query(self, filter=None, params=None):
         params = params or {}
+        params.pop('select')
         single = params.get('single', False)
         for d in self.context.get_enabled_directories():
             result = d.instance.getpwent(filter, params)
