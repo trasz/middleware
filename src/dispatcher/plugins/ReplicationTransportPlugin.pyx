@@ -266,18 +266,6 @@ class TransportSendTask(Task):
         cdef int rd_fd = fd.fd
         cdef int wr_fd
 
-        client_address = transport.get('client_address')
-        host = self.dispatcher.call_sync(
-            'peer.query',
-            [('address', '=', client_address), ('type', '=', 'replication')],
-            {'single': True}
-        )
-        if not host:
-            raise TaskException(
-                ENOENT,
-                'Client address {0} is not on local known replication hosts list'.format(client_address)
-            )
-
         try:
             buffer_size = transport.get('buffer_size', 1024*1024)
 
