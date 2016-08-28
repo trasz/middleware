@@ -52,6 +52,7 @@ class SessionProvider(Provider):
                 # like etcd, statd and so on.
                 if hasattr(conn.user, 'uid'):
                     live_user_session_ids.append(conn.session_id)
+
         return self.datastore.query('sessions', ('id', 'in', live_user_session_ids))
 
     @pass_sender
@@ -83,6 +84,18 @@ class SessionProvider(Provider):
             'sender_name': sender.user.name if sender.user else None,
             'message': message
         }))
+
+    @description("Sends a message to every active session")
+    @accepts(str)
+    @pass_sender
+    def send_to_all(self, message, sender):
+        for srv in self.dispatcher.ws_servers:
+            for target in srv.connections:
+                target.outgoing_events.put(('session.message', {
+                    'sender_id': sender.session_id,
+                    'sender_name': sender.user.name if sender.user else None,
+                    'message': message
+                }))
 
 
 def _init(dispatcher, plugin):
