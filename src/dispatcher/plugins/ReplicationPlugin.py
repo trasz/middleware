@@ -1190,7 +1190,7 @@ class CalculateReplicationDeltaTask(Task):
         return actions, total_send_size
 
 
-@accepts(str, h.ref('replication-options'), h.one_of(None, h.array(h.ref('replication-transport-plugin'))), bool)
+@accepts(str, h.ref('replication-options'), h.one_of(None, h.array(h.ref('replication-transport-option'))), bool)
 @description("Runs a dataset replication with the specified arguments")
 class ReplicateDatasetTask(ProgressTask):
     def __init__(self, dispatcher, datastore):
@@ -1579,7 +1579,7 @@ def get_replication_resources(dispatcher, link):
 
 
 def _depends():
-    return ['NetworkPlugin', 'ServiceManagePlugin', 'ZfsPlugin']
+    return ['NetworkPlugin', 'ServiceManagePlugin', 'ZfsPlugin', 'ReplicationTransportPlugin']
 
 
 def _init(dispatcher, plugin):
@@ -1621,7 +1621,7 @@ def _init(dispatcher, plugin):
             'status': {'$ref': 'replication-status'},
             'transport_options': {
                 'type': 'array',
-                'items': {'$ref': 'replication-transport-plugin'}
+                'items': {'$ref': 'replication-transport-option'}
             },
             'snapshot_lifetime': {'type': 'number'},
             'followdelete': {'type': 'boolean'}
@@ -1654,6 +1654,50 @@ def _init(dispatcher, plugin):
     plugin.register_schema_definition('snapshot-info-type', {
         'type': 'string',
         'enum': ['FILESYSTEM', 'VOLUME']
+    })
+
+    plugin.register_schema_definition('compress-transport-option', {
+        'type': 'object',
+        'properties': {
+            'name': {
+                'type': 'string',
+                'enum': ['compress']
+            },
+            'level': {'$ref': 'compress-plugin-level'}
+        },
+        'additionalProperties': False
+    })
+
+    plugin.register_schema_definition('encrypt-transport-option', {
+        'type': 'object',
+        'properties': {
+            'name': {
+                'type': 'string',
+                'enum': ['encrypt']
+            },
+            'type': {'$ref': 'encrypt-plugin-type'}
+        },
+        'additionalProperties': False
+    })
+
+    plugin.register_schema_definition('throttle-transport-option', {
+        'type': 'object',
+        'properties': {
+            'name': {
+                'type': 'string',
+                'enum': ['throttle']
+            },
+            'buffer_size': {'type': 'integer'}
+        },
+        'additionalProperties': False
+    })
+
+    # Register transport plugin schema
+    plugin.register_schema_definition('replication-transport-option', {
+        'discriminator': 'name',
+        'oneOf': [
+            {'$ref': '{0}-transport-option'.format(name)} for name in dispatcher.call_sync('replication.transport.plugin_types')
+        ]
     })
 
     dispatcher.register_resource(Resource('replication'))
