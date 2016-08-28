@@ -195,7 +195,6 @@ def _init(dispatcher, plugin):
         'properties': {
             'id': {'type': 'string'},
             'name': {'type': 'string'},
-            'priority': {'type': 'integer'},
             'type': {
                 'type': 'string',
                 'enum': ['file', 'local', 'winbind', 'freeipa']
