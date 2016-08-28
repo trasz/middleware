@@ -131,7 +131,14 @@ class DockerImagesProvider(Provider):
             'busybox': {
                 'names': ['my_busybox'],
                 'image': 'busybox:latest',
-                'command': ['/bin/sh']
+                'command': ['/bin/sh'],
+                'interactive': True
+            },
+            'ubuntu': {
+                'names': ['my_ubuntu'],
+                'image': 'ubuntu:latest',
+                'command': ['/bin/bash'],
+                'interactive': True
             }
         }
 
