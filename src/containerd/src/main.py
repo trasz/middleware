@@ -145,6 +145,14 @@ def get_docker_volumes(details):
         }
 
 
+def get_interactive(details):
+    config = details.get('Config')
+    if not config:
+        return False
+
+    return config.get('Tty') and config.get('OpenStdin')
+
+
 class BinaryRingBuffer(object):
     def __init__(self, size):
         self.data = bytearray(size)
@@ -945,6 +953,7 @@ class DockerService(RpcService):
                     'host': host.vm.id,
                     'ports': list(get_docker_ports(details)),
                     'volumes': list(get_docker_volumes(details)),
+                    'interactive': get_interactive(details),
                     'expose_ports': 'org.freenas.expose_ports_at_host' in details['Config']['Labels']
                 })
 
@@ -1022,6 +1031,10 @@ class DockerService(RpcService):
 
         if container.get('command'):
             create_args['command'] = container['command']
+
+        if container.get('interactive'):
+            create_args['stdin_open'] = True
+            create_args['tty'] = True
 
         try:
             host.connection.create_container(**create_args)
