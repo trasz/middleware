@@ -542,18 +542,13 @@ class GroupService(RpcService):
     @generator
     def query(self, filter=None, params=None):
         params = params or {}
-        single = params.get('single', False)
+        single = params.pop('single', False)
         for d in self.context.get_enabled_directories():
             result = d.instance.getgrent(filter, params)
-            if single:
-                if result:
-                    yield result
-                    return
-
-                continue
-
             for group in result:
                 yield annotate(group, d, 'name')
+                if single:
+                    return
 
     def getgrnam(self, name):
         # Try the cache first
