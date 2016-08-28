@@ -1210,7 +1210,7 @@ class ReplicateDatasetTask(ProgressTask):
         return ['zfs:{0}'.format(localds)]
 
     def run(self, localds, options, transport_plugins=None, dry_run=False):
-        remote = options['remote']
+        remote = options.get('remote')
         remoteds = options['remote_dataset']
         followdelete = options.get('followdelete', False)
         recursive = options.get('recursive', False)
@@ -1234,6 +1234,9 @@ class ReplicateDatasetTask(ProgressTask):
                 [('type', '=', 'freenas'), ('id', '=', peer)],
                 {'single': True, 'select': 'address'}
             )
+
+            if not remote:
+                raise TaskException(errno.ENOENT, 'Peer {0} not found'.format(peer))
 
         if not remote:
             raise TaskException(errno.EINVAL, 'Remote host is not specified')
