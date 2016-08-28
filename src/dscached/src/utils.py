@@ -91,7 +91,8 @@ def obtain_or_renew_ticket(principal, password, renew_life=None):
 
     if have_ticket(principal):
         try:
-            ctx.renew_tgt(principal, cc)
+            tgt = ctx.renew_tgt(principal, cc)
+            cc.add(tgt)
         except krb5.KrbException:
             pass
         else:

@@ -229,12 +229,17 @@ class FreeIPAPlugin(DirectoryServicePlugin):
                 notify = self.cv.wait(60)
 
                 if self.enabled:
+                    obtain_or_renew_ticket(
+                        self.principal,
+                        self.parameters['password'],
+                        renew_life=TICKET_RENEW_LIFE
+                    )
+
                     if self.directory.state == DirectoryState.BOUND and not notify:
                         continue
 
                     try:
                         self.directory.put_state(DirectoryState.JOINING)
-                        obtain_or_renew_ticket(self.principal, self.parameters['password'], renew_life=TICKET_RENEW_LIFE)
                         self.servers = [ldap3.Server(i) for i in self.ldap_addresses]
                         self.conn = ldap3.Connection(
                             self.servers,
