@@ -1684,7 +1684,7 @@ def _init(dispatcher, plugin):
         'type': 'object',
         'properties': {
             'name': {'type': 'string'},
-            'type': {'type': 'string'},
+            'type': {'$ref': 'encrypt-plugin-type'},
             'read_fd': {'type': 'fd'},
             'write_fd': {'type': 'fd'},
             'auth_token': {'type': 'string'},
@@ -1693,6 +1693,11 @@ def _init(dispatcher, plugin):
             'buffer_size': {'type': 'integer'}
         },
         'additionalProperties': False
+    })
+
+    plugin.register_schema_definition('encrypt-plugin-type', {
+        'type': 'string',
+        'enum': ['AES128', 'AES192', 'AES256']
     })
 
     plugin.register_schema_definition('decrypt-plugin', {
