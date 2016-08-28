@@ -89,6 +89,14 @@ def obtain_or_renew_ticket(principal, password, renew_life=None):
     ctx = krb5.Context()
     cc = krb5.CredentialsCache(ctx)
 
+    if have_ticket(principal):
+        try:
+            ctx.renew_tgt(principal, cc)
+        except krb5.KrbException:
+            pass
+        else:
+            return
+
     tgt = ctx.obtain_tgt_password(principal, password, renew_life=renew_life)
     if abs((tgt.starttime - datetime.now()).total_seconds()) > 300:
         raise krb5.KrbException("Clock skew too great")
