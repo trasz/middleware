@@ -54,6 +54,7 @@ import ipaddress
 import pf
 import urllib.parse
 import requests
+from datetime import datetime
 from bsd import kld, sysctl
 from threading import Condition
 from gevent.queue import Queue
@@ -966,7 +967,8 @@ class DockerService(RpcService):
                     'id': image['Id'],
                     'names': image['RepoTags'],
                     'size': image['VirtualSize'],
-                    'host': host.vm.id
+                    'host': host.vm.id,
+                    'created_at': datetime.utcfromtimestamp(int(image['Created']))
                 })
 
         return q.query(result, *(filter or []), stream=True, **(params or {}))

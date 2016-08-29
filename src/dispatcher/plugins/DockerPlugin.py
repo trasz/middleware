@@ -637,7 +637,8 @@ def _init(dispatcher, plugin):
                 'items': {'type': 'string'}
             },
             'size': {'type': 'integer'},
-            'host': {'type': ['string', 'null']}
+            'host': {'type': ['string', 'null']},
+            'created_at': {'type': 'string'}
         }
     })
 
