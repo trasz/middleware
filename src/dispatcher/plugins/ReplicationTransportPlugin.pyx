@@ -299,6 +299,7 @@ class TransportSendTask(Task):
 
             if self.sock is None:
                 raise TaskException(EACCES, 'Could not open a socket at address {0}'.format(server_address))
+
             logger.debug('Created a TCP socket at {0}:{1}'.format(*addr))
 
             token_size = transport.get('auth_token_size', 1024)
