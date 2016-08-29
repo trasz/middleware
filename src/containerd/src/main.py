@@ -551,9 +551,9 @@ class Jail(object):
 
 
 class DockerHost(object):
-    def __init__(self, context):
+    def __init__(self, context, vm):
         self.context = context
-        self.vm = None
+        self.vm = vm
         self.state = DockerHostState.DOWN
         self.connection = None
         self.listener = None
@@ -840,8 +840,7 @@ class ManagementService(RpcService):
         vm.start()
 
         if vm.config.get('docker_host', False):
-            host = DockerHost(self.context)
-            host.vm = vm
+            host = DockerHost(self.context, vm)
             vm.docker_host = host
             self.context.docker_hosts[id] = host
 
