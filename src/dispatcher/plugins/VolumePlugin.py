@@ -363,6 +363,16 @@ class VolumeProvider(Provider):
                         'name': vol['id']
                     }
 
+        for disk in set(disks) - set(ret.keys()):
+            try:
+                label = self.get_disk_label(disk)
+                ret[disk] = {
+                    'type': 'EXPORTED_VOLUME',
+                    'name': label['volume_id']
+                }
+            except:
+                continue
+
         return ret
 
     @accepts(str, str)
@@ -2968,7 +2978,7 @@ def _init(dispatcher, plugin):
 
     plugin.register_schema_definition('disks-allocation-type', {
         'type': 'string',
-        'enum': ['BOOT', 'VOLUME', 'ISCSI'],
+        'enum': ['BOOT', 'VOLUME', 'EXPORTED_VOLUME', 'ISCSI'],
     })
 
     plugin.register_schema_definition('importable-disk', {

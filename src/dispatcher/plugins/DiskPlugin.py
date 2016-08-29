@@ -197,7 +197,7 @@ class DiskGPTFormatTask(Task):
             [disk['path']]
         ).get(disk['path'])
 
-        if allocation is not None:
+        if allocation and allocation['type'] != 'EXPORTED_VOLUME':
             raise TaskException(
                 errno.EINVAL,
                 "Cannot perform format operation on an allocated disk {0}".format(disk['path'])
@@ -335,7 +335,7 @@ class DiskEraseTask(Task):
             [disk['path']]
         ).get(disk['path'])
 
-        if allocation is not None:
+        if allocation and allocation['type'] != 'EXPORTED_VOLUME':
             raise TaskException(
                 errno.EINVAL,
                 "Cannot perform erase operation on an allocated disk {0}".format(disk['path'])
