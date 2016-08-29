@@ -313,7 +313,7 @@ class VirtualMachine(object):
             iface.up()
 
             if nic['mode'] == 'BRIDGED':
-                if nic['bridge']:
+                if nic.get('bridge'):
                     bridge_if = nic['bridge']
                     if bridge_if == 'default':
                         bridge_if = self.context.client.call_sync('networkd.configuration.get_default_interface')
