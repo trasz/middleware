@@ -748,6 +748,8 @@ def _init(dispatcher, plugin):
                 'type': 'object',
                 'properties': {
                     'directory': {'type': 'string'},
+                    'cached_at': {'type': ['datetime', 'null']},
+                    'ttl': {'type': ['number', 'null']}
                 }
             }
         },
