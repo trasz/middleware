@@ -485,9 +485,10 @@ class ZpoolDestroyTask(ZpoolBaseTask):
         try:
             zfs = get_zfs()
             pool = zfs.get(name)
+            disks = list(pool.disks)
             zfs.destroy(name)
 
-            for i in pool.disks:
+            for i in disks:
                 try:
                     libzfs.clear_label(i)
                 except:
