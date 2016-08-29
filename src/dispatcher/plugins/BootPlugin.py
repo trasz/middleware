@@ -209,15 +209,16 @@ class BootDetachDisk(Task):
         return ['zpool:{0}'.format(boot_pool_name)]
 
     def run(self, disk):
+        boot_pool_name = self.configstore.get('system.boot_pool_name')
         pool = self.dispatcher.call_sync('boot.pool.get_config')
         vdev = first_or_default(
-            lambda v: os.path.join(disk, '/dev') == v['path'],
+            lambda v: os.path.join('/dev', disk) == v['path'],
             q.get(pool, 'groups.data.0.children')
         )
         if not vdev:
             raise TaskException(errno.ENOENT, 'Disk {0} not found in the boot pool'.format(disk))
 
-        self.join_subtasks(self.run_subtask('zfs.pool.detach', vdev['guid']))
+        self.join_subtasks(self.run_subtask('zfs.pool.detach', boot_pool_name, vdev['guid']))
 
 
 def _depends():
