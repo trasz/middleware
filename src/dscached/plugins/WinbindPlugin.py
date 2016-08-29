@@ -472,7 +472,7 @@ class WinbindPlugin(DirectoryServicePlugin):
         try:
             self.configure_smb(True)
             obtain_or_renew_ticket(self.principal, self.parameters['password'])
-            subprocess.call(['/usr/local/bin/net', 'ads', 'join', '-k'])
+            subprocess.call(['/usr/local/bin/net', 'ads', 'join', self.realm, '-k'])
             subprocess.call(['/usr/sbin/service', 'samba_server', 'restart'])
 
             self.dc = self.wbc.ping_dc(self.realm)
