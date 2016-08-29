@@ -36,7 +36,6 @@ import errno
 import time
 import string
 import random
-import threading
 import gevent
 import gevent.os
 import gevent.monkey
@@ -53,8 +52,8 @@ import ipaddress
 import pf
 import urllib.parse
 import requests
-import fcntl
 from bsd import kld, sysctl
+from threading import Condition
 from gevent.queue import Queue
 from gevent.event import Event
 from geventwebsocket import WebSocketServer, WebSocketApplication, Resource
@@ -560,7 +559,7 @@ class DockerHost(object):
         self.start_notifier = None
         self.mapped_ports = {}
         self.active_consoles = {}
-        self.ready = threading.Event()
+        self.ready = Event()
         self.logger = logging.getLogger(self.__class__.__name__)
         gevent.spawn(self.wait_ready)
 
@@ -702,7 +701,7 @@ class ContainerConsole(object):
         self.console_queues = []
         self.scrollback_t = None
         self.active = False
-        self.lock = threading.Lock()
+        self.lock = Lock()
         self.logger = logging.getLogger('Container:{0}'.format(self.name))
 
     def start_console(self):
@@ -1248,7 +1247,7 @@ class Main(object):
         self.ec2 = None
         self.default_if = None
         self.proxy_server = ReverseProxyServer()
-        self.cv = threading.Condition()
+        self.cv = Condition()
 
     def init_datastore(self):
         try:
