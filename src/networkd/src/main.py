@@ -565,7 +565,7 @@ class ConfigurationService(RpcService):
         proc.wait()
         resolv.close()
 
-        if not self.configstore.get('network.dhcp.assign_dns'):
+        if not self.context.configstore.get('network.dhcp.assign_dns'):
             # Purge DNS entries from all other interfaces
             out = subprocess.check_output(['/sbin/resolvconf', '-i']).decode('ascii')
             for i in filter(lambda i: i != 'lo0', out.split()):
