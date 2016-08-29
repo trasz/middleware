@@ -52,7 +52,7 @@ class EC2Metadata(object):
             return self.vm['name']
 
         if item == 'user-data':
-            return get(self.vm, 'config.cloud_init')
+            return get(self.vm, 'config.cloud_init') or ''
 
         return ''
 
