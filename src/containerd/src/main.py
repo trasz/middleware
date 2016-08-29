@@ -55,7 +55,7 @@ import pf
 import urllib.parse
 import requests
 from bsd import kld, sysctl
-from threading import Condition
+from threading import Condition, Lock
 from gevent.queue import Queue
 from gevent.event import Event
 from geventwebsocket import WebSocketServer, WebSocketApplication, Resource
