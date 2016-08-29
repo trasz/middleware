@@ -55,9 +55,10 @@ import pf
 import urllib.parse
 import requests
 from bsd import kld, sysctl
-from threading import Condition, Lock
+from threading import Condition
 from gevent.queue import Queue
 from gevent.event import Event
+from gevent.lock import Rlock
 from geventwebsocket import WebSocketServer, WebSocketApplication, Resource
 from geventwebsocket.exceptions import WebSocketError
 from pyee import EventEmitter
@@ -700,7 +701,7 @@ class ContainerConsole(object):
         self.console_queues = []
         self.scrollback_t = None
         self.active = False
-        self.lock = Lock()
+        self.lock = Rlock()
         self.logger = logging.getLogger('Container:{0}'.format(self.name))
 
     def start_console(self):
