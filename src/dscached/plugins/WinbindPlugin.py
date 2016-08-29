@@ -118,6 +118,9 @@ class WinbindPlugin(DirectoryServicePlugin):
 
     @property
     def ldap_addresses(self):
+        if self.parameters.get('dc_address'):
+            return [self.parameters['dc_address']]
+
         return [str(i) for i in get_srv_records('ldap', 'tcp', self.parameters['realm'])]
 
     @staticmethod
@@ -490,12 +493,17 @@ class WinbindPlugin(DirectoryServicePlugin):
         self.configure_smb(False)
 
     def get_kerberos_realm(self, parameters):
-        return {
+        ret = {
             'id': AD_REALM_ID,
             'realm': parameters['realm'].upper(),
             'created_at': datetime.utcnow(),
             'updated_at': datetime.utcnow()
         }
+
+        if parameters.get('dc_address'):
+            ret['kdc_address'] = parameters['dc_address']
+
+        return ret
 
 
 def _init(context):
