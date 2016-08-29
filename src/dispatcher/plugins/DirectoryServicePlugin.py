@@ -132,12 +132,12 @@ class DirectoryServiceCreateTask(Task):
         })
 
         node = ConfigNode('directory', self.configstore)
-        node['search_order'] = node['search_order'] + [self['name']]
+        node['search_order'] = node['search_order'] + [directory['name']]
         return self.id
 
     def rollback(self, directory):
         if hasattr(self, 'id'):
-            self.datastore.remove('directories', self.id)
+            self.datastore.delete('directories', self.id)
 
 
 @accepts(str, h.ref('directory'))
