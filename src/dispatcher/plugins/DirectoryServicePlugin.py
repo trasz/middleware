@@ -31,6 +31,7 @@ import contextlib
 from datastore.config import ConfigNode
 from freenas.dispatcher.rpc import RpcException, accepts, returns, SchemaHelper as h, generator
 from task import Provider, Task, TaskDescription, TaskException, query
+from freenas.utils import query as q
 
 
 from freenas.utils import normalize, query as q
@@ -117,6 +118,10 @@ class DirectoryServiceCreateTask(Task):
                 'uid_range': [100000, 999999],
                 'gid_range': [100000, 999999]
             })
+
+            smb = self.dispatcher.call_sync('service.query', [('name', '=', 'smb')], {"single": True})
+            q.set(smb, 'config.enable', True)
+            self.join_subtasks(self.run_subtask('service.update', smb['id'], smb))
 
         self.id = self.datastore.insert('directories', directory)
         self.dispatcher.call_sync('dscached.management.configure_directory', self.id)
