@@ -68,7 +68,7 @@ class VMProvider(Provider):
                 readme = get_readme(root)
                 if readme:
                     with open(readme, 'r') as readme_file:
-                        obj['template']['readme'] = readme_file.read()
+                        obj['config']['readme'] = readme_file.read()
             return obj
 
         return q.query(
@@ -768,8 +768,8 @@ class VMUpdateTask(VMBaseTask):
 
             self.join_subtasks(self.run_subtask('zfs.rename', vm_ds, new_vm_ds))
 
-        if 'template' in updated_params:
-            readme = updated_params['template'].pop('readme', '')
+        if 'config' in updated_params:
+            readme = updated_params['config'].pop('readme', '')
             root = self.dispatcher.call_sync('vm.get_vm_root', vm['id'])
             readme_path = get_readme(root)
             if readme_path or readme:
@@ -1733,6 +1733,7 @@ def _init(dispatcher, plugin):
                     'vnc_password': {'type': ['string', 'null']},
                     'autostart': {'type': 'boolean'},
                     'docker_host': {'type': 'boolean'},
+                    'readme': {'type': ['string', 'null']},
                 }
             },
             'devices': {
