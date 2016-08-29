@@ -172,7 +172,7 @@ class DirectoryServiceDeleteTask(Task):
         })
 
         node = ConfigNode('directory', self.configstore)
-        node['search_order'] = [i for i in node['search_order'] if i != name]
+        node['search_order'] = [i for i in node['search_order'].value if i != name]
 
 
 def _init(dispatcher, plugin):
