@@ -35,6 +35,7 @@ import tempfile
 import base64
 import gevent
 import gevent.monkey
+import libzfs
 from xml.etree import ElementTree
 from bsd import geom, getswapinfo
 from gevent.lock import RLock
@@ -342,7 +343,7 @@ class DiskEraseTask(Task):
             )
 
         try:
-            system('/sbin/zpool', 'labelclear', '-f', disk['path'])
+            libzfs.clear_label(disk['path'])
         except SubprocessException:
             pass
 
