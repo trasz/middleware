@@ -569,7 +569,7 @@ class DockerHost(object):
         self.connection = docker.Client(base_url='http://{0}:2375'.format(ip))
         self.listener = gevent.spawn(self.listen)
         self.start_notifier = gevent.spawn(self.notify)
-        docker_config = self.context.client.call_sync('docker.get_config')
+        docker_config = self.context.client.call_sync('docker.config.get_config')
         if self.vm.id == docker_config['api_forwarding'] and docker_config['api_forwarding_enable']:
             try:
                 self.context.set_docker_api_forwarding(None)

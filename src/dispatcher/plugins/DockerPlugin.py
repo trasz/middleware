@@ -45,7 +45,7 @@ images_query = 'containerd.docker.query_images'
 
 
 @description('Provides information about Docker configuration')
-class DockerProvider(Provider):
+class DockerConfigProvider(Provider):
     @description('Returns Docker general configuration')
     @returns(h.ref('docker-config'))
     def get_config(self):
@@ -145,7 +145,7 @@ class DockerImagesProvider(Provider):
 
 class DockerBaseTask(ProgressTask):
     def get_default_host(self):
-        hostid = self.dispatcher.call_sync('docker.get_config').get('default_host')
+        hostid = self.dispatcher.call_sync('docker.config.get_config').get('default_host')
         if not hostid:
             hostid = self.datastore.query(
                 'vms',
@@ -434,7 +434,7 @@ def _init(dispatcher, plugin):
                 )
                 if host:
                     logger.debug('Docker host {0} created'.format(host['name']))
-                    default_host = dispatcher.call_sync('docker.get_config').get('default_host')
+                    default_host = dispatcher.call_sync('docker.config.get_config').get('default_host')
                     if not default_host:
                         dispatcher.call_task_sync('docker.update', {'default_host': host['id']})
                         logger.info('Docker host {0} set automatically as default Docker host'.format(host['name']))
@@ -444,7 +444,7 @@ def _init(dispatcher, plugin):
                     })
 
         elif args['operation'] == 'delete':
-            if dispatcher.call_sync('docker.get_config').get('default_host') in args['ids']:
+            if dispatcher.call_sync('docker.config.get_config').get('default_host') in args['ids']:
                 host = dispatcher.datastore.query(
                     'vms',
                     ('config.docker_host', '=', True),
@@ -509,7 +509,7 @@ def _init(dispatcher, plugin):
         sync_cache(containers, containers_query)
         containers.ready = True
 
-    plugin.register_provider('docker', DockerProvider)
+    plugin.register_provider('docker.config', DockerConfigProvider)
     plugin.register_provider('docker.host', DockerHostProvider)
     plugin.register_provider('docker.container', DockerContainerProvider)
     plugin.register_provider('docker.image', DockerImagesProvider)
@@ -673,7 +673,7 @@ def _init(dispatcher, plugin):
     if 'containerd.docker' in dispatcher.call_sync('discovery.get_services'):
         init_cache()
 
-    if not dispatcher.call_sync('docker.get_config').get('default_host'):
+    if not dispatcher.call_sync('docker.config.get_config').get('default_host'):
         host_id = dispatcher.datastore.query(
             'vms',
             ('config.docker_host', '=', True),
