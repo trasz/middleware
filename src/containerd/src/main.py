@@ -25,6 +25,9 @@
 #
 #####################################################################
 
+import gevent.monkey
+gevent.monkey.patch_all()
+
 import os
 import enum
 import sys
@@ -38,7 +41,6 @@ import string
 import random
 import gevent
 import gevent.os
-import gevent.monkey
 import subprocess
 import serial
 import netif
@@ -69,9 +71,6 @@ from vnc import app
 from mgmt import ManagementNetwork
 from ec2 import EC2MetadataServer
 from proxy import ReverseProxyServer
-
-
-gevent.monkey.patch_all()
 
 
 BOOTROM_PATH = '/usr/local/share/uefi-firmware/BHYVE_UEFI.fd'
