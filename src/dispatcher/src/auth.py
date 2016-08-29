@@ -201,6 +201,7 @@ class TokenStore(object):
     def keepalive_token(self, token_id):
         if isinstance(token_id, Token):
             token = token_id
+            token_id = self.lookup_token_id(token)
         else:
             token = self.lookup_token(token_id)
             if not token:
@@ -225,6 +226,25 @@ class TokenStore(object):
 
     def lookup_token(self, token_id):
         return self.tokens.get(token_id)
+
+    def lookup_token_id(self, token):
+        return [key for key, value in self.tokens.items() if value == token]
+
+    def delete_token(self, token_id):
+        if isinstance(token_id, Token):
+            token = token_id
+            token_id = self.lookup_token_id(token)
+        else:
+            token = self.lookup_token(token_id)
+            if not token:
+                logger.trace('Tried to delete token but it was not found or expired')
+                return
+        if token.lifetime:
+            gevent.kill(token.timer)
+            token.revocation_reason = 'Token explicitly deleted'
+            token.revocation_function(self, token, token_id)
+        else:
+            self.tokens.pop(token)
 
     def revoke_token(self, token_id):
         if token_id in self.tokens:

@@ -1404,6 +1404,7 @@ class FileConnection(WebSocketApplication, EventEmitter):
         self.logger.info(
             "File {0} Closed for file {1}".format(self.token.direction, self.token.name)
         )
+        self.dispatcher.token_store.delete_token(self.token)
 
     def on_message(self, message, *args, **kwargs):
         if message is None:
@@ -1481,6 +1482,7 @@ class DownloadRequestHandler(object):
                 self.dispatcher.token_store.keepalive_token(self.token)
                 yield chunk
         finally:
+            self.dispatcher.token_store.delete_token(self.token)
             self.token.file.close()
 
 
