@@ -123,9 +123,13 @@ def have_ticket(principal):
     return False
 
 
-def get_srv_records(service, protocol, domain):
+def get_srv_records(service, protocol, domain, server=None):
     try:
-        answer = dns.resolver.query('_{0}._{1}.{2}'.format(service, protocol, domain), dns.rdatatype.SRV)
+        resolver = dns.resolver.Resolver(configure=True)
+        if server:
+            resolver.nameservers = [server]
+
+        answer = resolver.query('_{0}._{1}.{2}'.format(service, protocol, domain), dns.rdatatype.SRV)
         for i in answer:
             yield i.target
     except dns.exception.DNSException:
