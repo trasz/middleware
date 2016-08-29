@@ -1002,7 +1002,10 @@ def _init(dispatcher, plugin):
             'minute': str(random.randint(0, 59)),
         })
 
-        dispatcher.call_task_sync('calendar_task.create', caltask)
+        if caltask.get('id'):
+            dispatcher.call_task_sync('calendar_task.update', caltask['id'], caltask)
+        else:
+            dispatcher.call_task_sync('calendar_task.create', caltask)
 
     # Register Schemas
     plugin.register_schema_definition('update', {
