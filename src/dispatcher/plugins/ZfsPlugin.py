@@ -484,15 +484,7 @@ class ZpoolDestroyTask(ZpoolBaseTask):
     def run(self, name):
         try:
             zfs = get_zfs()
-            pool = zfs.get(name)
             zfs.destroy(name)
-
-            for i in pool.disks:
-                try:
-                    libzfs.clear_label(i)
-                except:
-                    continue
-
         except libzfs.ZFSException as err:
             raise TaskException(zfs_error_to_errno(err.code), str(err))
 
