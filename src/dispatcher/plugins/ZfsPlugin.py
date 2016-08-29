@@ -95,7 +95,14 @@ class ZpoolProvider(Provider):
     @returns(h.object())
     def get_disk_label(self, device):
         try:
-            return libzfs.read_label(device)
+            label = libzfs.read_label(device)
+            if not label:
+                return None
+
+            if label.get('state') == libzfs.PoolState.DESTROYED:
+                return None
+
+            return label
         except OSError as err:
             raise RpcException(err.errno, err.strerror)
 
