@@ -409,6 +409,7 @@ class TransportSendTask(Task):
             while True:
                 with nogil:
                     ret = read_fd(rd_fd, buffer, buffer_size, header_size)
+
                 IF REPLICATION_TRANSPORT_DEBUG:
                     logger.debug('Got {0} bytes of payload ({1}:{2})'.format(ret, *self.addr))
 
@@ -432,6 +433,7 @@ class TransportSendTask(Task):
         finally:
             if header_wr != conn_fd:
                 close_fds(header_wr)
+
             if not self.aborted:
                 if ret_wr == -1:
                     raise TaskException(
