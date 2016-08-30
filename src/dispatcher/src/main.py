@@ -1254,6 +1254,7 @@ class ShellConnection(WebSocketApplication, EventEmitter):
         self.logger.info('Opening shell %s...', shell)
         env = os.environ.copy()
         env['TERM'] = 'xterm'
+        env['PATH'] = '/sbin:/bin:/usr/sbin:/usr/bin:/usr/local/sbin:/usr/local/bin'
 
         try:
             uinfo = self.dispatcher.call_sync('dscached.account.getpwnam', user)
