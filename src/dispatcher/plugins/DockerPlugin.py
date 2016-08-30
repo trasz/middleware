@@ -614,8 +614,8 @@ def _init(dispatcher, plugin):
             'expose_ports': {'type': 'boolean'},
             'interactive': {'type': 'boolean'},
             'environment': {
-                'type': 'object',
-                'additionalProperties': {'type': 'string'}
+                'type': 'array',
+                'items': {'type': 'string'}
             },
             'ports': {
                 'type': 'array',
