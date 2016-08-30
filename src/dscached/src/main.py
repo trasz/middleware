@@ -404,7 +404,7 @@ class AccountService(RpcService):
         params = params or {}
         params.pop('select', None)
         single = params.pop('single', False)
-        for d in self.context.get_enabled_directories():
+        for d in self.context.get_searched_directories():
             result = d.instance.getpwent(filter, params)
             for user in result:
                 resolve_primary_group(self.context, user)
@@ -419,7 +419,7 @@ class AccountService(RpcService):
             return fix_passwords(item.annotated)
 
         d = self.context.get_directory_for_id(uid=uid)
-        dirs = [d] if d else self.context.get_enabled_directories()
+        dirs = [d] if d else self.context.get_active_directories()
 
         for d in dirs:
             try:
@@ -447,7 +447,7 @@ class AccountService(RpcService):
             user_name, domain_name = user_name.split('@', 1)
             dirs = [self.context.get_directory_by_domain(domain_name)]
         else:
-            dirs = self.context.get_enabled_directories()
+            dirs = self.context.get_searched_directories()
 
         for d in dirs:
             try:
@@ -470,7 +470,7 @@ class AccountService(RpcService):
         if item:
             return fix_passwords(item.annotated)
 
-        for d in self.context.get_enabled_directories():
+        for d in self.context.get_active_directories():
             try:
                 user = d.instance.getpwuuid(uuid)
             except:
@@ -543,7 +543,7 @@ class GroupService(RpcService):
     def query(self, filter=None, params=None):
         params = params or {}
         single = params.pop('single', False)
-        for d in self.context.get_enabled_directories():
+        for d in self.context.get_searched_directories():
             result = d.instance.getgrent(filter, params)
             for group in result:
                 yield annotate(group, d, 'name')
@@ -561,7 +561,7 @@ class GroupService(RpcService):
             name, domain_name = name.split('@', 1)
             dirs = [self.context.get_directory_by_domain(domain_name)]
         else:
-            dirs = self.context.get_enabled_directories()
+            dirs = self.context.get_searched_directories()
 
         for d in dirs:
             try:
@@ -584,7 +584,7 @@ class GroupService(RpcService):
             return item.annotated
 
         d = self.context.get_directory_for_id(gid=gid)
-        dirs = [d] if d else self.context.get_enabled_directories()
+        dirs = [d] if d else self.context.get_active_directories()
 
         for d in dirs:
             try:
@@ -606,7 +606,7 @@ class GroupService(RpcService):
         if item:
             return item.annotated
 
-        for d in self.context.get_enabled_directories():
+        for d in self.context.directories:
             try:
                 group = d.instance.getgruuid(uuid)
             except:
@@ -703,7 +703,10 @@ class Main(object):
         self.rpc.register_service_instance('dscached.management', ManagementService(self))
         self.rpc.register_service_instance('dscached.debug', DebugService())
 
-    def get_enabled_directories(self):
+    def get_active_directories(self):
+        return list(filter(lambda d: d and d.state == DirectoryState.BOUND))
+
+    def get_searched_directories(self):
         return list(filter(
             lambda d: d and d.state == DirectoryState.BOUND,
             (self.get_directory_by_name(n) for n in self.get_search_order())
