@@ -158,6 +158,56 @@ class DockerImagesProvider(Provider):
                     }
                 ],
                 'expose_ports': True
+            },
+            'plex': {
+                'names': ['my_plex'],
+                'expose_ports': True,
+                'image': 'timhaak/plex',
+                'environment': ['RUN_AS_ROOT=TRUE'],
+                'volumes': [
+                    {
+                        'host_path': 'plex/library',
+                        'container_path': '/config',
+                        'readonly': False
+                    },
+                    {
+                        'host_path': 'plex/media',
+                        'container_path': '/data',
+                        'readonly': False
+                    }
+                ],
+                'ports': [
+                    {
+                        'host_port': 1900,
+                        'container_port': 1900,
+                        'protocol': 'UDP'
+                    },
+                    {
+                        'host_port': 32469,
+                        'container_port': 32469,
+                        'protocol': 'UDP'
+                    },
+                    {
+                        'host_port': 32400,
+                        'container_port': 32400,
+                        'protocol': 'UDP'
+                    },
+                    {
+                        'host_port': 5353,
+                        'container_port': 5353,
+                        'protocol': 'UDP'
+                    },
+                    {
+                        'host_port': 32400,
+                        'container_port': 32400,
+                        'protocol': 'TCP'
+                    },
+                    {
+                        'host_port': 32469,
+                        'container_port': 32469,
+                        'protocol': 'TCP'
+                    }
+                ]
             }
         }
 
@@ -221,10 +271,10 @@ class DockerBaseTask(ProgressTask):
 class DockerUpdateTask(Task):
     @classmethod
     def early_describe(cls):
-        return "Updating Docker global configuration"
+        return 'Updating Docker global configuration'
 
     def describe(self, container):
-        return TaskDescription("Updating Docker global configuration")
+        return TaskDescription('Updating Docker global configuration')
 
     def verify(self, updated_params):
         return ['system']
@@ -250,10 +300,10 @@ class DockerUpdateTask(Task):
 class DockerContainerCreateTask(DockerBaseTask):
     @classmethod
     def early_describe(cls):
-        return "Creating a Docker container"
+        return 'Creating a Docker container'
 
     def describe(self, container):
-        return TaskDescription("Creating Docker container {name}".format(name=container['names'][0]))
+        return TaskDescription('Creating Docker container {name}'.format(name=container['names'][0]))
 
     def verify(self, container):
         return []
@@ -317,10 +367,10 @@ class DockerContainerCreateTask(DockerBaseTask):
 class DockerContainerDeleteTask(ProgressTask):
     @classmethod
     def early_describe(cls):
-        return "Deleting a Docker container"
+        return 'Deleting a Docker container'
 
     def describe(self, id):
-        return TaskDescription("Deleting Docker container {name}".format(name=id))
+        return TaskDescription('Deleting Docker container {name}'.format(name=id))
 
     def verify(self, id):
         return []
@@ -334,10 +384,10 @@ class DockerContainerDeleteTask(ProgressTask):
 class DockerContainerStartTask(Task):
     @classmethod
     def early_describe(cls):
-        return "Starting container"
+        return 'Starting container'
 
     def describe(self, id):
-        return TaskDescription("Starting container {name}".format(name=id))
+        return TaskDescription('Starting container {name}'.format(name=id))
 
     def verify(self, id):
         return []
@@ -351,10 +401,10 @@ class DockerContainerStartTask(Task):
 class DockerContainerStopTask(Task):
     @classmethod
     def early_describe(cls):
-        return "Stopping container"
+        return 'Stopping container'
 
     def describe(self, id):
-        return TaskDescription("Stopping container {name}".format(name=id))
+        return TaskDescription('Stopping container {name}'.format(name=id))
 
     def verify(self, id):
         return []
@@ -368,10 +418,10 @@ class DockerContainerStopTask(Task):
 class DockerImagePullTask(DockerBaseTask):
     @classmethod
     def early_describe(cls):
-        return "Pulling docker image"
+        return 'Pulling docker image'
 
     def describe(self, name, hostid):
-        return TaskDescription("Pulling docker image {name}".format(name=name))
+        return TaskDescription('Pulling docker image {name}'.format(name=name))
 
     def verify(self, name, hostid):
         return []
@@ -393,10 +443,10 @@ class DockerImagePullTask(DockerBaseTask):
 class DockerImageDeleteTask(DockerBaseTask):
     @classmethod
     def early_describe(cls):
-        return "Deleting docker image"
+        return 'Deleting docker image'
 
     def describe(self, name, hostid):
-        return TaskDescription("Deleting docker image {name}".format(name=name))
+        return TaskDescription('Deleting docker image {name}'.format(name=name))
 
     def verify(self, name, hostid):
         return []
