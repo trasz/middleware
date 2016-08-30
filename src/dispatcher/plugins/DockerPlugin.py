@@ -25,6 +25,8 @@
 #
 #####################################################################
 
+import os
+import copy
 import errno
 import gevent
 import dockerhub
@@ -281,6 +283,30 @@ class DockerContainerCreateTask(DockerBaseTask):
 
         if not image:
             self.join_subtasks(self.run_subtask('docker.image.pull', container['image'], container['host']))
+
+        parent_dir = container.pop('parent_directory', None)
+        if parent_dir:
+            templates = self.dispatcher.call_sync('docker.image.get_templates')
+            for k, t in templates.items():
+                if t['image'] == container['image']:
+                    container['volumes'] = copy.deepcopy(t['volumes'])
+                    for v in container['volumes']:
+                        v['host_path'] = os.path.join(parent_dir, v['host_path'])
+                        try:
+                            os.makedirs(v['host_path'])
+                        except FileExistsError:
+                            pass
+                        except OSError as err:
+                            raise TaskException(
+                                errno.EACCES,
+                                'Parent directory {0} could not be created: {1}'.format(parent_dir, err)
+                            )
+                    break
+            else:
+                raise TaskException(
+                    errno.EINVAL,
+                    'Template for container {0} does not exist'.format(container['image'])
+                )
 
         container['name'] = container['names'][0]
         self.dispatcher.call_sync('containerd.docker.create', container)
@@ -640,7 +666,8 @@ def _init(dispatcher, plugin):
             'volumes': {
                 'type': 'array',
                 'items': {'$ref': 'docker-volume'}
-            }
+            },
+            'parent_directory': {'type': 'string'}
         }
     })
 
