@@ -139,6 +139,23 @@ class DockerImagesProvider(Provider):
                 'image': 'ubuntu:latest',
                 'command': ['/bin/bash'],
                 'interactive': True
+            },
+            'alpine': {
+                'names': ['my_alpine'],
+                'image': 'alpine:latest',
+                'command': ['/bin/sh'],
+                'interactive': True
+            },
+            'nginx': {
+                'names': ['my_nginx'],
+                'image': 'nginx:latest',
+                'ports': [
+                    {
+                        'container_port': 80,
+                        'host_port': 8080
+                    }
+                ],
+                'expose_ports': True
             }
         }
 
