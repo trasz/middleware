@@ -118,10 +118,8 @@ class WinbindPlugin(DirectoryServicePlugin):
 
     @property
     def ldap_addresses(self):
-        if self.parameters.get('dc_address'):
-            return [self.parameters['dc_address']]
-
-        return [str(i) for i in get_srv_records('ldap', 'tcp', self.parameters['realm'])]
+        records = get_srv_records('ldap', 'tcp', self.parameters['realm'], self.parameters.get('dc_address'))
+        return [str(i) for i in records]
 
     @staticmethod
     def normalize_parameters(parameters):
