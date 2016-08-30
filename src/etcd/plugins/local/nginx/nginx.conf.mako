@@ -53,6 +53,10 @@ http {
             root /usr/local/www/gui;
         }
 
+        location /cli {
+            alias /usr/local/www/cli/html;
+        }
+
         % if config.get("service.ipfs.webui"):
             location /ipfsui {
                 proxy_pass http://127.0.0.1:5001/webui/;
