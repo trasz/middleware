@@ -1111,8 +1111,8 @@ class ZfsSendTask(ZfsBaseTask):
 
     def describe(self, name, fromsnap, tosnap, fd):
         return TaskDescription(
-            'Sending ZFS replication stream from snapshot {fromsnap} to snapshot {tosnap}',
-            fromsnap=fromsnap,
+            'Sending ZFS replication stream from {fromname} to snapshot {tosnap}',
+            fromname='{0}:{1}'.format(name, fromsnap) if fromsnap else name,
             tosnap=tosnap
         )
 
