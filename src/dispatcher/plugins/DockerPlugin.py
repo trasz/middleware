@@ -339,7 +339,7 @@ class DockerContainerCreateTask(DockerBaseTask):
             templates = self.dispatcher.call_sync('docker.image.get_templates')
             for k, t in templates.items():
                 if t['image'] == container['image']:
-                    container['volumes'] = copy.deepcopy(t['volumes'])
+                    container['volumes'] = copy.deepcopy(t.get('volumes', []))
                     for v in container['volumes']:
                         v['host_path'] = os.path.join(parent_dir, v['host_path'])
                         try:
