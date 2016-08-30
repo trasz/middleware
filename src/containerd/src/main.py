@@ -953,7 +953,8 @@ class DockerService(RpcService):
                     'ports': list(get_docker_ports(details)),
                     'volumes': list(get_docker_volumes(details)),
                     'interactive': get_interactive(details),
-                    'expose_ports': 'org.freenas.expose_ports_at_host' in details['Config']['Labels']
+                    'expose_ports': 'org.freenas.expose_ports_at_host' in details['Config']['Labels'],
+                    'environment': details['Config']['Env']
                 })
 
         return q.query(result, *(filter or []), stream=True, **(params or {}))
@@ -1031,6 +1032,9 @@ class DockerService(RpcService):
 
         if container.get('command'):
             create_args['command'] = container['command']
+
+        if container.get('environment'):
+            create_args['environment'] = container['environment']
 
         if container.get('interactive'):
             create_args['stdin_open'] = True
