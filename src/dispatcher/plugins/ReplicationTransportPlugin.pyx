@@ -265,6 +265,7 @@ class TransportSendTask(Task):
         cdef uint32_t header_size = 2 * sizeof(uint32_t)
         cdef int rd_fd = fd.fd
         cdef int wr_fd
+        cdef int header_wr = -1
 
         try:
             buffer_size = transport.get('buffer_size', 1024*1024)
