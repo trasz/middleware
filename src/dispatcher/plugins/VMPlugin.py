@@ -909,6 +909,15 @@ class VMStartTask(Task):
         return TaskDescription('Starting VM {name}', name=vm.get('name', '') if vm else '')
 
     def verify(self, id):
+        vm = self.datastore.get_by_id('vms', id)
+        config = vm.get('config')
+        if not config or not config.get('bootloader'):
+            raise VerifyException(errno.ENXIO, 'Please specify a bootloader for this vm.')
+        if config['bootloader'] == 'BHYVELOAD' and not config.get('boot_device'):
+            raise VerifyException(
+                errno.ENXIO,
+                'BHYVELOAD bootloader requires that you specify a boot device on your vm'
+            )
         return ['system']
 
     def run(self, id):
