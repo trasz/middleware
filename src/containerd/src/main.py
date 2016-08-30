@@ -1433,7 +1433,7 @@ class Main(object):
         self.logger.warning('Exiting')
         self.set_docker_api_forwarding(None)
         for i in self.vms.values():
-            i.stop(True)
+            i.stop(False)
 
         self.client.disconnect()
         sys.exit(0)
