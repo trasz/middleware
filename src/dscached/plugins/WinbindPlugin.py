@@ -138,14 +138,20 @@ class WinbindPlugin(DirectoryServicePlugin):
     def is_joined(self):
         # Check if we have ticket
         if not have_ticket(self.principal):
+            logger.debug('Ticket not found or expired')
             return False
 
         # Check if we can fetch domain SID
         if subprocess.call(['/usr/local/bin/net', 'getdomainsid']) != 0:
+            logger.debug('Cannot fetch domain SID')
             return False
 
         # Check if winbind is running
-        return self.wbc.interface is not None
+        if self.wbc.interface is None:
+            logger.debug('Winbind client interface not available')
+            return False
+
+        return True
 
     def __renew_ticket(self):
         obtain_or_renew_ticket(self.principal, self.parameters['password'])
