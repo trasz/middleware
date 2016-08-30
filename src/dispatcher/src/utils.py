@@ -28,6 +28,7 @@
 import os
 import errno
 import tempfile
+import socket
 from freenas.dispatcher.jsonenc import dumps, loads
 from freenas.dispatcher.client import Client
 from paramiko import RSAKey, AuthenticationException, SSHException
@@ -66,9 +67,15 @@ def delete_config(conf_path, name_mod):
 
 
 def get_replication_client(dispatcher, remote):
+    address = socket.gethostbyname(remote)
     host = dispatcher.call_sync(
-        'peer.query',
-        [('address', '=', remote), ('type', '=', 'freenas')],
+        'peer.query', [
+            ('or', [
+                ('address', '=', remote),
+                ('address', '=', address),
+            ]),
+            ('type', '=', 'freenas')
+        ],
         {'single': True}
     )
     if not host:
