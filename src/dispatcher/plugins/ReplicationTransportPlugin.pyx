@@ -266,11 +266,9 @@ class TransportSendTask(Task):
         cdef int rd_fd = fd.fd
         cdef int wr_fd
 
-        client_address = transport.get('client_address')
         try:
             buffer_size = transport.get('buffer_size', 1024*1024)
-
-            client_address = transport.get('client_address')
+            client_address = socket.gethostbyname(transport.get('client_address'))
             remote_client = get_replication_client(self.dispatcher, client_address)
             server_address = remote_client.call_sync('management.get_sender_address').split(',', 1)[0]
             server_port = transport.get('server_port', 0)
