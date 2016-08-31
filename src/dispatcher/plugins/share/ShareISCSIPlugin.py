@@ -235,7 +235,10 @@ class ImportiSCSIShareTask(CreateISCSIShareTask):
         return super(ImportiSCSIShareTask, self).run(share)
 
 
-@accepts(h.ref('share-iscsi-target'))
+@accepts(h.all_of(
+    h.ref('share-iscsi-target'),
+    h.required('id')
+))
 @description('Creates iSCSI share target')
 class CreateISCSITargetTask(Task):
     @classmethod
