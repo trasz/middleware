@@ -162,7 +162,7 @@ class DockerImagesProvider(Provider):
             'plex': {
                 'names': ['my_plex'],
                 'expose_ports': True,
-                'image': 'timhaak/plex',
+                'image': 'timhaak/plex:latest',
                 'environment': ['RUN_AS_ROOT=TRUE'],
                 'volumes': [
                     {
@@ -228,7 +228,7 @@ class DockerImagesProvider(Provider):
                 'environment': [
                     'PASSWORD=freenas'
                 ],
-                'image': 'yujiod/minecraft-mineos',
+                'image': 'yujiod/minecraft-mineos:latest',
                 'expose_ports': True,
             },
             'debian': {
@@ -239,7 +239,7 @@ class DockerImagesProvider(Provider):
                 ]
             },
             'archlinux': {
-                'image': 'base/archlinux',
+                'image': 'base/archlinux:latest',
                 'command': [
                     '/bin/sh'
                 ],
@@ -247,7 +247,8 @@ class DockerImagesProvider(Provider):
                 'names': [
                     'my_arch'
                 ]
-            }
+            },
+
         }
 
 
