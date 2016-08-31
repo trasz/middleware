@@ -229,11 +229,16 @@ class FreeIPAPlugin(DirectoryServicePlugin):
                 notify = self.cv.wait(60)
 
                 if self.enabled:
-                    obtain_or_renew_ticket(
-                        self.principal,
-                        self.parameters['password'],
-                        renew_life=TICKET_RENEW_LIFE
-                    )
+                    try:
+                        obtain_or_renew_ticket(
+                            self.principal,
+                            self.parameters['password'],
+                            renew_life=TICKET_RENEW_LIFE
+                        )
+                    except krb5.KrbException as err:
+                        self.directory.put_status(errno.ENXIO, '{0} <{1}>'.format(str(err), type(err).__name__))
+                        self.directory.put_state(DirectoryState.FAILURE)
+                        continue
 
                     if self.directory.state == DirectoryState.BOUND and not notify:
                         continue
