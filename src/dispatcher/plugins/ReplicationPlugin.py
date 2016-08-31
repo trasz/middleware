@@ -990,9 +990,12 @@ class SnapshotDatasetTask(Task):
 
         return ['zfs:{0}'.format(dataset)]
 
-    def run(self, dataset, recursive, lifetime, prefix='auto', replicable=False):
+    def run(self, dataset, recursive, lifetime, prefix=None, replicable=False):
         if not self.dispatcher.call_sync('zfs.dataset.query', [('name', '=', dataset)], {'single': True}):
             raise TaskException(errno.ENOENT, 'Dataset {0} not found'.format(dataset))
+
+        if not prefix:
+            prefix = 'auto'
 
         snapname = '{0}-{1:%Y%m%d.%H%M}'.format(prefix, datetime.utcnow())
         params = {
