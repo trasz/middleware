@@ -209,10 +209,7 @@ class WinbindPlugin(DirectoryServicePlugin):
                         if self.parameters.get('dc_address'):
                             logger.debug('Using manually configured DC address')
                             sasl_credentials = (self.ldap_addresses[0][:-1],)
-                            ldap_addresses = [str(i) for i in get_a_records(
-                                self.ldap_addresses[0],
-                                self.parameters['dc_address']
-                            )]
+                            ldap_addresses = get_a_records(self.ldap_addresses[0], self.parameters['dc_address'])
 
                         self.ldap_servers = [ldap3.Server(i) for i in ldap_addresses]
                         self.ldap = ldap3.Connection(
