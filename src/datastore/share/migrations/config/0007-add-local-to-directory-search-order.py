@@ -27,7 +27,7 @@
 
 
 def probe(obj, ds):
-    return obj['id'] == 'directory.search_order'
+    return obj['id'] == 'directory.search_order' and isinstance(obj['value'], list) and 'local' not in obj['value']
 
 
 def apply(obj, ds):
