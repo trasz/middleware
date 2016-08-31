@@ -3,8 +3,8 @@ from base import CRUDTestCase, RESTTestCase, SingleItemTestCase
 import time
 
 
-class DockerTestCase(SingleItemTestCase):
-    name = 'docker'
+class DockerConfigTestCase(SingleItemTestCase):
+    name = 'docker/config'
 
     def get_update_data(self):
         r = self.client.get(self.name)
