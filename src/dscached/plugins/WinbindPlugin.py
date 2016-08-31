@@ -40,7 +40,7 @@ import contextlib
 from threading import Thread, Condition
 from datetime import datetime
 from plugin import DirectoryServicePlugin, DirectoryState, params, status
-from utils import domain_to_dn, join_dn, obtain_or_renew_ticket, have_ticket, get_srv_records, LdapQueryBuilder
+from utils import domain_to_dn, join_dn, obtain_or_renew_ticket, have_ticket, get_srv_records, get_a_records, LdapQueryBuilder
 from freenas.dispatcher.rpc import SchemaHelper as h
 from freenas.utils import normalize, first_or_default
 from freenas.utils.query import get
@@ -202,18 +202,32 @@ class WinbindPlugin(DirectoryServicePlugin):
 
                     if not self.ldap:
                         logger.debug('Initializing LDAP connection')
-                        self.ldap_servers = [ldap3.Server(i) for i in self.ldap_addresses]
+                        logger.debug('LDAP server addresses: {0}'.format(', '.join(self.ldap_addresses)))
+                        ldap_addresses = self.ldap_addresses
+                        sasl_credentials = None
+
+                        if self.parameters.get('dc_address'):
+                            logger.debug('Using manually configured DC address')
+                            sasl_credentials = (self.ldap_addresses[0][:-1],)
+                            ldap_addresses = [str(i) for i in get_a_records(
+                                self.ldap_addresses[0],
+                                self.parameters['dc_address']
+                            )]
+
+                        self.ldap_servers = [ldap3.Server(i) for i in ldap_addresses]
                         self.ldap = ldap3.Connection(
                             self.ldap_servers,
                             client_strategy='ASYNC',
                             authentication=ldap3.SASL,
-                            sasl_mechanism='GSSAPI'
+                            sasl_mechanism='GSSAPI',
+                            sasl_credentials=sasl_credentials
                         )
 
                         try:
                             self.ldap.bind()
                             logger.debug('LDAP bound')
                         except BaseException as err:
+                            logging.exception('err')
                             self.directory.put_status(errno.ENXIO, str(err))
                             self.directory.put_state(DirectoryState.FAILURE)
                             continue

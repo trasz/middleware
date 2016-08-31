@@ -134,3 +134,16 @@ def get_srv_records(service, protocol, domain, server=None):
             yield i.target
     except dns.exception.DNSException:
         return
+
+
+def get_a_records(domain, server=None):
+    try:
+        resolver = dns.resolver.Resolver(configure=True)
+        if server:
+            resolver.nameservers = [server]
+
+        answer = resolver.query(domain, dns.rdatatype.A)
+        for i in answer:
+            yield i.address
+    except dns.exception.DNSException:
+        return
