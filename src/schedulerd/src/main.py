@@ -123,6 +123,7 @@ class ManagementService(RpcService):
             args=[task['task']] + task['args'],
             kwargs={
                 'id': task_id,
+                'name': task['name'],
                 'hidden': task.get('hidden', False),
                 'protected': task.get('protected', False)
             },
@@ -285,7 +286,10 @@ class Context(object):
                 self.client.call_sync('alerts.emit', {
                     'name': 'scheduler.task.failed',
                     'severity': 'CRITICAL',
-                    'description': 'Task {0} has failed: {1}'.format(kwargs['name'], result['error']['message']),
+                    'description': 'Task {0} has failed: {1}'.format(
+                        kwargs.get('name', tid),
+                        result['error']['message']
+                    ),
                 })
             except RpcException as e:
                 self.logger.error('Failed to emit alert', exc_info=True)
