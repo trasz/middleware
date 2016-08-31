@@ -208,6 +208,28 @@ class DockerImagesProvider(Provider):
                         'protocol': 'TCP'
                     }
                 ]
+            },
+            'mineos': {
+                'names': [
+                    'mineos'
+                ],
+                'ports': [
+                    {
+                        'container_port': 8443,
+                        'host_port': 8443,
+                        'protocol': 'TCP'
+                    },
+                    {
+                        'container_port': 25565,
+                        'host_port': 25565,
+                        'protocol': 'TCP'
+                    }
+                ],
+                'environment': [
+                    'PASSWORD=freenas'
+                ],
+                'image': 'yujiod/minecraft-mineos',
+                'expose_ports': True,
             }
         }
 
