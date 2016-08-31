@@ -704,7 +704,10 @@ class Main(object):
         self.rpc.register_service_instance('dscached.debug', DebugService())
 
     def get_active_directories(self):
-        return list(filter(lambda d: d and d.state == DirectoryState.BOUND))
+        return list(filter(
+            lambda d: d and d.state == DirectoryState.BOUND,
+            self.directories
+        ))
 
     def get_searched_directories(self):
         return list(filter(
