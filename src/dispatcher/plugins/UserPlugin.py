@@ -419,7 +419,7 @@ class UserUpdateTask(Task):
                     "{0} is an invalid email address".format(updated_fields['email'])
                 )
 
-        if 'home' in updated_fields:
+        if updated_fields.get('home'):
             volumes_root = self.dispatcher.call_sync('volume.get_volumes_root')
 
             if updated_fields['home'].startswith(volumes_root):
