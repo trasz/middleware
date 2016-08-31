@@ -689,8 +689,6 @@ class GroupDeleteTask(Task):
             self.dispatcher.call_sync('etcd.generation.generate_group', 'accounts')
         except DatastoreException as e:
             raise TaskException(errno.EBADMSG, 'Cannot delete group: {0}'.format(str(e)))
-        except RpcException as e:
-            raise TaskException(errno.ENXIO, 'Cannot regenerate config files')
 
         self.dispatcher.dispatch_event('group.changed', {
             'operation': 'delete',
