@@ -745,13 +745,26 @@ class VMUpdateTask(VMBaseTask):
         if 'config' in updated_params and updated_params['config']['ncpus'] > 16:
             raise TaskException(errno.EINVAL, 'Upper limit of VM cores exceeded. Maximum permissible value is 16.')
 
-        state = self.dispatcher.call_sync('vm.query', [('id', '=', id)], {'select': 'status.state', 'single': True})
-        if 'name' in updated_params and state != 'STOPPED':
-            raise TaskException(errno.EACCES, 'Name of a running VM cannot be modified')
-
         vm = self.datastore.get_by_id('vms', id)
         if vm['immutable']:
             raise TaskException(errno.EACCES, 'Cannot modify immutable VM {0}.'.format(id))
+
+        state = self.dispatcher.call_sync('vm.query', [('id', '=', id)], {'select': 'status.state', 'single': True})
+        if state != 'STOPPED':
+            if 'name' in updated_params:
+                raise TaskException(errno.EACCES, 'Name of a running VM cannot be modified')
+
+            runtime_static_params = (
+                'guest_type', 'enabled', 'immutable', 'target', 'template', 'devices', 'config.memsize', 'config.ncpus',
+                'config.bootloader', 'config.boot_device', 'config.boot_partition', 'config.boot_directory',
+                'config.cloud_init', 'config.vnc_password'
+            )
+
+            if any(q.get(updated_params, key) and q.get(vm, key) != q.get(updated_params, key) for key in runtime_static_params):
+                self.add_warning(TaskWarning(
+                    errno.EACCES, 'Selected change set is going to take effect after VM {0} reboot'.format(vm['name'])
+                ))
+
         try:
             delete_config(
                 self.dispatcher.call_sync(
