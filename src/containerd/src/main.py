@@ -131,13 +131,10 @@ def get_docker_ports(details):
 
 
 def get_docker_volumes(details):
-    if 'HostConfig' not in details:
+    if 'Mounts' not in details:
         return
 
-    if 'Mounts' not in details['HostConfig']:
-        return
-
-    for mnt in details['HostConfig']['Mounts']:
+    for mnt in details['Mounts']:
         yield {
             'host_path': mnt['Source'],
             'container_path': mnt['Destination'],
