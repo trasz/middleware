@@ -182,6 +182,13 @@ class WinbindPlugin(DirectoryServicePlugin):
                     pass
 
                 if self.enabled:
+                    try:
+                        obtain_or_renew_ticket(self.principal, self.parameters['password'])
+                    except krb5.KrbException as err:
+                        self.directory.put_status(errno.ENXIO, '{0} <{1}>'.format(str(err), type(err).__name__))
+                        self.directory.put_state(DirectoryState.FAILURE)
+                        continue
+
                     if not self.is_joined():
                         # Try to rejoin
                         logger.debug('Keepalive thread: rejoining')
