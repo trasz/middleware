@@ -91,6 +91,13 @@ class DirectoryServicesConfigureTask(Task):
 )
 @returns(str)
 class DirectoryServiceCreateTask(Task):
+    @classmethod
+    def early_describe(cls):
+        return "Creating a directory"
+
+    def describe(self, directory):
+        return TaskDescription("Creating directory {name}", name=directory['name'])
+
     def verify(self, directory):
         return ['system']
 
@@ -142,6 +149,14 @@ class DirectoryServiceCreateTask(Task):
 
 @accepts(str, h.ref('directory'))
 class DirectoryServiceUpdateTask(Task):
+    @classmethod
+    def early_describe(cls):
+        return "Updating a directory"
+
+    def describe(self, id, updated_params):
+        directory = self.datastore.get_by_id('directories', id)
+        return TaskDescription("Updating directory {name}", name=directory.get('name', id) if directory else id)
+
     def verify(self, id, updated_params):
         return ['system']
 
@@ -161,6 +176,14 @@ class DirectoryServiceUpdateTask(Task):
 
 @accepts(str)
 class DirectoryServiceDeleteTask(Task):
+    @classmethod
+    def early_describe(cls):
+        return "Deleting a directory"
+
+    def describe(self, id, updated_params):
+        directory = self.datastore.get_by_id('directories', id)
+        return TaskDescription("Deleting directory {name}", name=directory.get('name', id) if directory else id)
+
     def verify(self, id):
         return ['system']
 
