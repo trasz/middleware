@@ -42,7 +42,10 @@ class DockerImageCRUD(CRUDBase):
 
 
 class DockerSingleItem(SingleItemBase):
-    namespace = 'docker'
+    namespace = 'docker.config'
+
+    def get_update_method_name(self):
+        return 'docker.update'
 
 
 class DockerHostResource(ProviderMixin, ResourceQueryMixin, Resource):
