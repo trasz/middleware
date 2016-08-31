@@ -153,7 +153,7 @@ def move_system_dataset(dispatcher, dsid, services, src_pool, dst_pool):
         copytree(SYSTEM_DIR, tmpath)
     except shutil.Error as err:
         logger.warning('Following errors were encountered during migration:')
-        for i in err:
+        for i in err.args[0]:
             logger.warning('{0} -> {1}: {2}'.format(*i[0]))
 
     umount_system_dataset(dispatcher, dsid, dst_pool)
