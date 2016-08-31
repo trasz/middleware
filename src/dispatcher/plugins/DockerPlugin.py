@@ -238,7 +238,16 @@ class DockerImagesProvider(Provider):
                     'my_debian'
                 ]
             },
-
+            'archlinux': {
+                'image': 'base/archlinux',
+                'command': [
+                    '/bin/sh'
+                ],
+                'interactive': True,
+                'names': [
+                    'my_arch'
+                ]
+            }
         }
 
 
