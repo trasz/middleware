@@ -257,6 +257,13 @@ class DockerImagesProvider(Provider):
                 'command': [
                     '/bin/sh'
                 ]
+            },
+            'centos': {
+                'interactive': True,
+                'names': [
+                    'my_centos'
+                ],
+                'image': 'centos:latest'
             }
         }
 
