@@ -2,7 +2,7 @@ from base import RESTTestCase
 
 
 class ReplicationLinkTestCase(RESTTestCase):
-    name = 'replication/link'
+    name = 'replication'
 
     def test_020_retrieve(self):
         r = self.client.get(self.name)
