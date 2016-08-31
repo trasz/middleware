@@ -861,6 +861,10 @@ class Main(object):
                 'ids': [interface]
             })
 
+            self.client.emit_event('network.changed', {
+                'operation': 'update'
+            })
+
         client = dhcp.client.Client(interface, lambda: socket.gethostname())
         client.on_bind = bind
         client.on_unbind = unbind
