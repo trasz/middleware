@@ -1446,9 +1446,9 @@ class DownloadFileTask(ProgressTask):
                 try:
                     urllib.request.urlretrieve(url, file_path, progress_hook)
                 except ConnectionResetError:
-                    raise TaskException(errno.ECONNRESET, 'Cannot access download server')
+                    raise TaskException(errno.ECONNRESET, 'Cannot access download server to download {0}'.format(url))
         except OSError:
-            raise TaskException(errno.EIO, 'File could not be downloaded')
+            raise TaskException(errno.EIO, 'URL {0} could not be downloaded'.format(url))
 
         if os.path.isdir(file_path):
             for f in os.listdir(file_path):
