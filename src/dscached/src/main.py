@@ -713,7 +713,7 @@ class Main(object):
         ))
 
     def get_search_order(self):
-        return ['local', 'system'] + self.search_order
+        return self.search_order
 
     def get_directory_by_domain(self, domain_name):
         return first_or_default(lambda d: d.domain_name == domain_name, self.directories)

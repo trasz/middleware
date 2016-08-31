@@ -362,7 +362,7 @@
             "container.cache_refresh_interval": 60,
             "storage.hotsparing.autoreplace": true,
             "storage.hotsparing.strong_match": false,
-            "directory.search_order": [],
+            "directory.search_order": ["local", "system"],
             "directory.cache_ttl": 3600,
             "directory.cache_enumerations": true,
             "directory.cache_lookups": true
