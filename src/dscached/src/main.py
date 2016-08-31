@@ -606,7 +606,7 @@ class GroupService(RpcService):
         if item:
             return item.annotated
 
-        for d in self.context.directories:
+        for d in self.context.get_active_directories():
             try:
                 group = d.instance.getgruuid(uuid)
             except:
