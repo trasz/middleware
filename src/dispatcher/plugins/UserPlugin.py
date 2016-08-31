@@ -212,7 +212,7 @@ class UserCreateTask(Task):
         if 'builtin' not in user:
             user['builtin'] = False
 
-        if 'home' in user:
+        if user.get('home'):
             if user['home'].startswith(volumes_root):
                 user['home'] = os.path.normpath(user['home'])
                 if len(user['home'].split('/')) < 3:
