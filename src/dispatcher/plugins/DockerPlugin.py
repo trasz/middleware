@@ -248,7 +248,16 @@ class DockerImagesProvider(Provider):
                     'my_arch'
                 ]
             },
-
+            'gentoo': {
+                'image': 'vguardiola/gentoo:latest',
+                'names': [
+                    'my_gentoo'
+                ],
+                'interactive': True,
+                'command': [
+                    '/bin/sh'
+                ]
+            }
         }
 
 
