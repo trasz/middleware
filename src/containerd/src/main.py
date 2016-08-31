@@ -1437,9 +1437,11 @@ class Main(object):
     def die(self):
         self.logger.warning('Exiting')
         self.set_docker_api_forwarding(None)
+        greenlets = []
         for i in self.vms.values():
-            i.stop(False)
+            greenlets.append(gevent.spawn(i.stop, False))
 
+        gevent.joinall(greenlets, timeout=30)
         self.client.disconnect()
         sys.exit(0)
 
