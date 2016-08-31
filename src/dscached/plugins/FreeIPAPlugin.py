@@ -30,6 +30,7 @@ import ldap3
 import ldap3.utils.dn
 import logging
 import errno
+import krb5
 from threading import Thread, Condition
 from datetime import datetime
 from plugin import DirectoryServicePlugin, DirectoryState
