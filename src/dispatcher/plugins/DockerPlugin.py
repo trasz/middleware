@@ -211,7 +211,7 @@ class DockerImagesProvider(Provider):
             },
             'mineos': {
                 'names': [
-                    'mineos'
+                    'my_mineos'
                 ],
                 'ports': [
                     {
@@ -230,7 +230,15 @@ class DockerImagesProvider(Provider):
                 ],
                 'image': 'yujiod/minecraft-mineos',
                 'expose_ports': True,
-            }
+            },
+            'debian': {
+                'image': 'debian:latest',
+                'interactive': True,
+                'names': [
+                    'my_debian'
+                ]
+            },
+
         }
 
 
