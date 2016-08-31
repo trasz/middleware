@@ -7,7 +7,7 @@ class ReplicateDatasetResource(Resource):
 
 
 class ReplicationResource(ProviderMixin, ResourceQueryMixin, Resource):
-    name = 'replication/link'
+    name = 'replication'
     provider = 'replication'
     get = 'rpc:replication.query'
     subresources = (
