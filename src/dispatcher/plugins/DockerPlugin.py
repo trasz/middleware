@@ -269,7 +269,9 @@ class DockerImagesProvider(Provider):
 
 
 class DockerBaseTask(ProgressTask):
-    def get_default_host(self):
+    def get_default_host(self, progress_cb=None):
+        if progress_cb:
+            progress_cb(0, '')
         hostid = self.dispatcher.call_sync('docker.config.get_config').get('default_host')
         if not hostid:
             hostid = self.datastore.query(
@@ -294,11 +296,14 @@ class DockerBaseTask(ProgressTask):
             if not biggest_volume:
                 raise TaskException(errno.ENOENT, 'No pools available. Docker host could not be created.')
 
-            self.join_subtasks(self.run_subtask('vm.create', {
-                'name': host_name,
-                'template': {'name': 'boot2docker'},
-                'target': biggest_volume
-            }))
+            self.join_subtasks(self.run_subtask(
+                'vm.create', {
+                    'name': host_name,
+                    'template': {'name': 'boot2docker'},
+                    'target': biggest_volume
+                },
+                progress_callback=progress_cb
+            ))
 
             hostid = self.dispatcher.call_sync(
                 'vm.query',
@@ -308,6 +313,8 @@ class DockerBaseTask(ProgressTask):
 
             self.join_subtasks(self.run_subtask('vm.start', hostid))
 
+        if progress_cb:
+            progress_cb(100, 'Found default Docker host')
         return hostid
 
     def check_host_state(self, hostid):
@@ -365,6 +372,7 @@ class DockerContainerCreateTask(DockerBaseTask):
         return []
 
     def run(self, container):
+        self.set_progress(0, 'Checking Docker host state')
         normalize(container, {
             'hostname': None,
             'memory_limit': None,
@@ -377,9 +385,13 @@ class DockerContainerCreateTask(DockerBaseTask):
         pass
 
         if not container.get('host'):
-            container['host'] = self.get_default_host()
+            container['host'] = self.get_default_host(
+                lambda p, m, e=None: self.chunk_progress(0, 30, 'Looking for default Docker host:', p, m, e)
+            )
 
         self.check_host_state(container['host'])
+
+        self.set_progress(30, 'Pulling container {0} image'.format(container['image']))
 
         image = self.dispatcher.call_sync(
             'docker.image.query',
@@ -388,7 +400,14 @@ class DockerContainerCreateTask(DockerBaseTask):
         )
 
         if not image:
-            self.join_subtasks(self.run_subtask('docker.image.pull', container['image'], container['host']))
+            self.join_subtasks(self.run_subtask(
+                'docker.image.pull',
+                container['image'],
+                container['host'],
+                progress_callback=lambda p, m, e=None: self.chunk_progress(
+                    30, 90, 'Pulling container {0} image:'.format(container['image']), p, m, e
+                )
+            ))
 
         parent_dir = container.pop('parent_directory', None)
         if parent_dir:
@@ -415,7 +434,10 @@ class DockerContainerCreateTask(DockerBaseTask):
                 )
 
         container['name'] = container['names'][0]
+
+        self.set_progress(90, 'Creating container {0}'.format(container['name']))
         self.dispatcher.call_sync('containerd.docker.create', container)
+        self.set_progress(100, 'Finished')
 
 
 @description('Deletes a Docker container')
@@ -484,7 +506,9 @@ class DockerImagePullTask(DockerBaseTask):
 
     def run(self, name, hostid):
         if not hostid:
-            hostid = self.get_default_host()
+            hostid = self.get_default_host(
+                lambda p, m, e=None: self.chunk_progress(0, 100, 'Looking for default Docker host:', p, m, e)
+            )
 
         self.check_host_state(hostid)
 
