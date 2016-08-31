@@ -1280,6 +1280,7 @@ class Main(object):
                 self.client.login_service('containerd')
                 self.client.enable_server()
                 self.client.rpc.streaming_enabled = True
+                self.client.register_event_handler('network.changed', lambda args: self.init_nat())
                 self.client.register_service('containerd.management', ManagementService(self))
                 self.client.register_service('containerd.console', ConsoleService(self))
                 self.client.register_service('containerd.docker', DockerService(self))
