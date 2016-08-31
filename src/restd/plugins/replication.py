@@ -6,22 +6,13 @@ class ReplicateDatasetResource(Resource):
     post = 'task:replication.replicate_dataset'
 
 
-class ReplicationResource(ProviderMixin, ResourceQueryMixin, Resource):
-    name = 'replication'
-    provider = 'replication'
-    get = 'rpc:replication.query'
-    subresources = (
+class ReplicationCRUD(CRUDBase):
+    namespace = 'replication'
+
+    entity_resources = (
         ReplicateDatasetResource,
     )
 
 
-class ReplicationCRUD(CRUDBase):
-    namespace = 'replication'
-
-    def get_retrieve_method_name(self):
-        return None
-
-
 def _init(rest):
-    rest.register_resource(ReplicationResource)
     rest.register_crud(ReplicationCRUD)
