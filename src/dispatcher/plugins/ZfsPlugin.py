@@ -234,7 +234,7 @@ class ZfsDatasetProvider(Provider):
         try:
             zfs = get_zfs()
             ds = zfs.get_dataset(dataset_name)
-            snaps = threadpool.apply(lambda: [d.__getstate__(False) for d in ds.snapshots])
+            snaps = threadpool.apply(lambda: [d.__getstate__() for d in ds.snapshots])
             snaps.sort(key=lambda s: int(q.get(s, 'properties.creation.rawvalue')))
             return snaps
         except libzfs.ZFSException as err:
@@ -1255,7 +1255,7 @@ def sync_dataset_cache(dispatcher, dataset, old_dataset=None, recursive=False):
                 parents=['zpool:{0}'.format(pool)])
 
         ds_snapshots = {}
-        for i in threadpool.apply(lambda: [d.__getstate__(False) for d in ds.snapshots]):
+        for i in threadpool.apply(lambda: [d.__getstate__() for d in ds.snapshots]):
             name = i['name']
             try:
                 ds_snapshots[name] = i
