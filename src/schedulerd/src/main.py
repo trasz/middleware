@@ -283,7 +283,7 @@ class Context(object):
         result = self.client.call_sync('task.status', tid)
         if result['state'] != 'FINISHED':
             try:
-                self.client.call_sync('alerts.emit', {
+                self.client.call_sync('alert.emit', {
                     'name': 'scheduler.task.failed',
                     'severity': 'CRITICAL',
                     'description': 'Task {0} has failed: {1}'.format(
