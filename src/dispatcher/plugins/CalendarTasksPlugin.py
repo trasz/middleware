@@ -49,6 +49,7 @@ class CalendarTasksProvider(Provider):
 @accepts(
     h.all_of(
         h.ref('calendar-task'),
+        h.required('name'),
         h.no(h.required('status'))
     )
 )
@@ -63,11 +64,12 @@ class CreateCalendarTask(Task):
         return TaskDescription("Creating calendar task {name}", name=task['name'])
 
     def verify(self, task):
-        if task['name'] in self.dispatcher.call_sync('scheduler.management.query', [], {'select': 'name'}):
-            raise TaskException(errno.EEXIST, 'Selected name already exists')
         return ['system']
 
     def run(self, task):
+        if task['name'] in self.dispatcher.call_sync('scheduler.management.query', [], {'select': 'name'}):
+            raise TaskException(errno.EEXIST, 'Task {0} already exists'.format(task['name']))
+
         try:
             tid = self.dispatcher.call_sync('scheduler.management.add', task)
         except RpcException:
