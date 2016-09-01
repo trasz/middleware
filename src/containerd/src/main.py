@@ -951,7 +951,8 @@ class DockerService(RpcService):
                     'volumes': list(get_docker_volumes(details)),
                     'interactive': get_interactive(details),
                     'expose_ports': 'org.freenas.expose_ports_at_host' in details['Config']['Labels'],
-                    'environment': details['Config']['Env']
+                    'environment': details['Config']['Env'],
+                    'hostname': details['Config']['Hostname']
                 })
 
         return q.query(result, *(filter or []), stream=True, **(params or {}))
@@ -1036,6 +1037,9 @@ class DockerService(RpcService):
         if container.get('interactive'):
             create_args['stdin_open'] = True
             create_args['tty'] = True
+
+        if container.get('hostname'):
+            create_args['hostname'] = container['hostname']
 
         try:
             host.connection.create_container(**create_args)
