@@ -448,7 +448,10 @@ class DockerContainerDeleteTask(ProgressTask):
         return 'Deleting a Docker container'
 
     def describe(self, id):
-        return TaskDescription('Deleting Docker container {name}'.format(name=id))
+        name = self.dispatcher.call_sync(
+            'docker.container.query', [('id', '=', id)], {'single': True, 'select': 'names.0'}
+        )
+        return TaskDescription('Deleting Docker container {name}'.format(name=name or id))
 
     def verify(self, id):
         return []
@@ -465,7 +468,10 @@ class DockerContainerStartTask(Task):
         return 'Starting container'
 
     def describe(self, id):
-        return TaskDescription('Starting container {name}'.format(name=id))
+        name = self.dispatcher.call_sync(
+            'docker.container.query', [('id', '=', id)], {'single': True, 'select': 'names.0'}
+        )
+        return TaskDescription('Starting container {name}'.format(name=name or id))
 
     def verify(self, id):
         return []
@@ -482,7 +488,10 @@ class DockerContainerStopTask(Task):
         return 'Stopping container'
 
     def describe(self, id):
-        return TaskDescription('Stopping container {name}'.format(name=id))
+        name = self.dispatcher.call_sync(
+            'docker.container.query', [('id', '=', id)], {'single': True, 'select': 'names.0'}
+        )
+        return TaskDescription('Stopping container {name}'.format(name=name or id))
 
     def verify(self, id):
         return []
