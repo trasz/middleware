@@ -53,8 +53,6 @@ from task import (
 from debug import AttachData, AttachCommandOutput
 from freenas.dispatcher.rpc import RpcException, accepts, returns, description, private, SchemaHelper as h, generator
 
-# Note the following monkey patch is required for pySMART to work correctly
-gevent.monkey.patch_subprocess()
 from pySMART import Device, smart_health_assement
 
 
