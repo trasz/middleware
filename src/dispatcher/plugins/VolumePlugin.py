@@ -2121,7 +2121,7 @@ class DatasetConfigureTask(Task):
             self.join_subtasks(self.run_subtask('zfs.update', ds['id'], props))
 
         if 'permissions_type' in updated_params:
-            oldtyp = ds['properties.org\\.freenas:permissions_type.value']
+            oldtyp = q.get(ds, 'properties.org\\.freenas:permissions_type.value')
             typ = updated_params['permissions_type']
 
             if oldtyp != 'ACL' and typ == 'ACL':
