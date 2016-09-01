@@ -2000,6 +2000,10 @@ class DatasetCreateTask(Task):
         if dataset['mounted']:
             self.join_subtasks(self.run_subtask('zfs.mount', dataset['id']))
 
+        if dataset['permissions_type'] == 'ACL':
+            fs_path = self.dispatcher.call_sync('volume.get_dataset_path', dataset['id'])
+            self.join_subtasks(self.run_subtask('file.set_permissions', fs_path, {'acl': DEFAULT_ACLS}, True))
+
         if dataset.get('permissions'):
             path = os.path.join(VOLUMES_ROOT, dataset['id'])
             self.join_subtasks(self.run_subtask('file.set_permissions', path, dataset['permissions']))
