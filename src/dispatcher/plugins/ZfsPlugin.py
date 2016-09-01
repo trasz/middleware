@@ -1764,7 +1764,7 @@ def _init(dispatcher, plugin):
 
         logger.info("Syncing ZFS snapshots...")
         snapshots_dict = {}
-        for i in threadpool.apply(lambda: [s.__getstate__(False) for s in zfs.snapshots]):
+        for i in threadpool.apply(lambda: [s.__getstate__() for s in zfs.snapshots]):
             snapshots_dict[i['id']] = i
         snapshots.update(**snapshots_dict)
 
