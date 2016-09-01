@@ -210,7 +210,6 @@ class DeleteiSCSIShareTask(Task):
         self.datastore.delete('shares', id)
         self.dispatcher.call_sync('etcd.generation.generate_group', 'ctl')
         self.dispatcher.call_sync('service.reload', 'ctl')
-
         self.dispatcher.dispatch_event('share.iscsi.changed', {
             'operation': 'delete',
             'ids': [id]
@@ -264,6 +263,8 @@ class CreateISCSITargetTask(Task):
         })
 
         id = self.datastore.insert('iscsi.targets', target)
+        self.dispatcher.call_sync('etcd.generation.generate_group', 'ctl')
+        self.dispatcher.call_sync('service.reload', 'ctl')
         self.dispatcher.dispatch_event('iscsi.target.changed', {
             'operation': 'create',
             'ids': [id]
