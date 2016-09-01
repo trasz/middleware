@@ -522,9 +522,9 @@ class DockerImagePullTask(DockerBaseTask):
         self.check_host_state(hostid)
 
         for i in self.dispatcher.call_sync('containerd.docker.pull', name, hostid, timeout=3600):
-            if 'progressDetail' in i and 'current' in i['progressDetail']:
+            if 'progressDetail' in i and 'current' in i['progressDetail'] and 'total' in i['progressDetail']:
                 percentage = i['progressDetail']['current'] / i['progressDetail']['total'] * 100
-                self.set_progress(percentage, '{0} layer {1}'.format(i['status'], i['id']))
+                self.set_progress(percentage, '{0} layer {1}'.format(i.get('status', ''), i.get('id', '')))
 
 
 @description('Removes previously cached container image from a Docker host')
