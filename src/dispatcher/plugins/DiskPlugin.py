@@ -34,7 +34,6 @@ import logging
 import tempfile
 import base64
 import gevent
-import gevent.monkey
 import libzfs
 from xml.etree import ElementTree
 from bsd import geom, getswapinfo
