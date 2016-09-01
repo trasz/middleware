@@ -311,9 +311,16 @@ class SetPermissionsTask(Task):
             if not recursive:
                 return
 
+            # Build second ACL, but with inherits removed. It will be applied on files
+            b = acl.ACL()
+            b.__setstate__(permissions['acl'])
+            for i in b.entries:
+                i.flags[acl.NFS4Flag.DIRECTORY_INHERIT] = False
+                i.flags[acl.NFS4Flag.FILE_INHERIT] = False
+
             for root, dirs, files in os.walk(path):
                 for n in files:
-                    a.apply(file=os.path.join(root, n))
+                    b.apply(file=os.path.join(root, n))
 
                 for n in dirs:
                     a.apply(file=os.path.join(root, n))
