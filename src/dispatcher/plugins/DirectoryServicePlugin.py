@@ -139,7 +139,8 @@ class DirectoryServiceCreateTask(Task):
         })
 
         node = ConfigNode('directory', self.configstore)
-        node['search_order'] = node['search_order'] + [directory['name']]
+        node['search_order'] = node['search_order'].value + [directory['name']]
+        self.dispatcher.call_sync('dscached.management.reload_config')
         return self.id
 
     def rollback(self, directory):
@@ -202,6 +203,7 @@ class DirectoryServiceDeleteTask(Task):
 
         node = ConfigNode('directory', self.configstore)
         node['search_order'] = [i for i in node['search_order'].value if i != name]
+        self.dispatcher.call_sync('dscached.management.reload_config')
 
 
 def _init(dispatcher, plugin):
