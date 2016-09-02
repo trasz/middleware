@@ -30,6 +30,7 @@ import errno
 import uuid
 import hashlib
 import ctl
+from debug import AttachFile
 from task import Task, Provider, VerifyException, TaskDescription, TaskException
 from freenas.dispatcher.rpc import RpcException, description, accepts, returns, private, generator
 from freenas.dispatcher.rpc import SchemaHelper as h
@@ -518,6 +519,10 @@ def convert_share_target(target):
         return target
 
     return os.path.join('/dev/zvol', target)
+
+
+def collect_debug(dispatcher):
+    yield AttachFile('ctl.conf', '/etc/ctl.conf')
 
 
 def _metadata():
