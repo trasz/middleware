@@ -349,7 +349,7 @@ class VolumeProvider(Provider):
 
         for dev in boot_devs:
             boot_disk = self.dispatcher.call_sync('disk.partition_to_disk', dev)
-            if boot_disk in disks:
+            if os.path.join('/dev', boot_disk) in disks:
                 ret[boot_disk] = {'type': 'BOOT'}
 
         for vol in self.dispatcher.call_sync('volume.query'):
