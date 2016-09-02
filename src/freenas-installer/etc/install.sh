@@ -819,7 +819,7 @@ menu_install()
     mkdir /tmp/data/dev
     mount -t devfs devfs /tmp/data/dev
     # Tell it to look in /.mount for the packages.
-    /usr/local/bin/freenas-install -P /.mount/${OS}/Packages -M /.mount/${OS}-MANIFEST /tmp/data 2>&1 | tee -a /tmp/install.log
+    /usr/local/bin/freenas-install -P /.mount/${OS}/Packages -M /.mount/${OS}-MANIFEST /tmp/data
     
     rm -f /tmp/data/conf/default/etc/fstab /tmp/data/conf/base/etc/fstab
     if is_truenas; then
