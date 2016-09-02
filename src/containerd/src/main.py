@@ -554,7 +554,6 @@ class DockerHost(object):
         self.state = DockerHostState.DOWN
         self.connection = None
         self.listener = None
-        self.start_notifier = None
         self.mapped_ports = {}
         self.active_consoles = {}
         self.ready = Event()
@@ -567,7 +566,17 @@ class DockerHost(object):
         self.logger.info('Docker instance at {0} ({1}) is ready'.format(self.vm.name, ip))
         self.connection = docker.Client(base_url='http://{0}:2375'.format(ip))
         self.listener = gevent.spawn(self.listen)
-        self.start_notifier = gevent.spawn(self.notify)
+
+        ready = False
+        while not ready:
+            try:
+                ready = self.connection.ping()
+            except requests.exceptions.ConnectionError:
+                gevent.sleep(1)
+
+        self.notify()
+        self.init_autostart()
+
         docker_config = self.context.client.call_sync('docker.config.get_config')
         if self.vm.id == docker_config['api_forwarding'] and docker_config['api_forwarding_enable']:
             try:
@@ -579,18 +588,22 @@ class DockerHost(object):
                 )
 
     def notify(self):
-        ready = False
-        while not ready:
-            try:
-                ready = self.connection.ping()
-            except requests.exceptions.ConnectionError:
-                gevent.sleep(1)
-
         self.ready.set()
         self.context.client.emit_event('containerd.docker.host.changed', {
             'operation': 'create',
             'ids': [self.vm.id]
         })
+
+    def init_autostart(self):
+        for container in self.connection.containers(all=True):
+            details = self.connection.inspect_container(container['Id'])
+            if 'org.freenas.autostart' in details['Config']['Labels']:
+                try:
+                    self.connection.start(container=container['Id'])
+                except BaseException as err:
+                    self.logger.warning(
+                        'Failed to start {0} container automatically: {1}'.format(q.get(container, 'Names.0'), err)
+                    )
 
     def listen(self):
         self.logger.debug('Listening for docker events on {0}'.format(self.vm.name))
@@ -951,6 +964,7 @@ class DockerService(RpcService):
                     'volumes': list(get_docker_volumes(details)),
                     'interactive': get_interactive(details),
                     'expose_ports': 'org.freenas.expose_ports_at_host' in details['Config']['Labels'],
+                    'autostart': 'org.freenas.autostart' in details['Config']['Labels'],
                     'environment': details['Config']['Env'],
                     'hostname': details['Config']['Hostname']
                 })
@@ -1007,6 +1021,9 @@ class DockerService(RpcService):
         host = self.context.get_docker_host(container['host'])
         if not host:
             raise RpcException(errno.ENOENT, 'Docker host {0} not found'.format(container['host']))
+
+        if container['autostart']:
+            labels.append('org.freenas.autostart')
 
         if container['expose_ports']:
             labels.append('org.freenas.expose_ports_at_host')

@@ -777,6 +777,7 @@ def _init(dispatcher, plugin):
             'status': {'type': ['string', 'null']},
             'memory_limit': {'type': ['integer', 'null']},
             'expose_ports': {'type': 'boolean'},
+            'autostart': {'type': 'boolean'},
             'interactive': {'type': 'boolean'},
             'environment': {
                 'type': 'array',
