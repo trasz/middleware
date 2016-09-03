@@ -21,7 +21,34 @@ def bsdusr_sshpubkey(user):
             keys = f.read()
         return keys
     except:
-        return ''
+        return None
+
+
+def convert_smbhash(obj, smbhash):
+    if not smbhash:
+        obj.update({
+            'nthash': None,
+            'lmhash': None,
+            'password_changed_at': None
+        })
+        return obj
+
+    try:
+        pieces = smbhash.strip().split(':')
+        lmhash = pieces[2]
+        nthash = pieces[3]
+        lct = int(pieces[5].split('-')[1], 16)
+    except:
+        lmhash = None
+        nthash = None
+        lct = 0
+
+    obj.update({
+        'lmhash': lmhash,
+        'nthash': nthash,
+        'password_changed_at': datetime.fromtimestamp(lct)
+    })
+    return obj
 
 
 class Migration(DataMigration):
@@ -54,12 +81,11 @@ class Migration(DataMigration):
                 continue
 
             grp = ds.query('groups', ('gid', '=', u.bsdusr_group.bsdgrp_gid))
-            ds.insert('users', {
+            user = {
                 'id': str(uuid.uuid4()),
                 'uid': u.bsdusr_uid,
                 'username': u.bsdusr_username,
                 'unixhash': u.bsdusr_unixhash,
-                'smbhash': u.bsdusr_smbhash,
                 'group': grp['id'] if grp else NOGROUP_ID,
                 'home': u.bsdusr_home,
                 'shell': u.bsdusr_shell,
@@ -71,7 +97,10 @@ class Migration(DataMigration):
                 'sudo': u.bsdusr_sudo,
                 'sshpubkey': bsdusr_sshpubkey(u),
                 'groups': groups,
-            })
+            }
+
+            convert_smbhash(user,  u.bsdusr_smbhash)
+            ds.insert('users', user)
 
         ds.collection_record_migration('groups', 'freenas9_migration')
         ds.collection_record_migration('users', 'freenas9_migration')
