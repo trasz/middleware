@@ -45,7 +45,7 @@ class DockerSingleItem(SingleItemBase):
     namespace = 'docker.config'
 
     def get_update_method_name(self):
-        return 'docker.update'
+        return 'docker.config.update'
 
 
 class DockerHostResource(ProviderMixin, ResourceQueryMixin, Resource):

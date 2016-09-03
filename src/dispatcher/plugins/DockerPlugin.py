@@ -281,7 +281,7 @@ class DockerBaseTask(ProgressTask):
                 select='id'
             )
             if hostid:
-                self.join_subtasks(self.run_subtask('docker.update', {'default_host': hostid}))
+                self.join_subtasks(self.run_subtask('docker.config.update', {'default_host': hostid}))
                 return hostid
 
             host_name = 'docker_host_' + str(self.dispatcher.call_sync(
@@ -618,7 +618,7 @@ def _init(dispatcher, plugin):
                     logger.debug('Docker host {0} created'.format(host['name']))
                     default_host = dispatcher.call_sync('docker.config.get_config').get('default_host')
                     if not default_host:
-                        dispatcher.call_task_sync('docker.update', {'default_host': host['id']})
+                        dispatcher.call_task_sync('docker.config.update', {'default_host': host['id']})
                         logger.info('Docker host {0} set automatically as default Docker host'.format(host['name']))
                     dispatcher.dispatch_event('docker.host.changed', {
                         'operation': 'create',
@@ -646,7 +646,7 @@ def _init(dispatcher, plugin):
                     )
                     host_id = None
 
-                dispatcher.call_task_sync('docker.update', {'default_host': host_id})
+                dispatcher.call_task_sync('docker.config.update', {'default_host': host_id})
 
     def on_image_event(args):
         logger.trace('Received Docker image event: {0}'.format(args))
@@ -696,7 +696,7 @@ def _init(dispatcher, plugin):
     plugin.register_provider('docker.container', DockerContainerProvider)
     plugin.register_provider('docker.image', DockerImagesProvider)
 
-    plugin.register_task_handler('docker.update', DockerUpdateTask)
+    plugin.register_task_handler('docker.config.update', DockerUpdateTask)
 
     plugin.register_task_handler('docker.container.create', DockerContainerCreateTask)
     plugin.register_task_handler('docker.container.delete', DockerContainerDeleteTask)
@@ -866,6 +866,6 @@ def _init(dispatcher, plugin):
             select='id'
         )
         if host_id:
-            dispatcher.call_task_sync('docker.update', {'default_host': host_id})
+            dispatcher.call_task_sync('docker.config.update', {'default_host': host_id})
 
     gevent.spawn(sync_caches)
