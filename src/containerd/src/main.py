@@ -1145,9 +1145,11 @@ class ConsoleConnection(WebSocketApplication, EventEmitter):
 
     def on_close(self, *args, **kwargs):
         self.inq.put(StopIteration)
-        self.console_queue.put(StopIteration)
+        if self.console_queue:
+            self.console_queue.put(StopIteration)
 
-        self.console_provider.console_unregister(self.console_queue)
+        if self.console_provider:
+            self.console_provider.console_unregister(self.console_queue)
 
     def on_message(self, message, *args, **kwargs):
         if message is None:
