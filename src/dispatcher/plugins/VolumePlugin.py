@@ -1041,7 +1041,7 @@ class VolumeImportTask(Task):
         return "Importing a volume"
 
     def describe(self, id, new_name, params=None, enc_params=None, password=None):
-        return TaskDescription("Importing the volume {name}", name=id)
+        return TaskDescription("Importing the volume {name}", name=new_name)
 
     def verify(self, id, new_name, params=None, enc_params=None, password=None):
         if enc_params is None:
