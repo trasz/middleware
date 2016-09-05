@@ -92,11 +92,12 @@ static char *
 alloc_string(char **buf, size_t *max, const char *str)
 {
 	size_t length;
-	char *ret;
+	char *ret = *buf;
 
-	ret = *buf;
+	if (str == NULL)
+		str = "";
 
-	length = str != NULL ? strlen(str) + 1 : 0;
+	length = strlen(str) + 1;
 
 	if (length > *max)
 		return (NULL);
@@ -247,23 +248,20 @@ populate_user(json_t *user, struct passwd *pwbuf, char *buf, size_t buflen)
 	pwbuf->pw_gid = json_integer_value(obj);
 
 	obj = json_object_get(user, "full_name");
-	if (obj != NULL)
-		pwbuf->pw_gecos = alloc_string(&buf, &buflen,
-		    json_string_value(obj));
+	pwbuf->pw_gecos = alloc_string(&buf, &buflen,
+	    json_string_value(obj));
 
 	obj = json_object_get(user, "shell");
-	if (obj != NULL)
-		pwbuf->pw_shell = alloc_string(&buf, &buflen,
-		    json_string_value(obj));
+	pwbuf->pw_shell = alloc_string(&buf, &buflen,
+	    json_string_value(obj));
 
 	obj = json_object_get(user, "home");
-	if (obj != NULL)
-		pwbuf->pw_dir = alloc_string(&buf, &buflen,
-		    json_string_value(obj));
+	pwbuf->pw_dir = alloc_string(&buf, &buflen,
+	    json_string_value(obj));
 
 	obj = json_object_get(user, "unixhash");
 	pwbuf->pw_passwd = alloc_string(&buf, &buflen,
-	obj != NULL ? json_string_value(obj) : "*");
+	    obj != NULL ? json_string_value(obj) : "*");
 
 	pwbuf->pw_class = alloc_string(&buf, &buflen, "default");
 }
