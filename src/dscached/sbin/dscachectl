@@ -96,8 +96,8 @@ def query(user=None, group=None, host=None):
         print()
 
         print("Password information:")
-        print("  UNIX password hash: {0}".format(o['unixhash']))
-        print("  NT password hash: {0}".format(o['nthash']))
+        print("  UNIX password hash: {0}".format(o.get('unixhash', 'none')))
+        print("  NT password hash: {0}".format(o.get('nthash', 'none')))
         print("  Password changed at: {0}".format(o['password_changed_at']))
         print()
 
@@ -115,7 +115,7 @@ def query(user=None, group=None, host=None):
         print("Group information:")
         print("  Group UUID: {0}".format(o['id']))
         print("  Group name: {0}".format(o['name']))
-        print("  Sudo allowed: {0}".format('yes' if o['sudo'] else 'no'))
+        print("  Sudo allowed: {0}".format('yes' if o.get('sudo') else 'no'))
         print()
 
     elif host:

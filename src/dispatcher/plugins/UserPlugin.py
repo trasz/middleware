@@ -255,6 +255,7 @@ class UserCreateTask(Task):
             'home': '/nonexistent',
             'groups': [],
             'uid': uid,
+            'sudo': False,
             'attributes': {}
         })
 
