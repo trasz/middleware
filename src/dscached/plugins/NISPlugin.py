@@ -28,6 +28,7 @@
 
 import logging
 import threading
+import time
 import uuid
 from bsd import yp
 from plugin import DirectoryServicePlugin, DirectoryState
@@ -70,6 +71,12 @@ class NISPlugin(DirectoryServicePlugin):
 
         username, encrypwd, uid, gid, gecos, homedir, usershell = entry.split(':')
 
+        group_id = None
+        try:
+            group_id = self.getgrgid(gid)['id']
+        except OSError:
+            pass
+
         # XXX: We might want to also include domain hash in the UUID.
         return {
             'id': str(uuid.uuid5(NIS_USER_UUID, str(uid))),
@@ -82,7 +89,7 @@ class NISPlugin(DirectoryServicePlugin):
             'locked': False,
             'sudo': False,
             'groups': [],
-            'group': self.getgrgid(gid)['id'],
+            'group': group_id,
             'shell': usershell,
             'home': homedir,
             'nthash': None,
