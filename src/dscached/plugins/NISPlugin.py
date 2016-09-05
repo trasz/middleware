@@ -53,11 +53,16 @@ class NISPlugin(DirectoryServicePlugin):
             try:
                 yp.ypbind()
                 yp.ypunbind()
-                directory.put_state(DirectoryState.BOUND)
+                self.directory.put_state(DirectoryState.BOUND)
             except (OSError) as err:
                 logger.warn('Cannot bind to NIS domain: {0}'.format(str(err)))
-                directory.put_state(DirectoryState.JOINING)
+                self.directory.put_state(DirectoryState.JOINING)
             time.sleep(60)
+
+    # XXX: Shouldn't be needed.
+    @staticmethod
+    def normalize_parameters(parameters):
+        return parameters
 
     def convert_user(self, entry):
         if not entry:
@@ -67,7 +72,7 @@ class NISPlugin(DirectoryServicePlugin):
 
         # XXX: We might want to also include domain hash in the UUID.
         return {
-            'id': uuid.uuid5(NIS_USER_UUID, str(uid)),
+            'id': str(uuid.uuid5(NIS_USER_UUID, str(uid))),
             'uid': uid,
             'gid': gid,
             'builtin': False,
@@ -77,8 +82,11 @@ class NISPlugin(DirectoryServicePlugin):
             'locked': False,
             'sudo': False,
             'groups': [],
+            'group': self.getgrgid(gid)['id'],
             'shell': usershell,
-            'home': homedir
+            'home': homedir,
+            'nthash': None,
+            'password_changed_at': None
         }
 
     def convert_group(self, entry):
@@ -89,7 +97,7 @@ class NISPlugin(DirectoryServicePlugin):
 
         # XXX: We might want to also include domain hash in the UUID.
         return {
-            'id': uuid.uuid5(NIS_GROUP_UUID, str(gid)),
+            'id': str(uuid.uuid5(NIS_GROUP_UUID, str(gid))),
             'gid': gid,
             'builtin': False,
             'name': groupname,
@@ -151,8 +159,8 @@ class NISPlugin(DirectoryServicePlugin):
         yp.yppasswd(username, old_password, password)
 
     def configure(self, enable, directory):
+        self.directory = directory
         directory.put_state(DirectoryState.JOINING)
-        self.__load()
         if not self.monitor_thread:
             self.monitor_thread = threading.Thread(target=self.__monitor, daemon=True)
             self.monitor_thread.start()
