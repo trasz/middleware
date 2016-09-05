@@ -405,12 +405,16 @@ class AccountService(RpcService):
         params.pop('select', None)
         single = params.pop('single', False)
         for d in self.context.get_searched_directories():
-            result = d.instance.getpwent(filter, params)
-            for user in result:
-                resolve_primary_group(self.context, user)
-                yield fix_passwords(annotate(user, d, 'username'))
-                if single:
-                    return
+            try:
+                result = d.instance.getpwent(filter, params)
+                for user in result:
+                    resolve_primary_group(self.context, user)
+                    yield fix_passwords(annotate(user, d, 'username'))
+                    if single:
+                        return
+            except:
+                self.logger.error('Directory {0} exception during account iteration'.format(d.name), exc_info=True)
+                continue
 
     def getpwuid(self, uid):
         # Try the cache first
@@ -544,11 +548,15 @@ class GroupService(RpcService):
         params = params or {}
         single = params.pop('single', False)
         for d in self.context.get_searched_directories():
-            result = d.instance.getgrent(filter, params)
-            for group in result:
-                yield annotate(group, d, 'name')
-                if single:
-                    return
+            try:
+                result = d.instance.getgrent(filter, params)
+                for group in result:
+                    yield annotate(group, d, 'name')
+                    if single:
+                        return
+            except:
+                self.logger.error('Directory {0} exception during group iteration'.format(d.name), exc_info=True)
+                continue
 
     def getgrnam(self, name):
         # Try the cache first
