@@ -111,6 +111,9 @@ class DirectoryServiceCreateTask(Task):
         except RpcException as err:
             raise TaskException(err.code, err.message)
 
+        if self.datastore.exists('directories', ('name', '=', directory['name'])):
+            raise TaskException(errno.EEXIST, 'Directory {0} already exists'.format(directory['name']))
+
         normalize(directory, {
             'enabled': False,
             'enumerate': True,
@@ -165,6 +168,9 @@ class DirectoryServiceUpdateTask(Task):
         directory = self.datastore.get_by_id('directories', id)
         if directory['immutable']:
             raise TaskException(errno.EPERM, 'Directory {0} is immutable'.format(directory['name']))
+
+        if 'name' in updated_params and self.datastore.exists('directories', ('name', '=', updated_params['name'])):
+            raise TaskException(errno.EEXIST, 'Directory {0} already exists'.format(directory['name']))
 
         directory.update(updated_params)
         self.datastore.update('directories', id, directory)
