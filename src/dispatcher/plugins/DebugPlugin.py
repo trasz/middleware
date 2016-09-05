@@ -105,7 +105,7 @@ class CollectDebugTask(ProgressTask):
                     for plugin in plugins:
                         self.set_progress(done / total * 100, 'Collecting debug info for {0}'.format(plugin))
                         try:
-                            hooks = self.dispatcher.call_sync('management.collect_debug', plugin)
+                            hooks = self.dispatcher.call_sync('management.collect_debug', plugin, timeout=600)
                         except RpcException as err:
                             self.add_warning(
                                 TaskWarning(err.code, 'Cannot collect debug data for {0}: {1}'.format(plugin, err.message))
