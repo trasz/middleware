@@ -70,7 +70,7 @@ class LocalDatabasePlugin(DirectoryServicePlugin):
     def getgruuid(self, uuid):
         return self.datastore.get_one('groups', ('id', '=', uuid))
 
-    def change_password(self, user_name, password):
+    def change_password(self, user_name, old_password, password):
         user = self.datastore.get_one('users', ('username', '=', user_name))
         if not user:
             raise OSError(errno.ENOENT, os.strerror(errno.ENOENT))

@@ -516,7 +516,7 @@ class AccountService(RpcService):
         entry = self.context.users_cache.get(name=user_name)
         return entry.directory.instance.authenticate(user['username'], password)
 
-    def change_password(self, user_name, password):
+    def change_password(self, user_name, old_password, password):
         self.logger.debug('Change password request for user {0}'.format(user_name))
         user, plugin = self.__get_user(user_name)
         if not user:
@@ -529,7 +529,7 @@ class AccountService(RpcService):
         if sender.credentials['uid'] not in (user['uid'], 0):
             raise RpcException(errno.EPERM, 'Permission denied')
 
-        plugin.change_password(user_name, password)
+        plugin.change_password(user_name, old_password, password)
 
 
 class GroupService(RpcService):

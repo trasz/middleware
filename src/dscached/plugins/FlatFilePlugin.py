@@ -129,7 +129,7 @@ class FlatFilePlugin(DirectoryServicePlugin):
     def getgruuid(self, uuid):
         return query(self.group, ('id', '=', uuid), single=True)
 
-    def change_password(self, username, password):
+    def change_password(self, username, old_password, password):
         try:
             with open(self.passwd_filename, 'r') as f:
                 passwd = load(f)
