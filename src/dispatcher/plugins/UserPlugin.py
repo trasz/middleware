@@ -168,7 +168,7 @@ class GroupProvider(Provider):
     h.object(properties={'password': {'type': ['string', 'null']}}),
     h.any_of(
         h.required('password'),
-        h.required('unixhash', 'smbhash'),
+        h.required('unixhash', 'nthash'),
         h.required('password_disabled')
     )
 ))
