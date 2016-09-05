@@ -183,7 +183,7 @@ def _init(dispatcher, plugin):
             'priority': {'type': 'integer'},
             'type': {
                 'type': 'string',
-                'enum': ['file', 'local', 'winbind', 'freeipa']
+                'enum': ['file', 'local', 'winbind', 'freeipa', 'nis']
             },
             'enabled': {'type': 'boolean'},
             'enumerate': {'type': 'boolean'},
