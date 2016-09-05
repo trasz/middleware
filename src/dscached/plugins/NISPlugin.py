@@ -29,7 +29,7 @@
 import logging
 import threading
 import uuid
-import yp
+from bsd import yp
 from plugin import DirectoryServicePlugin, DirectoryState
 from freenas.dispatcher.jsonenc import load, dump
 from freenas.utils import first_or_default, crypted_password, nt_password
