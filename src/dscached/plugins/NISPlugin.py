@@ -113,7 +113,7 @@ class NISPlugin(DirectoryServicePlugin):
         }
 
     def getpwent(self, filter=None, params=None):
-        logger.debug('getpwent(filter={0}, params={0})'.format(filter, params))
+        logger.debug('getpwent(filter={0}, params={1})'.format(filter, params))
         filter = filter or []
         filter.append(('uid', '!=', 0))
         return query([self.convert_user(i) for i in yp.ypcat("passwd.byname")], *filter, **(params or {}))
@@ -143,7 +143,7 @@ class NISPlugin(DirectoryServicePlugin):
         return self.getpwent(filter)
 
     def getgrent(self, filter=None, params=None):
-        logger.debug('getgrent(filter={0}, params={0})'.format(filter, params))
+        logger.debug('getgrent(filter={0}, params={1})'.format(filter, params))
         filter = filter or []
         filter.append(('gid', '!=', 0))
         return query([self.convert_group(i) for i in yp.ypcat("group.byname")], *filter, **(params or {}))
