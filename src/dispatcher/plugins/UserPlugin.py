@@ -29,6 +29,7 @@ import copy
 import errno
 import os
 import re
+import shutil
 from datetime import datetime
 from task import Provider, Task, TaskException, TaskDescription, TaskWarning, ValidationException, VerifyException, query
 from debug import AttachFile
@@ -39,6 +40,7 @@ from freenas.utils import normalize, crypted_password, nt_password, query as q
 
 
 EMAIL_REGEX = re.compile(r"\b[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]*[a-zA-Z0-9]\.[a-zA-Z]{2,4}\b")
+SKEL_PATH = '/usr/share/skel/'
 
 
 def normalize_name(d, name):
@@ -208,26 +210,16 @@ class UserCreateTask(Task):
                     "{0} is an invalid email address".format(user['email'])
                 )
 
-        volumes_root = self.dispatcher.call_sync('volume.get_volumes_root')
-        if 'builtin' not in user:
-            user['builtin'] = False
+        if 'home' in user and user['home'] not in (None, '/nonexistent'):
+            volumes_root = self.dispatcher.call_sync('volume.get_volumes_root')
+            user['home'] = os.path.normpath(user['home'])
 
-        if user.get('home'):
-            if user['home'].startswith(volumes_root):
-                user['home'] = os.path.normpath(user['home'])
-                if len(user['home'].split('/')) < 3:
-                     errors.add(
-                         (0, 'home'),
-                         "Invalid mountpoint specified for home directory: {0}.".format(user['home']) +
-                         " Provide directory located in '{0}' instead as the mountpoint".format(volumes_root)
+            if not user['home'].startswith(volumes_root) or user['home'] == volumes_root:
+                    errors.add(
+                         (0, 'home directory'),
+                         "Invalid mountpoint specified for home directory: {0}.\n".format(user['home']) +
+                         "Provide a path within zfs pool or dataset mounted under {0}".format(volumes_root)
                      )
-
-            elif not user['builtin'] and user['home'] not in (None, '/nonexistent'):
-                errors.add(
-                    (0, 'home'),
-                    "Invalid mountpoint specified for home directory: {0}.".format(user['home']) +
-                    " Provide directory located in '{0}' instead as the mountpoint".format(volumes_root)
-                )
 
         if errors:
             raise errors
@@ -261,6 +253,32 @@ class UserCreateTask(Task):
 
         if user['home'] is None:
             user['home'] = '/nonexistent'
+
+        if user['home'] != '/nonexistent':
+            user['home'] = os.path.normpath(user['home'])
+            zfs_pool_mountpoints = self.dispatcher.call_sync('volume.query', [], {'select': 'mountpoint'})
+            homedir_occurrence = self.dispatcher.call_sync('user.query', [('home', '=', user['home'])], {'single': True})
+
+            if not any(os.path.join('/', *(user['home'].split(os.path.sep)[:3])) == pool_mountpoint
+                       and os.path.exists(pool_mountpoint) for pool_mountpoint in zfs_pool_mountpoints):
+                raise TaskException(
+                    errno.ENXIO,
+                    'Home directory has to reside in zfs pool or dataset.' +
+                    ' Provide a path which starts with valid, mounted zfs pool or dataset location.'
+                )
+
+            if user['home'] in zfs_pool_mountpoints:
+                raise TaskException(
+                    errno.ENXIO,
+                    'Volume mountpoint cannot be set as the home directory.'
+                )
+
+            if homedir_occurrence:
+                raise TaskException(
+                    errno.ENXIO,
+                    '{} is already assigned to another user.'.format(user['home']) +
+                    ' Multiple users cannot share the same home directory.'
+                )
 
         password = user.pop('password', None)
         if password:
@@ -299,20 +317,30 @@ class UserCreateTask(Task):
                 'Cannot regenerate users file: {0}'.format(e)
             )
 
-        if user['home'] not in (None, '/nonexistent') and not user['builtin']:
-            user['home'] = os.path.normpath(user['home'])
-            if not os.path.exists(user['home']):
-                try:
-                    self.dispatcher.call_sync('volume.decode_path', user['home'])
-                except RpcException as err:
-                    raise TaskException(err.code, err.message)
-                os.makedirs(user['home'])
+        if user['home'] != '/nonexistent':
             group = self.dispatcher.call_sync('group.query', [('id', '=', user['group'])], {'single': True})
             if not group:
                 raise TaskException(errno.ENOENT, 'Group {0} not found'.format(user['group']))
+            user_gid = group['gid']
+            try:
+                os.makedirs(user['home'], mode=0o755)
+            except OSError:
+                os.chmod(user['home'], 0o755)
+            finally:
+                for file in os.listdir(SKEL_PATH):
+                    if file.startswith('dot'):
+                        dest_file = os.path.join(user['home'], file[3:])
+                        if not os.path.exists(dest_file):
+                            shutil.copyfile(os.path.join(SKEL_PATH, file), dest_file)
+                            os.chown(dest_file, uid, user_gid)
 
-            os.chown(user['home'], uid, group['gid'])
-            os.chmod(user['home'], 0o755)
+                    else:
+                        dest_file = os.path.join(user['home'], file)
+                        if not os.path.exists(dest_file):
+                            shutil.copyfile(os.path.join(SKEL_PATH, file), dest_file)
+                            os.chown(dest_file, uid, user_gid)
+
+                os.chown(user['home'], uid, user_gid)
 
         self.dispatcher.dispatch_event('user.changed', {
             'operation': 'create',
@@ -420,24 +448,15 @@ class UserUpdateTask(Task):
                     "{0} is an invalid email address".format(updated_fields['email'])
                 )
 
-        if updated_fields.get('home'):
+        if 'home' in updated_fields and updated_fields['home'] not in (None, '/nonexistent'):
             volumes_root = self.dispatcher.call_sync('volume.get_volumes_root')
-
-            if updated_fields['home'].startswith(volumes_root):
-                updated_fields['home'] = os.path.normpath(updated_fields['home'])
-                if len(updated_fields['home'].split('/')) < 3:
+            updated_fields['home'] = os.path.normpath(updated_fields['home'])
+            if not updated_fields['home'].startswith(volumes_root) or updated_fields['home'] == volumes_root:
                     errors.add(
-                     (0, 'home'),
-                     "Invalid mountpoint specified for home directory: {0}.".format(updated_fields['home']) +
-                     " Provide directory located in '{0}' instead as the mountpoint".format(volumes_root)
-                    )
-
-            elif updated_fields['home'] not in (None, '/nonexistent'):
-                errors.add(
-                    (0, 'home'),
-                    "Invalid mountpoint specified for home directory: {0}.".format(updated_fields['home']) +
-                    " Provide directory located in '{0}' instead as the mountpoint".format(volumes_root)
-                )
+                         (1, 'home directory'),
+                         "Invalid mountpoint specified for home directory: {0}.\n".format(updated_fields['home']) +
+                         "Provide a path within zfs pool or dataset mounted under {0}".format(volumes_root)
+                     )
 
         if errors:
             raise errors
@@ -447,41 +466,91 @@ class UserUpdateTask(Task):
     def run(self, id, updated_fields):
         normalize_name(updated_fields, 'username')
 
-        try:
-            user = self.datastore.get_by_id('users', id)
-            if user is None:
+        user = self.datastore.get_by_id('users', id)
+        self.original_user = copy.deepcopy(user)
+        if user is None:
+            raise TaskException(
+                errno.ENOENT, "User with id: {0} does not exist".format(id)
+            )
+
+        if user.get('builtin'):
+            if 'home' in updated_fields:
                 raise TaskException(
-                    errno.ENOENT, "User with id: {0} does not exist".format(id)
+                    errno.EPERM, "Cannot change builtin user's home directory"
                 )
 
-            if user.get('builtin'):
-                if 'home' in updated_fields:
+            # Similarly ignore uid changes for builtin users
+            if 'uid' in updated_fields:
+                raise TaskException(errno.EPERM, "Cannot change builtin user's UID")
+
+            if 'username' in updated_fields:
+                raise TaskException(
+                    errno.EPERM, "Cannot change builtin user's username"
+                )
+
+            if 'locked' in updated_fields:
+                raise TaskException(
+                    errno.EPERM, "Cannot change builtin user's locked flag"
+                )
+
+        if not user:
+            raise TaskException(errno.ENOENT, 'User {0} not found'.format(id))
+
+        if 'home' in updated_fields and updated_fields['home'] is None:
+            updated_fields['home'] = '/nonexistent'
+
+        if 'home' in updated_fields and updated_fields['home'] != '/nonexistent':
+            updated_fields['home'] = os.path.normpath(updated_fields['home'])
+            zfs_pool_mountpoints = list(self.dispatcher.call_sync('volume.query', [], {'select': 'mountpoint'}))
+            homedir_occurrence = self.dispatcher.call_sync('user.query', [('home', '=', updated_fields['home'])], {})
+            user_gid = self.datastore.get_by_id('groups', user['group'])['gid']
+
+            if user['home'] != updated_fields['home']:
+
+                if not any(os.path.join('/', *(updated_fields['home'].split(os.path.sep)[:3])) == pool_mountpoint
+                           and os.path.exists(pool_mountpoint) for pool_mountpoint in zfs_pool_mountpoints):
                     raise TaskException(
-                        errno.EPERM, "Cannot change builtin user's home directory"
+                        errno.ENXIO,
+                        'Home directory has to reside in zfs pool or dataset.' +
+                        ' Provide a path which starts with valid, mounted zfs pool or dataset location.'
                     )
 
-                # Similarly ignore uid changes for builtin users
-                if 'uid' in updated_fields:
-                    raise TaskException(errno.EPERM, "Cannot change builtin user's UID")
-
-                if 'username' in updated_fields:
+                if updated_fields['home'] in zfs_pool_mountpoints:
                     raise TaskException(
-                        errno.EPERM, "Cannot change builtin user's username"
+                        errno.ENXIO,
+                        'Volume mountpoint cannot be set as the home directory.'
                     )
 
-                if 'locked' in updated_fields:
+                if any(homedir_occurrence):
                     raise TaskException(
-                        errno.EPERM, "Cannot change builtin user's locked flag"
+                        errno.ENXIO,
+                        '{} is already assigned to another user.'.format(updated_fields['home']) +
+                        ' Multiple users cannot share the same home directory.'
                     )
 
-            if not user:
-                raise TaskException(errno.ENOENT, 'User {0} not found'.format(id))
+                try:
+                    os.makedirs(updated_fields['home'], mode=0o755)
+                except OSError:
+                    os.chmod(updated_fields['home'], 0o755)
+                finally:
+                    for file in os.listdir(SKEL_PATH):
 
-            self.original_user = copy.deepcopy(user)
+                        if file.startswith('dot'):
+                            dest_file = os.path.join(updated_fields['home'], file[3:])
+                            if not os.path.exists(dest_file):
+                                shutil.copyfile(os.path.join(SKEL_PATH, file), dest_file)
+                                os.chown(dest_file, user['uid'], user_gid)
+                        else:
+                            dest_file = os.path.join(updated_fields['home'], file)
+                            if not os.path.exists(dest_file):
+                                shutil.copyfile(os.path.join(SKEL_PATH, file), dest_file)
+                                os.chown(dest_file, user['uid'], user_gid)
 
-            home_before = user.get('home')
-            user.update(updated_fields)
+                    os.chown(updated_fields['home'], user['uid'], user_gid)
 
+        user.update(updated_fields)
+
+        try:
             password = user.pop('password', None)
             if password:
                 user.update({
@@ -500,25 +569,6 @@ class UserUpdateTask(Task):
             raise TaskException(errno.EBADMSG, 'Cannot update user: {0}'.format(str(e)))
         except RpcException as e:
             raise TaskException(e.code, 'Cannot regenerate users file: {0}'.format(e.message))
-
-        group = self.datastore.get_by_id('groups', user['group'])
-        if user['home'] not in (None, '/nonexistent') and not user['builtin']:
-            user['home'] = os.path.normpath(user['home'])
-            if not os.path.exists(user['home']):
-                try:
-                    self.dispatcher.call_sync('volume.decode_path', user['home'])
-                except RpcException as err:
-                    raise TaskException(err.code, err.message)
-                if (home_before != '/nonexistent' and home_before != user['home']
-                    and os.path.exists(home_before)):
-                    system('mv', home_before, user['home'])
-                else:
-                    os.makedirs(user['home'])
-                    os.chown(user['home'], user['uid'], group['gid'])
-                    os.chmod(user['home'], 0o755)
-            elif user['home'] != home_before:
-                os.chown(user['home'], user['uid'], group['gid'])
-                os.chmod(user['home'], 0o755)
 
         self.dispatcher.dispatch_event('user.changed', {
             'operation': 'update',
