@@ -31,7 +31,7 @@ import errno
 import gevent
 import dockerhub
 import logging
-from task import Provider, Task, ProgressTask, TaskDescription, TaskException, query, TaskWarning
+from task import Provider, Task, ProgressTask, TaskDescription, TaskException, query, TaskWarning, VerifyException
 from cache import EventCacheStore
 from datastore.config import ConfigNode
 from freenas.utils import normalize, query as q
@@ -359,7 +359,10 @@ class DockerUpdateTask(Task):
 
 
 @description('Creates a Docker container')
-@accepts(h.ref('docker-container'))
+@accepts(h.all_of(
+    h.ref('docker-container'),
+    h.required('name', 'image')
+))
 class DockerContainerCreateTask(DockerBaseTask):
     @classmethod
     def early_describe(cls):
@@ -369,6 +372,12 @@ class DockerContainerCreateTask(DockerBaseTask):
         return TaskDescription('Creating Docker container {name}'.format(name=container['names'][0]))
 
     def verify(self, container):
+        if not container.get('name'):
+            raise VerifyException(errno.EINVAL, 'Container name must be specified')
+
+        if not container.get('image'):
+            raise VerifyException(errno.EINVAL, 'Image name must be specified')
+
         return []
 
     def run(self, container):
@@ -383,11 +392,7 @@ class DockerContainerCreateTask(DockerBaseTask):
             'command': [],
             'environment': [],
             'interactive': False
-
         })
-
-        # Check if we have required image
-        pass
 
         if not container.get('host'):
             container['host'] = self.get_default_host(
