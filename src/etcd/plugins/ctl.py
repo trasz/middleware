@@ -170,7 +170,12 @@ def generate_auth_groups(context):
 
 
 def generate_portal_groups(context):
-    result = {}
+    result = {
+        'default': {
+            'listen': ['0.0.0.0:3260'],
+            'discovery-auth-group': 'no-authentication'
+        }
+    }
 
     if not context.configstore.get('service.iscsi.enable'):
         return result
