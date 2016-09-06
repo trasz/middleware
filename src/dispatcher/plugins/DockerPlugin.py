@@ -379,6 +379,11 @@ class DockerContainerCreateTask(DockerBaseTask):
             'volumes': [],
             'ports': [],
             'expose_ports': False,
+            'autostart': False,
+            'command': [],
+            'environment': [],
+            'interactive': False
+
         })
 
         # Check if we have required image
