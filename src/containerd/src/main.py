@@ -959,6 +959,7 @@ class DockerService(RpcService):
                     'names': list(normalize_names(container['Names'])),
                     'command': container['Command'] if isinstance(container['Command'], list) else [container['Command']],
                     'status': container['Status'],
+                    'running': details['State'].get('Running', False),
                     'host': host.vm.id,
                     'ports': list(get_docker_ports(details)),
                     'volumes': list(get_docker_volumes(details)),
