@@ -801,8 +801,8 @@ menu_install()
 	# right thing for 9.3->current if the files are
 	# installed before it runs, but will not handle
 	# the case for 10->current.
+	cp -pR /tmp/data_preserved/. /tmp/data/data
 	if [ -f /tmp/data_preserved/freenas-v1.db ]; then
-	    cp -pR /tmp/data_preserved/. /tmp/data/data
 	    chown www:www /tmp/data/data/factory-v1.db
 	fi
     else
