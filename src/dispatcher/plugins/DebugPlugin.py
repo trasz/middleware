@@ -87,11 +87,14 @@ class CollectDebugTask(ProgressTask):
             )
 
         if cmd['type'] in ('AttachDirectory', 'AttachFile'):
-            tar.add(
-                cmd['path'],
-                arcname=os.path.join(plugin, cmd['name']),
-                recursive=cmd.get('recursive')
-            )
+            try:
+                tar.add(
+                    cmd['path'],
+                    arcname=os.path.join(plugin, cmd['name']),
+                    recursive=cmd.get('recursive')
+                )
+            except OSError as err:
+                self.add_warning(TaskWarning(err.errno, 'Cannot file {0}: {1}'.format(cmd['path'], err.strerror)))
 
     def run(self, fd):
         try:
