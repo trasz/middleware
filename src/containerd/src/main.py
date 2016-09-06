@@ -1022,10 +1022,10 @@ class DockerService(RpcService):
         if not host:
             raise RpcException(errno.ENOENT, 'Docker host {0} not found'.format(container['host']))
 
-        if container['autostart']:
+        if container.get('autostart'):
             labels.append('org.freenas.autostart')
 
-        if container['expose_ports']:
+        if container.get('expose_ports'):
             labels.append('org.freenas.expose_ports_at_host')
 
         create_args = {
