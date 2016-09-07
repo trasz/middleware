@@ -498,7 +498,7 @@ class VolumeCreateTask(ProgressTask):
 
         self.dispatcher.run_hook('volume.pre_create', {'name': name})
         if key_encryption:
-            key = base64.b64encode(os.urandom(64)).decode('utf-8')
+            key = base64.b64encode(os.urandom(256)).decode('utf-8')
         else:
             key = None
 
@@ -1692,7 +1692,7 @@ class VolumeRekeyTask(Task):
             disks = self.dispatcher.call_sync('volume.get_volume_disks', id)
 
             if key_encrypted:
-                key = base64.b64encode(os.urandom(64)).decode('utf-8')
+                key = base64.b64encode(os.urandom(256)).decode('utf-8')
             else:
                 key = None
 
@@ -2446,7 +2446,7 @@ def split_snapshot_name(name):
 
 def get_digest(password, salt=None):
     if salt is None:
-        salt = base64.b64encode(os.urandom(64)).decode('utf-8')
+        salt = base64.b64encode(os.urandom(256)).decode('utf-8')
 
     hmac = hashlib.pbkdf2_hmac('sha256', bytes(str(password), 'utf-8'), salt.encode('utf-8'), 200000)
     digest = base64.b64encode(hmac).decode('utf-8')
