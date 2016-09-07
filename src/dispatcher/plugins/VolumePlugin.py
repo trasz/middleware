@@ -488,6 +488,13 @@ class VolumeCreateTask(ProgressTask):
         )
         key_encryption = volume.pop('key_encrypted', False)
         password_encryption = volume.pop('password_encrypted', False)
+        auto_unlock = volume.pop('auto_unlock', None)
+
+        if auto_unlock and (not key_encryption or password_encryption):
+            raise TaskException(
+                errno.EINVAL,
+                'Automatic volume unlock can be selected for volumes using only key based encryption.'
+            )
 
         self.dispatcher.run_hook('volume.pre_create', {'name': name})
         if key_encryption:
@@ -582,6 +589,7 @@ class VolumeCreateTask(ProgressTask):
                     'slot': 0 if key_encryption or password_encryption else None},
                 'key_encrypted': key_encryption,
                 'password_encrypted': password_encryption,
+                'auto_unlock': auto_unlock,
                 'attributes': volume.get('attributes', {})
             })
 
@@ -593,22 +601,22 @@ class VolumeCreateTask(ProgressTask):
 
 
 @description("Creates new volume and automatically guesses disks layout")
-@accepts(str, str, str, h.one_of(h.array(str), str), h.array(str), h.array(str), h.one_of(bool, None), h.one_of(str, None))
+@accepts(str, str, str, h.one_of(h.array(str), str), h.array(str), h.array(str), h.one_of(bool, None), h.one_of(str, None), h.one_of(bool, None))
 class VolumeAutoCreateTask(Task):
     @classmethod
     def early_describe(cls):
         return "Creating a volume"
 
-    def describe(self, name, type, layout, disks, cache_disks=None, log_disks=None, key_encryption=False, password=None):
+    def describe(self, name, type, layout, disks, cache_disks=None, log_disks=None, key_encryption=False, password=None, auto_unlock=None):
         return TaskDescription("Creating the volume {name}", name=name)
 
-    def verify(self, name, type, layout, disks, cache_disks=None, log_disks=None, key_encryption=False, password=None):
+    def verify(self, name, type, layout, disks, cache_disks=None, log_disks=None, key_encryption=False, password=None, auto_unlock=None):
         if isinstance(disks, str) and disks == 'auto':
             return ['disk:{0}'.format(disk) for disk in self.dispatcher.call_sync('disk.query', {'select': 'path'})]
         else:
             return ['disk:{0}'.format(disk_spec_to_path(self.dispatcher, i)) for i in disks]
 
-    def run(self, name, type, layout, disks, cache_disks=None, log_disks=None, key_encryption=False, password=None):
+    def run(self, name, type, layout, disks, cache_disks=None, log_disks=None, key_encryption=False, password=None, auto_unlock=None):
         if self.datastore.exists('volumes', ('id', '=', name)):
             raise TaskException(
                 errno.EEXIST,
@@ -677,7 +685,8 @@ class VolumeAutoCreateTask(Task):
                     'log': log_vdevs
                 },
                 'key_encrypted': key_encryption,
-                'password_encrypted': True if password else False
+                'password_encrypted': True if password else False,
+                'auto_unlock': auto_unlock
             },
             password
         ))
@@ -1026,6 +1035,16 @@ class VolumeUpdateTask(Task):
             )
 
             volume['topology'] = new_topology
+            if 'auto_unlock' in updated_params:
+                auto_unlock = updated_params.get('auto_unlock', False)
+                if auto_unlock and (not volume.get('key_encryption') or volume.get('password_encryption')):
+                    raise TaskException(
+                        errno.EINVAL,
+                        'Automatic volume unlock can be selected for volumes using only key based encryption.'
+                    )
+
+                volume['auto_unlock'] = auto_unlock
+
             self.datastore.update('volumes', volume['id'], volume)
             self.dispatcher.dispatch_event('volume.changed', {
                 'operation': 'update',
@@ -1706,6 +1725,9 @@ class VolumeRekeyTask(Task):
             vol['encryption'] = encryption
             vol['key_encrypted'] = key_encrypted
             vol['password_encrypted'] = True if password else False
+            if password:
+                vol['auto_unlock'] = False
+
             self.datastore.update('volumes', vol['id'], vol)
 
             slot = 0 if encryption['slot'] is 1 else 1
@@ -2862,6 +2884,12 @@ def _init(dispatcher, plugin):
             'key_encrypted': {'type': 'boolean'},
             'password_encrypted': {'type': 'boolean'},
             'encryption': {'$ref': 'volume-encryption'},
+            'auto_unlock': {
+                'oneOf': [
+                    {'type': 'boolean'},
+                    {'type': 'null'}
+                ]
+            },
             'providers_presence': {
                 'oneOf': [
                     {'$ref': 'volume-providerspresence'},
@@ -3101,7 +3129,10 @@ def _init(dispatcher, plugin):
 
     for vol in dispatcher.call_sync('volume.query'):
         if vol.get('providers_presence', 'ALL') == 'NONE':
-            continue
+            if vol.get('auto_unlock') and vol.get('key_encrypted') and not vol.get('password_encrypted'):
+                dispatcher.call_task_sync('volume.unlock', vol['id'])
+            else:
+                continue
 
         try:
             dispatcher.call_task_sync('zfs.mount', vol['id'], True)
