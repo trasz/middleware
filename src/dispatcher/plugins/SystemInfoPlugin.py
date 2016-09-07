@@ -108,6 +108,11 @@ class SystemInfoProvider(Provider):
             'memory_size': get_sysctl("hw.physmem")
         }
 
+    @accepts()
+    @returns(str)
+    def host_uuid(self):
+        return get_sysctl("kern.hostuuid")[:-1]
+
 
 @description("Provides informations about general system settings")
 class SystemGeneralProvider(Provider):
