@@ -904,10 +904,10 @@ class UpdateVerifyTask(ProgressTask):
 class CheckFetchUpdateTask(ProgressTask):
     @classmethod
     def early_describe(cls):
-        return "Checking for updates"
+        return "Checking for and downloading updates"
 
     def describe(self):
-        return TaskDescription("Checking for updates")
+        return TaskDescription("Checking for and downloading updates")
 
     def verify(self):
         block = self.dispatcher.resource_graph.get_resource(update_resource_string)
