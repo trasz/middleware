@@ -1,3 +1,4 @@
+#
 # Copyright 2015 iXsystems, Inc.
 # All rights reserved
 #
@@ -23,6 +24,7 @@
 # POSSIBILITY OF SUCH DAMAGE.
 #
 #####################################################################
+
 import errno
 import logging
 import os
