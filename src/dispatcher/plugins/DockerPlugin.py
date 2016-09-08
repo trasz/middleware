@@ -372,7 +372,7 @@ class DockerContainerCreateTask(DockerBaseTask):
         return TaskDescription('Creating Docker container {name}'.format(name=container['names'][0]))
 
     def verify(self, container):
-        if not container.get('name'):
+        if not container.get('names'):
             raise VerifyException(errno.EINVAL, 'Container name must be specified')
 
         if not container.get('image'):
