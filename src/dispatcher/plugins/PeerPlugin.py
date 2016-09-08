@@ -508,6 +508,9 @@ class FreeNASPeerUpdateRemoteTask(Task):
             hostname = self.dispatcher.call_sync('system.general.get_config')['hostname']
             port = self.dispatcher.call_sync('service.sshd.get_config')['port']
 
+            if remote_peer['address'] == remote_peer['name']:
+                remote_peer['name'] = hostname
+
             remote_peer['credentials']['port'] = port
             remote_peer['address'] = hostname
 
