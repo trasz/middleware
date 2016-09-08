@@ -361,7 +361,7 @@ class DockerUpdateTask(Task):
 @description('Creates a Docker container')
 @accepts(h.all_of(
     h.ref('docker-container'),
-    h.required('name', 'image')
+    h.required('names', 'image')
 ))
 class DockerContainerCreateTask(DockerBaseTask):
     @classmethod
