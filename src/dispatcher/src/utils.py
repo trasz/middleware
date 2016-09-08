@@ -89,7 +89,7 @@ def get_replication_client(dispatcher, remote):
     try:
         client = Client()
         with tempfile.NamedTemporaryFile('w') as host_key_file:
-            host_key_file.write(credentials['hostkey'])
+            host_key_file.write(remote + ' ' + credentials['hostkey'])
             host_key_file.flush()
             client.connect(
                 'ws+ssh://replication@{0}'.format(remote),
