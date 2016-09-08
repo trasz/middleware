@@ -260,7 +260,7 @@ class UserCreateTask(Task):
             homedir_occurrence = self.dispatcher.call_sync('user.query', [('home', '=', user['home'])], {'single': True})
 
             if not any(os.path.join('/', *(user['home'].split(os.path.sep)[:3])) == pool_mountpoint
-                       and os.path.exists(pool_mountpoint) for pool_mountpoint in zfs_pool_mountpoints):
+                       and os.path.ismount(pool_mountpoint) for pool_mountpoint in zfs_pool_mountpoints):
                 raise TaskException(
                     errno.ENXIO,
                     'Home directory has to reside in zfs pool or dataset.' +
@@ -508,7 +508,7 @@ class UserUpdateTask(Task):
             if user['home'] != updated_fields['home']:
 
                 if not any(os.path.join('/', *(updated_fields['home'].split(os.path.sep)[:3])) == pool_mountpoint
-                           and os.path.exists(pool_mountpoint) for pool_mountpoint in zfs_pool_mountpoints):
+                           and os.path.ismount(pool_mountpoint) for pool_mountpoint in zfs_pool_mountpoints):
                     raise TaskException(
                         errno.ENXIO,
                         'Home directory has to reside in zfs pool or dataset.' +
