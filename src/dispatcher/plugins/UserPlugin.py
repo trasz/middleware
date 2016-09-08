@@ -256,7 +256,7 @@ class UserCreateTask(Task):
 
         if user['home'] != '/nonexistent':
             user['home'] = os.path.normpath(user['home'])
-            zfs_pool_mountpoints = self.dispatcher.call_sync('volume.query', [], {'select': 'mountpoint'})
+            zfs_pool_mountpoints = list(self.dispatcher.call_sync('volume.query', [], {'select': 'mountpoint'}))
             homedir_occurrence = self.dispatcher.call_sync('user.query', [('home', '=', user['home'])], {'single': True})
 
             if not any(os.path.join('/', *(user['home'].split(os.path.sep)[:3])) == pool_mountpoint
