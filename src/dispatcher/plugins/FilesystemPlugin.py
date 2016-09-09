@@ -71,7 +71,7 @@ class FilesystemProvider(Provider):
     @returns(h.ref('stat'))
     def stat(self, path):
         try:
-            st = os.stat(path)
+            st = os.stat(path, follow_symlinks=False)
             a = acl.ACL(file=path)
         except OSError as err:
             raise RpcException(err.errno, str(err))
