@@ -29,6 +29,7 @@ import errno
 import os
 import stat
 import bsd
+from datetime import datetime
 from bsd import acl
 from freenas.dispatcher.rpc import (
     RpcException, description, accepts, returns, pass_sender, private
@@ -90,9 +91,9 @@ class FilesystemProvider(Provider):
         return {
             'path': path,
             'type': get_type(st),
-            'atime': st.st_atime,
-            'mtime': st.st_mtime,
-            'ctime': st.st_ctime,
+            'atime': datetime.utcfromtimestamp(st.st_atime),
+            'mtime': datetime.utcfromtimestamp(st.st_mtime),
+            'ctime': datetime.utcfromtimestamp(st.st_ctime),
             'uid': st.st_uid,
             'user': username,
             'gid': st.st_gid,
@@ -345,9 +346,9 @@ def _init(dispatcher, plugin):
             'path': {'type': 'string'},
             'type': {'type': 'string'},
             'size': {'type': 'integer'},
-            'atime': {'type': 'string'},
-            'mtime': {'type': 'string'},
-            'ctime': {'type': 'string'},
+            'atime': {'type': 'datetime'},
+            'mtime': {'type': 'datetime'},
+            'ctime': {'type': 'datetime'},
             'permissions': {'$ref': 'permissions'}
         }
     })
