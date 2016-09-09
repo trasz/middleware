@@ -31,12 +31,14 @@ import libzfs
 import bsd
 from datetime import datetime
 from task import Provider, Task, TaskDescription, TaskException, ProgressTask
+from freenas.rpc import generator
 from freenas.utils.permissions import get_type, get_unix_permissions
 
 
 class IndexProvider(Provider):
+    @generator
     def query(self, filter=None, params=None):
-        pass
+        return self.datastore.query_stream(*(filter or []), **(params or {}))
 
 
 class IndexVolumeTask(ProgressTask):
