@@ -87,7 +87,9 @@ class IndexDatasetFullTask(ProgressTask):
         total_files = statfs.files - statfs.free_files
         done_files = 0
 
-        for root, dirs, files in os.walk(mountpoint):
+        for root, dirs, files in os.walk(mountpoint, topdown=True):
+            dirs[:] = [dir for dir in dirs if not os.path.ismount(os.path.join(root, dir))]
+
             for d in dirs:
                 path = os.path.join(root, d)
                 collect(self.datastore, path)
