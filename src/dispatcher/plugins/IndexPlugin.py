@@ -28,6 +28,7 @@
 import os
 import errno
 import libzfs
+import bsd
 from datetime import datetime
 from task import Provider, Task, TaskDescription, TaskException, ProgressTask
 from freenas.utils.permissions import get_type, get_unix_permissions
@@ -78,15 +79,23 @@ class IndexDatasetFullTask(ProgressTask):
 
     def run(self, dataset):
         mountpoint = self.dispatcher.call_sync('volume.get_dataset_path', dataset)
+
+        # Estimate number of files
+        statfs = bsd.statfs(mountpoint)
+        total_files = statfs.files - statfs.free_files
+        done_files = 0
+
         for root, dirs, files in os.walk(mountpoint):
             for d in dirs:
                 path = os.path.join(root, d)
                 collect(self.datastore, path)
-                self.set_progress(0, 'Processing directory {0}'.format(path))
+                done_files += 1
+                self.set_progress(done_files / total_files * 100, 'Processing directory {0}'.format(path))
 
             for f in files:
                 path = os.path.join(root, f)
                 collect(self.datastore, path)
+                done_files += 1
 
 
 def collect(datastore, path):
@@ -108,7 +117,6 @@ def collect(datastore, path):
         'uid': st.st_uid,
         'gid': st.st_gid,
         'permissions': get_unix_permissions(st.st_mode)
-
     })
 
 
