@@ -28,6 +28,7 @@
 import os
 import errno
 import tempfile
+import socket
 from freenas.dispatcher.jsonenc import dumps, loads
 from freenas.dispatcher.client import Client
 from paramiko import RSAKey, AuthenticationException, SSHException
@@ -66,9 +67,19 @@ def delete_config(conf_path, name_mod):
 
 
 def get_replication_client(dispatcher, remote):
+    try:
+        address = socket.gethostbyname(remote)
+    except socket.error as err:
+        raise TaskException(err.errno, '{0} is unreachable'.format(remote))
+
     host = dispatcher.call_sync(
-        'peer.query',
-        [('address', '=', remote), ('type', '=', 'replication')],
+        'peer.query', [
+            ('or', [
+                ('address', '=', remote),
+                ('address', '=', address),
+            ]),
+            ('type', '=', 'freenas')
+        ],
         {'single': True}
     )
     if not host:
@@ -82,7 +93,7 @@ def get_replication_client(dispatcher, remote):
     try:
         client = Client()
         with tempfile.NamedTemporaryFile('w') as host_key_file:
-            host_key_file.write(credentials['hostkey'])
+            host_key_file.write(remote + ' ' + credentials['hostkey'])
             host_key_file.flush()
             client.connect(
                 'ws+ssh://replication@{0}'.format(remote),
@@ -95,10 +106,8 @@ def get_replication_client(dispatcher, remote):
 
     except (AuthenticationException, SSHException):
         raise TaskException(errno.EAUTH, 'Cannot connect to {0}'.format(remote))
-    except OSError:
-        raise TaskException(errno.ECONNREFUSED, 'Cannot connect to {0}'.format(remote))
-    except IOError:
-        raise TaskException(errno.EINVAL, 'Provided host key is not valid')
+    except OSError as err:
+        raise TaskException(errno.ECONNREFUSED, 'Cannot connect to {0}: {1}'.format(remote, err))
 
 
 def call_task_and_check_state(client, name, *args):

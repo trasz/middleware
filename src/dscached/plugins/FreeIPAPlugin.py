@@ -30,21 +30,27 @@ import ldap3
 import ldap3.utils.dn
 import logging
 import errno
+import krb5
 from threading import Thread, Condition
 from datetime import datetime
 from plugin import DirectoryServicePlugin, DirectoryState
-from utils import obtain_or_renew_ticket, join_dn, domain_to_dn, get_srv_records
+from utils import obtain_or_renew_ticket, join_dn, domain_to_dn, get_srv_records, LdapQueryBuilder
 from freenas.utils import normalize, first_or_default
 from freenas.utils.query import get
 
 
 FREEIPA_REALM_ID = uuid.UUID('e44553e1-0c0b-11e6-9898-000c2957240a')
 TICKET_RENEW_LIFE = 30 * 86400  # 30 days
+LDAP_ATTRIBUTE_MAPPING = {
+    'id': 'ipaUniqueID',
+    'uid': 'uidNumber',
+    'username': 'uid',
+    'full_name': 'gecos',
+    'shell': 'loginShell',
+    'home': 'homeDirectory',
+}
+
 logger = logging.getLogger(__name__)
-
-
-def get_ldap_address(realm):
-    pass
 
 
 class FreeIPAPlugin(DirectoryServicePlugin):
@@ -67,9 +73,14 @@ class FreeIPAPlugin(DirectoryServicePlugin):
         if self.conn.closed:
             self.conn.bind()
 
-        id = self.conn.search(search_base, search_filter, attributes=attributes or ldap3.ALL_ATTRIBUTES)
-        result, status = self.conn.get_response(id)
-        return result
+        return self.conn.extend.standard.paged_search(
+            search_base=search_base,
+            search_filter=search_filter,
+            search_scope=ldap3.SUBTREE,
+            attributes=attributes or ldap3.ALL_ATTRIBUTES,
+            paged_size=16,
+            generator=True
+        )
 
     def search_one(self, *args, **kwargs):
         return first_or_default(None, self.search(*args, **kwargs))
@@ -79,7 +90,7 @@ class FreeIPAPlugin(DirectoryServicePlugin):
         if self.parameters['server']:
             return [self.parameters['server']]
 
-        return list(get_srv_records('ldap', 'tcp', self.parameters['realm']))
+        return [str(i) for i in get_srv_records('ldap', 'tcp', self.parameters['realm'])]
 
     @staticmethod
     def normalize_parameters(parameters):
@@ -96,6 +107,7 @@ class FreeIPAPlugin(DirectoryServicePlugin):
 
     def convert_user(self, entry):
         entry = dict(entry['attributes'])
+        groups = []
         group = None
 
         if 'gidNumber.0' in entry:
@@ -106,6 +118,16 @@ class FreeIPAPlugin(DirectoryServicePlugin):
             )
 
             group = dict(group['attributes'])
+
+        if get(entry, 'memberOf'):
+            builder = LdapQueryBuilder()
+            qstr = builder.build_query([
+                ('dn', 'in', get(entry, 'memberOf'))
+            ])
+
+            for r in self.search(self.base_dn, qstr):
+                r = dict(r['attributes'])
+                groups.append(get(r, 'ipaUniqueID.0'))
 
         return {
             'id': get(entry, 'ipaUniqueID.0'),
@@ -118,23 +140,40 @@ class FreeIPAPlugin(DirectoryServicePlugin):
             'home': get(entry, 'homeDirectory.0', '/nonexistent'),
             'sshpubkey': get(entry, 'ipaSshPubKey.0', None),
             'group': get(group, 'ipaUniqueID.0') if group else None,
-            'groups': [],
+            'groups': groups,
             'sudo': False
         }
 
     def convert_group(self, entry):
         entry = dict(entry['attributes'])
+        parents = []
+
+        if get(entry, 'memberOf'):
+            builder = LdapQueryBuilder()
+            qstr = builder.build_query([
+                ('dn', 'in', get(entry, 'memberOf'))
+            ])
+
+            for r in self.search(self.base_dn, qstr):
+                r = dict(r['attributes'])
+                parents.append(get(r, 'ipaUniqueID.0'))
+
         return {
             'id': get(entry, 'ipaUniqueID.0'),
             'gid': int(get(entry, 'gidNumber.0')),
             'name': get(entry, 'cn.0'),
+            'parents': parents,
             'builtin': False,
             'sudo': False
         }
 
     def getpwent(self, filter=None, params=None):
-        logger.debug('getpwent(filter={0}, params={0})'.format(filter, params))
-        result = self.search(self.user_dn, '(objectclass=posixAccount)')
+        logger.debug('getpwent(filter={0}, params={1})'.format(filter, params))
+        query = LdapQueryBuilder(LDAP_ATTRIBUTE_MAPPING)
+        qstr = query.build_query([['objectclass', '=', 'posixAccount']] + (filter or []))
+        logger.debug('getpwent query string: {0}'.format(qstr))
+
+        result = self.search(self.user_dn, qstr)
         return (self.convert_user(i) for i in result)
 
     def getpwnam(self, name):
@@ -191,12 +230,22 @@ class FreeIPAPlugin(DirectoryServicePlugin):
                 notify = self.cv.wait(60)
 
                 if self.enabled:
+                    try:
+                        obtain_or_renew_ticket(
+                            self.principal,
+                            self.parameters['password'],
+                            renew_life=TICKET_RENEW_LIFE
+                        )
+                    except krb5.KrbException as err:
+                        self.directory.put_status(errno.ENXIO, '{0} <{1}>'.format(str(err), type(err).__name__))
+                        self.directory.put_state(DirectoryState.FAILURE)
+                        continue
+
                     if self.directory.state == DirectoryState.BOUND and not notify:
                         continue
 
                     try:
                         self.directory.put_state(DirectoryState.JOINING)
-                        obtain_or_renew_ticket(self.principal, self.parameters['password'], renew_life=TICKET_RENEW_LIFE)
                         self.servers = [ldap3.Server(i) for i in self.ldap_addresses]
                         self.conn = ldap3.Connection(
                             self.servers,
@@ -213,8 +262,10 @@ class FreeIPAPlugin(DirectoryServicePlugin):
                         self.directory.put_state(DirectoryState.FAILURE)
                         continue
                 else:
-                    self.directory.put_state(DirectoryState.DISABLED)
-                    continue
+                    if self.directory.state != DirectoryState.DISABLED:
+                        self.conn.unbind()
+                        self.directory.put_state(DirectoryState.DISABLED)
+                        continue
 
     def authenticate(self, user, password):
         logger.debug('authenticate(user={0}, password=<...>)'.format(user))
@@ -239,19 +290,23 @@ def _init(context):
     context.register_plugin('freeipa', FreeIPAPlugin)
 
     context.register_schema('freeipa-directory-params', {
-        'type': {'enum': ['ldap-directory-params']},
-        'realm': {'type': 'string'},
-        'server': {'type': ['string', 'null']},
-        'kdc': {'type': ['string', 'null']},
-        'username': {'type': 'string'},
-        'password': {'type': 'string'},
-        'user_suffix': {'type': 'string'},
-        'group_suffix': {'type': 'string'},
-        'encryption': {
-            'type': 'string',
-            'enum': ['NONE', 'SSL', 'TLS']
-        },
-        'certificate': {'type': ['string', 'null']},
+        'type': 'object',
+        'additionalProperties': False,
+        'properties': {
+            'type': {'enum': ['ldap-directory-params']},
+            'realm': {'type': 'string'},
+            'server': {'type': ['string', 'null']},
+            'kdc': {'type': ['string', 'null']},
+            'username': {'type': 'string'},
+            'password': {'type': 'string'},
+            'user_suffix': {'type': ['string', 'null']},
+            'group_suffix': {'type': ['string', 'null']},
+            'encryption': {
+                'type': 'string',
+                'enum': ['NONE', 'SSL', 'TLS']
+            },
+            'certificate': {'type': ['string', 'null']}
+        }
     })
 
     context.register_schema('freeipa-directory-status', {

@@ -25,6 +25,9 @@
 #
 #####################################################################
 
+import gevent.monkey
+gevent.monkey.patch_all()
+
 import os
 import enum
 import sys
@@ -36,10 +39,8 @@ import errno
 import time
 import string
 import random
-import threading
 import gevent
 import gevent.os
-import gevent.monkey
 import subprocess
 import serial
 import netif
@@ -53,9 +54,12 @@ import ipaddress
 import pf
 import urllib.parse
 import requests
+from datetime import datetime
 from bsd import kld, sysctl
+from threading import Condition
 from gevent.queue import Queue
 from gevent.event import Event
+from gevent.lock import RLock
 from geventwebsocket import WebSocketServer, WebSocketApplication, Resource
 from geventwebsocket.exceptions import WebSocketError
 from pyee import EventEmitter
@@ -69,9 +73,6 @@ from vnc import app
 from mgmt import ManagementNetwork
 from ec2 import EC2MetadataServer
 from proxy import ReverseProxyServer
-
-
-gevent.monkey.patch_all()
 
 
 BOOTROM_PATH = '/usr/local/share/uefi-firmware/BHYVE_UEFI.fd'
@@ -100,6 +101,12 @@ class DockerHostState(enum.Enum):
     UP = 3
 
 
+class ConsoleToken(object):
+    def __init__(self, type, id):
+        self.type = type
+        self.id = id
+
+
 def generate_id():
     return ''.join([random.choice(string.ascii_letters + string.digits) for _ in range(32)])
 
@@ -124,18 +131,23 @@ def get_docker_ports(details):
 
 
 def get_docker_volumes(details):
-    if 'HostConfig' not in details:
+    if 'Mounts' not in details:
         return
 
-    if 'Mounts' not in details['HostConfig']:
-        return
-
-    for mnt in details['HostConfig']['Mounts']:
+    for mnt in details['Mounts']:
         yield {
             'host_path': mnt['Source'],
             'container_path': mnt['Destination'],
             'readonly': not mnt['RW']
         }
+
+
+def get_interactive(details):
+    config = details.get('Config')
+    if not config:
+        return False
+
+    return config.get('Tty') and config.get('OpenStdin')
 
 
 class BinaryRingBuffer(object):
@@ -298,7 +310,7 @@ class VirtualMachine(object):
             iface.up()
 
             if nic['mode'] == 'BRIDGED':
-                if nic['bridge']:
+                if nic.get('bridge'):
                     bridge_if = nic['bridge']
                     if bridge_if == 'default':
                         bridge_if = self.context.client.call_sync('networkd.configuration.get_default_interface')
@@ -464,8 +476,10 @@ class VirtualMachine(object):
             self.set_state(VirtualMachineState.RUNNING)
 
             self.bhyve_process = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, close_fds=True)
-            out, err = self.bhyve_process.communicate()
-            self.logger.debug('bhyve: {0}'.format(out))
+
+            for line in self.bhyve_process.stdout:
+                self.logger.debug('bhyve: {0}'.format(line.decode('utf-8', 'ignore')))
+
             self.bhyve_process.wait()
 
             subprocess.call(['/usr/sbin/bhyvectl', '--destroy', '--vm={0}'.format(self.name)])
@@ -534,16 +548,15 @@ class Jail(object):
 
 
 class DockerHost(object):
-    def __init__(self, context):
+    def __init__(self, context, vm):
         self.context = context
-        self.vm = None
+        self.vm = vm
         self.state = DockerHostState.DOWN
         self.connection = None
         self.listener = None
-        self.start_notifier = None
         self.mapped_ports = {}
         self.active_consoles = {}
-        self.ready = threading.Event()
+        self.ready = Event()
         self.logger = logging.getLogger(self.__class__.__name__)
         gevent.spawn(self.wait_ready)
 
@@ -553,9 +566,7 @@ class DockerHost(object):
         self.logger.info('Docker instance at {0} ({1}) is ready'.format(self.vm.name, ip))
         self.connection = docker.Client(base_url='http://{0}:2375'.format(ip))
         self.listener = gevent.spawn(self.listen)
-        self.start_notifier = gevent.spawn(self.notify)
 
-    def notify(self):
         ready = False
         while not ready:
             try:
@@ -563,11 +574,36 @@ class DockerHost(object):
             except requests.exceptions.ConnectionError:
                 gevent.sleep(1)
 
+        self.notify()
+        self.init_autostart()
+
+        docker_config = self.context.client.call_sync('docker.config.get_config')
+        if self.vm.id == docker_config['api_forwarding'] and docker_config['api_forwarding_enable']:
+            try:
+                self.context.set_docker_api_forwarding(None)
+                self.context.set_docker_api_forwarding(self.vm.id)
+            except ValueError as err:
+                self.logger.warning(
+                    'Failed to set up Docker API forwarding to Docker host {0}: {1}'.format(self.vm.name, err)
+                )
+
+    def notify(self):
         self.ready.set()
         self.context.client.emit_event('containerd.docker.host.changed', {
             'operation': 'create',
             'ids': [self.vm.id]
         })
+
+    def init_autostart(self):
+        for container in self.connection.containers(all=True):
+            details = self.connection.inspect_container(container['Id'])
+            if 'org.freenas.autostart' in details['Config']['Labels']:
+                try:
+                    self.connection.start(container=container['Id'])
+                except BaseException as err:
+                    self.logger.warning(
+                        'Failed to start {0} container automatically: {1}'.format(q.get(container, 'Names.0'), err)
+                    )
 
     def listen(self):
         self.logger.debug('Listening for docker events on {0}'.format(self.vm.name))
@@ -671,41 +707,40 @@ class ContainerConsole(object):
         )
         self.stdin = None
         self.stdout = None
+        self.stderr = None
         self.scrollback = None
         self.console_queues = []
         self.scrollback_t = None
-        self.console_t = None
         self.active = False
-        self.lock = threading.Lock()
+        self.lock = RLock()
         self.logger = logging.getLogger('Container:{0}'.format(self.name))
 
     def start_console(self):
-        stdout_r, stdout_w = os.pipe()
-        stdin_r, stdin_w = os.pipe()
+        self.host.ready.wait()
+        self.host.connection.start(container=self.id)
 
-        stdin_r_file = open(stdin_r, 'rb', buffering=0)
-        stdout_w_file = open(stdout_w, 'wb', buffering=0)
+        operation = dockerpty.pty.RunOperation(self.host.connection, self.id)
+        self.stdin, self.stdout, self.stderr = operation.sockets()
 
-        self.console_t = gevent.spawn(
-            dockerpty.start,
-            self.host.connection,
-            self.id,
-            stdout=stdout_w_file,
-            stderr=stdout_w_file,
-            stdin=stdin_r_file
-        )
+        self.stdout.set_blocking(False)
+        self.stderr.set_blocking(False)
 
-        self.stdin = open(stdin_w, 'wb', buffering=0)
-        self.stdout = open(stdout_r, 'rb', buffering=0)
         self.scrollback = BinaryRingBuffer(SCROLLBACK_SIZE)
         self.scrollback_t = gevent.spawn(self.console_worker)
         self.active = True
 
     def stop_console(self):
         self.active = False
+        self.host.ready.wait()
+        self.stdin.write(b'\x10\x11')
         self.stdin.close()
+        if isinstance(self.stdout, socket.SocketIO):
+            self.stdout.fd.shutdown(socket.SHUT_RDWR)
+        if isinstance(self.stderr, socket.SocketIO):
+            self.stderr.fd.shutdown(socket.SHUT_RDWR)
         self.stdout.close()
-        gevent.joinall([self.scrollback_t, self.console_t])
+        self.stderr.close()
+        self.scrollback_t.join()
 
     def console_register(self):
         with self.lock:
@@ -723,39 +758,49 @@ class ContainerConsole(object):
 
             self.logger.debug('Stopped a console queue')
             if not len(self.console_queues):
-                self.logger.debug('Last console queue stopped. Closing console')
+                self.logger.debug('Last console queue stopped. Detaching console')
                 self.stop_console()
 
     def console_write(self, data):
-        try:
-            self.stdin.write(data)
-            self.stdin.flush()
-        except (ValueError, OSError):
-            pass
+        self.stdin.write(data)
 
     def console_worker(self):
         self.logger.debug('Opening console to {0}'.format(self.name))
-        while True:
-            try:
-                fd = self.stdout.fileno()
-                r, w, x = select.select([fd], [], [fd])
 
-                if fd in x:
-                    return
-
-                if fd not in r:
-                    continue
-
-                ch = self.stdout.read(1024)
-            except (OSError, ValueError):
-                return
-
-            self.scrollback.push(ch)
+        def write(data):
+            self.scrollback.push(data)
             try:
                 for i in self.console_queues:
-                    i.put(ch, block=False)
+                    i.put(data, block=False)
             except:
                 pass
+
+        while True:
+            try:
+                fd_o = self.stdout.fileno()
+                fd_e = self.stderr.fileno()
+                r, w, x = select.select([fd_o, fd_e], [], [fd_o, fd_e])
+
+                if any(fd in x for fd in (fd_o, fd_e)):
+                    return
+
+                if not any(fd in r for fd in (fd_o, fd_e)):
+                    continue
+
+                if fd_o in r:
+                    ch = self.stdout.read(1024)
+                    if ch == b'':
+                        return
+                    write(ch)
+
+                if fd_e in r:
+                    ch = self.stderr.read(1024)
+                    if ch == b'':
+                        return
+                    write(ch)
+
+            except (OSError, ValueError):
+                return
 
 
 class ManagementService(RpcService):
@@ -805,8 +850,7 @@ class ManagementService(RpcService):
         vm.start()
 
         if vm.config.get('docker_host', False):
-            host = DockerHost(self.context)
-            host.vm = vm
+            host = DockerHost(self.context, vm)
             vm.docker_host = host
             self.context.docker_hosts[id] = host
 
@@ -830,6 +874,7 @@ class ManagementService(RpcService):
             raise RpcException(errno.EACCES, 'Container {0} is already stopped'.format(container['name']))
 
         if vm.config.get('docker_host', False):
+            self.context.set_docker_api_forwarding(None)
             self.context.docker_hosts.pop(id, None)
             self.context.client.emit_event('containerd.docker.host.changed', {
                 'operation': 'delete',
@@ -853,8 +898,10 @@ class ConsoleService(RpcService):
 
     @private
     def request_console(self, id):
+        type = 'VM'
         vm = self.context.datastore.get_by_id('vms', id)
         if not vm:
+            type = 'CONTAINER'
             container = self.context.client.call_sync(
                 'containerd.docker.query_containers',
                 [('id', '=', id)],
@@ -864,7 +911,7 @@ class ConsoleService(RpcService):
                 raise RpcException(errno.ENOENT, '{0} not found as either a VM or a container'.format(id))
 
         token = generate_id()
-        self.context.tokens[token] = id
+        self.context.tokens[token] = ConsoleToken(type, id)
         return token
 
     @private
@@ -912,10 +959,15 @@ class DockerService(RpcService):
                     'names': list(normalize_names(container['Names'])),
                     'command': container['Command'] if isinstance(container['Command'], list) else [container['Command']],
                     'status': container['Status'],
+                    'running': details['State'].get('Running', False),
                     'host': host.vm.id,
                     'ports': list(get_docker_ports(details)),
                     'volumes': list(get_docker_volumes(details)),
-                    'expose_ports': 'org.freenas.expose_ports_at_host' in details['Config']['Labels']
+                    'interactive': get_interactive(details),
+                    'expose_ports': 'org.freenas.expose_ports_at_host' in details['Config']['Labels'],
+                    'autostart': 'org.freenas.autostart' in details['Config']['Labels'],
+                    'environment': details['Config']['Env'],
+                    'hostname': details['Config']['Hostname']
                 })
 
         return q.query(result, *(filter or []), stream=True, **(params or {}))
@@ -929,7 +981,8 @@ class DockerService(RpcService):
                     'id': image['Id'],
                     'names': image['RepoTags'],
                     'size': image['VirtualSize'],
-                    'host': host.vm.id
+                    'host': host.vm.id,
+                    'created_at': datetime.utcfromtimestamp(int(image['Created']))
                 })
 
         return q.query(result, *(filter or []), stream=True, **(params or {}))
@@ -970,7 +1023,10 @@ class DockerService(RpcService):
         if not host:
             raise RpcException(errno.ENOENT, 'Docker host {0} not found'.format(container['host']))
 
-        if container['expose_ports']:
+        if container.get('autostart'):
+            labels.append('org.freenas.autostart')
+
+        if container.get('expose_ports'):
             labels.append('org.freenas.expose_ports_at_host')
 
         create_args = {
@@ -990,8 +1046,18 @@ class DockerService(RpcService):
             )
         }
 
-        if container['command']:
+        if container.get('command'):
             create_args['command'] = container['command']
+
+        if container.get('environment'):
+            create_args['environment'] = container['environment']
+
+        if container.get('interactive'):
+            create_args['stdin_open'] = True
+            create_args['tty'] = True
+
+        if container.get('hostname'):
+            create_args['hostname'] = container['hostname']
 
         try:
             host.connection.create_container(**create_args)
@@ -1004,6 +1070,16 @@ class DockerService(RpcService):
             host.connection.remove_container(container=id, force=True)
         except BaseException as err:
             raise RpcException(errno.EFAULT, 'Failed to remove container: {0}'.format(str(err)))
+
+    def set_api_forwarding(self, hostid):
+        if hostid in self.context.docker_hosts:
+            try:
+                self.context.set_docker_api_forwarding(None)
+                self.context.set_docker_api_forwarding(hostid)
+            except ValueError as err:
+                raise RpcException(errno.EINVAL, err)
+        else:
+            self.context.set_docker_api_forwarding(None)
 
 
 class ServerResource(Resource):
@@ -1070,9 +1146,11 @@ class ConsoleConnection(WebSocketApplication, EventEmitter):
 
     def on_close(self, *args, **kwargs):
         self.inq.put(StopIteration)
-        self.console_queue.put(StopIteration)
+        if self.console_queue:
+            self.console_queue.put(StopIteration)
 
-        self.console_provider.console_unregister(self.console_queue)
+        if self.console_provider:
+            self.console_provider.console_unregister(self.console_queue)
 
     def on_message(self, message, *args, **kwargs):
         if message is None:
@@ -1094,24 +1172,25 @@ class ConsoleConnection(WebSocketApplication, EventEmitter):
 
             self.authenticated = True
 
-            container = self.context.client.call_sync(
-                'containerd.docker.query_containers',
-                [('id', '=', cid)],
-                {'single': True}
-            )
+            if cid.type == 'CONTAINER':
+                container = self.context.client.call_sync(
+                    'containerd.docker.query_containers',
+                    [('id', '=', cid.id)],
+                    {'single': True}
+                )
 
-            if container:
-                docker_host = self.context.docker_host_by_container_id(cid)
-                self.console_provider = docker_host.get_container_console(cid)
-            else:
+                if container:
+                    docker_host = self.context.docker_host_by_container_id(cid.id)
+                    self.console_provider = docker_host.get_container_console(cid.id)
+
+            if cid.type == 'VM':
                 with self.context.cv:
-                    if not self.context.cv.wait_for(lambda: cid in self.context.vms, timeout=30):
+                    if not self.context.cv.wait_for(lambda: cid.id in self.context.vms, timeout=30):
                         return
-                    self.console_provider = self.context.vms[cid]
+                    self.console_provider = self.context.vms[cid.id]
 
             self.console_queue = self.console_provider.console_register()
             self.ws.send(json.dumps({'status': 'ok'}))
-
             self.ws.send(self.console_provider.scrollback.read())
 
             gevent.spawn(self.worker)
@@ -1159,7 +1238,7 @@ class VncConnection(WebSocketApplication, EventEmitter):
 
                 self.ws.send(buffer[:n])
 
-        self.vm = self.context.vms[cid]
+        self.vm = self.context.vms[cid.id]
         self.logger.info('Opening VNC console to {0} (token {1})'.format(self.vm.name, token))
 
         self.cfd = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM, 0)
@@ -1195,7 +1274,7 @@ class Main(object):
         self.ec2 = None
         self.default_if = None
         self.proxy_server = ReverseProxyServer()
-        self.cv = threading.Condition()
+        self.cv = Condition()
 
     def init_datastore(self):
         try:
@@ -1222,6 +1301,7 @@ class Main(object):
                 self.client.login_service('containerd')
                 self.client.enable_server()
                 self.client.rpc.streaming_enabled = True
+                self.client.register_event_handler('network.changed', lambda args: self.init_nat())
                 self.client.register_service('containerd.management', ManagementService(self))
                 self.client.register_service('containerd.console', ConsoleService(self))
                 self.client.register_service('containerd.docker', DockerService(self))
@@ -1347,11 +1427,42 @@ class Main(object):
             host.ready.wait()
             yield host
 
+    def set_docker_api_forwarding(self, hostid):
+        p = pf.PF()
+        if hostid:
+            if first_or_default(lambda r: r.proxy_ports[0] == 2375, p.get_rules('rdr')):
+                raise ValueError('Cannot redirect Docker API to {0}: port 2375 already in use'.format(hostid))
+
+            rule = pf.Rule()
+            rule.dst.port_range = [2375, 0]
+            rule.dst.port_op = pf.RuleOperator.EQ
+            rule.action = pf.RuleAction.RDR
+            rule.af = socket.AF_INET
+            rule.ifname = self.default_if
+            rule.natpass = True
+
+            host = self.get_docker_host(hostid)
+
+            rule.redirect_pool.append(pf.Address(
+                address=host.vm.management_lease.lease.client_ip,
+                netmask=ipaddress.ip_address('255.255.255.255')
+            ))
+            rule.proxy_ports = [2375, 0]
+            p.append_rule('rdr', rule)
+
+        else:
+            rule = first_or_default(lambda r: r.proxy_ports[0] == 2375, p.get_rules('rdr'))
+            if rule:
+                p.delete_rule('rdr', rule.index)
+
     def die(self):
         self.logger.warning('Exiting')
+        self.set_docker_api_forwarding(None)
+        greenlets = []
         for i in self.vms.values():
-            i.stop(True)
+            greenlets.append(gevent.spawn(i.stop, False))
 
+        gevent.joinall(greenlets, timeout=30)
         self.client.disconnect()
         sys.exit(0)
 
@@ -1399,7 +1510,7 @@ class Main(object):
         self.init_mgmt()
         self.init_nat()
         self.init_ec2()
-        self.init_autostart()
+        gevent.spawn(self.init_autostart)
         self.logger.info('Started')
 
         # WebSockets server

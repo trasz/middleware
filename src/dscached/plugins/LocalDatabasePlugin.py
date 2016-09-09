@@ -47,7 +47,7 @@ class LocalDatabasePlugin(DirectoryServicePlugin):
         self.client.register_event_handler('group.changed', flush_groups)
 
     def getpwent(self, filter=None, params=None):
-        return self.datastore.query('users', *(filter or []), **(params or {}))
+        return self.datastore.query_stream('users', *(filter or []), **(params or {}))
 
     def getpwnam(self, name):
         return self.datastore.get_one('users', ('username', '=', name))
@@ -59,7 +59,7 @@ class LocalDatabasePlugin(DirectoryServicePlugin):
         return self.datastore.get_one('users', ('id', '=', uuid))
 
     def getgrent(self, filter=None, params=None):
-        return self.datastore.query('groups', *(filter or []), **(params or {}))
+        return self.datastore.query_stream('groups', *(filter or []), **(params or {}))
 
     def getgrnam(self, name):
         return self.datastore.get_one('groups', ('name', '=', name))

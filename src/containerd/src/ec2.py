@@ -36,7 +36,7 @@ from freenas.utils.query import get
 class EC2Metadata(object):
     def __init__(self, context, vm):
         self.context = context
-        self.vm = context.datastore.get_by_id('containers', vm.id)
+        self.vm = context.datastore.get_by_id('vms', vm.id)
 
     def __getitem__(self, item):
         if not item:
@@ -52,7 +52,7 @@ class EC2Metadata(object):
             return self.vm['name']
 
         if item == 'user-data':
-            return get(self.vm, 'config.cloud_init')
+            return get(self.vm, 'config.cloud_init') or ''
 
         return ''
 

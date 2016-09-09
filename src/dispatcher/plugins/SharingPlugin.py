@@ -244,7 +244,7 @@ class CreateShareTask(Task):
             raise AssertionError('Invalid target type')
 
         if share.get('permissions'):
-            self.join_subtasks(self.run_subtask('file.set_permissions', path, share['permissions']))
+            self.join_subtasks(self.run_subtask('file.set_permissions', path, share.pop('permissions')))
 
         ids = self.join_subtasks(self.run_subtask('share.{0}.create'.format(share['type']), share))
         self.dispatcher.dispatch_event('share.changed', {
@@ -303,6 +303,7 @@ class UpdateShareTask(Task):
 
         path_after_update = updated_fields.get('target_path', share['target_path'])
         type_after_update = updated_fields.get('target_type', share['target_type'])
+        permissions = updated_fields.pop('permissions')
         share_path = self.dispatcher.call_sync('share.expand_path', path_after_update, type_after_update)
 
         if not os.path.exists(share_path):
@@ -340,9 +341,9 @@ class UpdateShareTask(Task):
         else:
             self.join_subtasks(self.run_subtask('share.{0}.update'.format(share['type']), id, updated_fields))
 
-        if 'permissions' in updated_fields:
+        if permissions:
             path = self.dispatcher.call_sync('share.translate_path', id)
-            self.join_subtasks(self.run_subtask('file.set_permissions', path, updated_fields['permissions']))
+            self.join_subtasks(self.run_subtask('file.set_permissions', path, permissions))
 
         self.dispatcher.dispatch_event('share.changed', {
             'operation': 'update',

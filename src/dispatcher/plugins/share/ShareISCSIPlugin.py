@@ -30,6 +30,7 @@ import errno
 import uuid
 import hashlib
 import ctl
+from debug import AttachFile
 from task import Task, Provider, VerifyException, TaskDescription, TaskException
 from freenas.dispatcher.rpc import RpcException, description, accepts, returns, private, generator
 from freenas.dispatcher.rpc import SchemaHelper as h
@@ -210,7 +211,6 @@ class DeleteiSCSIShareTask(Task):
         self.datastore.delete('shares', id)
         self.dispatcher.call_sync('etcd.generation.generate_group', 'ctl')
         self.dispatcher.call_sync('service.reload', 'ctl')
-
         self.dispatcher.dispatch_event('share.iscsi.changed', {
             'operation': 'delete',
             'ids': [id]
@@ -235,7 +235,10 @@ class ImportiSCSIShareTask(CreateISCSIShareTask):
         return super(ImportiSCSIShareTask, self).run(share)
 
 
-@accepts(h.ref('share-iscsi-target'))
+@accepts(h.all_of(
+    h.ref('share-iscsi-target'),
+    h.required('id')
+))
 @description('Creates iSCSI share target')
 class CreateISCSITargetTask(Task):
     @classmethod
@@ -261,6 +264,8 @@ class CreateISCSITargetTask(Task):
         })
 
         id = self.datastore.insert('iscsi.targets', target)
+        self.dispatcher.call_sync('etcd.generation.generate_group', 'ctl')
+        self.dispatcher.call_sync('service.reload', 'ctl')
         self.dispatcher.dispatch_event('iscsi.target.changed', {
             'operation': 'create',
             'ids': [id]
@@ -514,6 +519,10 @@ def convert_share_target(target):
         return target
 
     return os.path.join('/dev/zvol', target)
+
+
+def collect_debug(dispatcher):
+    yield AttachFile('ctl.conf', '/etc/ctl.conf')
 
 
 def _metadata():

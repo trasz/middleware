@@ -2,9 +2,7 @@ from base import Resource, ResourceQueryMixin, SingleItemBase
 
 
 class IPMIQueryResource(Resource, ResourceQueryMixin):
-
-    def run_put(self, req, urlparams):
-        return req.context['doc']
+    pass
 
 
 class IPMISingleItem(SingleItemBase):

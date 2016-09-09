@@ -91,6 +91,21 @@ class ZpoolProvider(Provider):
 
         return [v['path'] for v in iterate_vdevs(pool['groups'])]
 
+    @accepts(str)
+    @returns(h.object())
+    def get_disk_label(self, device):
+        try:
+            label = libzfs.read_label(device)
+            if not label:
+                return None
+
+            if label.get('state') == libzfs.PoolState.DESTROYED:
+                return None
+
+            return label
+        except OSError as err:
+            raise RpcException(err.errno, err.strerror)
+
     @returns(h.object())
     def get_capabilities(self):
         return {
@@ -219,7 +234,7 @@ class ZfsDatasetProvider(Provider):
         try:
             zfs = get_zfs()
             ds = zfs.get_dataset(dataset_name)
-            snaps = threadpool.apply(lambda: [d.__getstate__(False) for d in ds.snapshots])
+            snaps = threadpool.apply(lambda: [d.__getstate__() for d in ds.snapshots])
             snaps.sort(key=lambda s: int(q.get(s, 'properties.creation.rawvalue')))
             return snaps
         except libzfs.ZFSException as err:
@@ -1096,8 +1111,8 @@ class ZfsSendTask(ZfsBaseTask):
 
     def describe(self, name, fromsnap, tosnap, fd):
         return TaskDescription(
-            'Sending ZFS replication stream from snapshot {fromsnap} to snapshot {tosnap}',
-            fromsnap=fromsnap,
+            'Sending ZFS replication stream from {fromname} to snapshot {tosnap}',
+            fromname='{0}:{1}'.format(name, fromsnap) if fromsnap else name,
             tosnap=tosnap
         )
 
@@ -1240,7 +1255,7 @@ def sync_dataset_cache(dispatcher, dataset, old_dataset=None, recursive=False):
                 parents=['zpool:{0}'.format(pool)])
 
         ds_snapshots = {}
-        for i in threadpool.apply(lambda: [d.__getstate__(False) for d in ds.snapshots]):
+        for i in threadpool.apply(lambda: [d.__getstate__() for d in ds.snapshots]):
             name = i['name']
             try:
                 ds_snapshots[name] = i
@@ -1254,7 +1269,7 @@ def sync_dataset_cache(dispatcher, dataset, old_dataset=None, recursive=False):
 
         if recursive:
             for i in ds.children:
-                oldpath = os.path.join(old_dataset, os.path.relpath(i.name, dataset))
+                oldpath = os.path.join(old_dataset, os.path.relpath(i.name, dataset)) if old_dataset else None
                 sync_dataset_cache(dispatcher, i.name, old_dataset=oldpath, recursive=True)
 
     except libzfs.ZFSException as e:
@@ -1446,6 +1461,7 @@ def _init(dispatcher, plugin):
                 if type == 'mount':
                     datasets.update_one(ds['id'], **{
                         'mounted': True,
+                        'mountpoint': args['path'],
                         'properties.mounted.rawvalue': 'yes',
                         'properties.mounted.value': 'yes',
                         'properties.mounted.parsed': True
@@ -1454,12 +1470,11 @@ def _init(dispatcher, plugin):
                 if type == 'unmount':
                     datasets.update_one(ds['id'], **{
                         'mounted': True,
+                        'mountpoint': args['path'],
                         'properties.mounted.rawvalue': 'no',
                         'properties.mounted.value': 'no',
                         'properties.mounted.parsed': False
                     })
-
-                datasets.put(ds['id'], ds)
 
     def on_device_attached(args):
         for p in pools.validvalues():
@@ -1749,7 +1764,7 @@ def _init(dispatcher, plugin):
 
         logger.info("Syncing ZFS snapshots...")
         snapshots_dict = {}
-        for i in threadpool.apply(lambda: [s.__getstate__(False) for s in zfs.snapshots]):
+        for i in threadpool.apply(lambda: [s.__getstate__() for s in zfs.snapshots]):
             snapshots_dict[i['id']] = i
         snapshots.update(**snapshots_dict)
 

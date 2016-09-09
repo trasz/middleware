@@ -27,9 +27,11 @@
 
 import errno
 import logging
+import contextlib
 from datastore.config import ConfigNode
 from freenas.dispatcher.rpc import RpcException, accepts, returns, SchemaHelper as h, generator
 from task import Provider, Task, TaskDescription, TaskException, query
+from freenas.utils import query as q
 
 
 from freenas.utils import normalize, query as q
@@ -37,12 +39,19 @@ from freenas.utils import normalize, query as q
 logger = logging.getLogger('DirectoryServicePlugin')
 
 
-class DirectoryServicesProvider(Provider):
+class DirectoryServiceProvider(Provider):
+    def get_config(self):
+        return ConfigNode('directory', self.configstore).__getstate__()
+
+
+class DirectoryProvider(Provider):
     @query('directory')
     @generator
     def query(self, filter=None, params=None):
         def extend(directory):
-            directory['status'] = self.dispatcher.call_sync('dscached.management.get_status', directory['id'])
+            with contextlib.suppress(RpcException):
+                directory['status'] = self.dispatcher.call_sync('dscached.management.get_status', directory['id'])
+
             return directory
 
         return q.query(
@@ -82,6 +91,13 @@ class DirectoryServicesConfigureTask(Task):
 )
 @returns(str)
 class DirectoryServiceCreateTask(Task):
+    @classmethod
+    def early_describe(cls):
+        return "Creating a directory"
+
+    def describe(self, directory):
+        return TaskDescription("Creating directory {name}", name=directory['name'])
+
     def verify(self, directory):
         return ['system']
 
@@ -94,6 +110,9 @@ class DirectoryServiceCreateTask(Task):
             )
         except RpcException as err:
             raise TaskException(err.code, err.message)
+
+        if self.datastore.exists('directories', ('name', '=', directory['name'])):
+            raise TaskException(errno.EEXIST, 'Directory {0} already exists'.format(directory['name']))
 
         normalize(directory, {
             'enabled': False,
@@ -110,6 +129,11 @@ class DirectoryServiceCreateTask(Task):
                 'gid_range': [100000, 999999]
             })
 
+            smb = self.dispatcher.call_sync('service.query', [('name', '=', 'smb')], {"single": True})
+            if not q.get(smb, 'config.enable'):
+                q.set(smb, 'config.enable', True)
+                self.join_subtasks(self.run_subtask('service.update', smb['id'], smb))
+
         self.id = self.datastore.insert('directories', directory)
         self.dispatcher.call_sync('dscached.management.configure_directory', self.id)
         self.dispatcher.dispatch_event('directory.changed', {
@@ -117,15 +141,26 @@ class DirectoryServiceCreateTask(Task):
             'ids': [self.id]
         })
 
+        node = ConfigNode('directory', self.configstore)
+        node['search_order'] = node['search_order'].value + [directory['name']]
+        self.dispatcher.call_sync('dscached.management.reload_config')
         return self.id
 
     def rollback(self, directory):
         if hasattr(self, 'id'):
-            self.datastore.remove('directories', self.id)
+            self.datastore.delete('directories', self.id)
 
 
 @accepts(str, h.ref('directory'))
 class DirectoryServiceUpdateTask(Task):
+    @classmethod
+    def early_describe(cls):
+        return "Updating a directory"
+
+    def describe(self, id, updated_params):
+        directory = self.datastore.get_by_id('directories', id)
+        return TaskDescription("Updating directory {name}", name=directory.get('name', id) if directory else id)
+
     def verify(self, id, updated_params):
         return ['system']
 
@@ -133,6 +168,9 @@ class DirectoryServiceUpdateTask(Task):
         directory = self.datastore.get_by_id('directories', id)
         if directory['immutable']:
             raise TaskException(errno.EPERM, 'Directory {0} is immutable'.format(directory['name']))
+
+        if 'name' in updated_params and self.datastore.exists('directories', ('name', '=', updated_params['name'])):
+            raise TaskException(errno.EEXIST, 'Directory {0} already exists'.format(directory['name']))
 
         directory.update(updated_params)
         self.datastore.update('directories', id, directory)
@@ -145,11 +183,20 @@ class DirectoryServiceUpdateTask(Task):
 
 @accepts(str)
 class DirectoryServiceDeleteTask(Task):
+    @classmethod
+    def early_describe(cls):
+        return "Deleting a directory"
+
+    def describe(self, id, updated_params):
+        directory = self.datastore.get_by_id('directories', id)
+        return TaskDescription("Deleting directory {name}", name=directory.get('name', id) if directory else id)
+
     def verify(self, id):
         return ['system']
 
     def run(self, id):
         directory = self.datastore.get_by_id('directories', id)
+        name = directory['name']
         if directory['immutable']:
             raise TaskException(errno.EPERM, 'Directory {0} is immutable'.format(directory['name']))
 
@@ -159,6 +206,10 @@ class DirectoryServiceDeleteTask(Task):
             'operation': 'delete',
             'ids': [id]
         })
+
+        node = ConfigNode('directory', self.configstore)
+        node['search_order'] = [i for i in node['search_order'].value if i != name]
+        self.dispatcher.call_sync('dscached.management.reload_config')
 
 
 def _init(dispatcher, plugin):
@@ -177,10 +228,10 @@ def _init(dispatcher, plugin):
 
     plugin.register_schema_definition('directory',  {
         'type': 'object',
+        'additionalProperties': False,
         'properties': {
             'id': {'type': 'string'},
             'name': {'type': 'string'},
-            'priority': {'type': 'integer'},
             'type': {
                 'type': 'string',
                 'enum': ['file', 'local', 'winbind', 'freeipa', 'nis']
@@ -205,12 +256,22 @@ def _init(dispatcher, plugin):
                 'type': 'object'
             },
             'status': {
-                'type': 'object'
+                'type': 'object',
+                'additionalProperties': False,
+                'properties': {
+                    'state': {
+                        'type': 'string',
+                        'enum': ['DISABLED', 'JOINING', 'FAILURE', 'BOUND', 'EXITING']
+                    },
+                    'status_code': {'type': 'integer'},
+                    'status_message': {'type': 'string'}
+                }
             }
         }
     })
 
-    plugin.register_provider('directory', DirectoryServicesProvider)
+    plugin.register_provider('directoryservice', DirectoryServiceProvider)
+    plugin.register_provider('directory', DirectoryProvider)
     plugin.register_event_type('directory.changed')
     plugin.register_task_handler('directory.create', DirectoryServiceCreateTask)
     plugin.register_task_handler('directory.update', DirectoryServiceUpdateTask)

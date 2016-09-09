@@ -34,7 +34,7 @@ import logging
 import tempfile
 import base64
 import gevent
-import gevent.monkey
+import libzfs
 from xml.etree import ElementTree
 from bsd import geom, getswapinfo
 from gevent.lock import RLock
@@ -52,8 +52,6 @@ from task import (
 from debug import AttachData, AttachCommandOutput
 from freenas.dispatcher.rpc import RpcException, accepts, returns, description, private, SchemaHelper as h, generator
 
-# Note the following monkey patch is required for pySMART to work correctly
-gevent.monkey.patch_subprocess()
 from pySMART import Device, smart_health_assement
 
 
@@ -197,7 +195,7 @@ class DiskGPTFormatTask(Task):
             [disk['path']]
         ).get(disk['path'])
 
-        if allocation is not None:
+        if allocation and allocation['type'] != 'EXPORTED_VOLUME':
             raise TaskException(
                 errno.EINVAL,
                 "Cannot perform format operation on an allocated disk {0}".format(disk['path'])
@@ -335,14 +333,14 @@ class DiskEraseTask(Task):
             [disk['path']]
         ).get(disk['path'])
 
-        if allocation is not None:
+        if allocation and allocation['type'] != 'EXPORTED_VOLUME':
             raise TaskException(
                 errno.EINVAL,
                 "Cannot perform erase operation on an allocated disk {0}".format(disk['path'])
             )
 
         try:
-            system('/sbin/zpool', 'labelclear', '-f', disk['path'])
+            libzfs.clear_label(disk['path'])
         except SubprocessException:
             pass
 

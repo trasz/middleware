@@ -45,6 +45,8 @@ class ShareISCSITestCase(RESTTestCase):
         self.assertEqual(r.status_code, 201, msg=r.text)
 
     def test_008_share_create(self):
+        ssh = self.ssh_exec('truncate -s 10M /mnt/tank/testiscsiextent')
+        self.assertEqual(ssh[0], 0)
         r = self.client.post('share', data={
             'name': 'testiscsishare',
             'type': 'iscsi',

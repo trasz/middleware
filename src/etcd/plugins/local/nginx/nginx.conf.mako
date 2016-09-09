@@ -53,11 +53,16 @@ http {
             root /usr/local/www/gui;
         }
 
+        location /cli {
+            alias /usr/local/www/cli/html;
+        }
+
         % if config.get("service.ipfs.webui"):
             location /ipfsui {
                 proxy_pass http://127.0.0.1:5001/webui/;
                 proxy_set_header Host $host;
                 proxy_set_header X-Real-IP $remote_addr;
+                proxy_set_header X-Real-Port $remote_port;
                 proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
                 proxy_set_header X-Forwarded-Proto $scheme;
             }
@@ -66,6 +71,7 @@ http {
                 proxy_pass http://127.0.0.1:5001;
                 proxy_set_header Host $host;
                 proxy_set_header X-Real-IP $remote_addr;
+                proxy_set_header X-Real-Port $remote_port;
                 proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
                 proxy_set_header X-Forwarded-Proto $scheme;
             }
@@ -75,15 +81,23 @@ http {
             proxy_pass http://127.0.0.1:8889;
             proxy_set_header Host $host;
             proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Real-Port $remote_port;
             proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
             proxy_set_header X-Forwarded-Proto $scheme;
         }
 
-        location /socket {
-            proxy_pass http://127.0.0.1:5000/socket;
+        location /dispatcher {
+            rewrite /dispatcher/(.+) /$1 break;
+            proxy_pass http://127.0.0.1:5000;
             proxy_http_version 1.1;
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Real-Port $remote_port;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $scheme;
             proxy_set_header Upgrade $http_upgrade;
             proxy_set_header Connection "upgrade";
+            proxy_read_timeout 1h;
         }
 
         location /containerd {
@@ -92,10 +106,12 @@ http {
             proxy_http_version 1.1;
             proxy_set_header Host $host;
             proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Real-Port $remote_port;
             proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
             proxy_set_header X-Forwarded-Proto $scheme;
             proxy_set_header Upgrade $http_upgrade;
             proxy_set_header Connection $http_connection;
+            proxy_read_timeout 1h;
         }
 
     }

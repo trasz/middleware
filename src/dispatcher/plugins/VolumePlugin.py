@@ -349,7 +349,7 @@ class VolumeProvider(Provider):
 
         for dev in boot_devs:
             boot_disk = self.dispatcher.call_sync('disk.partition_to_disk', dev)
-            if boot_disk in disks:
+            if os.path.join('/dev', boot_disk) in disks:
                 ret[boot_disk] = {'type': 'BOOT'}
 
         for vol in self.dispatcher.call_sync('volume.query'):
@@ -362,6 +362,16 @@ class VolumeProvider(Provider):
                         'type': 'VOLUME',
                         'name': vol['id']
                     }
+
+        for disk in set(disks) - set(ret.keys()):
+            try:
+                label = self.get_disk_label(disk)
+                ret[disk] = {
+                    'type': 'EXPORTED_VOLUME',
+                    'name': label['volume_id']
+                }
+            except:
+                continue
 
         return ret
 
@@ -376,8 +386,23 @@ class VolumeProvider(Provider):
 
         return vdev
 
-    @description("Describes the various capacibilities of a Volumes given" +
-                 "What type of Volume it is (example call it with 'zfs'")
+    @accepts(str)
+    @returns(h.ref('volume-disk-label'))
+    def get_disk_label(self, disk):
+        dev = get_disk_gptid(self.dispatcher, disk)
+        if not dev:
+            raise RpcException(errno.ENOENT, 'Disk {0} not found'.format(disk))
+
+        label = self.dispatcher.call_sync('zfs.pool.get_disk_label', dev)
+        return {
+            'volume_id': label['name'],
+            'volume_guid': str(label['pool_guid']),
+            'vdev_guid': str(label['guid']),
+            'hostname': label['hostname'],
+            'hostid': label.get('hostid')
+        }
+
+    @description("Returns volume capabilities")
     @accepts(str)
     @returns(h.object())
     def get_capabilities(self, type):
@@ -463,10 +488,17 @@ class VolumeCreateTask(ProgressTask):
         )
         key_encryption = volume.pop('key_encrypted', False)
         password_encryption = volume.pop('password_encrypted', False)
+        auto_unlock = volume.pop('auto_unlock', None)
+
+        if auto_unlock and (not key_encryption or password_encryption):
+            raise TaskException(
+                errno.EINVAL,
+                'Automatic volume unlock can be selected for volumes using only key based encryption.'
+            )
 
         self.dispatcher.run_hook('volume.pre_create', {'name': name})
         if key_encryption:
-            key = base64.b64encode(os.urandom(64)).decode('utf-8')
+            key = base64.b64encode(os.urandom(256)).decode('utf-8')
         else:
             key = None
 
@@ -557,6 +589,7 @@ class VolumeCreateTask(ProgressTask):
                     'slot': 0 if key_encryption or password_encryption else None},
                 'key_encrypted': key_encryption,
                 'password_encrypted': password_encryption,
+                'auto_unlock': auto_unlock,
                 'attributes': volume.get('attributes', {})
             })
 
@@ -568,22 +601,22 @@ class VolumeCreateTask(ProgressTask):
 
 
 @description("Creates new volume and automatically guesses disks layout")
-@accepts(str, str, str, h.one_of(h.array(str), str), h.array(str), h.array(str), h.one_of(bool, None), h.one_of(str, None))
+@accepts(str, str, str, h.one_of(h.array(str), str), h.array(str), h.array(str), h.one_of(bool, None), h.one_of(str, None), h.one_of(bool, None))
 class VolumeAutoCreateTask(Task):
     @classmethod
     def early_describe(cls):
         return "Creating a volume"
 
-    def describe(self, name, type, layout, disks, cache_disks=None, log_disks=None, key_encryption=False, password=None):
+    def describe(self, name, type, layout, disks, cache_disks=None, log_disks=None, key_encryption=False, password=None, auto_unlock=None):
         return TaskDescription("Creating the volume {name}", name=name)
 
-    def verify(self, name, type, layout, disks, cache_disks=None, log_disks=None, key_encryption=False, password=None):
+    def verify(self, name, type, layout, disks, cache_disks=None, log_disks=None, key_encryption=False, password=None, auto_unlock=None):
         if isinstance(disks, str) and disks == 'auto':
             return ['disk:{0}'.format(disk) for disk in self.dispatcher.call_sync('disk.query', {'select': 'path'})]
         else:
             return ['disk:{0}'.format(disk_spec_to_path(self.dispatcher, i)) for i in disks]
 
-    def run(self, name, type, layout, disks, cache_disks=None, log_disks=None, key_encryption=False, password=None):
+    def run(self, name, type, layout, disks, cache_disks=None, log_disks=None, key_encryption=False, password=None, auto_unlock=None):
         if self.datastore.exists('volumes', ('id', '=', name)):
             raise TaskException(
                 errno.EEXIST,
@@ -652,7 +685,8 @@ class VolumeAutoCreateTask(Task):
                     'log': log_vdevs
                 },
                 'key_encrypted': key_encryption,
-                'password_encrypted': True if password else False
+                'password_encrypted': True if password else False,
+                'auto_unlock': auto_unlock
             },
             password
         ))
@@ -1001,6 +1035,16 @@ class VolumeUpdateTask(Task):
             )
 
             volume['topology'] = new_topology
+            if 'auto_unlock' in updated_params:
+                auto_unlock = updated_params.get('auto_unlock', False)
+                if auto_unlock and (not volume.get('key_encryption') or volume.get('password_encryption')):
+                    raise TaskException(
+                        errno.EINVAL,
+                        'Automatic volume unlock can be selected for volumes using only key based encryption.'
+                    )
+
+                volume['auto_unlock'] = auto_unlock
+
             self.datastore.update('volumes', volume['id'], volume)
             self.dispatcher.dispatch_event('volume.changed', {
                 'operation': 'update',
@@ -1016,7 +1060,7 @@ class VolumeImportTask(Task):
         return "Importing a volume"
 
     def describe(self, id, new_name, params=None, enc_params=None, password=None):
-        return TaskDescription("Importing the volume {name}", name=id)
+        return TaskDescription("Importing the volume {name}", name=new_name)
 
     def verify(self, id, new_name, params=None, enc_params=None, password=None):
         if enc_params is None:
@@ -1648,7 +1692,7 @@ class VolumeRekeyTask(Task):
             disks = self.dispatcher.call_sync('volume.get_volume_disks', id)
 
             if key_encrypted:
-                key = base64.b64encode(os.urandom(64)).decode('utf-8')
+                key = base64.b64encode(os.urandom(256)).decode('utf-8')
             else:
                 key = None
 
@@ -1681,6 +1725,9 @@ class VolumeRekeyTask(Task):
             vol['encryption'] = encryption
             vol['key_encrypted'] = key_encrypted
             vol['password_encrypted'] = True if password else False
+            if password:
+                vol['auto_unlock'] = False
+
             self.datastore.update('volumes', vol['id'], vol)
 
             slot = 0 if encryption['slot'] is 1 else 1
@@ -1975,6 +2022,10 @@ class DatasetCreateTask(Task):
         if dataset['mounted']:
             self.join_subtasks(self.run_subtask('zfs.mount', dataset['id']))
 
+        if dataset['permissions_type'] == 'ACL':
+            fs_path = self.dispatcher.call_sync('volume.get_dataset_path', dataset['id'])
+            self.join_subtasks(self.run_subtask('file.set_permissions', fs_path, {'acl': DEFAULT_ACLS}, True))
+
         if dataset.get('permissions'):
             path = os.path.join(VOLUMES_ROOT, dataset['id'])
             self.join_subtasks(self.run_subtask('file.set_permissions', path, dataset['permissions']))
@@ -2096,7 +2147,7 @@ class DatasetConfigureTask(Task):
             self.join_subtasks(self.run_subtask('zfs.update', ds['id'], props))
 
         if 'permissions_type' in updated_params:
-            oldtyp = ds['properties.org\\.freenas:permissions_type.value']
+            oldtyp = q.get(ds, 'properties.org\\.freenas:permissions_type.value')
             typ = updated_params['permissions_type']
 
             if oldtyp != 'ACL' and typ == 'ACL':
@@ -2204,7 +2255,8 @@ class SnapshotCreateTask(Task):
     def run(self, snapshot, recursive=False):
         normalize(snapshot, {
             'replicable': True,
-            'lifetime': None
+            'lifetime': None,
+            'hidden': False
         })
 
         self.join_subtasks(self.run_subtask(
@@ -2214,6 +2266,7 @@ class SnapshotCreateTask(Task):
             recursive,
             {
                 'org.freenas:replicable': {'value': 'yes' if snapshot['replicable'] else 'no'},
+                'org.freenas:hidden': {'value': 'yes' if snapshot['hidden'] else 'no'},
                 'org.freenas:lifetime': {'value': str(snapshot['lifetime'] or 'no')},
                 'org.freenas:uuid': {'value': str(uuid.uuid4())}
             }
@@ -2277,6 +2330,9 @@ class SnapshotConfigureTask(Task):
 
         if 'replicable' in updated_params:
             params['org.freenas:replicable'] = {'value': 'yes' if updated_params['replicable'] else 'no'}
+
+        if 'hidden' in updated_params:
+            params['org.freenas:hidden'] = {'value': 'yes' if updated_params['hidden'] else 'no'}
 
         self.join_subtasks(self.run_subtask('zfs.update', id, params))
 
@@ -2395,7 +2451,7 @@ def split_snapshot_name(name):
 
 def get_digest(password, salt=None):
     if salt is None:
-        salt = base64.b64encode(os.urandom(64)).decode('utf-8')
+        salt = base64.b64encode(os.urandom(256)).decode('utf-8')
 
     hmac = hashlib.pbkdf2_hmac('sha256', bytes(str(password), 'utf-8'), salt.encode('utf-8'), 200000)
     digest = base64.b64encode(hmac).decode('utf-8')
@@ -2652,6 +2708,7 @@ def _init(dispatcher, plugin):
             'name': name,
             'lifetime': lifetime,
             'replicable': yesno_to_bool(q.get(snapshot, 'properties.org\\.freenas:replicable.value')),
+            'hidden': yesno_to_bool(q.get(snapshot, 'properties.org\\.freenas:hidden.value')),
             'properties': include(
                 snapshot['properties'],
                 'used', 'referenced', 'compressratio', 'clones', 'creation'
@@ -2833,6 +2890,12 @@ def _init(dispatcher, plugin):
             'key_encrypted': {'type': 'boolean'},
             'password_encrypted': {'type': 'boolean'},
             'encryption': {'$ref': 'volume-encryption'},
+            'auto_unlock': {
+                'oneOf': [
+                    {'type': 'boolean'},
+                    {'type': 'null'}
+                ]
+            },
             'providers_presence': {
                 'oneOf': [
                     {'$ref': 'volume-providerspresence'},
@@ -2921,9 +2984,22 @@ def _init(dispatcher, plugin):
             'dataset': {'type': 'string'},
             'name': {'type': 'string'},
             'replicable': {'type': 'boolean'},
+            'hidden': {'type': 'boolean'},
             'lifetime': {'type': ['integer', 'null']},
             'properties': {'$ref': 'volume-snapshot-properties'},
             'holds': {'type': 'object'}
+        }
+    })
+
+    plugin.register_schema_definition('volume-disk-label', {
+        'type': 'object',
+        'additionalProperties': False,
+        'properties': {
+            'volume_id': {'type': 'string'},
+            'volume_guid': {'type': 'string'},
+            'vdev_guid': {'type': 'string'},
+            'hostname': {'type': 'string'},
+            'hostid': {'type': ['integer', 'null']}
         }
     })
 
@@ -2941,7 +3017,7 @@ def _init(dispatcher, plugin):
 
     plugin.register_schema_definition('disks-allocation-type', {
         'type': 'string',
-        'enum': ['BOOT', 'VOLUME', 'ISCSI'],
+        'enum': ['BOOT', 'VOLUME', 'EXPORTED_VOLUME', 'ISCSI'],
     })
 
     plugin.register_schema_definition('importable-disk', {
@@ -3060,7 +3136,10 @@ def _init(dispatcher, plugin):
 
     for vol in dispatcher.call_sync('volume.query'):
         if vol.get('providers_presence', 'ALL') == 'NONE':
-            continue
+            if vol.get('auto_unlock') and vol.get('key_encrypted') and not vol.get('password_encrypted'):
+                dispatcher.call_task_sync('volume.unlock', vol['id'])
+            else:
+                continue
 
         try:
             dispatcher.call_task_sync('zfs.mount', vol['id'], True)

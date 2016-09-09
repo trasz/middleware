@@ -1,21 +1,21 @@
-from base import CRUDBase, Resource
+from base import CRUDBase, ItemResource
 
 
 class HostCRUD(CRUDBase):
     namespace = 'network.host'
 
 
-class InterfaceDownResource(Resource):
+class InterfaceDownResource(ItemResource):
     name = 'down'
     post = 'task:network.interface.down'
 
 
-class InterfaceUpResource(Resource):
+class InterfaceUpResource(ItemResource):
     name = 'up'
     post = 'task:network.interface.up'
 
 
-class InterfaceRenewResource(Resource):
+class InterfaceRenewResource(ItemResource):
     name = 'renew'
     post = 'task:network.interface.renew'
 

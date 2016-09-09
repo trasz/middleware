@@ -27,6 +27,8 @@ class FileTestCase(RESTTestCase):
     name = 'file'
 
     def test_020_set_permissions(self):
+        ssh = self.ssh_exec('touch /mnt/tank/permission')
+        self.assertEqual(ssh[0], 0)
         r = self.client.post(self.name + '/set_permissions', data=[
             '/mnt/tank/permission', {
                 'user': 'daemon',

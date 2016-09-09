@@ -904,10 +904,10 @@ class UpdateVerifyTask(ProgressTask):
 class CheckFetchUpdateTask(ProgressTask):
     @classmethod
     def early_describe(cls):
-        return "Checking for updates"
+        return "Checking for and downloading updates"
 
     def describe(self):
-        return TaskDescription("Checking for updates")
+        return TaskDescription("Checking for and downloading updates")
 
     def verify(self):
         block = self.dispatcher.resource_graph.get_resource(update_resource_string)
@@ -987,23 +987,25 @@ def _init(dispatcher, plugin):
 
         logger.debug('Scheduling a nightly update check task')
         caltask = dispatcher.call_sync(
-            'calendar_task.query', [('task', '=', 'update.checkfetch')], {'single': True}
+            'calendar_task.query', [('name', '=', 'nightly_update_check')], {'single': True}
         ) or {'schedule': {}}
 
         caltask.update({
-            'name': 'auto_update_check',
+            'name': 'nightly_update_check',
             'task': 'update.checkfetch',
             'args': [],
             'hidden': True,
-            'protected': True,
-            'description': 'Nightly update check',
+            'protected': True
         })
         caltask['schedule'].update({
             'hour': str(random.randint(1, 6)),
             'minute': str(random.randint(0, 59)),
         })
 
-        dispatcher.call_task_sync('calendar_task.create', caltask)
+        if caltask.get('id'):
+            dispatcher.call_task_sync('calendar_task.update', caltask['id'], caltask)
+        else:
+            dispatcher.call_task_sync('calendar_task.create', caltask)
 
     # Register Schemas
     plugin.register_schema_definition('update', {

@@ -1,3 +1,6 @@
+import logging
+
+logger = logging.getLogger('swagger')
 
 
 def normalize_schema(obj, rest=None):
@@ -52,7 +55,10 @@ class SwaggerResource(object):
             doc = getattr(current.resource, 'doc', None)
             if doc is None:
                 continue
-            result['paths'][path] = doc()
+            try:
+                result['paths'][path] = doc()
+            except:
+                logger.warn('Failed to generate swagger doc for {0}'.format(path), exc_info=True)
 
         """
         Get the schema definitions which are referenced somewhere

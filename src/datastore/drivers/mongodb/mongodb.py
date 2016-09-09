@@ -210,6 +210,11 @@ class MongodbDatastore(object):
         return item['attributes']
 
     @auto_retry
+    def collection_get_migration_policy(self, name):
+        item = self.db['collections'].find_one({"_id": name})
+        return item.get('migration', 'keep')
+
+    @auto_retry
     def collection_get_migrations(self, name):
         item = self.db['collections'].find_one({"_id": name})
         return item.get('migrations', [])

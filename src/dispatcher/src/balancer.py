@@ -532,6 +532,9 @@ class Balancer(object):
                 if fnmatch.fnmatch(name, m):
                     task.debugger = self.debugger
 
+        if 'RUN_AS_USER' in task.environment:
+            task.user = task.environment['RUN_AS_USER']
+
         task.id = self.dispatcher.datastore.insert("tasks", task)
         task.set_state(TaskState.CREATED)
         self.task_queue.put(task)
@@ -550,12 +553,12 @@ class Balancer(object):
         for f in file_name_list:
             rfd, wfd = os.pipe()
             fd_list.append(FileDescriptor(wfd))
-            url_list.append(":5000/filedownload?token={0}".format(
+            url_list.append("/dispatcher/filedownload?token={0}".format(
                 self.dispatcher.token_store.issue_token(FileToken(
                     user=sender.user,
                     lifetime=60,
                     direction='download',
-                    file=FileObjectPosix(rfd, 'rb', close=False),
+                    file=FileObjectPosix(rfd, 'rb', close=True),
                     name=f
                 ))
             ))

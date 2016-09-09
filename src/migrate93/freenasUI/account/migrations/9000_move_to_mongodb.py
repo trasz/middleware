@@ -9,6 +9,9 @@ from django.db import models
 from datastore import get_datastore
 
 
+NOGROUP_ID = '8980c534-6a71-4bfb-bc72-54cbd5a186db'
+
+
 def bsdusr_sshpubkey(user):
     keysfile = '%s/.ssh/authorized_keys' % user.bsdusr_home
     if not os.path.exists(keysfile):
@@ -18,12 +21,38 @@ def bsdusr_sshpubkey(user):
             keys = f.read()
         return keys
     except:
-        return ''
+        return None
+
+
+def convert_smbhash(obj, smbhash):
+    if not smbhash:
+        obj.update({
+            'nthash': None,
+            'lmhash': None,
+            'password_changed_at': None
+        })
+        return obj
+
+    try:
+        pieces = smbhash.strip().split(':')
+        lmhash = pieces[2]
+        nthash = pieces[3]
+        lct = int(pieces[5].split('-')[1], 16)
+    except:
+        lmhash = None
+        nthash = None
+        lct = 0
+
+    obj.update({
+        'lmhash': lmhash,
+        'nthash': nthash,
+        'password_changed_at': datetime.fromtimestamp(lct)
+    })
+    return obj
+
 
 class Migration(DataMigration):
-
     def forwards(self, orm):
-
         # Skip for install time, we only care for upgrades here
         if 'FREENAS_INSTALL' in os.environ:
             return
@@ -40,31 +69,24 @@ class Migration(DataMigration):
             })
 
         for u in orm['account.bsdUsers'].objects.all():
-
             groups = []
             for bgm in orm['account.bsdGroupMembership'].objects.filter(bsdgrpmember_user=u):
-                groups.append(bgm.bsdgrpmember_group.bsdgrp_gid)
+                grp = ds.query('groups', ('gid', '=', bgm.bsdgrpmember_group.bsdgrp_gid))
+                if not grp:
+                    continue
+
+                groups.append(grp['id'])
 
             if u.bsdusr_builtin:
-                user = ds.get_one('users', ('uid', '=', u.bsdusr_uid))
-                if user is None:
-                    continue
-                user.update({
-                    'email': u.bsdusr_email,
-                    'unixhash': u.bsdusr_unixhash,
-                    'smbhash': u.bsdusr_smbhash,
-                    'groups': groups,
-                })
-                ds.upsert('users', user['id'], user)
                 continue
 
-            ds.insert('users', {
+            grp = ds.query('groups', ('gid', '=', u.bsdusr_group.bsdgrp_gid))
+            user = {
                 'id': str(uuid.uuid4()),
                 'uid': u.bsdusr_uid,
                 'username': u.bsdusr_username,
                 'unixhash': u.bsdusr_unixhash,
-                'smbhash': u.bsdusr_smbhash,
-                'group': u.bsdusr_group.bsdgrp_gid,
+                'group': grp['id'] if grp else NOGROUP_ID,
                 'home': u.bsdusr_home,
                 'shell': u.bsdusr_shell,
                 'full_name': u.bsdusr_full_name,
@@ -75,7 +97,10 @@ class Migration(DataMigration):
                 'sudo': u.bsdusr_sudo,
                 'sshpubkey': bsdusr_sshpubkey(u),
                 'groups': groups,
-            })
+            }
+
+            convert_smbhash(user,  u.bsdusr_smbhash)
+            ds.insert('users', user)
 
         ds.collection_record_migration('groups', 'freenas9_migration')
         ds.collection_record_migration('users', 'freenas9_migration')

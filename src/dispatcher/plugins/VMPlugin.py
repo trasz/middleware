@@ -68,7 +68,7 @@ class VMProvider(Provider):
                 readme = get_readme(root)
                 if readme:
                     with open(readme, 'r') as readme_file:
-                        obj['template']['readme'] = readme_file.read()
+                        obj['config']['readme'] = readme_file.read()
             return obj
 
         return q.query(
@@ -382,6 +382,9 @@ class VMBaseTask(ProgressTask):
                             )
                         )
 
+        if res['type'] == 'GRAPHICS':
+            normalize(res['properties'], {'resolution': '1024x768'})
+
         if res['type'] == 'DISK':
             vm_ds = os.path.join(vm['target'], 'vm', vm['name'])
             ds_name = os.path.join(vm_ds, res['name'])
@@ -497,7 +500,10 @@ class VMBaseTask(ProgressTask):
                 ))
 
 
-@accepts(h.ref('vm'))
+@accepts(h.all_of(
+    h.ref('vm'),
+    h.required('target')
+))
 @description('Creates a VM')
 class VMCreateTask(VMBaseTask):
     @classmethod
@@ -594,6 +600,7 @@ class VMCreateTask(VMBaseTask):
         self.init_dataset(vm)
         devices_len = len(vm['devices'])
         for idx, res in enumerate(vm['devices']):
+            res.pop('id', None)
             self.create_device(vm, res, lambda p, m, e=None: collect_progress('Initializing VM devices:', 30, p, m, e))
 
         self.init_files(vm, lambda p, m, e=None: self.chunk_progress(60, 90, 'Initializing VM files:', p, m, e))
@@ -738,13 +745,26 @@ class VMUpdateTask(VMBaseTask):
         if 'config' in updated_params and updated_params['config']['ncpus'] > 16:
             raise TaskException(errno.EINVAL, 'Upper limit of VM cores exceeded. Maximum permissible value is 16.')
 
-        state = self.dispatcher.call_sync('vm.query', [('id', '=', id)], {'select': 'status.state', 'single': True})
-        if 'name' in updated_params and state != 'STOPPED':
-            raise TaskException(errno.EACCES, 'Name of a running VM cannot be modified')
-
         vm = self.datastore.get_by_id('vms', id)
         if vm['immutable']:
             raise TaskException(errno.EACCES, 'Cannot modify immutable VM {0}.'.format(id))
+
+        state = self.dispatcher.call_sync('vm.query', [('id', '=', id)], {'select': 'status.state', 'single': True})
+        if state != 'STOPPED':
+            if 'name' in updated_params:
+                raise TaskException(errno.EACCES, 'Name of a running VM cannot be modified')
+
+            runtime_static_params = (
+                'guest_type', 'enabled', 'immutable', 'target', 'template', 'devices', 'config.memsize', 'config.ncpus',
+                'config.bootloader', 'config.boot_device', 'config.boot_partition', 'config.boot_directory',
+                'config.cloud_init', 'config.vnc_password'
+            )
+
+            if any(q.get(updated_params, key) and q.get(vm, key) != q.get(updated_params, key) for key in runtime_static_params):
+                self.add_warning(TaskWarning(
+                    errno.EACCES, 'Selected change set is going to take effect after VM {0} reboot'.format(vm['name'])
+                ))
+
         try:
             delete_config(
                 self.dispatcher.call_sync(
@@ -764,12 +784,12 @@ class VMUpdateTask(VMBaseTask):
 
             self.join_subtasks(self.run_subtask('zfs.rename', vm_ds, new_vm_ds))
 
-        if 'template' in updated_params:
-            readme = updated_params['template'].pop('readme', '')
+        if 'config' in updated_params:
+            readme = updated_params['config'].pop('readme', '')
             root = self.dispatcher.call_sync('vm.get_vm_root', vm['id'])
             readme_path = get_readme(root)
             if readme_path or readme:
-                with open(readme_path, 'w') as readme_file:
+                with open(os.path.join(root, 'README.md'), 'w') as readme_file:
                     readme_file.write(readme)
 
         if 'devices' in updated_params:
@@ -777,6 +797,7 @@ class VMUpdateTask(VMBaseTask):
                 self.join_subtasks(self.run_subtask('vm.cache.update', vm['template']['name']))
 
             for res in updated_params['devices']:
+                res.pop('id', None)
                 existing = first_or_default(lambda i: i['name'] == res['name'], vm['devices'])
                 if existing:
                     self.update_device(vm, existing, res)
@@ -904,6 +925,15 @@ class VMStartTask(Task):
         return TaskDescription('Starting VM {name}', name=vm.get('name', '') if vm else '')
 
     def verify(self, id):
+        vm = self.datastore.get_by_id('vms', id)
+        config = vm.get('config')
+        if not config or not config.get('bootloader'):
+            raise VerifyException(errno.ENXIO, 'Please specify a bootloader for this vm.')
+        if config['bootloader'] == 'BHYVELOAD' and not config.get('boot_device'):
+            raise VerifyException(
+                errno.ENXIO,
+                'BHYVELOAD bootloader requires that you specify a boot device on your vm'
+            )
         return ['system']
 
     def run(self, id):
@@ -1416,9 +1446,9 @@ class DownloadFileTask(ProgressTask):
                 try:
                     urllib.request.urlretrieve(url, file_path, progress_hook)
                 except ConnectionResetError:
-                    raise TaskException(errno.ECONNRESET, 'Cannot access download server')
+                    raise TaskException(errno.ECONNRESET, 'Cannot access download server to download {0}'.format(url))
         except OSError:
-            raise TaskException(errno.EIO, 'File could not be downloaded')
+            raise TaskException(errno.EIO, 'URL {0} could not be downloaded'.format(url))
 
         if os.path.isdir(file_path):
             for f in os.listdir(file_path):
@@ -1728,6 +1758,7 @@ def _init(dispatcher, plugin):
                     'vnc_password': {'type': ['string', 'null']},
                     'autostart': {'type': 'boolean'},
                     'docker_host': {'type': 'boolean'},
+                    'readme': {'type': ['string', 'null']},
                 }
             },
             'devices': {
@@ -1757,16 +1788,20 @@ def _init(dispatcher, plugin):
         'type': 'object',
         'additionalProperties': False,
         'properties': {
+            'id': {'type': 'string'},
             'name': {'type': 'string'},
             'type': {'$ref': 'vm-device-type'},
-            'properties': {'oneOf': [
-                {'$ref': 'vm-device-nic'},
-                {'$ref': 'vm-device-disk'},
-                {'$ref': 'vm-device-cdrom'},
-                {'$ref': 'vm-device-volume'},
-                {'$ref': 'vm-device-graphics'},
-                {'$ref': 'vm-device-usb'}
-            ]}
+            'properties': {
+                'discriminator': '@type',
+                'oneOf': [
+                    {'$ref': 'vm-device-nic'},
+                    {'$ref': 'vm-device-disk'},
+                    {'$ref': 'vm-device-cdrom'},
+                    {'$ref': 'vm-device-volume'},
+                    {'$ref': 'vm-device-graphics'},
+                    {'$ref': 'vm-device-usb'}
+                ]
+            }
         },
         'required': ['name', 'type', 'properties']
     })
@@ -1780,6 +1815,7 @@ def _init(dispatcher, plugin):
         'type': 'object',
         'additionalProperties': False,
         'properties': {
+            '@type': {'enum': ['vm-device-nic']},
             'device': {'$ref': 'vm-device-nic-device'},
             'mode': {'$ref': 'vm-device-nic-mode'},
             'link_address': {'type': 'string'},
@@ -1801,10 +1837,12 @@ def _init(dispatcher, plugin):
         'type': 'object',
         'additionalProperties': False,
         'properties': {
+            '@type': {'enum': ['vm-device-disk']},
             'mode': {'$ref': 'vm-device-disk-mode'},
             'size': {'type': 'integer'},
             'source': {'type': 'string'}
-        }
+        },
+        'required': ['size']
     })
 
     plugin.register_schema_definition('vm-device-disk-mode', {
@@ -1816,17 +1854,22 @@ def _init(dispatcher, plugin):
         'type': 'object',
         'additionalProperties': False,
         'properties': {
+            '@type': {'enum': ['vm-device-cdrom']},
             'path': {'type': 'string'}
-        }
+        },
+        'required': ['path']
+
     })
 
     plugin.register_schema_definition('vm-device-volume', {
         'type': 'object',
         'additionalProperties': False,
         'properties': {
+            '@type': {'enum': ['vm-device-volume']},
             'type': {'$ref': 'vm-device-volume-type'},
             'auto': {'type': ['boolean', 'null']},
-            'destination': {'type': ['string', 'null']}
+            'destination': {'type': ['string', 'null']},
+            'source': {'type': 'string'}
         }
     })
 
@@ -1839,9 +1882,14 @@ def _init(dispatcher, plugin):
         'type': 'object',
         'additionalProperties': False,
         'properties': {
+            '@type': {'enum': ['vm-device-graphics']},
             'resolution': {'$ref': 'vm-device-graphics-resolution'},
             'vnc_enabled': {'type': 'boolean'},
-            'vnc_port': {'type': ['integer', 'null']}
+            'vnc_port': {
+                'type': ['integer', 'null'],
+                'minimum': 1,
+                'maximum': 65535
+            }
         }
     })
 
@@ -1879,11 +1927,13 @@ def _init(dispatcher, plugin):
         'type': 'object',
         'additionalProperties': False,
         'properties': {
+            '@type': {'enum': ['vm-device-usb']},
             'device': {'$ref': 'vm-device-usb-device'},
             'config': {
                 'type': 'object'  # XXX: not sure what goes there
             }
-        }
+        },
+        'required': ['device']
     })
 
     plugin.register_schema_definition('vm-device-usb-device', {

@@ -399,24 +399,22 @@ class AccountService(RpcService):
         self.logger = context.logger
         self.context = context
 
-    def __get_user(self, user_name):
-        for d in self.context.get_enabled_directories():
-            try:
-                user = d.instance.getpwnam(user_name)
-            except:
-                continue
-
-            if user:
-                return self.__annotate(d, user), d.instance
-
-        return None, None
-
     @generator
     def query(self, filter=None, params=None):
-        for d in self.context.get_enabled_directories():
-            for user in d.instance.getpwent(filter, params):
-                resolve_primary_group(self.context, user)
-                yield fix_passwords(annotate(user, d, 'username'))
+        params = params or {}
+        params.pop('select', None)
+        single = params.pop('single', False)
+        for d in self.context.get_searched_directories():
+            try:
+                result = d.instance.getpwent(filter, params)
+                for user in result:
+                    resolve_primary_group(self.context, user)
+                    yield fix_passwords(annotate(user, d, 'username'))
+                    if single:
+                        return
+            except:
+                self.logger.error('Directory {0} exception during account iteration'.format(d.name), exc_info=True)
+                continue
 
     def getpwuid(self, uid):
         # Try the cache first
@@ -425,7 +423,7 @@ class AccountService(RpcService):
             return fix_passwords(item.annotated)
 
         d = self.context.get_directory_for_id(uid=uid)
-        dirs = [d] if d else self.context.get_enabled_directories()
+        dirs = [d] if d else self.context.get_active_directories()
 
         for d in dirs:
             try:
@@ -436,7 +434,7 @@ class AccountService(RpcService):
             if user:
                 resolve_primary_group(self.context, user)
                 aliases = alias(d, user, 'username')
-                item = CacheItem(user['uid'], user['id'], aliases, copy.copy(user), d, 300)
+                item = CacheItem(user['uid'], user['id'], aliases, copy.copy(user), d, self.context.cache_ttl)
                 self.context.users_cache.set(item)
                 return fix_passwords(item.annotated)
 
@@ -453,7 +451,7 @@ class AccountService(RpcService):
             user_name, domain_name = user_name.split('@', 1)
             dirs = [self.context.get_directory_by_domain(domain_name)]
         else:
-            dirs = self.context.get_enabled_directories()
+            dirs = self.context.get_searched_directories()
 
         for d in dirs:
             try:
@@ -464,7 +462,7 @@ class AccountService(RpcService):
             if user:
                 resolve_primary_group(self.context, user)
                 aliases = alias(d, user, 'username')
-                item = CacheItem(user['uid'], user['id'], aliases, copy.copy(user), d, 300)
+                item = CacheItem(user['uid'], user['id'], aliases, copy.copy(user), d, self.context.cache_ttl)
                 self.context.users_cache.set(item)
                 return fix_passwords(item.annotated)
 
@@ -476,7 +474,7 @@ class AccountService(RpcService):
         if item:
             return fix_passwords(item.annotated)
 
-        for d in self.context.get_enabled_directories():
+        for d in self.context.get_active_directories():
             try:
                 user = d.instance.getpwuuid(uuid)
             except:
@@ -485,7 +483,7 @@ class AccountService(RpcService):
             if user:
                 resolve_primary_group(self.context, user)
                 aliases = alias(d, user, 'username')
-                item = CacheItem(user['uid'], user['id'], aliases, copy.copy(user), d, 300)
+                item = CacheItem(user['uid'], user['id'], aliases, copy.copy(user), d, self.context.cache_ttl)
                 self.context.users_cache.set(item)
                 return fix_passwords(item.annotated)
 
@@ -495,10 +493,17 @@ class AccountService(RpcService):
         result = []
         user = self.getpwnam(user_name)
 
-        for g in user.get('groups', []):
+        def collect_groups(group):
+            result.append(group['gid'])
+            for i in group.get('parents', []):
+                g = self.context.group_service.getgruuid(i)
+                if g:
+                    collect_groups(g)
+
+        for i in user.get('groups', []):
             try:
-                group = self.context.group_service.getgruuid(g)
-                result.append(group['gid'])
+                g = self.context.group_service.getgruuid(i)
+                collect_groups(g)
             except:
                 continue
 
@@ -518,18 +523,20 @@ class AccountService(RpcService):
 
     def change_password(self, user_name, old_password, password):
         self.logger.debug('Change password request for user {0}'.format(user_name))
-        user, plugin = self.__get_user(user_name)
-        if not user:
+        if not self.getpwnam(user_name):
             raise RpcException(errno.ENOENT, 'User {0} not found'.format(user_name))
+
+        # Now user is cached (if exists)
+        item = self.context.users_cache.get(name=user_name)
 
         sender = get_sender()
         if not sender.credentials:
             raise RpcException(errno.EPERM, 'Permission denied')
 
-        if sender.credentials['uid'] not in (user['uid'], 0):
+        if sender.credentials['uid'] not in (item.value['uid'], 0):
             raise RpcException(errno.EPERM, 'Permission denied')
 
-        plugin.change_password(user_name, old_password, password)
+        item.directory.instance.change_password(user_name, old_password, password)
 
 
 class GroupService(RpcService):
@@ -538,9 +545,18 @@ class GroupService(RpcService):
 
     @generator
     def query(self, filter=None, params=None):
-        for d in self.context.get_enabled_directories():
-            for group in d.instance.getgrent(filter, params):
-                yield annotate(group, d, 'name')
+        params = params or {}
+        single = params.pop('single', False)
+        for d in self.context.get_searched_directories():
+            try:
+                result = d.instance.getgrent(filter, params)
+                for group in result:
+                    yield annotate(group, d, 'name')
+                    if single:
+                        return
+            except:
+                self.logger.error('Directory {0} exception during group iteration'.format(d.name), exc_info=True)
+                continue
 
     def getgrnam(self, name):
         # Try the cache first
@@ -553,7 +569,7 @@ class GroupService(RpcService):
             name, domain_name = name.split('@', 1)
             dirs = [self.context.get_directory_by_domain(domain_name)]
         else:
-            dirs = self.context.get_enabled_directories()
+            dirs = self.context.get_searched_directories()
 
         for d in dirs:
             try:
@@ -563,7 +579,7 @@ class GroupService(RpcService):
 
             if group:
                 aliases = alias(d, group, 'name')
-                item = CacheItem(group['gid'], group['id'], aliases, copy.copy(group), d, 300)
+                item = CacheItem(group['gid'], group['id'], aliases, copy.copy(group), d, self.context.cache_ttl)
                 self.context.groups_cache.set(item)
                 return item.annotated
 
@@ -576,7 +592,7 @@ class GroupService(RpcService):
             return item.annotated
 
         d = self.context.get_directory_for_id(gid=gid)
-        dirs = [d] if d else self.context.get_enabled_directories()
+        dirs = [d] if d else self.context.get_active_directories()
 
         for d in dirs:
             try:
@@ -586,7 +602,7 @@ class GroupService(RpcService):
 
             if group:
                 aliases = alias(d, group, 'name')
-                item = CacheItem(group['gid'], group['id'], aliases, copy.copy(group), d, 300)
+                item = CacheItem(group['gid'], group['id'], aliases, copy.copy(group), d, self.context.cache_ttl)
                 self.context.groups_cache.set(item)
                 return item.annotated
 
@@ -598,7 +614,7 @@ class GroupService(RpcService):
         if item:
             return item.annotated
 
-        for d in self.context.get_enabled_directories():
+        for d in self.context.get_active_directories():
             try:
                 group = d.instance.getgruuid(uuid)
             except:
@@ -606,7 +622,7 @@ class GroupService(RpcService):
 
             if group:
                 aliases = alias(d, group, 'name')
-                item = CacheItem(group['gid'], group['id'], aliases, copy.copy(group), d, 300)
+                item = CacheItem(group['gid'], group['id'], aliases, copy.copy(group), d, self.context.cache_ttl)
                 self.context.groups_cache.set(item)
                 return item.annotated
 
@@ -695,14 +711,20 @@ class Main(object):
         self.rpc.register_service_instance('dscached.management', ManagementService(self))
         self.rpc.register_service_instance('dscached.debug', DebugService())
 
-    def get_enabled_directories(self):
+    def get_active_directories(self):
+        return list(filter(
+            lambda d: d and d.state == DirectoryState.BOUND,
+            self.directories
+        ))
+
+    def get_searched_directories(self):
         return list(filter(
             lambda d: d and d.state == DirectoryState.BOUND,
             (self.get_directory_by_name(n) for n in self.get_search_order())
         ))
 
     def get_search_order(self):
-        return ['local', 'system'] + self.search_order
+        return self.search_order
 
     def get_directory_by_domain(self, domain_name):
         return first_or_default(lambda d: d.domain_name == domain_name, self.directories)
@@ -731,6 +753,13 @@ class Main(object):
                 self.directories
             )
 
+    def wait_for_etcd(self):
+        self.client.test_or_wait_for_event(
+            'plugin.service_resume',
+            lambda args: args['name'] == 'etcd.generation',
+            lambda: 'etcd.generation' in self.client.call_sync('discovery.get_services')
+        )
+
     def init_datastore(self):
         try:
             self.datastore = datastore.get_datastore()
@@ -753,6 +782,7 @@ class Main(object):
     def init_server(self, address):
         self.server = Server(self)
         self.server.rpc = self.rpc
+        self.server.streaming = True
         self.server.start(address, transport_options={'permissions': 0o777})
         thread = Thread(target=self.server.serve_forever)
         thread.name = 'ServerThread'
@@ -818,7 +848,7 @@ class Main(object):
                 directory = Directory(self, i)
                 self.directories.append(directory)
                 directory.configure()
-            except BaseException as err:
+            except:
                 continue
 
     def load_config(self):
@@ -842,6 +872,7 @@ class Main(object):
         self.load_config()
         self.init_server(args.s)
         self.scan_plugins()
+        self.wait_for_etcd()
         self.init_directories()
         self.client.wait_forever()
 

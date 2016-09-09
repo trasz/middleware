@@ -61,6 +61,19 @@ class TestUserCreate(BaseTestCase):
         self.assertEqual(task['state'], 'FINISHED')
         self.assertEqual(self.ssh_exec('id testuser1'), 0)
 
+    def test_homedir(self):
+        task = self.client.call_task_sync('user.create', {
+            'username': 'testuser2',
+            'password': 'testpassword2',
+            'group': 'wheel',
+            'home': '/mnt/'
+        })
+        
+        self.assertEqual(task['name'], 'user.create')
+        self.assertEqual(task['state'], 'FAILED')
+        self.assertNotEqual(self.ssh_exec('test -d /mnt/testuser2'), 0)
+
+
     def tearDown(self):
         test_users = self.client.call_sync(
             'user.query',

@@ -28,8 +28,11 @@
 import string
 import random
 import gevent
+import logging
 from freenas.dispatcher.rpc import RpcException
 from lib.freebsd import sockstat
+
+logger = logging.getLogger('dispatcher.auth')
 
 
 class User(object):
@@ -71,7 +74,8 @@ class PasswordAuthenticator(object):
     def get_user(self, name):
         try:
             entity = self.dispatcher.call_sync('dscached.account.getpwnam', name)
-        except RpcException:
+        except RpcException as err:
+            logger.warning('Cannot look up user {0}: {1}'.format(name, str(err)))
             self.users.pop(name, None)
             return None
 
@@ -135,12 +139,33 @@ class ShellToken(Token):
 
 
 class FileToken(Token):
+    def file_token_revocation(self, token_store, token, token_id):
+        # Try to close the file if its still open
+        try:
+            self.file.close()
+        except:
+            pass
+        # Revoke the token
+        logger.debug('Revoking FileToken for Reason: {0}'.format(self.revocation_reason))
+        token_store.revoke_token(token_id)
+
     def __init__(self, *args, **kwargs):
         super(FileToken, self).__init__(*args, **kwargs)
         self.direction = kwargs.pop('direction')
         self.file = kwargs.pop('file')
         self.name = kwargs.pop('name')
         self.size = kwargs.pop('size', None)
+        self.revocation_reason = '{0} of file: {1} timed out'.format(
+            self.direction or 'Transfer',
+            self.name or 'Unknown'
+        )
+
+        # Add a default token lifetime of 60 seconds for all FileToken
+        # We do not want such tokens and their correspnding file handles
+        # open indefinitely
+        if self.lifetime is None:
+            self.lifetime = 60
+        self.revocation_function = self.file_token_revocation
 
 
 class TokenStore(object):
@@ -160,7 +185,9 @@ class TokenStore(object):
                 token.timer = gevent.spawn_later(
                     token.lifetime,
                     token.revocation_function,
-                    token.revocation_reason
+                    self,
+                    token,
+                    token_id
                 )
             else:
                 token.timer = gevent.spawn_later(
@@ -174,6 +201,7 @@ class TokenStore(object):
     def keepalive_token(self, token_id):
         if isinstance(token_id, Token):
             token = token_id
+            token_id = self.lookup_token_id(token)
         else:
             token = self.lookup_token(token_id)
             if not token:
@@ -185,7 +213,9 @@ class TokenStore(object):
                 token.timer = gevent.spawn_later(
                     token.lifetime,
                     token.revocation_function,
-                    token.revocation_reason
+                    self,
+                    token,
+                    token_id
                 )
             else:
                 token.timer = gevent.spawn_later(
@@ -196,6 +226,25 @@ class TokenStore(object):
 
     def lookup_token(self, token_id):
         return self.tokens.get(token_id)
+
+    def lookup_token_id(self, token):
+        return [key for key, value in self.tokens.items() if value == token]
+
+    def delete_token(self, token_id):
+        if isinstance(token_id, Token):
+            token = token_id
+            token_id = self.lookup_token_id(token)
+        else:
+            token = self.lookup_token(token_id)
+            if not token:
+                logger.trace('Tried to delete token but it was not found or expired')
+                return
+        if token.lifetime:
+            gevent.kill(token.timer)
+            token.revocation_reason = 'Token explicitly deleted'
+            token.revocation_function(self, token, token_id)
+        else:
+            self.tokens.pop(token)
 
     def revoke_token(self, token_id):
         if token_id in self.tokens:

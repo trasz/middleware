@@ -2,17 +2,20 @@ import os
 import unittest
 
 from client import Client
+from paramiko import AutoAddPolicy
+from paramiko.client import SSHClient
 
 
 class RESTTestCase(unittest.TestCase):
 
     def setUp(self):
-        self.client = Client(
-            'http://{0}{1}'.format(self.args.address, ':{0}'.format(self.args.port) if self.args.port else ''),
-            '/api/v2.0/',
-            username=self.args.username,
-            password=self.args.password,
-        )
+        self.client = self.shared.client
+        self.ssh_client = self.shared.ssh_client
+
+    def ssh_exec(self, command):
+        _, stdout, stderr = self.ssh_client.exec_command(command)
+        exitcode = stdout.channel.recv_exit_status()
+        return exitcode, stdout.read(), stderr.read()
 
 
 class CRUDTestCase(RESTTestCase):

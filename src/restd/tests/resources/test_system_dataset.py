@@ -8,5 +8,5 @@ class SystemDatasetTestCase(SingleItemTestCase):
         return 'freenas-boot'
 
     def test_041_import(self):
-        r = self.client.post('{0}/import'.format(self.name), data='freenas-boot')
+        r = self.client.post('{0}/import'.format(self.name), data=['freenas-boot'])
         self.assertEqual(r.status_code, 201, msg=r.text)

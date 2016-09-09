@@ -20,8 +20,8 @@ class Migration(DataMigration):
 
         for vol in orm['storage.Volume'].objects.all():
             ds.insert('volumes', {
-                'id': vol.vol_guid,
-                'name': vol.vol_name,
+                'id': vol.vol_name,
+                'guid': vol.vol_guid,
                 'type': 'zfs',
                 'mountpoint': '/mnt/{0}'.format(vol.vol_name),
                 'attributes': {},

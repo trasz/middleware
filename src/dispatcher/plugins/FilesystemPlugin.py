@@ -29,6 +29,7 @@ import errno
 import os
 import stat
 import bsd
+from datetime import datetime
 from bsd import acl
 from freenas.dispatcher.rpc import (
     RpcException, description, accepts, returns, pass_sender, private
@@ -70,7 +71,7 @@ class FilesystemProvider(Provider):
     @returns(h.ref('stat'))
     def stat(self, path):
         try:
-            st = os.stat(path)
+            st = os.stat(path, follow_symlinks=False)
             a = acl.ACL(file=path)
         except OSError as err:
             raise RpcException(err.errno, str(err))
@@ -90,9 +91,9 @@ class FilesystemProvider(Provider):
         return {
             'path': path,
             'type': get_type(st),
-            'atime': st.st_atime,
-            'mtime': st.st_mtime,
-            'ctime': st.st_ctime,
+            'atime': datetime.utcfromtimestamp(st.st_atime),
+            'mtime': datetime.utcfromtimestamp(st.st_mtime),
+            'ctime': datetime.utcfromtimestamp(st.st_ctime),
             'uid': st.st_uid,
             'user': username,
             'gid': st.st_gid,
@@ -311,9 +312,16 @@ class SetPermissionsTask(Task):
             if not recursive:
                 return
 
+            # Build second ACL, but with inherits removed. It will be applied on files
+            b = acl.ACL()
+            b.__setstate__(permissions['acl'])
+            for i in b.entries:
+                i.flags[acl.NFS4Flag.DIRECTORY_INHERIT] = False
+                i.flags[acl.NFS4Flag.FILE_INHERIT] = False
+
             for root, dirs, files in os.walk(path):
                 for n in files:
-                    a.apply(file=os.path.join(root, n))
+                    b.apply(file=os.path.join(root, n))
 
                 for n in dirs:
                     a.apply(file=os.path.join(root, n))
@@ -338,9 +346,9 @@ def _init(dispatcher, plugin):
             'path': {'type': 'string'},
             'type': {'type': 'string'},
             'size': {'type': 'integer'},
-            'atime': {'type': 'string'},
-            'mtime': {'type': 'string'},
-            'ctime': {'type': 'string'},
+            'atime': {'type': 'datetime'},
+            'mtime': {'type': 'datetime'},
+            'ctime': {'type': 'datetime'},
             'permissions': {'$ref': 'permissions'}
         }
     })

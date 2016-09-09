@@ -25,11 +25,13 @@
 #
 #####################################################################
 
+import os
+import copy
 import errno
 import gevent
 import dockerhub
 import logging
-from task import Provider, Task, ProgressTask, TaskDescription, TaskException, query
+from task import Provider, Task, ProgressTask, TaskDescription, TaskException, query, TaskWarning, VerifyException
 from cache import EventCacheStore
 from datastore.config import ConfigNode
 from freenas.utils import normalize, query as q
@@ -45,7 +47,7 @@ images_query = 'containerd.docker.query_images'
 
 
 @description('Provides information about Docker configuration')
-class DockerProvider(Provider):
+class DockerConfigProvider(Provider):
     @description('Returns Docker general configuration')
     @returns(h.ref('docker-config'))
     def get_config(self):
@@ -126,11 +128,162 @@ class DockerImagesProvider(Provider):
         except ValueError:
             return None
 
+    def get_templates(self):
+        return {
+            'busybox': {
+                'names': ['my_busybox'],
+                'image': 'busybox:latest',
+                'command': ['/bin/sh'],
+                'interactive': True
+            },
+            'ubuntu': {
+                'names': ['my_ubuntu'],
+                'image': 'ubuntu:latest',
+                'command': ['/bin/bash'],
+                'interactive': True
+            },
+            'alpine': {
+                'names': ['my_alpine'],
+                'image': 'alpine:latest',
+                'command': ['/bin/sh'],
+                'interactive': True
+            },
+            'nginx': {
+                'names': ['my_nginx'],
+                'image': 'nginx:latest',
+                'ports': [
+                    {
+                        'container_port': 80,
+                        'host_port': 8080
+                    }
+                ],
+                'expose_ports': True
+            },
+            'plex': {
+                'names': ['my_plex'],
+                'expose_ports': True,
+                'image': 'timhaak/plex:latest',
+                'environment': ['RUN_AS_ROOT=TRUE'],
+                'volumes': [
+                    {
+                        'host_path': 'plex/library',
+                        'container_path': '/config',
+                        'readonly': False
+                    },
+                    {
+                        'host_path': 'plex/media',
+                        'container_path': '/data',
+                        'readonly': False
+                    }
+                ],
+                'ports': [
+                    {
+                        'host_port': 1900,
+                        'container_port': 1900,
+                        'protocol': 'UDP'
+                    },
+                    {
+                        'host_port': 32469,
+                        'container_port': 32469,
+                        'protocol': 'UDP'
+                    },
+                    {
+                        'host_port': 32400,
+                        'container_port': 32400,
+                        'protocol': 'UDP'
+                    },
+                    {
+                        'host_port': 5353,
+                        'container_port': 5353,
+                        'protocol': 'UDP'
+                    },
+                    {
+                        'host_port': 32400,
+                        'container_port': 32400,
+                        'protocol': 'TCP'
+                    },
+                    {
+                        'host_port': 32469,
+                        'container_port': 32469,
+                        'protocol': 'TCP'
+                    }
+                ]
+            },
+            'mineos': {
+                'names': [
+                    'my_mineos'
+                ],
+                'ports': [
+                    {
+                        'container_port': 8443,
+                        'host_port': 8443,
+                        'protocol': 'TCP'
+                    },
+                    {
+                        'container_port': 25565,
+                        'host_port': 25565,
+                        'protocol': 'TCP'
+                    }
+                ],
+                'environment': [
+                    'PASSWORD=freenas'
+                ],
+                'image': 'yujiod/minecraft-mineos:latest',
+                'expose_ports': True,
+            },
+            'debian': {
+                'image': 'debian:latest',
+                'interactive': True,
+                'names': [
+                    'my_debian'
+                ]
+            },
+            'archlinux': {
+                'image': 'base/archlinux:latest',
+                'command': [
+                    '/bin/sh'
+                ],
+                'interactive': True,
+                'names': [
+                    'my_arch'
+                ]
+            },
+            'gentoo': {
+                'image': 'vguardiola/gentoo:latest',
+                'names': [
+                    'my_gentoo'
+                ],
+                'interactive': True,
+                'command': [
+                    '/bin/sh'
+                ]
+            },
+            'centos': {
+                'interactive': True,
+                'names': [
+                    'my_centos'
+                ],
+                'image': 'centos:latest'
+            }
+        }
+
 
 class DockerBaseTask(ProgressTask):
-    def get_default_host(self):
-        hostid = self.dispatcher.call_sync('docker.get_config').get('default_host')
+    def get_default_host(self, progress_cb=None):
+        if progress_cb:
+            progress_cb(0, '')
+        hostid = self.dispatcher.call_sync('docker.config.get_config').get('default_host')
         if not hostid:
+            hostid = self.datastore.query(
+                'vms',
+                ('config.docker_host', '=', True),
+                single=True,
+                select='id'
+            )
+            if hostid:
+                self.join_subtasks(self.run_subtask('docker.config.update', {'default_host': hostid}))
+                return hostid
+
             host_name = 'docker_host_' + str(self.dispatcher.call_sync(
                 'vm.query', [('name', '~', 'docker_host_')], {'count': True}
             ))
@@ -143,11 +296,14 @@ class DockerBaseTask(ProgressTask):
             if not biggest_volume:
                 raise TaskException(errno.ENOENT, 'No pools available. Docker host could not be created.')
 
-            self.join_subtasks(self.run_subtask('vm.create', {
-                'name': host_name,
-                'template': {'name': 'boot2docker'},
-                'target': biggest_volume
-            }))
+            self.join_subtasks(self.run_subtask(
+                'vm.create', {
+                    'name': host_name,
+                    'template': {'name': 'boot2docker'},
+                    'target': biggest_volume
+                },
+                progress_callback=progress_cb
+            ))
 
             hostid = self.dispatcher.call_sync(
                 'vm.query',
@@ -157,6 +313,8 @@ class DockerBaseTask(ProgressTask):
 
             self.join_subtasks(self.run_subtask('vm.start', hostid))
 
+        if progress_cb:
+            progress_cb(100, 'Found default Docker host')
         return hostid
 
     def check_host_state(self, hostid):
@@ -176,10 +334,10 @@ class DockerBaseTask(ProgressTask):
 class DockerUpdateTask(Task):
     @classmethod
     def early_describe(cls):
-        return "Updating Docker global configuration"
+        return 'Updating Docker global configuration'
 
     def describe(self, container):
-        return TaskDescription("Updating Docker global configuration")
+        return TaskDescription('Updating Docker global configuration')
 
     def verify(self, updated_params):
         return ['system']
@@ -187,37 +345,63 @@ class DockerUpdateTask(Task):
     def run(self, updated_params):
         node = ConfigNode('container.docker', self.configstore)
         node.update(updated_params)
+        state = node.__getstate__()
+        if 'api_forwarding' in updated_params:
+            try:
+                if state['api_forwarding_enable']:
+                    self.dispatcher.call_sync('containerd.docker.set_api_forwarding', state['api_forwarding'])
+                else:
+                    self.dispatcher.call_sync('containerd.docker.set_api_forwarding', None)
+            except RpcException as err:
+                self.add_warning(
+                    TaskWarning(err.code, err.message)
+                )
 
 
 @description('Creates a Docker container')
-@accepts(h.ref('docker-container'))
+@accepts(h.all_of(
+    h.ref('docker-container'),
+    h.required('names', 'image')
+))
 class DockerContainerCreateTask(DockerBaseTask):
     @classmethod
     def early_describe(cls):
-        return "Creating a Docker container"
+        return 'Creating a Docker container'
 
     def describe(self, container):
-        return TaskDescription("Creating Docker container {name}".format(name=container['names'][0]))
+        return TaskDescription('Creating Docker container {name}'.format(name=container['names'][0]))
 
     def verify(self, container):
+        if not container.get('names'):
+            raise VerifyException(errno.EINVAL, 'Container name must be specified')
+
+        if not container.get('image'):
+            raise VerifyException(errno.EINVAL, 'Image name must be specified')
+
         return []
 
     def run(self, container):
+        self.set_progress(0, 'Checking Docker host state')
         normalize(container, {
             'hostname': None,
             'memory_limit': None,
             'volumes': [],
             'ports': [],
             'expose_ports': False,
+            'autostart': False,
+            'command': [],
+            'environment': [],
+            'interactive': False
         })
 
-        # Check if we have required image
-        pass
-
         if not container.get('host'):
-            container['host'] = self.get_default_host()
+            container['host'] = self.get_default_host(
+                lambda p, m, e=None: self.chunk_progress(0, 30, 'Looking for default Docker host:', p, m, e)
+            )
 
         self.check_host_state(container['host'])
+
+        self.set_progress(30, 'Pulling container {0} image'.format(container['image']))
 
         image = self.dispatcher.call_sync(
             'docker.image.query',
@@ -226,10 +410,44 @@ class DockerContainerCreateTask(DockerBaseTask):
         )
 
         if not image:
-            self.join_subtasks(self.run_subtask('docker.image.pull', container['image'], container['host']))
+            self.join_subtasks(self.run_subtask(
+                'docker.image.pull',
+                container['image'],
+                container['host'],
+                progress_callback=lambda p, m, e=None: self.chunk_progress(
+                    30, 90, 'Pulling container {0} image:'.format(container['image']), p, m, e
+                )
+            ))
+
+        parent_dir = container.pop('parent_directory', None)
+        if parent_dir:
+            templates = self.dispatcher.call_sync('docker.image.get_templates')
+            for k, t in templates.items():
+                if t['image'] == container['image']:
+                    container['volumes'] = copy.deepcopy(t.get('volumes', []))
+                    for v in container['volumes']:
+                        v['host_path'] = os.path.join(parent_dir, v['host_path'])
+                        try:
+                            os.makedirs(v['host_path'])
+                        except FileExistsError:
+                            pass
+                        except OSError as err:
+                            raise TaskException(
+                                errno.EACCES,
+                                'Parent directory {0} could not be created: {1}'.format(parent_dir, err)
+                            )
+                    break
+            else:
+                raise TaskException(
+                    errno.EINVAL,
+                    'Template for container {0} does not exist'.format(container['image'])
+                )
 
         container['name'] = container['names'][0]
+
+        self.set_progress(90, 'Creating container {0}'.format(container['name']))
         self.dispatcher.call_sync('containerd.docker.create', container)
+        self.set_progress(100, 'Finished')
 
 
 @description('Deletes a Docker container')
@@ -237,10 +455,13 @@ class DockerContainerCreateTask(DockerBaseTask):
 class DockerContainerDeleteTask(ProgressTask):
     @classmethod
     def early_describe(cls):
-        return "Deleting a Docker container"
+        return 'Deleting a Docker container'
 
     def describe(self, id):
-        return TaskDescription("Deleting Docker container {name}".format(name=id))
+        name = self.dispatcher.call_sync(
+            'docker.container.query', [('id', '=', id)], {'single': True, 'select': 'names.0'}
+        )
+        return TaskDescription('Deleting Docker container {name}'.format(name=name or id))
 
     def verify(self, id):
         return []
@@ -254,10 +475,13 @@ class DockerContainerDeleteTask(ProgressTask):
 class DockerContainerStartTask(Task):
     @classmethod
     def early_describe(cls):
-        return "Starting container"
+        return 'Starting container'
 
     def describe(self, id):
-        return TaskDescription("Starting container {name}".format(name=id))
+        name = self.dispatcher.call_sync(
+            'docker.container.query', [('id', '=', id)], {'single': True, 'select': 'names.0'}
+        )
+        return TaskDescription('Starting container {name}'.format(name=name or id))
 
     def verify(self, id):
         return []
@@ -271,10 +495,13 @@ class DockerContainerStartTask(Task):
 class DockerContainerStopTask(Task):
     @classmethod
     def early_describe(cls):
-        return "Stopping container"
+        return 'Stopping container'
 
     def describe(self, id):
-        return TaskDescription("Stopping container {name}".format(name=id))
+        name = self.dispatcher.call_sync(
+            'docker.container.query', [('id', '=', id)], {'single': True, 'select': 'names.0'}
+        )
+        return TaskDescription('Stopping container {name}'.format(name=name or id))
 
     def verify(self, id):
         return []
@@ -284,39 +511,41 @@ class DockerContainerStopTask(Task):
 
 
 @description('Pulls a selected container image from Docker Hub and caches it on specified Docker host')
-@accepts(str, str)
+@accepts(str, h.one_of(str, None))
 class DockerImagePullTask(DockerBaseTask):
     @classmethod
     def early_describe(cls):
-        return "Pulling docker image"
+        return 'Pulling docker image'
 
     def describe(self, name, hostid):
-        return TaskDescription("Pulling docker image {name}".format(name=name))
+        return TaskDescription('Pulling docker image {name}'.format(name=name))
 
     def verify(self, name, hostid):
         return []
 
     def run(self, name, hostid):
         if not hostid:
-            hostid = self.get_default_host()
+            hostid = self.get_default_host(
+                lambda p, m, e=None: self.chunk_progress(0, 100, 'Looking for default Docker host:', p, m, e)
+            )
 
         self.check_host_state(hostid)
 
         for i in self.dispatcher.call_sync('containerd.docker.pull', name, hostid, timeout=3600):
-            if 'progressDetail' in i and 'current' in i['progressDetail']:
+            if 'progressDetail' in i and 'current' in i['progressDetail'] and 'total' in i['progressDetail']:
                 percentage = i['progressDetail']['current'] / i['progressDetail']['total'] * 100
-                self.set_progress(percentage, '{0} layer {1}'.format(i['status'], i['id']))
+                self.set_progress(percentage, '{0} layer {1}'.format(i.get('status', ''), i.get('id', '')))
 
 
 @description('Removes previously cached container image from a Docker host')
-@accepts(str, str)
+@accepts(str, h.one_of(str, None))
 class DockerImageDeleteTask(DockerBaseTask):
     @classmethod
     def early_describe(cls):
-        return "Deleting docker image"
+        return 'Deleting docker image'
 
     def describe(self, name, hostid):
-        return TaskDescription("Deleting docker image {name}".format(name=name))
+        return TaskDescription('Deleting docker image {name}'.format(name=name))
 
     def verify(self, name, hostid):
         return []
@@ -397,9 +626,9 @@ def _init(dispatcher, plugin):
                 )
                 if host:
                     logger.debug('Docker host {0} created'.format(host['name']))
-                    default_host = dispatcher.call_sync('docker.get_config').get('default_host')
+                    default_host = dispatcher.call_sync('docker.config.get_config').get('default_host')
                     if not default_host:
-                        dispatcher.call_task_sync('docker.update', {'default_host': host['id']})
+                        dispatcher.call_task_sync('docker.config.update', {'default_host': host['id']})
                         logger.info('Docker host {0} set automatically as default Docker host'.format(host['name']))
                     dispatcher.dispatch_event('docker.host.changed', {
                         'operation': 'create',
@@ -407,7 +636,7 @@ def _init(dispatcher, plugin):
                     })
 
         elif args['operation'] == 'delete':
-            if dispatcher.call_sync('docker.get_config').get('default_host') in args['ids']:
+            if dispatcher.call_sync('docker.config.get_config').get('default_host') in args['ids']:
                 host = dispatcher.datastore.query(
                     'vms',
                     ('config.docker_host', '=', True),
@@ -427,7 +656,7 @@ def _init(dispatcher, plugin):
                     )
                     host_id = None
 
-                dispatcher.call_task_sync('docker.update', {'default_host': host_id})
+                dispatcher.call_task_sync('docker.config.update', {'default_host': host_id})
 
     def on_image_event(args):
         logger.trace('Received Docker image event: {0}'.format(args))
@@ -472,12 +701,12 @@ def _init(dispatcher, plugin):
         sync_cache(containers, containers_query)
         containers.ready = True
 
-    plugin.register_provider('docker', DockerProvider)
+    plugin.register_provider('docker.config', DockerConfigProvider)
     plugin.register_provider('docker.host', DockerHostProvider)
     plugin.register_provider('docker.container', DockerContainerProvider)
     plugin.register_provider('docker.image', DockerImagesProvider)
 
-    plugin.register_task_handler('docker.update', DockerUpdateTask)
+    plugin.register_task_handler('docker.config.update', DockerUpdateTask)
 
     plugin.register_task_handler('docker.container.create', DockerContainerCreateTask)
     plugin.register_task_handler('docker.container.delete', DockerContainerDeleteTask)
@@ -504,7 +733,9 @@ def _init(dispatcher, plugin):
         'type': 'object',
         'additionalProperties': False,
         'properties': {
-            'default_host': {'type': ['string', 'null']}
+            'default_host': {'type': ['string', 'null']},
+            'api_forwarding': {'type': ['string', 'null']},
+            'api_forwarding_enable': {'type': 'boolean'}
         }
     })
 
@@ -556,9 +787,12 @@ def _init(dispatcher, plugin):
             'status': {'type': ['string', 'null']},
             'memory_limit': {'type': ['integer', 'null']},
             'expose_ports': {'type': 'boolean'},
+            'autostart': {'type': 'boolean'},
+            'running': {'type': 'boolean'},
+            'interactive': {'type': 'boolean'},
             'environment': {
-                'type': 'object',
-                'additionalProperties': {'type': 'string'}
+                'type': 'array',
+                'items': {'type': 'string'}
             },
             'ports': {
                 'type': 'array',
@@ -583,7 +817,8 @@ def _init(dispatcher, plugin):
             'volumes': {
                 'type': 'array',
                 'items': {'$ref': 'docker-volume'}
-            }
+            },
+            'parent_directory': {'type': 'string'}
         }
     })
 
@@ -597,7 +832,8 @@ def _init(dispatcher, plugin):
                 'items': {'type': 'string'}
             },
             'size': {'type': 'integer'},
-            'host': {'type': ['string', 'null']}
+            'host': {'type': ['string', 'null']},
+            'created_at': {'type': 'string'}
         }
     })
 
@@ -632,5 +868,15 @@ def _init(dispatcher, plugin):
 
     if 'containerd.docker' in dispatcher.call_sync('discovery.get_services'):
         init_cache()
+
+    if not dispatcher.call_sync('docker.config.get_config').get('default_host'):
+        host_id = dispatcher.datastore.query(
+            'vms',
+            ('config.docker_host', '=', True),
+            single=True,
+            select='id'
+        )
+        if host_id:
+            dispatcher.call_task_sync('docker.config.update', {'default_host': host_id})
 
     gevent.spawn(sync_caches)

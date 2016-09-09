@@ -245,7 +245,7 @@ def drop_share_connections(share):
 
 
 def convert_share(ret, path, enabled, share):
-    vfs_objects = []
+    vfs_objects = ['zfsacl', 'zfs_space', 'aio_pthread']
     ret.clear()
     ret['path'] = path
     ret['available'] = yesno(enabled)

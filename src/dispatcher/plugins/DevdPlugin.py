@@ -102,14 +102,17 @@ class DeviceInfoPlugin(Provider):
     def _get_class_network(self):
         result = []
         for i in list(netif.list_interfaces().keys()):
-            if i.startswith('lo'):
+            if i.startswith(tuple(netif.CLONED_PREFIXES)):
                 continue
 
-            desc = get_sysctl(re.sub('(\w+)([0-9]+)', 'dev.\\1.\\2.%desc', i))
-            result.append({
-                'name': i,
-                'description': desc
-            })
+            try:
+                desc = get_sysctl(re.sub('(\w+)([0-9]+)', 'dev.\\1.\\2.%desc', i))
+                result.append({
+                    'name': i,
+                    'description': desc
+                })
+            except FileNotFoundError:
+                continue
 
         return result
 
@@ -164,6 +167,8 @@ class DevdEventSource(EventSource):
         self.register_event_type("fs.zfs.dataset.created")
         self.register_event_type("fs.zfs.dataset.deleted")
         self.register_event_type("fs.zfs.dataset.renamed")
+        self.register_event_type("fs.zfs.snapshot.cloned")
+
 
     def __tokenize(self, buffer):
         try:
@@ -237,6 +242,7 @@ class DevdEventSource(EventSource):
             "misc.fs.zfs.dataset_delete": ("fs.zfs.dataset.deleted", "Dataset on pool {0} deleted"),
             "misc.fs.zfs.dataset_rename": ("fs.zfs.dataset.renamed", "Dataset on pool {0} renamed"),
             "misc.fs.zfs.dataset_setprop": ("fs.zfs.dataset.setprop", "Property of dataset on pool {0} changed"),
+            "misc.fs.zfs.snapshot_clone": ("fs.zfs.snapshot.cloned", "Snapshot {0} cloned"),
             "misc.fs.zfs.vdev_add": ("fs.zfs.vdev.created", "Vdev on pool {0} created"),
             "misc.fs.zfs.vdev_attach": ("fs.zfs.vdev.attached", "Vdev on pool {0} attached"),
             "misc.fs.zfs.vdev_remove": ("fs.zfs.vdev.removed", "Vdev on pool {0} removed"),

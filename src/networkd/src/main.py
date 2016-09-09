@@ -564,6 +564,13 @@ class ConfigurationService(RpcService):
         proc.communicate(resolv.getvalue().encode('utf8'))
         proc.wait()
         resolv.close()
+
+        if not self.context.configstore.get('network.dhcp.assign_dns'):
+            # Purge DNS entries from all other interfaces
+            out = subprocess.check_output(['/sbin/resolvconf', '-i']).decode('ascii')
+            for i in filter(lambda i: i != 'lo0', out.split()):
+                subprocess.call(['/sbin/resolvconf', '-d', i])
+
         self.client.emit_event('network.dns.configured', {
             'addresses': addrs,
         })
@@ -852,6 +859,10 @@ class Main(object):
             self.client.emit_event('network.interface.changed', {
                 'operation': 'update',
                 'ids': [interface]
+            })
+
+            self.client.emit_event('network.changed', {
+                'operation': 'update'
             })
 
         client = dhcp.client.Client(interface, lambda: socket.gethostname())

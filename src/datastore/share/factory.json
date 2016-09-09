@@ -357,10 +357,12 @@
             "container.network.management": "169.254.16.1/20",
             "container.network.nat": "169.254.32.1/20",
             "container.docker.default_host": null,
+            "container.docker.api_forwarding": null,
+            "container.docker.api_forwarding_enable": false,
             "container.cache_refresh_interval": 60,
             "storage.hotsparing.autoreplace": true,
             "storage.hotsparing.strong_match": false,
-            "directory.search_order": [],
+            "directory.search_order": ["local", "system"],
             "directory.cache_ttl": 3600,
             "directory.cache_enumerations": true,
             "directory.cache_lookups": true

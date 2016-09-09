@@ -477,6 +477,7 @@ def _init(dispatcher, plugin):
             'state': {'type': 'string'},
             'city': {'type': 'string'},
             'organization': {'type': 'string'},
+            'passphrase': {'type': ['string', 'null']},
             'email': {'type': 'string'},
             'common': {'type': 'string'},
             'serial': {'type': ['integer', 'null']},

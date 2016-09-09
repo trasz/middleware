@@ -20,22 +20,29 @@ class Task(object):
         self.dispatcher = dispatcher
         self.method = method
 
-    def run(self, req, urlparams, get_args=None):
+    def run(self, req, urlparams, get_args=None, asynchronous=False):
         if get_args is None:
             get_args = getattr(self.resource, 'run_{0}'.format(self.method), None)
         if get_args:
             args = get_args(req, urlparams)
         else:
-            args = []
-            if 'id' in urlparams:
-                args.append(urlparams['id'])
             if 'doc' in req.context:
-                args.append(req.context['doc'])
+                args = req.context['doc']
+            else:
+                args = []
         try:
             log.debug('Calling task {0} with args {1}'.format(self.name, args))
-            result = self.dispatcher.call_task_sync(self.name, *args)
+            if asynchronous:
+                result = self.dispatcher.call_task_async(self.name, *args)
+            else:
+                result = self.dispatcher.call_task_sync(self.name, *args)
         except RpcException as e:
             raise falcon.HTTPBadRequest(e.message, str(e))
+
+        if asynchronous:
+            log.debug('Task {0} sent: #{1}'.format(self.name, pprint.pformat(result)))
+            return result
+
         log.debug('Task {0} finished: {1}'.format(self.name, pprint.pformat(result)))
         if result['state'] != 'FINISHED':
             if result['error']:
@@ -142,7 +149,7 @@ class Resource(object):
                 falcon.HTTP_500, 'Internal Error', 'No valid operation provided'
             )
         type_, name = method_op.split(':', 1)
-        assert type_ in ('task', 'rpc')
+        assert type_ in ('atask', 'task', 'rpc')
         return type_, name
 
     def do(self, method, req, resp, **urlparams):
@@ -155,6 +162,9 @@ class Resource(object):
         if type_ == 'task':
             t = Task(self, req.context['client'], method, name=name)
             rv = req.context['result'] = t.run(req, urlparams)['result']
+        elif type_ == 'atask':
+            t = Task(self, req.context['client'], method, name=name)
+            rv = req.context['result'] = t.run(req, urlparams, asynchronous=True)
         else:
             r = RPC(self, req.context['client'], method, name=name)
             rv = req.context['result'] = r.run(req, urlparams)
@@ -172,7 +182,7 @@ class Resource(object):
             if method_op is None:
                 continue
             type_, name = self._get_type_name(method_op)
-            if type_ == 'task':
+            if type_ in ('atask', 'task'):
                 op = self.rest._tasks[name]
             else:
                 op = self.rest._rpcs[name]
@@ -212,7 +222,7 @@ class Resource(object):
 
             if i in ('post', 'put'):
 
-                if type_ == 'task':
+                if type_ in ('atask', 'task'):
                     schema = op.get('schema', [None])
                     if schema:
                         schema = schema[0 if i == 'post' else -1]
@@ -286,7 +296,8 @@ class EntityResource(Resource, ResourceQueryMixin):
     def do(self, method, req, resp, *args, **kwargs):
         rv = super(EntityResource, self).do(method, req, resp, *args, **kwargs)
         if method == 'post':
-            if rv:
+            typ, name = self._get_type_name(self.post)
+            if rv and typ != 'atask':
                 """
                 Generally in CRUD a POST will mean item creation and the goal
                 here is to return the item created.
@@ -302,6 +313,12 @@ class EntityResource(Resource, ResourceQueryMixin):
             resp.status = falcon.HTTP_201
         return rv
 
+    def run_post(self, req, urlparams):
+        args = []
+        if 'doc' in req.context:
+            args.append(req.context['doc'])
+        return args
+
 
 class ItemResource(Resource):
 
@@ -315,6 +332,26 @@ class ItemResource(Resource):
         if id.isdigit():
             id = int(id)
         return [[('id', '=', id)], {'single': True}], {}
+
+    def _run_common(self, req, urlparams):
+        """
+        Common method to get the id from url and use a first task arg
+        """
+        args = []
+        if 'id' in urlparams:
+            args.append(urlparams['id'])
+        if 'doc' in req.context:
+            args.append(req.context['doc'])
+        return args
+
+    def run_post(self, req, urlparams):
+        return self._run_common(req, urlparams)
+
+    def run_put(self, req, urlparams):
+        return self._run_common(req, urlparams)
+
+    def run_delete(self, req, urlparams):
+        return self._run_common(req, urlparams)
 
     def do(self, method, req, resp, *args, **kwargs):
         rv = super(ItemResource, self).do(method, req, resp, *args, **kwargs)
@@ -369,11 +406,22 @@ class ProviderMixin:
             return self.get[4:].rsplit('.', 1)[0]
 
 
+class SingleItemResource(Resource):
+
+    def run_put(self, req, urlparams):
+        args = []
+        if 'id' in urlparams:
+            args.append(urlparams['id'])
+        if 'doc' in req.context:
+            args.append(req.context['doc'])
+        return args
+
+
 class SingleItemBase(object):
 
     name = None
     namespace = None
-    resource_class = Resource
+    resource_class = SingleItemResource
 
     subresources = None
 
@@ -406,6 +454,9 @@ class CRUDBase(object):
     name = None
     namespace = None
 
+    entity_get = None
+    entity_post = None
+
     entity_class = EntityResource
     item_class = ItemResource
 
@@ -414,18 +465,28 @@ class CRUDBase(object):
 
     def __init__(self, rest, dispatcher):
 
-        get = self.get_retrieve_method_name()
-        post = self.get_create_method_name()
+        if self.entity_get:
+            get = self.entity_get
+        else:
+            get = self.get_retrieve_method_name()
+            get = 'rpc:{0}'.format(get) if get else None
+
+        if self.entity_post:
+            post = self.entity_post
+        else:
+            post = self.get_create_method_name()
+            post = 'task:{0}'.format(post) if post else None
+
         put = self.get_update_method_name()
         delete = self.get_delete_method_name()
 
         self.entity = type('{0}EntityResource'.format(self.__class__.__name__), (ProviderMixin, self.entity_class, ), {
             'name': self.name or self.namespace.replace('.', '/'),
-            'get': 'rpc:{0}'.format(get) if get else None,
-            'post': 'task:{0}'.format(post) if post else None,
+            'get': get,
+            'post': post,
         })(rest)
         self.item = type('{0}ItemResource'.format(self.__class__.__name__), (self.item_class, ), {
-            'get': 'rpc:{0}'.format(get) if get else None,
+            'get': get,
             'put': 'task:{0}'.format(put) if put else None,
             'delete': 'task:{0}'.format(delete) if delete else None,
         })(rest, parent=self.entity)

@@ -78,6 +78,7 @@ NSS_METHOD_PROTOTYPE(nss_freenas_ghbyname);
 
 static json_t *flat_users;
 static json_t *flat_groups;
+static connection_t *conn = NULL;
 
 static int pw_idx = 0;
 static json_t *pw_results = NULL;
@@ -91,11 +92,12 @@ static char *
 alloc_string(char **buf, size_t *max, const char *str)
 {
 	size_t length;
-	char *ret;
+	char *ret = *buf;
 
-	ret = *buf;
+	if (str == NULL)
+		str = "";
 
-	length = str != NULL ? strlen(str) + 1 : 0;
+	length = strlen(str) + 1;
 
 	if (length > *max)
 		return (NULL);
@@ -246,23 +248,20 @@ populate_user(json_t *user, struct passwd *pwbuf, char *buf, size_t buflen)
 	pwbuf->pw_gid = json_integer_value(obj);
 
 	obj = json_object_get(user, "full_name");
-	if (obj != NULL)
-		pwbuf->pw_gecos = alloc_string(&buf, &buflen,
-		    json_string_value(obj));
+	pwbuf->pw_gecos = alloc_string(&buf, &buflen,
+	    json_string_value(obj));
 
 	obj = json_object_get(user, "shell");
-	if (obj != NULL)
-		pwbuf->pw_shell = alloc_string(&buf, &buflen,
-		    json_string_value(obj));
+	pwbuf->pw_shell = alloc_string(&buf, &buflen,
+	    json_string_value(obj));
 
 	obj = json_object_get(user, "home");
-	if (obj != NULL)
-		pwbuf->pw_dir = alloc_string(&buf, &buflen,
-		    json_string_value(obj));
+	pwbuf->pw_dir = alloc_string(&buf, &buflen,
+	    json_string_value(obj));
 
 	obj = json_object_get(user, "unixhash");
 	pwbuf->pw_passwd = alloc_string(&buf, &buflen,
-	obj != NULL ? json_string_value(obj) : "*");
+	    obj != NULL ? json_string_value(obj) : "*");
 
 	pwbuf->pw_class = alloc_string(&buf, &buflen, "default");
 }
@@ -337,8 +336,8 @@ call_dispatcher(const char *method, json_t *args, json_t **result)
 {
 	struct timespec ts;
 	struct timeval tv;
-	connection_t *conn;
 	rpc_call_t *call;
+	connection_t *conn;
 
 	conn = dispatcher_open("unix:///var/run/dscached.sock");
 	if (conn == NULL)
@@ -375,7 +374,6 @@ static rpc_call_t *
 call_dispatcher_stream(const char *method, json_t *args, json_t **result)
 {
         struct timespec ts;
-        connection_t *conn;
         rpc_call_t *call;
 
         conn = dispatcher_open("unix:///var/run/dscached.sock");
@@ -563,6 +561,11 @@ nss_freenas_endpwent(void *retval, void *mdata, va_list ap)
 	pw_idx = 0;
 	pw_results = NULL;
 
+	if (conn != NULL) {
+		dispatcher_close(conn);
+		conn = NULL;
+	}
+
 	return (NS_SUCCESS);
 }
 
@@ -716,6 +719,11 @@ nss_freenas_endgrent(void *retval, void *mdata, va_list ap)
 
 	pw_idx = 0;
 	pw_results = NULL;
+
+	if (conn != NULL) {
+		dispatcher_close(conn);
+		conn = NULL;
+	}
 
 	return (NS_SUCCESS);
 }

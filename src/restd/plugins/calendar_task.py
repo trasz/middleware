@@ -1,15 +1,12 @@
-from base import CRUDBase, Resource
+from base import CRUDBase, ItemResource, Resource
 
 
 class CommandResource(Resource):
     name = 'command'
     post = 'task:calendar_task.command'
 
-    def run_post(self, req, urlparams):
-        return req.context['doc']
 
-
-class RunResource(Resource):
+class RunResource(ItemResource):
     name = 'run'
     post = 'task:calendar_task.run'
 

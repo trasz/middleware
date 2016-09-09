@@ -2,7 +2,7 @@
 # $FreeBSD$
 
 PORTNAME=	netatalk
-PORTVERSION=	3.1.8
+PORTVERSION=	3.1.9
 PORTEPOCH=	1
 CATEGORIES=	net
 MASTER_SITES=	SF
@@ -13,11 +13,12 @@ COMMENT=	File server for Mac OS X
 
 LICENSE=	GPLv2
 
-LIB_DEPENDS=	libgcrypt.so:${PORTSDIR}/security/libgcrypt \
-    		libevent.so:${PORTSDIR}/devel/libevent2
+LIB_DEPENDS=	libgcrypt.so:security/libgcrypt \
+		libevent.so:devel/libevent2
 
 USE_BDB=	5+
-USES=		iconv gmake pkgconfig perl5 libtool tar:bzip2
+USE_OPENSSL=	yes
+USES=		iconv gmake pkgconfig libtool tar:bzip2
 GNU_CONFIGURE=	yes
 USE_LDCONFIG=	yes
 USE_RC_SUBR=	netatalk
@@ -30,7 +31,8 @@ CONFIGURE_ARGS+=	--with-pkgconfdir=${PREFIX}/etc \
 			--localstatedir=/var \
 			--disable-bundled-libevent \
 			--with-libevent-header=${LOCALBASE}/include \
-			--with-libevent-lib=${LOCALBASE}/lib
+			--with-libevent-lib=${LOCALBASE}/lib \
+			--with-ssl-dir=${OPENSSLBASE}
 
 OPTIONS_DEFINE=PAM KRB5 LDAP SENDFILE KERBEROS DBUS MYSQL ACL TCPWRAP
 OPTIONS_DEFAULT=KERBEROS DBUS TCPWRAP
@@ -84,21 +86,25 @@ SUB_LIST+=		ZEROCONF=""
 
 .if ${PORT_OPTIONS:MAVAHI}
 CONFIGURE_ARGS+=	--enable-zeroconf=${LOCALBASE}
-CFLAGS+=		-I${LOCALBASE}/include -L${LOCALBASE}/lib
-LIB_DEPENDS+=		libavahi-client.so:${PORTSDIR}/net/avahi-app
+CFLAGS+=		-I${LOCALBASE}/include
+LDFLAGS+=		-L${LOCALBASE}/lib
+LIB_DEPENDS+=		libavahi-client.so:net/avahi-app
 SUB_LIST+=		ZEROCONF="avahi_daemon"
 .endif
 
 .if ${PORT_OPTIONS:MMDNSRESPONDER}
 CONFIGURE_ARGS+=	--enable-zeroconf=${LOCALBASE}
-CFLAGS+=		-I${LOCALBASE}/include -L${LOCALBASE}/lib
-LIB_DEPENDS+=		libdns_sd.so:${PORTSDIR}/net/mDNSResponder
+CONFIGURE_ENV+=		ac_cv_lib_avahi_client_avahi_client_new=no
+CFLAGS+=		-I${LOCALBASE}/include
+LDFLAGS+=		-L${LOCALBASE}/lib
+LIB_DEPENDS+=		libdns_sd.so:net/mDNSResponder
 SUB_LIST+=		ZEROCONF="mdnsd"
 .endif
 
 .if ${PORT_OPTIONS:MLDAP}
 CONFIGURE_ARGS+=	--with-ldap=${LOCALBASE}
-CFLAGS+=		-I${LOCALBASE}/include -L${LOCALBASE}/lib
+CFLAGS+=		-I${LOCALBASE}/include
+LDFLAGS+=		-L${LOCALBASE}/lib
 USE_OPENLDAP=		yes
 .else
 CONFIGURE_ARGS+=	--without-ldap
@@ -112,8 +118,8 @@ CONFIGURE_ARGS+=	--disable-sendfile
 
 .if ${PORT_OPTIONS:MDBUS} || exists(${LOCALBASE}/libdata/pkgconfig/dbus-glib-1.pc)
 USES+=			python:2
-LIB_DEPENDS+=		libdbus-glib-1.so:${PORTSDIR}/devel/dbus-glib
-RUN_DEPENDS+=		${PYTHON_SITELIBDIR}/dbus/_dbus.py:${PORTSDIR}/devel/py-dbus
+LIB_DEPENDS+=		libdbus-glib-1.so:devel/dbus-glib
+RUN_DEPENDS+=		${PYTHON_SITELIBDIR}/dbus/_dbus.py:devel/py-dbus
 PLIST_SUB+=		DBUS=""
 .else
 PLIST_SUB+=		DBUS="@comment "
@@ -126,7 +132,7 @@ CONFIGURE_ARGS+=--with-mysql-config=/nonexistent
 .endif
 
 .if ${PORT_OPTIONS:MACL}
-LIB_DEPENDS+=	libsunacl.so:${PORTSDIR}/sysutils/libsunacl
+LIB_DEPENDS+=	libsunacl.so:sysutils/libsunacl
 CONFIGURE_ARGS+=--with-acls
 .else
 CONFIGURE_ARGS+=--without-acls
@@ -140,7 +146,7 @@ CONFIGURE_ARGS+=--disable-tcp-wrappers
 
 post-patch:
 	@${REINPLACE_CMD} -e 's|%%DB_NAME%%|${BDB_INCLUDE_DIR:T}| ; \
-	    	s|%%DB_LIB%%|-l${BDB_LIB_NAME}|g ; \
+		s|%%DB_LIB%%|-l${BDB_LIB_NAME}|g ; \
 		s|%%LOCALBASE%%|${LOCALBASE}|g' \
 		${WRKSRC}/configure
 

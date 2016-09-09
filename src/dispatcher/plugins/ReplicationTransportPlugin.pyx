@@ -265,23 +265,11 @@ class TransportSendTask(Task):
         cdef uint32_t header_size = 2 * sizeof(uint32_t)
         cdef int rd_fd = fd.fd
         cdef int wr_fd
-
-        client_address = transport.get('client_address')
-        host = self.dispatcher.call_sync(
-            'peer.query',
-            [('address', '=', client_address), ('type', '=', 'replication')],
-            {'single': True}
-        )
-        if not host:
-            raise TaskException(
-                ENOENT,
-                'Client address {0} is not on local known replication hosts list'.format(client_address)
-            )
+        cdef int header_wr = -1
 
         try:
             buffer_size = transport.get('buffer_size', 1024*1024)
-
-            client_address = transport.get('client_address')
+            client_address = socket.gethostbyname(transport.get('client_address'))
             remote_client = get_replication_client(self.dispatcher, client_address)
             server_address = remote_client.call_sync('management.get_sender_address').split(',', 1)[0]
             server_port = transport.get('server_port', 0)
@@ -310,6 +298,7 @@ class TransportSendTask(Task):
 
             if self.sock is None:
                 raise TaskException(EACCES, 'Could not open a socket at address {0}'.format(server_address))
+
             logger.debug('Created a TCP socket at {0}:{1}'.format(*addr))
 
             token_size = transport.get('auth_token_size', 1024)
@@ -420,6 +409,7 @@ class TransportSendTask(Task):
             while True:
                 with nogil:
                     ret = read_fd(rd_fd, buffer, buffer_size, header_size)
+
                 IF REPLICATION_TRANSPORT_DEBUG:
                     logger.debug('Got {0} bytes of payload ({1}:{2})'.format(ret, *self.addr))
 
@@ -443,6 +433,7 @@ class TransportSendTask(Task):
         finally:
             if header_wr != conn_fd:
                 close_fds(header_wr)
+
             if not self.aborted:
                 if ret_wr == -1:
                     raise TaskException(
@@ -561,17 +552,6 @@ class TransportReceiveTask(ProgressTask):
         progress_t = None
 
         server_address = transport.get('server_address')
-        host = self.dispatcher.call_sync(
-            'peer.query',
-            [('address', '=', server_address), ('type', '=', 'replication')],
-            {'single': True}
-        )
-        if not host:
-            raise TaskException(
-                ENOENT,
-                'Server address {0} is not on local known replication hosts list'.format(server_address)
-            )
-
         try:
             buffer_size = transport.get('buffer_size', 1024*1024)
 
@@ -1684,7 +1664,7 @@ def _init(dispatcher, plugin):
         'type': 'object',
         'properties': {
             'name': {'type': 'string'},
-            'type': {'type': 'string'},
+            'type': {'$ref': 'encrypt-plugin-type'},
             'read_fd': {'type': 'fd'},
             'write_fd': {'type': 'fd'},
             'auth_token': {'type': 'string'},
@@ -1693,6 +1673,11 @@ def _init(dispatcher, plugin):
             'buffer_size': {'type': 'integer'}
         },
         'additionalProperties': False
+    })
+
+    plugin.register_schema_definition('encrypt-plugin-type', {
+        'type': 'string',
+        'enum': ['AES128', 'AES192', 'AES256']
     })
 
     plugin.register_schema_definition('decrypt-plugin', {

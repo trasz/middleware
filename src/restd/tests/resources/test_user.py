@@ -13,7 +13,7 @@ class GroupTestCase(CRUDTestCase):
         r = self.client.get(self.name, params={
             'name': 'apitest',
         })
-        self.assertEqual(r.status_code, 200)
+        self.assertEqual(r.status_code, 200, msg=r.text)
         data = r.json()
         if data:
             return data[0]['id'], {
@@ -26,7 +26,7 @@ class GroupTestCase(CRUDTestCase):
         r = self.client.get(self.name, params={
             'name': 'apitest',
         })
-        self.assertEqual(r.status_code, 200)
+        self.assertEqual(r.status_code, 200, msg=r.text)
         data = r.json()
         if data:
             return data[0]['id']
@@ -47,7 +47,7 @@ class UserTestCase(CRUDTestCase):
         r = self.client.get(self.name, params={
             'username': 'apitest',
         })
-        self.assertEqual(r.status_code, 200)
+        self.assertEqual(r.status_code, 200, msg=r.text)
         data = r.json()
         if data:
             return data[0]['id']
@@ -58,7 +58,7 @@ class UserTestCase(CRUDTestCase):
         r = self.client.get(self.name, params={
             'username': 'apitest',
         })
-        self.assertEqual(r.status_code, 200)
+        self.assertEqual(r.status_code, 200, msg=r.text)
         data = r.json()
         if data:
             return data[0]['id'], {

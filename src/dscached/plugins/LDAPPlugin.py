@@ -128,8 +128,8 @@ class LDAPPlugin(DirectoryServicePlugin):
     def getgrgid(self, gid):
         logger.debug('getgrgid(gid={0})'.format(gid))
 
-    def configure(self, enable, uid_min, uid_max, gid_min, gid_max, parameters):
-        self.parameters = parameters
+    def configure(self, enable, directory):
+        self.parameters = directory.parameters
         self.server = ldap3.Server(self.parameters['server'])
         self.base_dn = self.parameters['base_dn']
         self.user_dn = join_dn(self.parameters['user_suffix'], self.base_dn)
@@ -142,7 +142,7 @@ class LDAPPlugin(DirectoryServicePlugin):
         )
 
         self.conn.bind()
-        return dn_to_domain(parameters['base_dn'])
+        return dn_to_domain(directory.parameters['base_dn'])
 
     def authenticate(self, user_name, password):
         with self.bind_lock:

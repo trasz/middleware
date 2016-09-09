@@ -25,10 +25,12 @@
 #
 #####################################################################
 
+import os
 import errno
 import json
 from datastore import DatastoreException
-from datastore.restore import restore_db
+from datastore.restore import restore_db, dump_collection
+from freenas.dispatcher.fd import FileDescriptor
 from freenas.dispatcher.rpc import description
 from task import Task, ProgressTask, TaskException, TaskDescription
 
@@ -42,14 +44,19 @@ class DownloadDatabaseTask(Task):
     def early_describe(cls):
         return 'Downloading current database state'
 
-    def describe(self):
+    def describe(self, fd):
         return TaskDescription('Downloading current database state')
 
-    def verify(self):
-        return ['system']
+    def verify(self, fd):
+        return ['root']
 
-    def run(self):
-        pass
+    def run(self, fd):
+        result = []
+        for i in self.datastore.collection_list():
+            result.append(dump_collection(self.datastore, i))
+
+        with os.fdopen(fd.fd, mode='w') as f:
+            json.dump(result, f)
 
 
 @description('Uploads database state from file')
@@ -58,32 +65,16 @@ class UploadDatabaseTask(Task):
     def early_describe(cls):
         return 'Loading database from file'
 
-    def describe(self):
+    def describe(self, fd):
         return TaskDescription('Loading database from file')
 
-    def verify(self):
-        return ['system']
-
-    def run(self):
-        pass
-
-
-@description('Restores database config to it\'s defaults')
-class RestoreFactoryConfigTask(ProgressTask):
-    @classmethod
-    def early_describe(cls):
-        return 'Restoring database defaults'
-
-    def describe(self):
-        return TaskDescription('Restoring database defaults')
-
-    def verify(self):
+    def verify(self, fd):
         return ['root']
 
-    def run(self):
+    def run(self, fd):
         try:
-            with open(FACTORY_DB, 'r') as fd:
-                dump = json.load(fd)
+            with os.fdopen(fd.fd, 'r') as f:
+                dump = json.load(f)
         except IOError as err:
             raise TaskException(errno.ENOENT, "Cannot open input file: {0}".format(str(err)))
         except ValueError as err:
@@ -100,5 +91,24 @@ class RestoreFactoryConfigTask(ProgressTask):
         self.join_subtasks(self.run_subtask('system.reboot', 1))
 
 
+@description('Restores database config to it\'s defaults')
+class RestoreFactoryConfigTask(ProgressTask):
+    @classmethod
+    def early_describe(cls):
+        return 'Restoring database defaults'
+
+    def describe(self):
+        return TaskDescription('Restoring database defaults')
+
+    def verify(self):
+        return ['root']
+
+    def run(self):
+        with open(FACTORY_DB, 'r') as fd:
+            self.join_subtasks(self.run_subtask('database.restore', FileDescriptor(fd.fileno())))
+
+
 def _init(dispatcher, plugin):
+    plugin.register_task_handler('database.dump', DownloadDatabaseTask)
+    plugin.register_task_handler('database.restore', UploadDatabaseTask)
     plugin.register_task_handler('database.factory_restore', RestoreFactoryConfigTask)

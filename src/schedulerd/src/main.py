@@ -123,6 +123,7 @@ class ManagementService(RpcService):
             args=[task['task']] + task['args'],
             kwargs={
                 'id': task_id,
+                'name': task['name'],
                 'hidden': task.get('hidden', False),
                 'protected': task.get('protected', False)
             },
@@ -276,16 +277,19 @@ class Context(object):
                 time.sleep(1)
 
     def run_job(self, *args, **kwargs):
-        tid = self.client.submit_task(*args)
+        tid = self.client.call_sync('task.submit_with_env', args[0], args[1:], {'RUN_AS_USER': 'root'})
         self.active_tasks[kwargs['id']] = tid
         self.client.call_sync('task.wait', tid, timeout=None)
         result = self.client.call_sync('task.status', tid)
         if result['state'] != 'FINISHED':
             try:
-                self.client.call_sync('alerts.emit', {
+                self.client.call_sync('alert.emit', {
                     'name': 'scheduler.task.failed',
                     'severity': 'CRITICAL',
-                    'description': 'Task {0} has failed: {1}'.format(kwargs['name'], result['error']['message']),
+                    'description': 'Task {0} has failed: {1}'.format(
+                        kwargs.get('name', tid),
+                        result['error']['message']
+                    ),
                 })
             except RpcException as e:
                 self.logger.error('Failed to emit alert', exc_info=True)

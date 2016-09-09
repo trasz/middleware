@@ -91,8 +91,8 @@ class CreateBackupTask(Task):
             'properties': {}
         })
 
+        backup['properties'], = self.join_subtasks(self.run_subtask('backup.{0}.init'.format(backup['provider']), backup))
         id = self.datastore.insert('backup', backup)
-
         self.dispatcher.emit_event('backup.changed', {
             'operation': 'create',
             'ids': [id]

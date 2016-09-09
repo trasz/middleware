@@ -2,9 +2,7 @@ from base import SingleItemBase, Resource, ResourceQueryMixin
 
 
 class ServiceResource(Resource, ResourceQueryMixin):
-
-    def run_put(self, req, urlparams):
-        return req.context['doc']
+    pass
 
 
 class ServiceSingleItem(SingleItemBase):

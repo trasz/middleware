@@ -25,12 +25,11 @@
 #
 #####################################################################
 
-import time
+import errno
+from datetime import datetime
 from task import Provider, query
-from auth import Token
-from freenas.dispatcher.rpc import (
-    description, pass_sender, returns, accepts, generator, SchemaHelper as h
-)
+from freenas.dispatcher.rpc import RpcException, description, pass_sender, returns, accepts, generator, SchemaHelper as h
+from freenas.utils import first_or_default
 
 
 @description("Provides Information about the current loggedin Session")
@@ -46,12 +45,14 @@ class SessionProvider(Provider):
                  "Does not include the service sessions in this.")
     def get_live_user_sessions(self):
         live_user_session_ids = []
-        for conn in self.dispatcher.ws_server.connections:
-            # The if check for 'uid' below is to seperate the actuall gui/cli
-            # users of the websocket connection from that of system services
-            # like etcd, statd and so on.
-            if hasattr(conn.user, 'uid'):
-                live_user_session_ids.append(conn.session_id)
+        for srv in self.dispatcher.ws_servers:
+            for conn in srv.connections:
+                # The if check for 'uid' below is to seperate the actuall gui/cli
+                # users of the websocket connection from that of system services
+                # like etcd, statd and so on.
+                if hasattr(conn.user, 'uid'):
+                    live_user_session_ids.append(conn.session_id)
+
         return self.datastore.query('sessions', ('id', 'in', live_user_session_ids))
 
     @pass_sender
@@ -65,18 +66,36 @@ class SessionProvider(Provider):
     def whoami(self, sender):
         return sender.user.name
 
-    @description("Returns new, valid authentication token")
-    @returns(str)
+    @description("Sends a message to given session")
+    @accepts(int, str)
     @pass_sender
-    def create_token(self, sender):
-        lifetime = self.configstore.get("middleware.token_lifetime")
-        return self.dispatcher.token_store.issue_token(
-            Token(
-                user=sender.user,
-                lifetime=lifetime,
-                revocation_function=sender.logout
-            )
-        )
+    def send_to_session(self, id, message, sender):
+        target = None
+        for srv in self.dispatcher.ws_servers:
+            target = first_or_default(lambda s: s.session_id == id, srv.connections)
+            if target:
+                break
+
+        if not target:
+            raise RpcException(errno.ENOENT, 'Session {0} not found'.format(id))
+
+        target.outgoing_events.put(('session.message', {
+            'sender_id': sender.session_id,
+            'sender_name': sender.user.name if sender.user else None,
+            'message': message
+        }))
+
+    @description("Sends a message to every active session")
+    @accepts(str)
+    @pass_sender
+    def send_to_all(self, message, sender):
+        for srv in self.dispatcher.ws_servers:
+            for target in srv.connections:
+                target.outgoing_events.put(('session.message', {
+                    'sender_id': sender.session_id,
+                    'sender_name': sender.user.name if sender.user else None,
+                    'message': message
+                }))
 
 
 def _init(dispatcher, plugin):
@@ -87,8 +106,8 @@ def _init(dispatcher, plugin):
                 'resource': args['service'],
                 'tty': args['tty'],
                 'active': True,
-                'started-at': time.time(),
-                'ended-at': None
+                'started_at': datetime.utcnow(),
+                'ended_at': None
             })
 
         if args['type'] == 'close_session':
@@ -98,10 +117,10 @@ def _init(dispatcher, plugin):
                 ('resource', '=', args['service']),
                 ('tty', '=', args['tty']),
                 ('active', '=', True),
-                ('ended-at', '=', None)
+                ('ended_at', '=', None)
             )
 
-            session['ended-at'] = time.time()
+            session['ended_at'] = datetime.utcnow()
             session['active'] = False
             dispatcher.datastore.update('session', session['id'], session)
 
@@ -112,10 +131,19 @@ def _init(dispatcher, plugin):
             'resource': {'type': ['string', 'null']},
             'tty': {'type': ['string', 'null']},
             'active': {'type': 'boolean'},
-            'started-at': {'type': 'integer'},
-            'ended-at': {'type': 'integer'}
+            'started_at': {'type': 'datetime'},
+            'ended_at': {'type': 'datetime'}
         }
     })
 
+    # Mark all orphaned sessions as inactive
+    for i in dispatcher.datastore.query('sessions', ('active', '=', True)):
+        i['active'] = False
+        i['ended_at'] = datetime.utcnow()
+        dispatcher.datastore.update('sessions', i['id'], i)
+
+
     plugin.register_provider('session', SessionProvider)
+    plugin.register_event_type('session.changed')
+    plugin.register_event_type('session.message')
     plugin.register_event_handler('system.pam.event', pam_event)

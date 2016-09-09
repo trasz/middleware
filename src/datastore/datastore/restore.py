@@ -25,6 +25,8 @@
 #
 #####################################################################
 
+from freenas.utils import exclude
+
 
 def restore_collection(ds, dump):
     metadata = dump['metadata']
@@ -51,3 +53,18 @@ def restore_db(ds, dump, types=None, progress_callback=None):
         restore_collection(ds, i)
         if progress_callback:
             progress_callback(metadata['name'])
+
+
+def dump_collection(ds, name):
+    metadata = {
+        'name': name,
+        'pkey-type': ds.collection_get_pkey_type(name),
+        'attributes': ds.collection_get_attrs(name),
+        'migration': ds.collection_get_migration_policy(name),
+        'migrations': ds.collection_get_migrations(name)
+    }
+
+    return {
+        'metadata': metadata,
+        'data': {x['id']: exclude(x, 'id') for x in ds.query(name)}
+    }

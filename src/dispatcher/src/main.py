@@ -1153,12 +1153,21 @@ class DispatcherConnection(ServerConnection):
             'username': self.user.name
         })
 
+        self.dispatcher.dispatch_event('session.changed', {
+            'operation': 'create',
+            'ids': [self.session_id]
+        })
+
     def close_session(self):
         if self.session_id:
             session = self.dispatcher.datastore.get_by_id('sessions', self.session_id)
             session['active'] = False
             session['ended_at'] = datetime.datetime.utcnow()
             self.dispatcher.datastore.update('sessions', self.session_id, session)
+            self.dispatcher.dispatch_event('session.changed', {
+                'operation': 'update',
+                'ids': [self.session_id]
+            })
 
         if isinstance(self.user, User):
             self.dispatcher.dispatch_event('server.client_logout', {
@@ -1192,15 +1201,15 @@ class DispatcherConnection(ServerConnection):
 
         self.enabled_features.add(feature)
 
-    def logout(self, reason):
+    def logout(self, token_store, token, token_id):
         args = {
-            "reason": reason,
+            "reason": token.revocation_reason,
         }
         try:
             self.send('events', 'logout', args)
             # Delete the token at logout since otherwise
             # the reconnect will just log the session back in
-            self.dispatcher.token_store.revoke_token(self.token)
+            token_store.revoke_token(token_id)
             self.transport.close()
 
             # geventwebsocket doesn't notify us when we initiate the close
@@ -1245,6 +1254,7 @@ class ShellConnection(WebSocketApplication, EventEmitter):
         self.logger.info('Opening shell %s...', shell)
         env = os.environ.copy()
         env['TERM'] = 'xterm'
+        env['PATH'] = '/sbin:/bin:/usr/sbin:/usr/bin:/usr/local/sbin:/usr/local/bin'
 
         try:
             uinfo = self.dispatcher.call_sync('dscached.account.getpwnam', user)
@@ -1370,10 +1380,14 @@ class FileConnection(WebSocketApplication, EventEmitter):
                     if not data:
                         break
                     self.ws.send(data)
+                    # issue keepalive
+                    self.dispatcher.token_store.keepalive_token(self.token)
                     self.bytes_done = file.tell()
             else:
                 for i in self.inq:
                     file.write(i)
+                    # issue keepalive
+                    self.dispatcher.token_store.keepalive_token(self.token)
                     self.bytes_done = file.tell()
         finally:
             file.close()
@@ -1383,12 +1397,15 @@ class FileConnection(WebSocketApplication, EventEmitter):
 
     def on_open(self, *args, **kwargs):
         self.logger.info("FileConnection Opened")
+        # issue keepalive
+        self.dispatcher.token_store.keepalive_token(self.token)
 
     def on_close(self, *args, **kwargs):
         self.inq.put(StopIteration)
         self.logger.info(
             "File {0} Closed for file {1}".format(self.token.direction, self.token.name)
         )
+        self.dispatcher.token_store.delete_token(self.token)
 
     def on_message(self, message, *args, **kwargs):
         if message is None:
@@ -1404,6 +1421,8 @@ class FileConnection(WebSocketApplication, EventEmitter):
                 return
 
             self.token = self.dispatcher.token_store.lookup_token(message['token'])
+            # issue keepalive
+            self.dispatcher.token_store.keepalive_token(self.token)
             self.authenticated = True
             self.bytes_total = self.token.size
 
@@ -1460,9 +1479,11 @@ class DownloadRequestHandler(object):
                 chunk = self.token.file.read(1024)
                 if chunk == b'':
                     break
-
+                # issue keepalive
+                self.dispatcher.token_store.keepalive_token(self.token)
                 yield chunk
         finally:
+            self.dispatcher.token_store.delete_token(self.token)
             self.token.file.close()
 
 
