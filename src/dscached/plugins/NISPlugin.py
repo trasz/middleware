@@ -52,11 +52,11 @@ class NISPlugin(DirectoryServicePlugin):
     def __monitor(self):
         while True:
             try:
-                yp.ypbind()
-                yp.ypunbind()
+                yp.ypbind(self.nis_domain)
+                yp.ypunbind(self.nis_domain)
                 self.directory.put_state(DirectoryState.BOUND)
             except (OSError) as err:
-                logger.warn('Cannot bind to NIS domain: {0}'.format(str(err)))
+                logger.warn('Cannot bind to NIS domain {0}: {1}'.format(self.nis_domain, str(err)))
                 self.directory.put_state(DirectoryState.JOINING)
             time.sleep(60)
 
@@ -116,11 +116,11 @@ class NISPlugin(DirectoryServicePlugin):
         logger.debug('getpwent(filter={0}, params={1})'.format(filter, params))
         filter = filter or []
         filter.append(('uid', '!=', 0))
-        return query([self.convert_user(i) for i in yp.ypcat("passwd.byname")], *filter, **(params or {}))
+        return query([self.convert_user(i) for i in yp.ypcat("passwd.byname", self.nis_domain)], *filter, **(params or {}))
 
     def getpwnam(self, name):
         logger.debug('getpwnam(name={0})'.format(name))
-        user = self.convert_user(yp.ypmatch(name, "passwd.byname"))
+        user = self.convert_user(yp.ypmatch(name, "passwd.byname", self.nis_domain))
 
         # Try to fill in the unixhash field; authenticate() uses it.
         # Note that this will throw an exception when you're not root;
@@ -129,12 +129,12 @@ class NISPlugin(DirectoryServicePlugin):
         #
         # XXX: Should we do this in all cases, even though it's not
         #      actually needed there?
-        user['unixhash'] = yp.ypmatch(name, "shadow.byname").split(':')[1]
+        user['unixhash'] = yp.ypmatch(name, "shadow.byname", self.nis_domain).split(':')[1]
         return user
 
     def getpwuid(self, uid):
         logger.debug('getpwuid(uid={0})'.format(uid))
-        return self.convert_user(yp.ypmatch(uid, "passwd.byuid"))
+        return self.convert_user(yp.ypmatch(uid, "passwd.byuid", self.nis_domain))
 
     def getpwuuid(self, uuid):
         logger.debug('getpwuuid(uid={0})'.format(uuid))
@@ -146,15 +146,15 @@ class NISPlugin(DirectoryServicePlugin):
         logger.debug('getgrent(filter={0}, params={1})'.format(filter, params))
         filter = filter or []
         filter.append(('gid', '!=', 0))
-        return query([self.convert_group(i) for i in yp.ypcat("group.byname")], *filter, **(params or {}))
+        return query([self.convert_group(i) for i in yp.ypcat("group.byname", self.nis_domain)], *filter, **(params or {}))
 
     def getgrnam(self, name):
         logger.debug('getgrnam(name={0})'.format(name))
-        return self.convert_group(yp.ypmatch(name, "group.byname"))
+        return self.convert_group(yp.ypmatch(name, "group.byname", self.nis_domain))
 
     def getgrgid(self, gid):
         logger.debug('getgrgid(gid={0})'.format(gid))
-        return self.convert_group(yp.ypmatch(gid, "group.bygid"))
+        return self.convert_group(yp.ypmatch(gid, "group.bygid", self.nis_domain))
 
     def getgruuid(self, uuid):
         logger.debug('getgruuid(uid={0})'.format(uuid))
@@ -163,10 +163,11 @@ class NISPlugin(DirectoryServicePlugin):
         return self.getgrent(filter)
 
     def change_password(self, username, old_password, password):
-        yp.yppasswd(username, old_password, password)
+        yp.yppasswd(username, old_password, password, self.nis_domain)
 
     def configure(self, enable, directory):
         self.directory = directory
+        self.nis_domain = directory.parameters['nis_domain']
         directory.put_state(DirectoryState.JOINING)
         if not self.monitor_thread:
             self.monitor_thread = threading.Thread(target=self.__monitor, daemon=True)
@@ -175,3 +176,20 @@ class NISPlugin(DirectoryServicePlugin):
 
 def _init(context):
     context.register_plugin('nis', NISPlugin)
+
+    context.register_schema('nis-directory-params', {
+        'type': 'object',
+        'additionalProperties': False,
+        'properties': {
+            'type': {'enum': ['nis-directory-params']},
+            'nis_domain': {'type': ['string', 'null']}
+        }
+    })
+
+    context.register_schema('nis-directory-status', {
+        'type': 'object',
+        'additionalProperties': False,
+        'properties': {
+            'type': {'enum': ['nis-directory-status']},
+        }
+    })
